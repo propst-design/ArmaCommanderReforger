@@ -1,0 +1,7 @@
+{
+  "mods": [
+    {"id": "AC230926A0010001", "repository": "propst-design/ArmaCommanderReforger"},
+    {"id": "BBB0261015000001", "repository": "propst-design/BetterBattleBuddies"},
+    {"id": "629405AEFC950C12", "repository": "propst-design/AIOCommandMenu"}
+  ]
+}

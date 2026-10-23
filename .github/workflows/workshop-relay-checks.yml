@@ -1,0 +1,18 @@
+name: Workshop relay checks
+on:
+  pull_request:
+    paths: ['tools/workshop_relay/**', 'docs/workshop-relay.md', '.github/workflows/workshop-relay*.yml']
+  push:
+    branches: [main]
+    paths: ['tools/workshop_relay/**', 'docs/workshop-relay.md', '.github/workflows/workshop-relay*.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Exercise delivery, restart and outage behavior without secrets or network
+        run: python3 -m unittest discover -s tools/workshop_relay -p 'test_*.py' -v

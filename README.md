@@ -153,6 +153,8 @@ Logs: normal play uses `Documents/My Games/ArmaReforger/logs`. Mod lines use
 
 See [MISSION-MAKING.md](MISSION-MAKING.md) to build scenarios in your own addon.
 
+Maintainers: [Workshop-to-Discord changelog relay setup and recovery](docs/workshop-relay.md).
+
 ## Made with AI
 
 This project is openly vibecoded. Nearly all of the code, launchers and documentation
