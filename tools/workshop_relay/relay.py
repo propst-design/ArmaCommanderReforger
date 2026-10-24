@@ -313,6 +313,16 @@ def webhook_url(value):
     return up.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, up.urlencode(query), ""))
 
 
+def verify_webhook(http, webhook):
+    parsed = up.urlsplit(webhook)
+    url = up.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+    result, _ = http.request("GET", url)
+    if not isinstance(result, dict) or result.get("id") != parsed.path.split("/")[-2] or result.get("type") != 1:
+        raise RelayError("Discord webhook identity/type mismatch; incoming webhook required")
+    # Do not print the object: Discord may return the webhook token in it.
+    print("Discord incoming webhook verified without posting")
+
+
 def deliver(entry, state, store, http, webhook):
     job = entry["pending"]
     if job.get("inflight") is not None:
@@ -417,6 +427,8 @@ def main():
             print(f"{mod_id}: {mod['name']} {mod['version']}; {len(rows)} versions; {len(notes)} changelog characters; {len(messages(mod_id, mod['name'], mod['version'], notes))} Discord parts")
         return 0
     webhook = webhook_url(os.environ.get("DISCORD_WEBHOOK_URL", "")) if args.mode == "poll" else None
+    if webhook:
+        verify_webhook(http, webhook)
     token = os.environ.get("GH_TOKEN")
     if not token:
         raise StateError("GH_TOKEN required for durable state")

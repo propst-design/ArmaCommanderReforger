@@ -318,6 +318,18 @@ class RelayTests(unittest.TestCase):
             with self.assertRaises(r.RelayError):
                 r.webhook_url(value)
 
+    def test_webhook_preflight_verifies_identity_without_post_or_token_logging(self):
+        url = 'https://discord.com/api/webhooks/123/test-token?wait=true&thread_id=456'
+        with patch.object(self.http, 'request', return_value=({'id': '123', 'type': 1, 'token': 'must-not-log'}, {})) as request:
+            with patch('sys.stdout', new_callable=io.StringIO) as output:
+                r.verify_webhook(self.http, url)
+            request.assert_called_once_with('GET', 'https://discord.com/api/webhooks/123/test-token')
+            self.assertNotIn('must-not-log', output.getvalue())
+        for result in [{'id': 'wrong', 'type': 1}, {'id': '123', 'type': 2}]:
+            with patch.object(self.http, 'request', return_value=(result, {})):
+                with self.assertRaises(r.RelayError):
+                    r.verify_webhook(self.http, url)
+
     def test_corrupt_entry_does_not_rebaseline(self):
         for entry in [{}, {'seen': 'wrong', 'pending': None}, {'seen': [], 'pending': {}}]:
             with self.assertRaises(r.StateError):

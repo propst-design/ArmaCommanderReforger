@@ -33,8 +33,9 @@ ledgers would post duplicates to the same channel.
    to finish the others; it preserves existing ledgers and does not consume new
    releases for already initialized mods.
 5. Run the same workflow with `mode: poll` once. A green result validates API reads,
-   state access and webhook URL format. With no new version, it does not call
-   Discord, so this is **not** proof of Discord channel permissions or delivery.
+   state access and the webhook's identity/authentication with a read-only Discord
+   request. With no new version, it does not post, so this is **not** proof of
+   Discord channel posting permissions or delivery.
    The first new Workshop release exercises real delivery. Watch that run and the
    channel; no historical release is sent as a test.
 
