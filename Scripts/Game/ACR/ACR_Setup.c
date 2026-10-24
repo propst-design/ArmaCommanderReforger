@@ -204,7 +204,7 @@ class ACR_Setup
  static string Rows()
  {
   string rows;
-  array<string> keys = {"west", "east", "layout", "seed", "threat", "pricing", "ai", "unitcap", "startrp", "income", "shared", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice"};
+  array<string> keys = {"west", "east", "layout", "seed", "threat", "pricing", "ai", "unitcap", "startrp", "income", "shared", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai"};
   foreach (string key : keys)
   {
    if (key == "seed" && !Current("layout").StartsWith("gen:")) continue;
@@ -242,6 +242,9 @@ class ACR_Setup
   if (key == "depotcapacity") return "Depot storage bonus";
   if (key == "servicecost") return "FOB supplies per service load";
   if (key == "rpservice") return "FOB instant infantry service (RP)";
+  if (key == "mines") return "Minefield orders";
+  if (key == "minesreal") return "Own mines";
+  if (key == "minesai") return "AI commanders lay mines";
   return key;
  }
 
@@ -292,6 +295,8 @@ class ACR_Setup
   else if (key == "depotcapacity") values = {"0", "1000", "2000", "4000"};
   else if (key == "servicecost") values = {"5", "10", "20"};
   else if (key == "rpservice") values = {"0", "3", "5"};
+  else if (key == "mines") values = {"1", "0"};
+  else if (key == "minesreal" || key == "minesai") values = {"0", "1"};
   return values;
  }
 
@@ -311,6 +316,9 @@ class ACR_Setup
   if (key == "depotcapacity") return "acrDepotCapacity";
   if (key == "servicecost") return "acrServiceSupplyCost";
   if (key == "rpservice") return "acrFobRPServiceCost";
+  if (key == "mines") return "acrMines";
+  if (key == "minesreal") return "acrMinesRealistic";
+  if (key == "minesai") return "acrMinesAI";
   return "";
  }
 
@@ -349,6 +357,8 @@ class ACR_Setup
    if (key == "depotcapacity") return "2000";
    if (key == "servicecost") return "10";
    if (key == "rpservice") return "3";
+   if (key == "mines") return "1";
+   if (key == "minesreal" || key == "minesai") return "0";
   }
   if (key == "threat" && value == "") return "normal";
   if (key == "pricing" && value == "") return "";
@@ -400,7 +410,9 @@ class ACR_Setup
   if (key == "reinforcement" && value == "settlements") return "settlements + deployment bases";
   if (key == "reinforcement" && value == "deployment") return "deployment bases only";
   if (key == "reinforcement" && value == "all") return "all reinforcement-enabled points";
-  if (key == "shared" || key == "fobrelay")
+  if (key == "minesreal" && value == "1") return "dangerous to all";
+  if (key == "minesreal") return "safe for our AI";
+  if (key == "shared" || key == "fobrelay" || key == "mines" || key == "minesai")
   {
    if (value == "0") return "off";
    return "on";
@@ -779,7 +791,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
    array<string> parts = {};
    line.Split("\t", parts, false);
    if (parts.Count() < 2) continue;
-   bool logistics = parts[0] == "deployment" || parts[0] == "reinforcement" || parts[0] == "fobservices" || parts[0] == "fobrelay" || parts[0] == "depotcapacity" || parts[0] == "servicecost" || parts[0] == "rpservice";
+   bool logistics = parts[0] == "deployment" || parts[0] == "reinforcement" || parts[0] == "fobservices" || parts[0] == "fobrelay" || parts[0] == "depotcapacity" || parts[0] == "servicecost" || parts[0] == "rpservice" || parts[0] == "mines" || parts[0] == "minesreal" || parts[0] == "minesai";
    if (logistics != m_bLogisticsPage) continue;
    Widget widget = GetGame().GetWorkspace().CreateWidgets(LAYOUT_BUTTON, m_wRows);
    if (!widget) continue;

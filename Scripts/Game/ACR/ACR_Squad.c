@@ -29,7 +29,9 @@ enum ACR_EOrderState
  COMMANDED,  // a player commands it through the game's own command menu
  DRIVEN,     // its vehicle is driven by a player in the gunner seat
  BUILD_FOB,   // establishing a forward base
- BUILD_ROADBLOCK // establishing a road checkpoint
+ BUILD_ROADBLOCK, // establishing a road checkpoint
+ LAY_MINES,   // laying a minefield (ACR_Minefields)
+ DISARM_MINES // disarming the armed mines round a point
 }
 
 enum ACR_EMoveMode
@@ -636,6 +638,7 @@ class ACR_Squad : Managed
  float m_fRoadblockLastProgress;
  IEntity m_RoadblockTurret;
  ref ACR_Roadblock m_ActiveRoadblock;
+ ref ACR_MinePlan m_MinePlan;  // the Lay minefield / Disarm mines order at work
 
  static string ModeName(ACR_EMoveMode mode)
  {
@@ -738,6 +741,7 @@ class ACR_Squad : Managed
   if (m_fReservedLoads > 0 || OrderState() == ACR_EOrderState.BUILD_FOB) CancelEstablishFob();
   if (OrderState() == ACR_EOrderState.BUILD_ROADBLOCK) CancelRoadblock();
   if (m_RoadblockTurret) VacateRoadblockTurret();
+  if (m_MinePlan) CancelMineWork();
   m_CombatFlank.Cancel();
   m_bGarrisonPending = false;
   m_iGarrisonTries = 0;
@@ -1308,6 +1312,169 @@ class ACR_Squad : Managed
   }
  }
 
+ // ================================================================ minefields (0.5.7)
+ // ACR_Minefields plans the order; the squad pays, walks to the near edge of the site and
+ // works there: mines go in (or are disarmed) as the work progresses. NewOrder calls off and
+ // refunds whatever job it had.
+ bool LayMinefield(ACR_MinePlan plan)
+ {
+  if (!plan) return false;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager || !manager.m_Bases.Spend(plan.m_sFaction, plan.m_iCost)) return false;
+
+  NewOrder();
+  ClearPlans();
+  m_bRegrouping = false;
+  m_MinePlan = plan;
+  SetOrder(MineLabel("moving to the site"), MineState());
+  m_OrderKind = ACR_EOrderKind.MOVE;
+  m_MoveTarget = plan.m_vStage;
+  IssueWaypoint(WP_MOVE, plan.m_vStage, 4.0);
+  PrintFormat("[ACR] SQUAD %1: %2 at %3, paid %4 RP", m_Name, ACR_Minefields.Name(plan.m_eKind), plan.m_vSite, plan.m_iCost);
+  return true;
+ }
+
+ ACR_EOrderState MineState()
+ {
+  if (m_MinePlan && m_MinePlan.m_eKind == ACR_EMineKind.DISARM) return ACR_EOrderState.DISARM_MINES;
+  return ACR_EOrderState.LAY_MINES;
+ }
+
+ // "Laying AT minefield (40% - contact)", "Disarming mines (3 disarmed)"
+ protected string MineLabel(string status = "")
+ {
+  string label;
+  if (m_MinePlan.m_eKind == ACR_EMineKind.DISARM) label = string.Format("Disarming mines (%1 disarmed", m_MinePlan.m_iDisarmed);
+  else label = string.Format("Laying %1 (%2%%", ACR_Minefields.Name(m_MinePlan.m_eKind), (int)(m_MinePlan.m_fProgress / m_MinePlan.m_fDuration * 100));
+  if (status != "") label += " - " + status;
+  return label + ")";
+ }
+
+ // The order called off (a new order, the squad gone, no progress): the unused share of its
+ // cost comes back (ACR_Minefields.Refund); mines already laid stay.
+ void CancelMineWork(string why = "cancelled")
+ {
+  ACR_MinePlan plan = m_MinePlan;
+  if (!plan) return;
+  bool working = OrderState() == MineState();
+  m_MinePlan = null;
+  int refund = ACR_Minefields.Refund(plan);
+  ACR_Minefields.Finish(plan);
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (manager && refund > 0) manager.m_Bases.Refund(plan.m_sFaction, refund);
+  if (m_iAITask == ACR_EAITask.MINES) m_iAITask = ACR_EAITask.FREE;
+  if (working)
+  {
+   EquipShovels(false);
+   ClearOrders();
+   SetOrder("Holding position", ACR_EOrderState.HOLD);
+  }
+  PrintFormat("[ACR] SQUAD %1: %2 %3, refunded %4 RP", m_Name, ACR_Minefields.Name(plan.m_eKind), why, refund);
+ }
+
+ void TickMineWork(float now)
+ {
+  ACR_MinePlan plan = m_MinePlan;
+  // Something replaced the order without NewOrder: call it off.
+  if (OrderState() != MineState())
+  {
+   CancelMineWork("replaced by another order");
+   return;
+  }
+  float dt = (now - plan.m_fLastTick) / 1000.0;
+  plan.m_fLastTick = now;
+  if (dt <= 0) return;
+  if (dt > 5.0) dt = 1.0;
+  if (CountAlive() <= 0)
+  {
+   CancelMineWork("abandoned: the squad is gone");
+   return;
+  }
+
+  bool present = false;
+  array<AIAgent> agents = {};
+  GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (!body || !ACR_Respawn.IsAlive(body) || vector.DistanceXZ(body.GetOrigin(), plan.m_vSite) > plan.m_fRadius) continue;
+   present = true;
+   break;
+  }
+  if (present && !plan.m_bArrived)
+  {
+   plan.m_bArrived = true;
+   plan.m_fLastProgress = now;
+  }
+  if (!plan.m_bArrived && now > plan.m_fDeadline)
+  {
+   CancelMineWork("abandoned: the squad could not reach the site");
+   return;
+  }
+  if (plan.m_bArrived && now - plan.m_fLastProgress >= FOB_GIVE_UP_MS)
+  {
+   PrintFormat("[ACR] SQUAD %1: minefield work at %2 abandoned after 3 minutes without progress", m_Name, plan.m_vSite);
+   CancelMineWork("abandoned");
+   return;
+  }
+
+  if (ACR_FobBuild.IsContested(plan.m_vSite, plan.m_sFaction) || KnownEnemies(60, true) > 0)
+  {
+   EquipShovels(false);
+   SetOrder(MineLabel("contact"), MineState());
+   return;
+  }
+  if (!present)
+  {
+   if (m_Group && !m_Group.GetCurrentWaypoint() && !HasPlayer()) IssueWaypoint(WP_MOVE, plan.m_vStage, 4.0);
+   SetOrder(MineLabel("moving to the site"), MineState());
+   return;
+  }
+
+  EquipShovels(true);
+  float work = dt * ACR_Minefields.Speed(this);
+  plan.m_fLastProgress = now;
+  plan.m_fProgress = Math.Min(plan.m_fProgress + work, plan.m_fDuration);
+  bool done;
+  if (plan.m_eKind == ACR_EMineKind.DISARM) done = ACR_Minefields.Disarm(plan, work);
+  else
+  {
+   ACR_Minefields.Lay(plan, plan.m_fProgress / plan.m_fDuration, GetAnchor());
+   done = plan.m_fProgress >= plan.m_fDuration;
+  }
+  if (done) CompleteMineWork();
+  else SetOrder(MineLabel(), MineState());
+ }
+
+ protected void CompleteMineWork()
+ {
+  ACR_MinePlan plan = m_MinePlan;
+  m_MinePlan = null;
+  EquipShovels(false);
+  string done;
+  if (plan.m_eKind == ACR_EMineKind.DISARM) done = string.Format("%1 finished disarming mines: %2 disarmed", m_Name, plan.m_iDisarmed);
+  else
+  {
+   int laid;
+   if (plan.m_Field) laid = plan.m_Field.m_aMines.Count();
+   done = string.Format("%1 finished the %2: %3 mines", m_Name, ACR_Minefields.Name(plan.m_eKind), laid);
+  }
+  ACR_Minefields.Finish(plan);
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  ACR_Intel intel;
+  if (manager) intel = manager.IntelFor(plan.m_sFaction);
+  if (intel) done += " " + intel.Place(plan.m_vSite);
+  if (manager) manager.Command().Feed(plan.m_sFaction, done);
+  ACR_Report.Event(plan.m_sFaction, done);
+  PrintFormat("[ACR] SQUAD %1: %2", m_Name, done);
+
+  // Hold just outside the field (its near edge is 8 m from the stage).
+  ClearOrders();
+  SetOrder("Holding position", ACR_EOrderState.DEFEND);
+  m_OrderKind = ACR_EOrderKind.DEFEND;
+  IssueWaypoint(WP_DEFEND, plan.m_vStage, 8.0);
+ }
+
  protected static IEntity FindShovelItem(IEntity character)
  {
   if (!character) return null;
@@ -1576,6 +1743,7 @@ class ACR_Squad : Managed
   if (OrderState() == ACR_EOrderState.BUILD_FOB) TickEstablishFob(now);
   if (OrderState() == ACR_EOrderState.BUILD_ROADBLOCK) TickEstablishRoadblock(now);
   if (m_ActiveRoadblock && m_RoadblockTurret) TickRoadblockDefence(now);
+  if (m_MinePlan) TickMineWork(now);
   if (!m_Group || m_Commander != 0) return;
   array<AIAgent> agents = {};
   GetAgents(agents);
@@ -3049,6 +3217,7 @@ class ACR_Squad : Managed
   CancelEstablishFob();
   CancelRoadblock();
   if (m_RoadblockTurret) VacateRoadblockTurret();
+  CancelMineWork("abandoned: the squad is gone");
   m_bUnsticking = false;
   if (m_UnstickListener) BBB_Unstick.Cancel(m_UnstickListener);
   m_Aside = null; // being removed: nothing to resume

@@ -102,6 +102,7 @@ bbblongrange|-acrBbbLongRangeTest 1|840|Worlds/BBB_TestArland.ent
 flank|-acrFlankTest 1|160
 attackplan|-acrAttackPlanTest 1|150
 drivelessgun|-acrDrivelessGunTest 1|100
+minefields|-acrMinefieldsTest 1|330
 bbbfiremaneuver|-acrBbbFireManeuverTest 1|500|Worlds/BBB_TestArland.ent
 bbbfiremaneuverperf|-acrBbbFireManeuverPerfTest 1|160|Worlds/BBB_TestArland.ent
 bbbfiremaneuverprobe|-acrBbbFireManeuverProbeTest 1|170|Worlds/BBB_TestArland.ent

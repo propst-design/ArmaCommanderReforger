@@ -28,7 +28,11 @@ enum ACR_ERequest
  QUEUE_GARRISON,   // ... garrison there after the current order
  ORDER_FIRE_AT_WILL, // toggle: observers call mortar fire on what they see, mortar teams fire on their own
  ORDER_ESTABLISH_FOB, // establish a forward base at site
- ORDER_ROADBLOCK     // establish a fortified roadblock on road at point
+ ORDER_ROADBLOCK,    // establish a fortified roadblock on road at point
+ ORDER_MINES_AP,     // lay a minefield at point (ACR_Minefields)
+ ORDER_MINES_AT,
+ ORDER_MINES_MIXED,
+ ORDER_DISARM_MINES  // disarm the armed mines round point
 }
 
 // Arma Commander core. One instance exists on every machine while the mode is
@@ -214,6 +218,7 @@ class ACR_Manager : Managed
   ACR_FactionSelection.Reset();
   ACR_Vehicles.Reset();
   ACR_Generator.Reset();
+  ACR_Minefields.Reset();
   if (!s_Instance) return;
   if (GetGame()) GetGame().GetCallqueue().Remove(s_Instance.Tick);
   BBB.Stop();
@@ -463,6 +468,7 @@ class ACR_Manager : Managed
   m_Cleanup.Tick();
   if (!m_Launchers) m_Launchers = new ACR_Launchers(this);
   Pings().Tick();
+  ACR_Minefields.Tick();
   t = ACR_Perf.Lap("cleanup", t);
   WatchEvictions();
   array<IEntity> allVehicles = {};

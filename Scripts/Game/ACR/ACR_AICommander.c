@@ -6,7 +6,8 @@ enum ACR_EAITask
  POSTED,    // idle, moved up to a frontline base
  RESUPPLY,  // on its way to an ammo / repair / fuel / medical vehicle
  BUILD_FOB, // establishing a forward base
- ROADBLOCK  // establishing or holding a forward roadblock
+ ROADBLOCK, // establishing or holding a forward roadblock
+ MINES      // laying a minefield on an approach (-acrMinesAI)
 }
 
 enum ACR_ESapperDemoState
@@ -940,6 +941,7 @@ class ACR_AICommander : Managed
   ManageFobBuild();
   ManageFobUpgrades();
   ManageRoadblocks();
+  ManageMinefields();
   t = ACR_Perf.Lap("ai.logistics", t);
   Requisition();
   t = ACR_Perf.Lap("ai.buy", t);
@@ -3700,6 +3702,7 @@ class ACR_AICommander : Managed
  protected vector m_vFobTargetSite;
  protected float m_fNextFobEval;
  protected float m_fNextRoadblockEval;
+ protected float m_fNextMinefieldEval;
  protected float m_fFobTruckBoughtAt = -FOB_TRUCK_RETRY_MS;
  protected ref array<vector> m_aAvoidSites = {};
  protected ref array<float> m_aAvoidUntil = {};
@@ -4191,6 +4194,7 @@ class ACR_AICommander : Managed
  }
 
  void SetFobEvalTimeForTest(float time) { m_fNextFobEval = time; }
+ void StartTickForTest() { m_iTickStarted = System.GetTickCount(); }
  ACR_Squad FobBuilder() { return m_FobBuilder; }
  ACR_Squad FobEscort() { return m_FobEscort; }
  vector FobTargetSite() { return m_vFobTargetSite; }
@@ -4320,6 +4324,78 @@ class ACR_AICommander : Managed
   {
    candidate.m_iAITask = ACR_EAITask.ROADBLOCK;
    PrintFormat("[ACR] AI %1: dispatched %2 to establish roadblock on approach to %3 at %4", m_sFaction, candidate.GetName(), frontlineBase.m_sName, targetRoadPos);
+  }
+ }
+
+ // Minefields on the approaches (-acrMinesAI 1; off by default). Every 30 s, with RP to spare
+ // and fewer than two fields down, a free infantry squad near the frontline base (sappers
+ // first) lays one 150-270 m out towards the nearest enemy base: mixed on a road, AP mines on
+ // open ground.
+ void ManageMinefields()
+ {
+  foreach (ACR_Squad layer : m_Manager.m_Squads)
+  {
+   if (!layer || layer.m_iAITask != ACR_EAITask.MINES || layer.m_MinePlan) continue;
+   if (!layer.GetFaction() || layer.GetFaction().GetFactionKey() != m_sFaction) continue;
+   layer.m_iAITask = ACR_EAITask.POSTED;
+   PrintFormat("[ACR] AI %1: %2 available for reassignment after laying mines", m_sFaction, layer.GetName());
+  }
+  // Planning a field queries the roads and terrain: it waits for a tick with budget left.
+  if (!ACR_Minefields.AIUses() || PlanBudgetSpent()) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (now < m_fNextMinefieldEval) return;
+  m_fNextMinefieldEval = now + 30000;
+  ACR_FactionData data = m_Manager.m_Bases.GetFaction(m_sFaction);
+  if (!data || data.m_iRP < ACR_Minefields.Cost(ACR_EMineKind.MIXED) + 30) return;
+  if (ACR_Minefields.CountFields(m_sFaction) >= 2) return;
+
+  ACR_Base front;
+  vector enemyPos;
+  float nearest = float.MAX;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || base.m_sOwner != m_sFaction || base.m_bContested) continue;
+   foreach (ACR_Base other : ACR_Base.s_All)
+   {
+    if (!other || other.m_bRetired || other.m_sOwner == m_sFaction || other.m_sOwner.IsEmpty()) continue;
+    float d = vector.DistanceXZ(base.GetOrigin(), other.GetOrigin());
+    if (d >= nearest) continue;
+    nearest = d;
+    front = base;
+    enemyPos = other.GetOrigin();
+   }
+  }
+  if (!front) return;
+
+  ACR_Squad candidate;
+  array<ACR_Squad> squads = {};
+  MySquads(squads, true);
+  foreach (ACR_Squad squad : squads)
+  {
+   if (!squad || squad.HasPlayer() || squad.m_Commander != 0 || squad == m_ReserveSquad || IsSupportTeam(squad) || !ACR_Minefields.CanLay(squad)) continue;
+   if (squad.m_MinePlan) return; // one field at a time
+   if (squad.m_iAITask != ACR_EAITask.POSTED && squad.m_iAITask != ACR_EAITask.FREE) continue;
+   if (squad.OrderState() == ACR_EOrderState.BUILD_ROADBLOCK || squad.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
+   if (vector.DistanceXZ(PositionOf(squad), front.GetOrigin()) > 600) continue;
+   if (!candidate || (ACR_SapperDemo.IsSapperSquad(squad) && !ACR_SapperDemo.IsSapperSquad(candidate))) candidate = squad;
+  }
+  if (!candidate) return;
+
+  vector toEnemy = enemyPos - front.GetOrigin();
+  toEnemy[1] = 0;
+  toEnemy.Normalize();
+  for (float reach = 150; reach <= 270; reach += 40)
+  {
+   vector sample = ACR_Manager.Ground(front.GetOrigin() + toEnemy * reach);
+   vector roadPoint, roadDir;
+   float roadWidth;
+   ACR_EMineKind kind = ACR_EMineKind.AP;
+   if (ACR_Minefields.Snap(sample, ACR_Minefields.ROAD_SNAP, roadPoint, roadDir, roadWidth)) kind = ACR_EMineKind.MIXED;
+   string refusal;
+   if (!ACR_Minefields.Order(candidate, kind, sample, refusal)) continue;
+   candidate.m_iAITask = ACR_EAITask.MINES;
+   PrintFormat("[ACR] AI %1: %2 laying %3 on the approach to %4 at %5", m_sFaction, candidate.GetName(), ACR_Minefields.Name(kind), front.m_sName, sample);
+   return;
   }
  }
 

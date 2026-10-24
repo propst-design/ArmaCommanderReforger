@@ -166,6 +166,20 @@ replacements with `m_bAllowReinforce`. Player respawn locations are not changed 
 policy. Hosts can override logistics on the startup screen before Start; header defaults and CLI
 flags also work through the normal options precedence.
 
+### Minefields
+
+Infantry squads can lay minefields and disarm mines on the commander's orders (map panel: **AP
+mines**, **AT mines**, **Mixed mines**, **Disarm mines**). A field is a 30 m square: AT mines go in
+both lanes of a road within 20 m of the click (across the area without one) and AP mines off the
+road; vanilla minefield signs mark the corners and the area shows on the owning side's command map.
+Orders cost 15 / 20 / 25 RP (AP / AT / mixed) or 3 RP to disarm and lift every armed mine within
+25 m (8 s per mine, 4 s with engineers); they are paid up front and refund the share not laid when
+called off. Work pauses while the site is contested and runs twice
+as fast with sappers / engineers or a construction truck. Fields are refused within 50 m of a base
+centre. The owning side's AI never sets off its own mines; its players do. USSR, Russian, SLA and
+FIA factions lay PMN-4 / TM-62M mines, the others M14 / M15. Hosts change the three options below
+on the startup Logistics settings page.
+
 ### AI world and navmesh
 
 On the `SCR_AIWorld` object, choose the navigation files for your terrain: one for soldiers (`NavmeshWorld`),
@@ -607,6 +621,9 @@ in-game setup screen, when enabled, overrides these defaults at Start.
 | `m_iAcrDepotCapacity` | `-acrDepotCapacity 2000` default, 0–10000; one depot's extra FOB storage; zero disables the bonus |
 | `m_iAcrServiceSupplyCost` | `-acrServiceSupplyCost 10` default, 0–100; supply cost per service load (turret magazines half, disposable launchers double) |
 | `m_iAcrFobRPServiceCost` | `-acrFobRPServiceCost 3` default, 0–100; RP per soldier actually serviced instantly at a FOB in supplied mode; zero makes this fallback free |
+| `m_iAcrMines` | `-acrMines 1` (default) or `0`; the commander's minefield orders (see [Minefields](#minefields)) |
+| `m_iAcrMinesRealistic` | `-acrMinesRealistic 0` (default) or `1`; with 1 the owning side's AI sets off its own mines too |
+| `m_iAcrMinesAI` | `-acrMinesAI 0` (default) or `1`; AI commanders lay minefields on their approaches |
 
 The header describes the scenario; it does not publish, package or copy the world. Workbench creates
 the `.meta` files beside the world and header. Keep them there and do not edit them. When you choose
@@ -707,6 +724,9 @@ mission makers, automated tests and server operators; players choose match setti
 | `-acrSharedCommand 0` / `1` | Overrides `m_bSharedCommand` |
 | `-acrRespawnSeconds N` | Overrides `m_iRespawnSeconds` |
 | `-acrGameMasterAll` | Game Master for every player, not just host and admins |
+| `-acrMines 0` | Turn off the commander's minefield orders (on by default; see [Minefields](#minefields)) |
+| `-acrMinesRealistic 1` | Mines go off for everyone. By default the owning side's AI never sets off its own mines; its players do |
+| `-acrMinesAI 1` | AI commanders lay minefields: every 30 s, with RP to spare and fewer than two fields down, a free infantry squad (sappers first) mines the approach 150-270 m out from its frontline base towards the nearest enemy base (off by default) |
 | `-acrSetup 1` / `0` | Setup screen before the match. With 1, nothing spawns until the host (or a logged-in admin on a dedicated server) picks the battlefield, factions, threat, prices, AI commanders, AI squad cap, starting RP, income and shared command in a dialog and presses Start; other players wait. A dedicated server starts by itself 5 minutes after the first player joins if nobody does. Our Arland, Everon and Kolguyev scenarios set it in their header; the AC: Actual Play and Host launchers pass `-acrSetup 1` and leave match settings to this screen |
 | `-acrFirstPlayerHost` | On dedicated servers, additionally trust the first connected player for this session. Off by default for ordinary dedicated servers; Host-ACA enables it for its separate local server, so the launching host must connect before friends. Configured admins remain trusted, and authority does not transfer after the first player disconnects |
 | `-acrAdminPassword <password>` | Chat login for servers without a `-config` file (such as local test servers): a player who types `/login <password>` in chat becomes admin for the session, which unlocks the host tools. Off without the option; use a private password and don't share it in logs or screenshots |

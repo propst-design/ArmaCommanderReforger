@@ -1507,6 +1507,9 @@ modded class SCR_PlayerController
   bool canRoadblock = friendly && (modeAndFlags & 64) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
   if (!canRoadblock && m_ACR_CursorMode == ACR_ECursorMode.ROADBLOCK)
    m_ACR_CursorMode = ACR_ECursorMode.MOVE;
+  bool canMines = friendly && (modeAndFlags & 128) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
+  if (!canMines && m_ACR_CursorMode >= ACR_ECursorMode.MINES_AP && m_ACR_CursorMode <= ACR_ECursorMode.DISARM_MINES)
+   m_ACR_CursorMode = ACR_ECursorMode.MOVE;
   string hint;
   if (!friendly) hint = "Player group: not commandable";
   else if (!m_ACR_IsCommander) hint = "Take command to give orders";
@@ -1517,6 +1520,7 @@ modded class SCR_PlayerController
   else if (m_ACR_CursorMode == ACR_ECursorMode.RIDE) hint = "Right-click the destination: a free truck nearby picks them up and drops them there";
   else if (m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB) hint = "Right-click a clear site: establish forward base (click Establish FOB again to cancel)";
   else if (m_ACR_CursorMode == ACR_ECursorMode.ROADBLOCK) hint = "Right-click a road: establish fortified roadblock (20 RP; click Roadblock again to cancel)";
+  else if (m_ACR_CursorMode >= ACR_ECursorMode.MINES_AP && m_ACR_CursorMode <= ACR_ECursorMode.DISARM_MINES) hint = ACR_Minefields.Hint(ACR_Minefields.KindOfCursor(m_ACR_CursorMode));
   else hint = "Right-click: move there";
   string title = m_ACR_Data.m_GroupNames[index];
   string detail = m_ACR_GroupDetails[index];
@@ -1540,6 +1544,7 @@ modded class SCR_PlayerController
   m_ACR_Panel.SetGunner(friendly && (modeAndFlags & 16) != 0 && m_ACR_Data.m_Selected.Count() <= 1);
   m_ACR_Panel.SetEstablishFob(canEstablishFob);
   m_ACR_Panel.SetRoadblock(canRoadblock);
+  m_ACR_Panel.SetMines(canMines);
   // Also for a full squad low on ammo: inside a deploy base Reinforce restocks it
   // (the server says so when it isn't in one).
   string details = m_ACR_GroupDetails[index];
@@ -1600,6 +1605,10 @@ modded class SCR_PlayerController
     if (m_ACR_CursorMode == ACR_ECursorMode.ROADBLOCK) m_ACR_CursorMode = ACR_ECursorMode.MOVE;
     else m_ACR_CursorMode = ACR_ECursorMode.ROADBLOCK;
     return;
+   case ACR_EPanelAction.MINES_AP: ACR_ToggleCursor(ACR_ECursorMode.MINES_AP); return;
+   case ACR_EPanelAction.MINES_AT: ACR_ToggleCursor(ACR_ECursorMode.MINES_AT); return;
+   case ACR_EPanelAction.MINES_MIXED: ACR_ToggleCursor(ACR_ECursorMode.MINES_MIXED); return;
+   case ACR_EPanelAction.DISARM_MINES: ACR_ToggleCursor(ACR_ECursorMode.DISARM_MINES); return;
    case ACR_EPanelAction.HALT: ACR_RequestSelected(ACR_ERequest.ORDER_HALT); return;
    case ACR_EPanelAction.FIRE_AT_WILL: ACR_RequestSelected(ACR_ERequest.ORDER_FIRE_AT_WILL); return;
    case ACR_EPanelAction.PING_LOOK: ACR_PickPing(ACR_EPing.LOOK); return;
@@ -1726,6 +1735,10 @@ modded class SCR_PlayerController
   if (m_ACR_CursorMode == ACR_ECursorMode.RIDE) command = ACR_ERequest.ORDER_RIDE;
   if (m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB) command = ACR_ERequest.ORDER_ESTABLISH_FOB;
   if (m_ACR_CursorMode == ACR_ECursorMode.ROADBLOCK) command = ACR_ERequest.ORDER_ROADBLOCK;
+  if (m_ACR_CursorMode == ACR_ECursorMode.MINES_AP) command = ACR_ERequest.ORDER_MINES_AP;
+  if (m_ACR_CursorMode == ACR_ECursorMode.MINES_AT) command = ACR_ERequest.ORDER_MINES_AT;
+  if (m_ACR_CursorMode == ACR_ECursorMode.MINES_MIXED) command = ACR_ERequest.ORDER_MINES_MIXED;
+  if (m_ACR_CursorMode == ACR_ECursorMode.DISARM_MINES) command = ACR_ERequest.ORDER_DISARM_MINES;
   vector target = Vector(x, 0, z);
   // Right-click on a spotted enemy: hunt it down.
   if (m_ACR_CursorMode == ACR_ECursorMode.MOVE && !append)
@@ -1739,6 +1752,13 @@ modded class SCR_PlayerController
   }
   ACR_IssueOrder(command, target, append);
   return true;
+ }
+
+ // An order button arms its right-click order; a second click disarms it.
+ protected void ACR_ToggleCursor(ACR_ECursorMode mode)
+ {
+  if (m_ACR_CursorMode == mode) m_ACR_CursorMode = ACR_ECursorMode.MOVE;
+  else m_ACR_CursorMode = mode;
  }
 
  bool ACR_IssueOrder(int command, vector target, bool append = false)

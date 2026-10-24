@@ -28,6 +28,10 @@ enum ACR_EPanelAction
  FOB_BUILD,
  ESTABLISH_FOB,
  ROADBLOCK,
+ MINES_AP,                // the minefield buttons
+ MINES_AT,
+ MINES_MIXED,
+ DISARM_MINES,
  DEBUG_TOGGLE = 50,
  DEBUG_ACTION = 60,       // + ACR_EDebug (below 100)
  REQUISITION_ENTRY = 100, // + entry index (below 200)
@@ -44,7 +48,11 @@ enum ACR_ECursorMode
  RIDE,
  GARRISON,
  ESTABLISH_FOB,
- ROADBLOCK
+ ROADBLOCK,
+ MINES_AP,    // MINES_AP..DISARM_MINES: the minefield orders (ACR_Minefields.KindOfCursor)
+ MINES_AT,
+ MINES_MIXED,
+ DISARM_MINES
 }
 
 // Arma Commander side panel on the fullscreen map. Built from script out of the
@@ -108,6 +116,8 @@ class ACR_CommandPanel : Managed
  protected Widget m_EstablishFobWidget;
  protected SCR_ButtonTextComponent m_RoadblockButton;
  protected Widget m_RoadblockWidget;
+ protected Widget m_MinesWidget;
+ protected ref array<SCR_ButtonTextComponent> m_MineButtons = {};
  protected ref map<SCR_ButtonBaseComponent, int> m_Actions = new map<SCR_ButtonBaseComponent, int>();
  protected SCR_PlayerController m_Owner;
  protected Widget m_DebugRoot;
@@ -226,6 +236,13 @@ class ACR_CommandPanel : Managed
   m_RoadblockButton = AddButton(m_OrderSection, "Roadblock", ACR_EPanelAction.ROADBLOCK);
   m_RoadblockWidget = m_LastButtonWidget;
   if (m_RoadblockWidget) m_RoadblockWidget.SetVisible(false);
+  m_MinesWidget = ws.CreateWidget(WidgetType.VerticalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_OrderSection);
+  Widget layMines = ws.CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_MinesWidget);
+  m_MineButtons.Insert(AddButton(layMines, ACR_Minefields.Button(ACR_EMineKind.AP), ACR_EPanelAction.MINES_AP, true));
+  m_MineButtons.Insert(AddButton(layMines, ACR_Minefields.Button(ACR_EMineKind.AT), ACR_EPanelAction.MINES_AT, true));
+  m_MineButtons.Insert(AddButton(layMines, ACR_Minefields.Button(ACR_EMineKind.MIXED), ACR_EPanelAction.MINES_MIXED, true));
+  m_MineButtons.Insert(AddButton(m_MinesWidget, ACR_Minefields.Button(ACR_EMineKind.DISARM), ACR_EPanelAction.DISARM_MINES));
+  if (m_MinesWidget) m_MinesWidget.SetVisible(false);
   m_Hint = AddText(m_GroupSection, LAYOUT_TEXT, "");
   if (m_Hint) AlignableSlot.SetPadding(m_Hint, 0, 8, 0, 6);
   CreateFeed(parent);
@@ -537,6 +554,12 @@ class ACR_CommandPanel : Managed
    if (cursorMode == ACR_ECursorMode.ROADBLOCK) m_RoadblockButton.SetText("[Roadblock]");
    else m_RoadblockButton.SetText("Roadblock");
   }
+  foreach (int mineKind, SCR_ButtonTextComponent mineButton : m_MineButtons)
+  {
+   if (!mineButton) continue;
+   if (ACR_Minefields.KindOfCursor(cursorMode) == mineKind) mineButton.SetText("[" + ACR_Minefields.Button(mineKind) + "]");
+   else mineButton.SetText(ACR_Minefields.Button(mineKind));
+  }
   if (m_Hint) m_Hint.SetText(hint);
  }
 
@@ -667,6 +690,7 @@ class ACR_CommandPanel : Managed
   if (m_GunnerWidget) m_GunnerWidget.SetVisible(false);
   if (m_EstablishFobWidget) m_EstablishFobWidget.SetVisible(false);
   if (m_RoadblockWidget) m_RoadblockWidget.SetVisible(false);
+  if (m_MinesWidget) m_MinesWidget.SetVisible(false);
   m_OrderSection.SetVisible(false);
   if (m_Hint) m_Hint.SetText("");
  }
@@ -754,6 +778,11 @@ class ACR_CommandPanel : Managed
  void SetRoadblock(bool visible)
  {
   if (m_RoadblockWidget) m_RoadblockWidget.SetVisible(visible);
+ }
+
+ void SetMines(bool visible)
+ {
+  if (m_MinesWidget) m_MinesWidget.SetVisible(visible);
  }
 
  void Destroy()
