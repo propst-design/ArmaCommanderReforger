@@ -78,8 +78,11 @@
             "flags": 4
           }
         ],
-        "next": 0,
-        "inflight": 0
+        "next": 1,
+        "inflight": null,
+        "receipts": [
+          "1564098960505966683"
+        ]
       }
     },
     "629405AEFC950C12": {
