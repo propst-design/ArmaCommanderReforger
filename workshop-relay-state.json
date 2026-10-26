@@ -32,55 +32,12 @@
         "0.1.4",
         "0.1.2",
         "0.1.1",
-        "0.1.0"
+        "0.1.0",
+        "0.1.6"
       ],
-      "pending": {
-        "version": "0.1.6",
-        "messages": [
-          {
-            "content": "Better Battle Buddies — 0.1.6\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 1/4 · relay b44d3f596871383f:1\n\n0.1.6\r\n\r\nSquads that fight as a team: they share what they see over the radio, commit to a plan, flank and search, and pull back properly when they break. Player and Game Master orders still come first.\r\n\r\n- Gunners stay on held guns. A host mod can now tell BBB which static guns a squad holds where it stands, such as a checkpoint MG or a dug-in position (new hook `GetHeldGuns`; plain vanilla and Game Master groups hold none). On those guns the gunner no longer climbs out because an enemy he heard about or saw a while ago is outside the gun's arc: he only gets out for an enemy he saw within 60 m in the last 10 seconds. If a held gun stands empty for 8 seconds, the squad's nearest soldier on foot within 40 m mans it again. BBB's own static crewing keeps a held gun manned when its sector goes quiet. Vehicles are unchanged (-bbbHoldGuns 0).\r\n- Base-game AI fixes: no more script errors when a group's orders are replaced while it is defending (\"Wrong class of provided Waypoint!\", \"Defend Waypoint not provided to the node!\"), or when a group without a leader just then fails a move (a NULL pointer in `SCR_AIProcessFailedMovementResult`). These hit any host or Game Master who changes a defending group's orders. The nodes now fail quietly, which is what the errors ended in anyway, so the AI behaves the same.\r\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "Better Battle Buddies — 0.1.6\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 2/4 · relay b44d3f596871383f:2\n\n- Squads warn each other by radio. When a squad spots enemies, friendly squads within its radio range (about 1.3 km with personal radios, 2 km with a manpack) hear about it a few seconds later and react as if they'd heard the shooting: they turn to it, take cover or send a fireteam to look. A report is only where the enemy was last seen, never a target to shoot at, and it isn't passed on again. Squads without a radio only hear each other within shouting distance. Player-led squads and squads under a player's or Game Master's order are left alone (-bbbContactRelay 0).\r\n- Squads can make bounded reactions to nearby contacts during ordinary AI movement orders, then continue their route. Explicit player/GM orders and transport remain in charge. Use -bbbOrderLeash 0 to retain the previous waypoint restrictions.\r\n- Soldiers out of magazines go and get more, even mid-fight. A rifleman with no spare magazine heads for the nearest friendly body with matching ammo instead of carrying on the firefight or being sent forward in a bound, then rejoins his team. Switching to his pistol no longer makes him forget he needs ammo (-bbbRearm 0).\r\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "Better Battle Buddies — 0.1.6\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 3/4 · relay b44d3f596871383f:3\n\n- Squads go round a dug-in enemy. Facing an enemy who stays put 120 to 250 m away, a squad first holds and fires to fix him, then flanks: one half runs to covered ground well off his line while the other half covers it, swapping as they go, and they attack from the new angle. When contact is lost, a squad searches: half of it checks where the enemy was last seen and the cover around it, one spot at a time, while the other half watches, then calls clear. Covering fire is now aimed at the tree, rock or wall nearest where the enemy was seen, and never near friendly soldiers (-bbbTacticFlank 0, -bbbTacticSearch 0, -bbbCoverFire 0).\r\n- Squads commit to a plan. On first contact a squad pauses to take in the enemy, then its leader picks a plan and sticks with it: assault (fire and manoeuvre toward the enemy, about 1.5 minutes) when the odds are fair, or hold and fight from cover (about 45 seconds) when it is outnumbered, flanked, pinned down or the enemy is far off. A squad that finds more enemies than it thought switches from assault to holding. When the leader falls, the squad holds for 20 seconds while someone takes over. The leader calls the plan out loud: move, defend this position, fall back. Squads under a player's or Game Master's order are left alone (-bbbTactic 0).\r\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "Better Battle Buddies — 0.1.6\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 4/4 · relay b44d3f596871383f:4\n\n- Squads read a fight from two sides correctly. A squad facing enemies in more than one direction now aims its smoke, its static gun and its fire-and-manoeuvre at the group that matters most (the nearest, freshest and biggest it has seen) instead of at an empty spot between them, and a squad that breaks retreats through the open side instead of backing away from one group straight into the other (-bbbSquadPicture 0).\r\n- Squads that break really pull back. A squad whose morale breaks now falls back in two halves: one half runs while the other holds its ground and keeps firing, then they swap, even under fire. Before, the runners often never moved and the covering half advanced on the enemy. A lone survivor runs instead of standing still. Losing the squad leader now counts toward a break for a while after someone else takes over (-bbbMorale 0).\r\n- One job at a time. A soldier dragging or treating a wounded buddy, walking to a static gun, or fetching ammo is no longer counted into a fire-and-manoeuvre bound, sent indoors, or picked to throw a grenade or smoke at the same moment. A rescue still takes him from anything else (-bbbClaims 0).\r\n- Vehicle crews stay in their seats. Drivers no longer climb out under fire to open a gate (BBB opens it for them), and the driver, gunner or commander of an armed or armoured vehicle no longer bails out to treat a wounded buddy: someone on foot goes instead. Double gates now open for AI vehicles too, and armour that is under fire or near enemies opens gates well ahead so it doesn't slow down (-bbbCrewStays 0).",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          }
-        ],
-        "next": 4,
-        "inflight": null,
-        "receipts": [
+      "pending": null,
+      "delivered": {
+        "0.1.6": [
           "1564098960505966683",
           "1564098973252329523",
           "1564098985084325968",
