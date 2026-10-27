@@ -298,6 +298,9 @@ function Remove-KnownNoise($text) {
     # Vanilla AI bug: a group whose members all died processes a failed move (null leader).
     $text = [regex]::Replace($text, "SCRIPT\s+\(E\): Virtual Machine Exception\s+Reason: NULL pointer[^\r\n]*\s+Class:\s+'SCR_AIProcessFailedMovementResult'", 'vanilla AI null-leader exception (ignored)')
     $text = [regex]::Replace($text, "SCRIPT\s+\(E\): Virtual Machine Exception\s+Reason: No suppression volume provided!", 'vanilla suppression exception (ignored)')
+    # Vanilla SCR_AIOccupyDriversInUsedVehicles: a vehicle crew's member list still holds a soldier
+    # killed that frame when it looks for a new driver (Everon long soak 27 Oct, armed off-road crew).
+    $text = [regex]::Replace($text, "SCRIPT\s+\(E\): Virtual Machine Exception\s+Reason: NULL pointer to instance\. Variable 'agent'\s+Class:\s+'SCR_AIOccupyDriversInUsedVehicles'", 'vanilla AI replacement-driver exception (ignored)')
     # Vanilla failed-move report (NodeErrorOnce in SCR_AIProcessFailedMovementResult), e.g. when a
     # built composition cuts the navmesh under a group still walking (Everon long soak 23 Oct).
     $text = [regex]::Replace($text, "SCRIPT\s+\(E\): Virtual Machine Exception\s+Reason: Failed move from[^\r\n]*(?:\r?\n(?!\d\d:\d\d:)[^\r\n]*)*?SCR_AIProcessFailedMovementResult\.c", 'vanilla AI failed-move report (ignored)')
