@@ -2086,6 +2086,7 @@ class ACR_Supports : Managed
   // died before it could show anything on clients. Each client makes its own (below).
   IEntity bomb = SpawnLocal(BOMB, impact, vector.Zero);
   int struck = BlastDamage(impact);
+  ACR_CivilianSocket.Get().OnStrike(impact);
   PrintFormat("[ACR] SUPPORT bomb at %1 spawned=%2, blast struck %3", impact, bomb != null, struck);
   // Every client spawns its own explosion and plays the blast sound itself: the
   // explosion's own sound is cut off when the entity removes itself (1 Oct MP: the

@@ -360,6 +360,7 @@ class ACR_Manager : Managed
    }
   }
   ACR_PlayerSide.Key();
+  if (ACR_CivilianSocket.Get().Plugged()) PrintFormat("[ACR] Civilian socket: %1 plugged in, %2 AI slots", ACR_CivilianSocket.Get().Name(), ACR_CivilianSocket.Get().AiHeadroom());
   RaiseActiveAILimit();
   ACR_Options.Log();
   PrintFormat("[ACR] Threat level: %1", ThreatName(threat));
@@ -376,7 +377,7 @@ class ACR_Manager : Managed
  {
   AIWorld aiWorld = GetGame().GetAIWorld();
   if (!aiWorld) return;
-  int wanted = 2 * m_iSoldierCap + AI_LIMIT_HEADROOM;
+  int wanted = 2 * m_iSoldierCap + AI_LIMIT_HEADROOM + ACR_CivilianSocket.Get().AiHeadroom();
   int was = aiWorld.GetLimitOfActiveAIs();
   if (wanted > was) aiWorld.SetLimitOfActiveAIs(wanted);
   PrintFormat("[ACR] Active AI limit %1 (was %2)", aiWorld.GetLimitOfActiveAIs(), was);

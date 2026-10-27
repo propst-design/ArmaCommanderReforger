@@ -118,6 +118,19 @@ class ACR_Intel : Managed
   return affiliation.GetAffiliatedFaction().GetFactionKey();
  }
 
+ // Guard: civilians (vanilla CIV, or a civilian-population mod that makes them friendly to
+ // everyone) must never become contacts. The engine already leaves friendly CIV out of the
+ // DETECTED list (srv:civilians, 26 Oct); this keeps it so if a mission makes them otherwise.
+ // Only factions friendly to us are skipped, so neutral mod factions still count as before.
+ static bool FriendlyTo(string ourKey, string otherKey)
+ {
+  FactionManager factions = GetGame().GetFactionManager();
+  if (!factions) return false;
+  SCR_Faction ours = SCR_Faction.Cast(factions.GetFactionByKey(ourKey));
+  Faction other = factions.GetFactionByKey(otherKey);
+  return ours && other && ours.IsFactionFriendly(other);
+ }
+
  protected void Note(IEntity enemy, float now, string spotter)
  {
   if (!enemy || !ACR_Respawn.IsAlive(enemy)) return;
@@ -162,7 +175,7 @@ class ACR_Intel : Managed
      if (!target || !RecentDetection(target.GetTimeSinceDetected())) continue;
      IEntity seen = target.GetTargetEntity();
      string key = FactionKeyOf(seen);
-     if (!key.IsEmpty() && key != m_sFaction) NoteAt(seen, now - target.GetTimeSinceDetected() * 1000, squad.GetName(), target.GetLastDetectedPosition());
+     if (!key.IsEmpty() && key != m_sFaction && !FriendlyTo(m_sFaction, key)) NoteAt(seen, now - target.GetTimeSinceDetected() * 1000, squad.GetName(), target.GetLastDetectedPosition());
     }
    }
   }

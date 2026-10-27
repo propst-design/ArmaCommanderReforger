@@ -80,6 +80,7 @@ skirmishsouth|-acrSkirmishSouthTest 1|120|Worlds/ACR_Everon.ent
 skirmishplay|-acrSkirmishPlayTest 1|240|Worlds/ACR_Everon.ent
 blast|-acrBlastTest 1|90
 blastold|-acrBlastOldTest 1|90
+civilians|-acrCivilianTest 1|90
 everonpads|-acrEveronPadsTest 1|120|Worlds/ACR_Everon.ent
 padslevie|-acrPadsLevieTest 1|130|Worlds/ACR_Everon.ent
 padsmontignac|-acrPadsMontignacTest 1|130|Worlds/ACR_Everon.ent
