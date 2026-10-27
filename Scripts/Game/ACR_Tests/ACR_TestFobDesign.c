@@ -5,7 +5,7 @@
 // AI's construction-truck purchase guard. Called by srv:structures (tick 50).
 class ACR_TestFobDesign
 {
- static const int CHECKS = 34; // (one per Check below)
+ static const int CHECKS = 35; // (one per Check below)
  static const ResourceName USSR_RIFLEMAN = "{DCB41B3746FDD1BE}Prefabs/Characters/Factions/OPFOR/USSR_Army/Character_USSR_Rifleman.et";
  static const ResourceName US_RIFLEMAN = "{26A9756790131354}Prefabs/Characters/Factions/BLUFOR/US_Army/Character_US_Rifleman.et";
  static const ResourceName HOSPITAL = "{D0281DAF0B131743}PrefabsEditable/Auto/Compositions/Slotted/SlotFlatMedium/E_FieldHospital_M_Conflict_US_01.et";
@@ -276,6 +276,26 @@ class ACR_TestFobDesign
   ACR_TestRegress.Check("fobdesign: an orphaned primed charge waits for its fuse, then goes off once", pendingBefore >= 1 && manager.ACR_TestPendingDemolitions() == 0 && orphanDemo && orphanDemo.IsDetonated(), string.Format("pending %1", pendingBefore));
  }
 
+ // On the way to its site, a truck closing in keeps the build alive past three minutes; one that
+ // stops getting nearer gives up three minutes later (a pn11 Everon soak, 27 Oct: builds 2-4 km off
+ // were given up while their trucks still drove).
+ static void OnTheWay(ACR_Squad alpha, IEntity truck, vector site, float t0)
+ {
+  vector from = truck.GetOrigin();
+  bool ordered = alpha.EstablishFob(site);
+  alpha.SetFobLastProgressForTest(t0 - 170000);
+  alpha.TickEstablishFob(t0);
+  vector closer = from + (site - from).Normalized() * 40;
+  truck.SetOrigin(ACR_Manager.Ground(closer));
+  alpha.TickEstablishFob(t0 + 175000);
+  bool kept = alpha.OrderState() == ACR_EOrderState.BUILD_FOB;
+  alpha.TickEstablishFob(t0 + 175000 + 181000);
+  bool gaveUp = alpha.OrderState() != ACR_EOrderState.BUILD_FOB;
+  ACR_TestRegress.Check("fobdesign: on the way, closing in on the site counts as progress; no nearer for three minutes gives up", ordered && kept && gaveUp, string.Format("ordered %1, kept after 40 m closer %2, gave up when stopped %3; the truck %4 m from the site", ordered, kept, gaveUp, (int)vector.DistanceXZ(from, site)));
+  if (alpha.OrderState() == ACR_EOrderState.BUILD_FOB) alpha.CancelEstablishFob();
+  truck.SetOrigin(from);
+ }
+
  static void HqLost(ACR_Manager manager, ACR_Squad alpha, IEntity truck)
  {
   manager.m_Bases.DebugCapture(manager, s_Fob2, "US");
@@ -299,6 +319,7 @@ class ACR_TestFobDesign
   alpha.SetFobLastProgressForTest(now - 181000);
   alpha.TickEstablishFob(now + 1000);
   ACR_TestRegress.Check("fobdesign: three minutes without progress abandons the build and refunds", ordered && alpha.OrderState() != ACR_EOrderState.BUILD_FOB && alpha.FobReservedLoads() == 0 && manager.m_Logistics.StockOf(truck) == 40 && alpha.m_fFobGaveUpAt == now + 1000, "");
+  OnTheWay(alpha, truck, s_Fob2.GetOrigin() + Vector(6, 0, 6), now + 5000);
 
   // The AI commander's own loop (Stage 3): restore first, using the squad with the truck.
   builderAI.SetFobEvalTimeForTest(0);

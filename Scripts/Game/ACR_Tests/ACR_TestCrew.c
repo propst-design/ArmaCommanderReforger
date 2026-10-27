@@ -112,6 +112,13 @@ class ACR_TestCrew
     s_PostPlanner.ReleaseBuilders();
     ACR_TestRegress.Check("roadblock: planner leaves player-controlled squad assigned", postSquad.m_iAITask == ACR_EAITask.ROADBLOCK);
     postSquad.m_Commander = 0;
+    // A finished builder holding its roadblock stays on it while the doctrine's holders allow
+    // (AI defences, #25); with none allowed it rejoins normal idle planning.
+    s_PostPlanner.ReleaseBuilders();
+    ACR_TestRegress.Check("roadblock: finished builder keeps holding within the doctrine's holders", postSquad.m_iAITask == ACR_EAITask.ROADBLOCK && postSquad.m_ActiveRoadblock == s_Roadblock);
+    ACR_AIDoctrine noHolders = new ACR_AIDoctrine();
+    noHolders.m_iHolders = 0;
+    s_PostPlanner.SetDoctrineForTest(noHolders);
     s_PostPlanner.ReleaseBuilders();
     ACR_TestRegress.Check("roadblock: finished builder rejoins normal idle planning", postSquad.m_iAITask == ACR_EAITask.POSTED && postSquad.m_ActiveRoadblock == s_Roadblock);
     ACR_Base defendTarget;
@@ -133,7 +140,9 @@ class ACR_TestCrew
   {
    if (!crew) { ACR_TestRegress.Check("crew: LAV crew registered", false, ""); return; }
    PrintFormat("[ACR] CREW %1 seated %2, defend: %3", crew.GetName(), Seated(crew), crew.Defend(ACR_Manager.Ground(home + Vector(70, 0, 40))));
-   ACR_TestRegress.Check("crew: a vehicle crew's Defend is a plain move for the game", SCR_DefendWaypoint.Cast(crew.m_Waypoint) == null, string.Format("%1", crew.m_Waypoint));
+   // srv:crewold is the control run: crews get the game's Defend waypoint, as before the fix.
+   if (ACR_Squad.s_bGameDefend) ACR_TestRegress.Check("crewold (control): a vehicle crew's Defend is the game's Defend waypoint, as before the fix", SCR_DefendWaypoint.Cast(crew.m_Waypoint) != null, string.Format("%1", crew.m_Waypoint));
+   else ACR_TestRegress.Check("crew: a vehicle crew's Defend is a plain move for the game", SCR_DefendWaypoint.Cast(crew.m_Waypoint) == null, string.Format("%1", crew.m_Waypoint));
   }
   if (tick == 30 && crew)
   {
@@ -205,7 +214,7 @@ class ACR_TestCrew
     PrintFormat("[ACR] CREW recall diag: anchor %1 from %2, target %3 (%4 m from post), waypoint %5 (%6), mounted %7 | %8", postSquad.GetAnchor(), s_PostFrom, target, vector.DistanceXZ(target, s_PostFrom), waypointAt, postSquad.m_Group.GetCurrentWaypoint(), postSquad.IsMounted(), postSquad.Describe());
    }
    ACR_TestRegress.Check("roadblock: recalled squad physically leaves its post", postSquad && postSquad.m_iAITask == ACR_EAITask.DEFEND && postMoved > 3, string.Format("moved %1 m", postMoved));
-   ACR_TestRegress.Complete("crew", 17);
+   ACR_TestRegress.Complete("crew", 18);
   }
  }
 }

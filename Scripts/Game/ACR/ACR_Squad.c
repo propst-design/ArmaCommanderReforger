@@ -628,11 +628,13 @@ class ACR_Squad : Managed
  IEntity m_ReservedTruck;
  float m_fReservedLoads;
  float m_fFobLastProgress;     // world ms of the last build progress (3 min without it: give up)
+ float m_fFobNearest;          // on the way: the truck's nearest yet to the site (closing in is progress)
  bool m_bFobSiteCleared;       // trees felled once work starts
  ACR_Base m_FobRestore;        // HQ-less FOB whose HQ this order rebuilds
  vector m_vFobGaveUpSite;      // last abandoned site (AI commander avoids it for a while)
  float m_fFobGaveUpAt;
  static const float FOB_GIVE_UP_MS = 180000;
+ static const float FOB_CLOSING_M = 10;   // on the way, this much nearer the site counts as progress
  vector m_vRoadblockSite;
  float m_fRoadblockYaw;
  float m_fRoadblockProgress;
@@ -967,6 +969,7 @@ class ACR_Squad : Managed
   m_fFobBuildProgress = 0.0;
   m_fFobLastTick = GetGame().GetWorld().GetWorldTime();
   m_fFobLastProgress = m_fFobLastTick;
+  m_fFobNearest = float.MAX;
   m_bFobSiteCleared = false;
   m_FobRestore = restore;
 
@@ -978,6 +981,17 @@ class ACR_Squad : Managed
   if (restore) PrintFormat("[ACR] SQUAD %1: rebuilding the HQ of %2, reserved 500 supplies from %3", m_Name, restore.m_sName, truck);
   else PrintFormat("[ACR] SQUAD %1: establishing FOB at %2, reserved 500 supplies from %3", m_Name, site, truck);
   return true;
+ }
+
+ protected void ClosingInOnFob(float now)
+ {
+  IEntity mover = m_ReservedTruck;
+  if (!mover) mover = GetAnchor();
+  if (!mover) return;
+  float away = vector.DistanceXZ(mover.GetOrigin(), m_vFobSite);
+  if (away > m_fFobNearest - FOB_CLOSING_M) return;
+  m_fFobNearest = away;
+  m_fFobLastProgress = now;
  }
 
  void CancelEstablishFob()
@@ -1073,6 +1087,10 @@ class ACR_Squad : Managed
 
   if (!engineerPresent)
   {
+   // On the way, closing in on the site is progress: the 3 minutes run once the truck stops
+   // getting nearer (a pn11 Everon soak, 27 Oct: 8 builds 2-4 km off were given up while their
+   // trucks were still driving, and USSR built no FOB in 2 h).
+   ClosingInOnFob(now);
    if (m_Group && !m_Group.GetCurrentWaypoint() && !HasPlayer())
    {
     IssueWaypoint(WP_MOVE, ACR_FobBuild.ParkingSpot(m_vFobSite), 5.0);
@@ -1124,6 +1142,7 @@ class ACR_Squad : Managed
   m_fReservedLoads = 0;
   m_ReservedTruck = null;
   m_FobRestore = null;
+  m_FobBuiltHq = hq;
   if (hq)
   {
    SCR_CampaignBuildingCompositionComponent comp = SCR_CampaignBuildingCompositionComponent.Cast(hq.FindComponent(SCR_CampaignBuildingCompositionComponent));
@@ -1141,6 +1160,12 @@ class ACR_Squad : Managed
   m_OrderKind = ACR_EOrderKind.DEFEND;
   IssueWaypoint(WP_DEFEND, m_vFobSite, 20);
  }
+
+ // The HQ this squad's last FOB build spawned. Its FOB only appears on the next structures tick
+ // (every 2 s), so until then this is how the AI commander knows the build was finished.
+ protected IEntity m_FobBuiltHq;
+ bool BuiltFobAt(vector site) { return m_FobBuiltHq && vector.DistanceXZ(m_FobBuiltHq.GetOrigin(), site) < 20; }
+ IEntity FobBuiltHqForTest() { return m_FobBuiltHq; }
 
  float FobBuildProgress() { return m_fFobBuildProgress; }
  void SetFobLastProgressForTest(float time) { m_fFobLastProgress = time; }

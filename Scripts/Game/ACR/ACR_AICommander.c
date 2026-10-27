@@ -4697,6 +4697,9 @@ class ACR_AICommander : Managed
    bool finished = false;
    foreach (ACR_Base built : ACR_Base.s_All)
     if (built && built.m_bBuilt && !built.m_bRetired && vector.DistanceXZ(built.GetOrigin(), m_vFobTargetSite) < 20) finished = true;
+   // Finished just now: the FOB appears on the next structures tick, after its HQ (a check in
+   // that gap used to avoid the new FOB's own site).
+   if (!finished && m_FobBuilder.BuiltFobAt(m_vFobTargetSite)) finished = true;
    if (!finished) AvoidSite(m_vFobTargetSite);
    m_FobBuilder = null;
    if (m_FobEscort && m_FobEscort.m_iAITask == ACR_EAITask.DEFEND && !m_FobEscort.m_AITarget)
