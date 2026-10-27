@@ -359,8 +359,8 @@ class ACR_TestRegress
  }
 
  // #31: an attacker gets squad tactics and a leash on the target's ring only on its ASSAULT order
- // inside the ring; staging (MOVE) or outside the ring it keeps the old policy; -acrSquadTactics 0
- // turns it off (the option is re-read every 5 s, so the off case is the static helper's).
+ // inside the ring, with -acrSquadTactics 1; staging (MOVE) or outside the ring it keeps the old
+ // policy. Off by default: without the option, inside the ring is the old policy too.
  static void CheckSquadTacticLeash(ACR_BBBHooks hooks, ACR_Squad fixture)
  {
   ACR_Base target;
@@ -370,6 +370,8 @@ class ACR_TestRegress
    Skip("BBB leash: attackers get squad tactics and the ring as leash only inside the objective", "no base or anchor");
    return;
   }
+  ACR_Options.Set("acrSquadTactics", "1");
+  ACR_BBBHooks.RereadSquadTactics();
   int savedTask = fixture.m_iAITask;
   ACR_Base savedTarget = fixture.m_AITarget;
   float savedRadius = target.m_fRadius;
@@ -386,10 +388,15 @@ class ACR_TestRegress
   fixture.SetOrder("Leash policy fixture", ACR_EOrderState.ASSAULT);
   target.m_fRadius = Math.Max(1, gap - 20);
   bool outside = gap < 21 || !hooks.HostLeash(fixture.m_Group, centre, radius);
+  ACR_Options.Unset("acrSquadTactics");
+  ACR_BBBHooks.RereadSquadTactics();
+  target.m_fRadius = gap + 20;
+  bool offByDefault = !hooks.HostLeash(fixture.m_Group, centre, radius) && !hooks.AllowSquadTactic(fixture.m_Group);
   target.m_fRadius = savedRadius;
   fixture.m_iAITask = savedTask;
   fixture.m_AITarget = savedTarget;
   Check("BBB leash: attackers get squad tactics and the ring as leash only inside the objective", inside && staging && outside, string.Format("inside %1 staging-free %2 outside-free %3 (anchor %4 m from %5)", inside, staging, outside, (int)gap, target.m_sName));
+  Check("BBB leash: squad tactics in the objective are off by default", offByDefault);
  }
 
  // A roadblock click by a joint of two road pieces, or on a side road by a T-crossing, stays on

@@ -62,7 +62,8 @@ class ACR_BBBHooks : BBB_Hooks
  // inside the target's ring, BBB's squad tactics (assault, flank, hold, search) and fire and
  // manoeuvre do the small-unit work there, leashed to the ring. Defenders on a Defend order at
  // their post get fire and manoeuvre (and the tactics they had) leashed to the post's radius.
- // No tactics while staging or riding. -acrSquadTactics 0: the old policy.
+ // No tactics while staging or riding. Off by default since the 27 Oct Everon A/B showed no
+ // gain (BBB #9): -acrSquadTactics 1 turns it on; off is the old policy.
  // Asked many times a tick (BBB's leash checks): the option is read again every 5 s.
  protected static bool s_bSquadTactics;
  protected static float s_fSquadTacticsRead = -1;
@@ -72,10 +73,11 @@ class ACR_BBBHooks : BBB_Hooks
   if (s_fSquadTacticsRead < 0 || now - s_fSquadTacticsRead > 5000 || now < s_fSquadTacticsRead)
   {
    s_fSquadTacticsRead = now;
-   s_bSquadTactics = ACR_LogisticsRules.Choice("acrSquadTactics", "1") != "0";
+   s_bSquadTactics = ACR_LogisticsRules.Choice("acrSquadTactics", "0") != "0";
   }
   return s_bSquadTactics;
  }
+ static void RereadSquadTactics() { s_fSquadTacticsRead = -1; }
 
  // An attacker in the objective: on foot, assaulting, inside the target's ring.
  static bool AttackerLeash(ACR_Squad squad, out vector centre, out float radius)
