@@ -38,6 +38,21 @@ class ACR_TestRegress
   SCR_SpawnPoint bestWest = ACR_SpawnPoints.Best(west);
   SCR_SpawnPoint bestEast = ACR_SpawnPoints.Best(east);
   Check("each side has an open spawn point for a new command unit", bestWest && bestEast && bestWest.IsSpawnPointEnabled() && bestEast.IsSpawnPointEnabled(), string.Format("%1 / %2", bestWest != null, bestEast != null));
+  // Only the pair is offered and accepted on the deploy screen (26 Oct: FIA was listed and taken).
+  Faction fia = GetGame().GetFactionManager().GetFactionByKey("FIA");
+  SCR_Faction fiaScripted = SCR_Faction.Cast(fia);
+  array<int> ids = {};
+  GetGame().GetPlayerManager().GetPlayers(ids);
+  SCR_PlayerFactionAffiliationComponent affiliation;
+  if (!ids.IsEmpty())
+  {
+   PlayerController pc = GetGame().GetPlayerManager().GetPlayerController(ids[0]);
+   if (pc) affiliation = SCR_PlayerFactionAffiliationComponent.Cast(pc.FindComponent(SCR_PlayerFactionAffiliationComponent));
+  }
+  bool fiaPlayable = fiaScripted && fiaScripted.IsPlayable();
+  bool fiaAllowed = affiliation && fia && affiliation.ACR_WouldAllow(fia);
+  // (A server-only run has no player to ask with: then only the offer is checked.)
+  Check("a side outside the pair is neither offered nor accepted", fia && !fiaPlayable && !fiaAllowed, string.Format("FIA found %1, playable %2, player %3, may request %4", fia != null, fiaPlayable, affiliation != null, fiaAllowed));
  }
 
  static void Check(string name, bool ok, string detail = "")

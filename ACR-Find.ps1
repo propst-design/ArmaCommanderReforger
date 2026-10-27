@@ -80,23 +80,57 @@ function Find-SteamApp([string]$folder, [string]$exe) {
 # FIRST in -addonsDir, so its Workshop copy wins without exposing Workshop ACA/BBB copies
 # ahead of the launcher's local addons. With duplicate mod IDs the first folder wins.
 # Returns @(addonsDir, addonList), unchanged when it isn't installed.
-function Add-AIOCommandMenu([string]$addonsDir, [string]$addonList) {
-  $aioId = '629405AEFC950C12'
+# A Workshop/mod copy of an optional mod: its folder, or '' when it isn't installed.
+function Find-WorkshopMod([string]$modId) {
   $candidates = @()
   $docs = [Environment]::GetFolderPath('MyDocuments')
   if ($docs) { $candidates += (Join-Path $docs 'My Games\ArmaReforger\addons') }
   $candidates += 'E:\ArmaReforgerMods\addons'
   foreach ($dir in $candidates) {
     if (!(Test-Path -LiteralPath $dir)) { continue }
-    $hit = Get-ChildItem -LiteralPath $dir -Directory -Filter "*_$aioId" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (!$hit) { continue }
-    $aioDir = $hit.FullName
-    $dirs = @($aioDir) + @($addonsDir.Split(',') | Where-Object { $_ -and $_.TrimEnd('\') -ne $aioDir.TrimEnd('\') })
-    if (($addonList.Split(',')) -notcontains $aioId) { $addonList += ',' + $aioId }
-    Write-Host 'All-in-One Command Menu found (Workshop copy): loading it too.' -ForegroundColor DarkCyan
-    return @(($dirs -join ','), $addonList)
+    $hit = Get-ChildItem -LiteralPath $dir -Directory -Filter "*_$modId" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($hit) { return $hit.FullName }
   }
-  return @($addonsDir, $addonList)
+  return ''
+}
+
+function Add-AIOCommandMenu([string]$addonsDir, [string]$addonList) {
+  $aioId = '629405AEFC950C12'
+  $aioDir = Find-WorkshopMod $aioId
+  if (!$aioDir) { return @($addonsDir, $addonList) }
+  $dirs = @($aioDir) + @($addonsDir.Split(',') | Where-Object { $_ -and $_.TrimEnd('\') -ne $aioDir.TrimEnd('\') })
+  if (($addonList.Split(',')) -notcontains $aioId) { $addonList += ',' + $aioId }
+  Write-Host 'All-in-One Command Menu found (Workshop copy): loading it too.' -ForegroundColor DarkCyan
+  return @(($dirs -join ','), $addonList)
+}
+
+# Civilians: Shadow Company Civil Population plus ACA's compat add-on (ACACivilPopulation,
+# AC230926CC000001, kept beside ACA). Offered only when both are installed.
+$script:SCCPId = 'BCE0D49568A9E6BF'
+$script:SCCPCompatId = 'AC230926CC000001'
+function Test-CivilPopulation {
+  $project = Join-Path (Split-Path $PSScriptRoot -Parent) 'ACACivilPopulation\addon.gproj'
+  if (!(Test-Path -LiteralPath $project)) { return $false }
+  if ((Get-Content -LiteralPath $project -Raw) -notmatch ('GUID\s+"' + $script:SCCPCompatId + '"')) { return $false }
+  return (Find-WorkshopMod $script:SCCPId) -ne ''
+}
+
+function Add-CivilPopulation([string]$addonsDir, [string]$addonList) {
+  if (!(Test-CivilPopulation)) { return @($addonsDir, $addonList) }
+  $parent = Split-Path (Find-WorkshopMod $script:SCCPId) -Parent
+  $dirs = @($addonsDir.Split(',') | Where-Object { $_ })
+  if (($dirs | ForEach-Object { $_.TrimEnd('\') }) -notcontains $parent.TrimEnd('\')) { $dirs += $parent }
+  foreach ($id in @($script:SCCPId, $script:SCCPCompatId)) { if (($addonList.Split(',')) -notcontains $id) { $addonList += ',' + $id } }
+  Write-Host 'Civil Population and the ACA compat add-on: loading civilians.' -ForegroundColor DarkCyan
+  return @(($dirs -join ','), $addonList)
+}
+
+# The optional mods picked in the Play/Host/Join menu (AiO = yes/no, Civilians = yes/no).
+function Add-OptionalMods([string]$addonsDir, [string]$addonList, $choices) {
+  $r = @($addonsDir, $addonList)
+  if ($choices.AiO -ne 'no') { $r = Add-AIOCommandMenu $r[0] $r[1] }
+  if ($choices.Civilians -eq 'yes') { $r = Add-CivilPopulation $r[0] $r[1] }
+  return $r
 }
 
 # BBB is a required standalone addon. Development and ZIP copies keep it beside ACA.

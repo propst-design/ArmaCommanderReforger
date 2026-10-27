@@ -39,7 +39,8 @@ try {
  }
  if (!$TestProfile) {
   . (Join-Path $PSScriptRoot 'ACR-Find.ps1')
-  $withAio = Add-AIOCommandMenu $addonsDir $addonList
+  if ($setup) { $withAio = Add-OptionalMods $addonsDir $addonList $setup }
+  else { $withAio = Add-AIOCommandMenu $addonsDir $addonList }
   $addonsDir = $withAio[0]; $addonList = $withAio[1]
  }
  # Players get their normal profile (controls, graphics); automated tests use a separate one.

@@ -1,0 +1,10 @@
+GameProject {
+ ID "ACACivilPopulation"
+ GUID "AC230926CC000001"
+ TITLE "Arma Commander Actual - Civil Population compat"
+ Dependencies {
+  "58D0FB3206B6F859"
+  "AC230926A0010001"
+  "BCE0D49568A9E6BF"
+ }
+}

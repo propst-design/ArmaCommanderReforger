@@ -157,6 +157,7 @@ class ACR_FactionSelection
  {
   s_bApplied = false;
   s_bWorldMapped = false;
+  s_PlayableSent.Clear();
   s_sWest = "US";
   s_sEast = "USSR";
  }
@@ -249,6 +250,45 @@ class ACR_FactionSelection
   return key;
  }
 
+ // Only the pair shows on the deploy screen's side list. The playable flag isn't replicated:
+ // the server sets it here and each client gets it from SyncClients (26 Oct: clients listed
+ // FIA, a player picked it and found no spawn point).
+ static void SetPlayable(string west, string east)
+ {
+  FactionManager manager = GetGame().GetFactionManager();
+  if (!manager) return;
+  array<Faction> all = {};
+  manager.GetFactionsList(all);
+  foreach (Faction baseFaction : all)
+  {
+   SCR_Faction faction = SCR_Faction.Cast(baseFaction);
+   if (faction) faction.SetIsPlayable(faction.GetFactionKey() == west || faction.GetFactionKey() == east);
+  }
+ }
+
+ protected static ref map<int, string> s_PlayableSent = new map<int, string>();
+
+ // Server, every second once the pair is applied: each player's game learns the pair once.
+ static void SyncClients()
+ {
+  if (!s_bApplied) return;
+  string signature = s_sWest + "," + s_sEast;
+  array<int> ids = {};
+  GetGame().GetPlayerManager().GetPlayers(ids);
+  array<int> gone = {};
+  foreach (int known, string ignored : s_PlayableSent) if (!ids.Contains(known)) gone.Insert(known);
+  foreach (int left : gone) s_PlayableSent.Remove(left);
+  foreach (int id : ids)
+  {
+   string sent;
+   if (s_PlayableSent.Find(id, sent) && sent == signature) continue;
+   SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerManager().GetPlayerController(id));
+   if (!pc) continue;
+   s_PlayableSent.Set(id, signature);
+   pc.ACR_SendPlayableSides(s_sWest, s_sEast);
+  }
+ }
+
  static bool HasFaction(string key)
  {
   return GetGame().GetFactionManager().GetFactionByKey(key) != null;
@@ -266,13 +306,7 @@ class ACR_FactionSelection
    s_bApplied = true;
    string pair = Choice(s_sWest, s_sEast);
    PrintFormat("[ACR] Faction choice '%1' -> %2 / %3", pair, s_sWest, s_sEast);
-   array<Faction> all = {};
-   manager.GetFactionsList(all);
-   foreach (Faction baseFaction : all)
-   {
-    SCR_Faction faction = SCR_Faction.Cast(baseFaction);
-    if (faction) faction.SetIsPlayable(faction.GetFactionKey() == s_sWest || faction.GetFactionKey() == s_sEast);
-   }
+   SetPlayable(s_sWest, s_sEast);
    PrintFormat("[ACR] Playable faction pair: %1 / %2", s_sWest, s_sEast);
   }
   if (s_bWorldMapped || ACR_Base.s_All.IsEmpty()) return;
@@ -303,6 +337,9 @@ modded class SCR_PlayerFactionAffiliationComponent
  {
   string key = ACR_PlayerSide.Key();
   if (key != "" && faction && faction.GetFactionKey() != key) return false;
+  // Only the match's two sides (a client with a stale side list could still ask for FIA);
+  // a side the host forces with -acrPlayers stays allowed.
+  if (key == "" && faction && ACR_FactionSelection.Applied() && !ACR_FactionSelection.IsSelected(faction.GetFactionKey())) return false;
   // Deployed once: on that side for the rest of the match (ACR_SpawnPoints side lock).
   if (!GetPlayerController()) return super.CanRequestFaction_S(faction);
   int playerId = GetPlayerController().GetPlayerId();
