@@ -65,7 +65,9 @@ class ACR_SpawnPoints
  // Every second on the server, once the match has started.
  static void Tick(ACR_Manager manager)
  {
-  if (!Replication.IsServer() || !ACR_Setup.Started() || ACR_Base.s_All.IsEmpty()) return;
+  if (!Replication.IsServer() || !ACR_Setup.Started()) return;
+  ACR_FactionSelection.SyncClients(); // the deploy screen's side list
+  if (ACR_Base.s_All.IsEmpty()) return;
   SetTimer(manager);
   // Base points: create, move between sides, open and close.
   array<ACR_Base> gone = {};
@@ -234,5 +236,23 @@ class ACR_SpawnPoints
    s_Locks.Set(identity, faction.GetFactionKey());
    PrintFormat("[ACR] %1 locked to %2 for this match", GetGame().GetPlayerManager().GetPlayerName(id), faction.GetFactionKey());
   }
+ }
+}
+
+// Deploy screen (client): log what the spawn point list is built from, so a list that comes up
+// empty in play shows why (26 Oct: Jacob found no spawn points on either side).
+modded class SCR_SpawnPointRequestUIComponent
+{
+ override void ShowAvailableSpawnPoints(Faction faction)
+ {
+  super.ShowAvailableSpawnPoints(faction);
+  if (!faction) return;
+  string known;
+  foreach (SCR_SpawnPoint point : SCR_SpawnPoint.GetSpawnPoints())
+  {
+   if (!point) continue;
+   known += string.Format(" %1/%2/%3", point.GetFactionKey(), point.GetSpawnPointName(), point.IsSpawnPointEnabled());
+  }
+  PrintFormat("[ACR] DEPLOY list for %1 (playable %2): %3 of theirs; all known:%4", faction.GetFactionKey(), SCR_Faction.Cast(faction) && SCR_Faction.Cast(faction).IsPlayable(), SCR_SpawnPoint.GetSpawnPointsForFaction(faction.GetFactionKey()).Count(), known);
  }
 }

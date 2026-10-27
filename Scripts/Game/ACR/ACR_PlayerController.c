@@ -414,6 +414,16 @@ modded class SCR_PlayerController
  {
   ACR_SetupClient.Receive(active, allowed, rows, info);
  }
+ // The match's two sides (ACR_FactionSelection.SyncClients): the deploy screen lists only them.
+ void ACR_SendPlayableSides(string west, string east)
+ {
+  Rpc(ACR_PlayableSidesOwner, west, east);
+ }
+ [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
+ protected void ACR_PlayableSidesOwner(string west, string east)
+ {
+  ACR_FactionSelection.SetPlayable(west, east);
+ }
  void ACR_RequestSetup(string key)
  {
   Rpc(ACR_SetupServer, key);
