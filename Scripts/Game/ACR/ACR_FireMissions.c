@@ -110,13 +110,14 @@ class ACR_FireMissions : Managed
   return false;
  }
 
- // An AI-led side fires as often as its commander's doctrine wants (Firepower more, Blitz less).
+ // An AI-led side fires as often as its commander's doctrine wants (Firepower more, Blitz less),
+ // and more often while rich (ACR_AICommander.FireFactor, #28).
  protected float Gap(string key, bool ai)
  {
   if (!ai) return 1;
   ACR_AICommander commander = m_Manager.AICommanderFor(key);
   if (!commander || !commander.Doctrine()) return 1;
-  return commander.Doctrine().m_fFireMissionGap;
+  return commander.Doctrine().m_fFireMissionGap / commander.FireFactor();
  }
 
  protected bool AILed(string key)

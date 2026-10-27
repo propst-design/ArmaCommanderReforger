@@ -3,9 +3,10 @@
 // 20 RP in it, which unit purchases keep back and the status line shows; it stops at 100 RP
 // and at what the side holds; engineering spending comes out of it. #28: over 600 banked RP the
 // share rises with the surplus and the budget is topped up from it; at or below 600 nothing changes.
+// #28 step 2: a rich side keeps more for fire missions and fires at lower thresholds.
 class ACR_TestBuildBudget
 {
- static const int CHECKS = 8;
+ static const int CHECKS = 9;
 
  static void Run(ACR_TestHarness h, int tick)
  {
@@ -54,6 +55,7 @@ class ACR_TestBuildBudget
   ACR_TestRegress.Check("budget: engineering spending comes out of it", afterSpend == 15 && ai.BuildBudget() == 0, string.Format("after 25: %1, after 500 more: %2", afterSpend, ai.BuildBudget()));
 
   CheckSurplus(ai, us);
+  CheckRichFire(ai, us);
 
   // The share is clamped to 30%.
   ACR_Options.Set("acrAIBuildShare", "80");
@@ -113,5 +115,26 @@ class ACR_TestBuildBudget
   bool rises = at800 == 22.5 && atCap == 30 && fortressCap == 50 && above >= 45 && topped == 100 && status.Contains("raised by 400 RP banked over 600");
   ACR_TestRegress.Check("budget: over 600 banked RP the share rises with the surplus, and at the RP cap the budget is topped up from it, within its caps", rises,
    string.Format("share at 800 %1%%, at 1000 %2%% (Fortress %3%%); 600 -> 800 RP puts %4 RP aside; at 1000 with no gain, empty budget -> %5 RP; status '%6'", at800, atCap, fortressCap, above, topped, status));
+ }
+
+ // #28 step 2: a rich side fires more. At or below 600 RP the factor is 1 and nothing changes; at
+ // the cap it is 2: the support budget rises (one more mission, air strikes counted, the cap
+ // doubled) and the thresholds for air and heavy preparation halve.
+ protected static void CheckRichFire(ACR_AICommander ai, ACR_FactionData us)
+ {
+  ai.SetDoctrineForTest(ACR_AIDoctrine.Find("balanced"));
+  us.m_iRP = 600;
+  float poorFactor = ai.FireFactor();
+  int poorBudget = ai.SupportBudgetForTest();
+  us.m_iRP = ACR_BaseSystem.POINTS_CAP;
+  float richFactor = ai.FireFactor();
+  int richBudget = ai.SupportBudgetForTest();
+  int air = ACR_AICommander.Lowered(8, richFactor);
+  int prep = ACR_AICommander.Lowered(12, richFactor);
+  int same = ACR_AICommander.Lowered(8, poorFactor);
+  bool ok = poorFactor == 1 && richFactor == 2 && richBudget > poorBudget && air == 4 && prep == 6 && same == 8 && ACR_AICommander.Lowered(1, 2) == 1;
+  ACR_TestRegress.Check("budget: a rich side keeps more for fire missions and fires at lower thresholds", ok,
+   string.Format("factor %1 -> %2, support budget %3 -> %4, air threat 8 -> %5, heavy prep 12 -> %6", poorFactor, richFactor, poorBudget, richBudget, air, prep));
+  us.m_iRP = 0;
  }
 }

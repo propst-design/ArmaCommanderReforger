@@ -947,6 +947,16 @@ class ACR_AICommander : Managed
   return 1 + Math.Clamp(over, 0, 1);
  }
 
+ // A rich side fires more (#28 step 2), by the same x1..x2 surplus factor: the RP held for fire
+ // missions and the missions it counts rise, while the threat that earns defensive fire or air
+ // strikes and the defenders that earn heavy preparation fall, and its observers call sooner.
+ float FireFactor() { return SurplusFactor(m_Manager.m_Bases.GetRP(m_sFaction)); }
+ static int Lowered(int threshold, float factor)
+ {
+  float lowered = (1.0 / factor) * threshold;
+  return Math.Max(1, (int)Math.Round(lowered));
+ }
+
  // The share (percent of RP gained) with 'rp' banked.
  float ShareAt(int rp) { return Math.Min(BuildShare() * m_Doctrine.m_fBuildShare * SurplusFactor(rp), 50); }
 
@@ -1467,21 +1477,28 @@ class ACR_AICommander : Managed
  // the doctrine's dearest few (mortars; with m_bAirBudget the off-map air and rocket strikes
  // too) plus the usual reserve, capped by the doctrine. (Before 24 Oct pass 2 only the dearest
  // mortar counted: 25 + 15 RP, under every doctrine's cap, so the cap never changed anything.)
+ // A rich side (FireFactor > 1) keeps RP for one more mission, counts air strikes whatever its
+ // doctrine, and its cap rises with the factor.
  protected int SupportBudget()
  {
+  float factor = FireFactor();
+  bool rich = factor > 1;
   array<int> costs = {};
   foreach (ACR_SupportEntry entry : m_Manager.m_Bases.GetFaction(m_sFaction).m_aSupports)
   {
    if (!entry.m_bEnabled) continue;
    bool planned = entry.m_eType == ACR_ESupportType.MORTAR_HE_SMALL || entry.m_eType == ACR_ESupportType.MORTAR_HE_LARGE || entry.m_eType == ACR_ESupportType.MORTAR_SMOKE;
-   if (m_Doctrine.m_bAirBudget && (entry.m_eType == ACR_ESupportType.BOMB_RUN || entry.m_eType == ACR_ESupportType.ROCKET_STRIKE)) planned = true;
+   if ((m_Doctrine.m_bAirBudget || rich) && (entry.m_eType == ACR_ESupportType.BOMB_RUN || entry.m_eType == ACR_ESupportType.ROCKET_STRIKE)) planned = true;
    if (planned && entry.m_iCost > 0) costs.Insert(entry.m_iCost);
   }
   if (costs.IsEmpty()) return 0;
   costs.Sort(true);
+  int missions = m_Doctrine.m_iSupportMissions;
+  if (rich) missions++;
   int budget = SUPPORT_RESERVE;
-  for (int i = 0; i < costs.Count() && i < m_Doctrine.m_iSupportMissions; i++) budget += costs[i];
-  return Math.Min(m_Doctrine.m_iSupportBudgetMax, budget);
+  for (int i = 0; i < costs.Count() && i < missions; i++) budget += costs[i];
+  int cap = factor * m_Doctrine.m_iSupportBudgetMax;
+  return Math.Min(cap, budget);
  }
  int SupportBudgetForTest() { return SupportBudget(); }
 
@@ -1821,14 +1838,16 @@ class ACR_AICommander : Managed
    }
   }
   DefendInDepth();
-  // Defensive fires: shell the attackers of a base that is losing the fight.
+  // Defensive fires: shell the attackers of a base that is losing the fight (a rich side: one
+  // that is merely in a fight, down to half its defence at the RP cap).
+  float fireFactor = FireFactor();
   foreach (ACR_Base held : ACR_Base.s_All)
   {
-   if (held.m_sOwner != m_sFaction || ThreatTo(held) <= DefenceOf(held)) continue;
+   if (held.m_sOwner != m_sFaction || fireFactor * ThreatTo(held) <= DefenceOf(held)) continue;
    vector seenAt;
    ACR_Squad attacker = EnemyNear(held.GetOrigin(), THREAT_DISTANCE + held.m_fRadius, seenAt);
    if (!attacker) continue;
-   int airThreat = m_Doctrine.m_iDefensiveAirThreat;
+   int airThreat = Lowered(m_Doctrine.m_iDefensiveAirThreat, fireFactor);
    if (ThreatTo(held) >= airThreat && CallSupport(ACR_ESupportType.HELI_GUN_RUN, seenAt, "gun run at " + held.m_sName)) break;
    if (ThreatTo(held) >= airThreat && CallSupport(ACR_ESupportType.ROCKET_STRIKE, seenAt, "rocket strike at " + held.m_sName)) break;
    if (CallSupport(ACR_ESupportType.MORTAR_HE_LARGE, seenAt, "defensive fire at " + held.m_sName)) break;
@@ -3409,7 +3428,7 @@ class ACR_AICommander : Managed
     if (attack.m_Suppressor && TakersIn(attack, attack.m_Suppressor) == 0) attack.m_Suppressor = null;
     attack.m_fAssaultStart = GetGame().GetWorld().GetWorldTime();
     // Preparation: shell the objective with heavy assets against fortified FOBs
-    bool heavyPrep = target.m_bBuilt || DefenceOf(target) >= m_Doctrine.m_iHeavyPrep;
+    bool heavyPrep = target.m_bBuilt || DefenceOf(target) >= Lowered(m_Doctrine.m_iHeavyPrep, FireFactor());
     if (!heavyPrep || !CallSupport(ACR_ESupportType.BOMB_RUN, target.GetOrigin(), "airstrike preparation on " + target.m_sName))
      if (!heavyPrep || !CallSupport(ACR_ESupportType.ROCKET_STRIKE, target.GetOrigin(), "rocket strike preparation on " + target.m_sName))
       if (!heavyPrep || !CallSupport(ACR_ESupportType.HELI_GUN_RUN, target.GetOrigin(), "gun run preparation on " + target.m_sName))
