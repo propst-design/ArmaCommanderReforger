@@ -303,6 +303,9 @@ function Remove-KnownNoise($text) {
     $text = [regex]::Replace($text, "SCRIPT\s+\(E\): Virtual Machine Exception\s+Reason: Failed move from[^\r\n]*(?:\r?\n(?!\d\d:\d\d:)[^\r\n]*)*?SCR_AIProcessFailedMovementResult\.c", 'vanilla AI failed-move report (ignored)')
     # Vanilla SCR_AIGetFireTimes: RandomFloat(0.1, m_fShotSpan * 1.9) when the shot span is 0.
     $text = [regex]::Replace($text, "SCRIPT\s+\(E\): Math\.RandomFloat: invalid parameters min = 0\.100000 max = 0\.000000", 'vanilla AI fire-time warning (ignored)')
+    # Vanilla SCR_AILookAtThreatSystemLogic: RandomFloat(x, coefficient * x) with its default coefficient 1
+    # (Kolguyev long soak 27 Oct, after an air strike). Equal min and max only.
+    $text = [regex]::Replace($text, "SCRIPT\s+\(E\): Math\.RandomFloat: invalid parameters min = ([\d.]+) max = \1(?!\d)", 'vanilla AI look-timer warning (ignored)')
     # Vanilla ammo storage (built composition) on a dedicated server: its resupply action has no storage manager.
     $text = ($text -split "`n" | Where-Object { $_ -notmatch "SCR_ResupplySelfSupportStationAction.*no storage manager found" }) -join "`n"
     return $text
