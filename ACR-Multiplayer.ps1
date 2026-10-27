@@ -47,7 +47,7 @@ try {
     $setup = Show-HostSetup
     $addonsDir = $addonsPath
     if ($setup.Factions -ne 'vanilla' -or $setup.ACE -eq 'yes') { $addonsDir += ',E:\ArmaReforgerMods\addons' } # faction mods and ACE both live there
-    $withAio = Add-AIOCommandMenu $addonsDir $setup.Addons
+    $withAio = Add-OptionalMods $addonsDir $setup.Addons $setup
     $mod = '-addonsDir "' + $withAio[0] + '" -addons ' + $withAio[1]
     $zt = Connect-ZeroTier
     $serverArgs = '-server "' + $setup.World + '" ' + $mod + ' -profile "' + $serverProfile + '" -bindPort ' + $Port + ' -maxFPS 60' + $backend + $setup.Args
@@ -103,7 +103,7 @@ try {
     $joinSetup = Show-JoinModSetup
     $addonsDir = $addonsPath
     if ($joinSetup.Factions -ne 'vanilla' -or $joinSetup.ACE -eq 'yes') { $addonsDir += ',E:\ArmaReforgerMods\addons' } # faction mods and ACE both live there
-    $withAio = Add-AIOCommandMenu $addonsDir $joinSetup.Addons
+    $withAio = Add-OptionalMods $addonsDir $joinSetup.Addons $joinSetup
     $mod = '-addonsDir "' + $withAio[0] + '" -addons ' + $withAio[1]
     Write-Host ('Selected ' + $joinSetup.Factions + ' and ACE=' + $joinSetup.ACE + '. Match both selections to the host or the server will reject the connection.') -ForegroundColor Yellow
     $zt = Connect-ZeroTier
