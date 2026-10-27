@@ -1098,6 +1098,12 @@ class ACR_AICommander : Managed
  protected int m_iReviewLost, m_iReviewKills, m_iReviewWon, m_iReviewBasesLost;
  protected int m_iDoctrineChanges;
  protected bool m_bDoctrineSettling; // changed at the last review: the next one only snapshots
+ // A changed doctrine is kept DOCTRINE_HOLD_MIN, and the one just left can't come straight back
+ // for the same kind of reason (Jacob, #29: a bleeding side swapped Fortress <-> Firepower at
+ // every judged review, and counters chased each other all match).
+ static const float DOCTRINE_HOLD_MIN = 30;
+ protected float m_fDoctrineSince = -1;
+ protected string m_sDoctrineLeft, m_sDoctrineLeftWhy;
 
  protected void SnapshotReview()
  {
@@ -1145,7 +1151,35 @@ class ACR_AICommander : Managed
   string pick = PickDoctrine(m_Doctrine.m_sKey, enemyKnown, won, basesLost, lost, kills, why);
   Say(string.Format("[ACR] AI commander %1 doctrine review: %2, bases +%3 -%4, lost %5 killed %6, enemy doctrine '%7': %8", m_sFaction, m_Doctrine.m_sName, won, basesLost, lost, kills, enemyKnown, why));
   if (pick.IsEmpty() || pick == m_Doctrine.m_sKey) return;
+  float heldMin = -1;
+  if (m_fDoctrineSince >= 0) heldMin = (now - m_fDoctrineSince) / 60000;
+  string blocked = DoctrineChangeBlocked(pick, why, heldMin, m_sDoctrineLeft, m_sDoctrineLeftWhy);
+  if (!blocked.IsEmpty())
+  {
+   Say(string.Format("[ACR] AI commander %1 doctrine: keeps %2 instead of %3 (%4)", m_sFaction, m_Doctrine.m_sName, ACR_AIDoctrine.NameOf(pick), blocked));
+   return;
+  }
   ChangeDoctrine(ACR_AIDoctrine.Find(pick), why);
+ }
+
+ // Reasons that lead to the same answer count as one: losing ground and heavy losses both pick
+ // whichever of Fortress and Firepower the side isn't on; every counter is a counter.
+ static string DoctrineReasonKind(string why)
+ {
+  if (why.StartsWith("countering")) return "counter";
+  if (why == "losing ground" || why == "losses too heavy") return "going badly";
+  return why;
+ }
+
+ // Why a picked change can't happen yet, "" when it can. heldMin < 0: never changed this match
+ // (the starting doctrine has had the first review's wait).
+ static string DoctrineChangeBlocked(string pick, string why, float heldMin, string left, string leftWhy)
+ {
+  if (heldMin >= 0 && heldMin < DOCTRINE_HOLD_MIN)
+   return string.Format("held %1 of %2 min", Math.Floor(heldMin), DOCTRINE_HOLD_MIN);
+  if (!left.IsEmpty() && pick == left && DoctrineReasonKind(why) == DoctrineReasonKind(leftWhy))
+   return "just left it for the same reason: " + why;
+  return "";
  }
 
  // What a review decides over one review window: the doctrine key to change to, "" to keep.
@@ -1204,6 +1238,9 @@ class ACR_AICommander : Managed
   m_sDoctrineSource = "changed";
   m_iDoctrineChanges++;
   m_bDoctrineSettling = true;
+  m_fDoctrineSince = GetGame().GetWorld().GetWorldTime();
+  m_sDoctrineLeft = was.m_sKey;
+  m_sDoctrineLeftWhy = why;
   Say(string.Format("[ACR] AI commander %1 doctrine: %2 -> %3 (%4; %5)", m_sFaction, was.m_sName, doctrine.m_sName, why, doctrine.m_sSummary));
   // Its own side hears it (players fighting under this commander); the enemy has to notice.
   string line = string.Format("Commander: switching to %1 (%2)", doctrine.m_sName, why);

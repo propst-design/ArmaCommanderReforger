@@ -141,7 +141,7 @@ class ACR_TestRegress
  }
 
  // Checks a full run makes (Skip counts as made). Raise it with every new check.
- static const int EXPECTED = 128; // includes seven BBB order-leash, five roadblock placement, thirteen doctrine, two covered-approach and one attack-takers check
+ static const int EXPECTED = 129; // includes seven BBB order-leash, five roadblock placement, fourteen doctrine, two covered-approach and one attack-takers check
  static SCR_AIGroup s_RecoveryGroup;
  static SCR_AIGroup s_BoardingGroup;
  static SCR_AIGroup s_CancelBoardingGroup;

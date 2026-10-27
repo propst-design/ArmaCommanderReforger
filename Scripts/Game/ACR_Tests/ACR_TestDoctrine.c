@@ -113,6 +113,18 @@ class ACR_TestDoctrine
   ok = ok && grabbingBleeding == "firepower";
   ACR_TestRegress.Check("doctrine: reviews keep a winning doctrine, change a failing one, counter a known enemy", ok,
    string.Format("winning [%1] losing %2/%3 bleeding %4 stuck %5/%6 counter %7 even [%8] countering [%9]", winning, losing, losingFortress, bleeding, stuck, stuckBlitz, counter, even, countering) + " grabbing-bleeding " + grabbingBleeding);
+
+  // #29: a changed doctrine is held 30 min; the one just left doesn't come straight back for the
+  // same kind of reason (Fortress -> Firepower losing ground, then back for heavy losses).
+  string first = ACR_AICommander.DoctrineChangeBlocked("firepower", "losing ground", -1, "", "");
+  string early = ACR_AICommander.DoctrineChangeBlocked("blitz", "getting nowhere", 20, "balanced", "losing ground");
+  string swapBack = ACR_AICommander.DoctrineChangeBlocked("fortress", "losses too heavy", 40, "fortress", "losing ground");
+  string chaseBack = ACR_AICommander.DoctrineChangeBlocked("balanced", "countering the enemy's Raider", 40, "balanced", "countering the enemy's Blitz");
+  string otherReason = ACR_AICommander.DoctrineChangeBlocked("fortress", "getting nowhere", 40, "fortress", "losing ground");
+  string elsewhere = ACR_AICommander.DoctrineChangeBlocked("raider", "losses too heavy", 40, "fortress", "losing ground");
+  bool holds = first == "" && early.Contains("held") && swapBack.Contains("same reason") && chaseBack.Contains("same reason") && otherReason == "" && elsewhere == "";
+  ACR_TestRegress.Check("doctrine: a change is held 30 min and never swaps straight back for the same reason", holds,
+   string.Format("first [%1] early [%2] swap [%3] chase [%4] other [%5] elsewhere [%6]", first, early, swapBack, chaseBack, otherReason, elsewhere));
  }
 
  protected static void CheckDiscovery(ACR_Manager manager)
