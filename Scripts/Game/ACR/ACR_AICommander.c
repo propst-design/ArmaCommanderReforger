@@ -3735,7 +3735,10 @@ class ACR_AICommander : Managed
 
  // A staging point near 'point' on the same approach line that the objective's ground can't see:
  // a little further round or further out, never closer than 150 m past the objective's edge.
- protected vector HiddenStaging(ACR_Base target, vector point)
+ // 'others': the attack's other lines' staging points; a nudge never turns within
+ // APPROACH_SEPARATION of one (#52: nudged 20 degrees towards each other, two lines failed the
+ // spacing and the last squad was put on the first squad's staging point).
+ protected vector HiddenStaging(ACR_Base target, vector point, array<vector> others = null)
  {
   vector center = target.GetOrigin();
   array<vector> eyes = {};
@@ -3757,6 +3760,7 @@ class ACR_AICommander : Managed
     if (outward == 0 && turn == 0) continue;
     vector candidate = ACR_Manager.Ground(center + Turned(dir, turn) * r);
     if (BBB_Terrain.IsWaterAt(candidate) || NearOtherEnemyBase(candidate, target)) continue;
+    if (others && !ApartFrom(center, candidate, others)) continue;
     if (!GroundSeen(eyes, candidate)) return candidate;
    }
   }
@@ -3820,19 +3824,39 @@ class ACR_AICommander : Managed
   {
    vector candidate;
    if (!StagingPoint(target, Turned(ahead, s_aApproachTurns[pick]), ring, candidate)) continue;
-   // Form up out of the objective's sight where the ground allows (Jacob 26 Oct, Provins).
-   if (!target.m_sOwner.IsEmpty()) candidate = HiddenStaging(target, candidate);
-   bool apart = true;
+   // The other lines' staging points (a squad sharing this line shares its point).
+   array<vector> others = {};
    foreach (int i, int other : attack.m_aSlot)
    {
     if (other == pick || other < 0 || i >= attack.m_aStaging.Count()) continue;
-    if (TurnBetween(attack.m_aStaging[i] - center, candidate - center) < APPROACH_SEPARATION) apart = false;
+    others.Insert(attack.m_aStaging[i]);
    }
-   if (!apart) continue;
+   if (!ApartFrom(center, candidate, others)) continue;
+   // Form up out of the objective's sight where the ground allows (Jacob 26 Oct, Provins),
+   // without closing in on another line, the ones no squad has taken yet included: nudged
+   // towards them, the next squads' lines no longer fitted (#52).
+   if (!target.m_sOwner.IsEmpty())
+   {
+    array<vector> keepClear = {};
+    keepClear.Copy(others);
+    foreach (int free, float freeTurn : s_aApproachTurns)
+    {
+     if (free != pick && !attack.m_aSlot.Contains(free)) keepClear.Insert(center + Turned(ahead, freeTurn) * ring);
+    }
+    candidate = HiddenStaging(target, candidate, keepClear);
+   }
    stage = candidate;
    return pick;
   }
   return -1;
+ }
+
+ // 'point' is at least APPROACH_SEPARATION degrees round 'center' from each of 'others'.
+ static bool ApartFrom(vector center, vector point, notnull array<vector> others)
+ {
+  foreach (vector other : others)
+   if (TurnBetween(other - center, point - center) < APPROACH_SEPARATION) return false;
+  return true;
  }
 
  // Distinct approach lines in use (for the log).
