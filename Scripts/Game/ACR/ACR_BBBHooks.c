@@ -50,7 +50,64 @@ class ACR_BBBHooks : BBB_Hooks
   ACR_Squad squad = SquadOf(group);
   if (!squad || ACR_AirLift.Busy(squad) || squad.m_Mode != ACR_EMoveMode.COMBAT || squad.m_Commander != 0 || squad.m_CombatFlank.Active()) return false;
   ACR_EOrderState state = squad.OrderState();
-  return state == ACR_EOrderState.MOVE || state == ACR_EOrderState.ASSAULT || state == ACR_EOrderState.HUNT;
+  if (state == ACR_EOrderState.MOVE || state == ACR_EOrderState.ASSAULT || state == ACR_EOrderState.HUNT) return true;
+  // Defenders bound to cover or push back an enemy inside their post, never out of it (#31).
+  vector centre;
+  float radius;
+  return DefenderLeash(squad, centre, radius);
+ }
+
+ // ---- Squad tactics inside the objective (#31, Jacob 26 Oct). ACA's attack logic picks the
+ // target, stages the squads and sets the base of fire; once a squad on its ASSAULT order is
+ // inside the target's ring, BBB's squad tactics (assault, flank, hold, search) and fire and
+ // manoeuvre do the small-unit work there, leashed to the ring. Defenders on a Defend order at
+ // their post get fire and manoeuvre (and the tactics they had) leashed to the post's radius.
+ // No tactics while staging or riding. -acrSquadTactics 0: the old policy.
+ // Asked many times a tick (BBB's leash checks): the option is read again every 5 s.
+ protected static bool s_bSquadTactics;
+ protected static float s_fSquadTacticsRead = -1;
+ static bool SquadTacticsOn()
+ {
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (s_fSquadTacticsRead < 0 || now - s_fSquadTacticsRead > 5000 || now < s_fSquadTacticsRead)
+  {
+   s_fSquadTacticsRead = now;
+   s_bSquadTactics = ACR_LogisticsRules.Choice("acrSquadTactics", "1") != "0";
+  }
+  return s_bSquadTactics;
+ }
+
+ // An attacker in the objective: on foot, assaulting, inside the target's ring.
+ static bool AttackerLeash(ACR_Squad squad, out vector centre, out float radius)
+ {
+  if (!SquadTacticsOn() || !squad || squad.m_iAITask != ACR_EAITask.ATTACK || !squad.m_AITarget) return false;
+  if (squad.HasPlayer() || squad.m_Commander != 0 || squad.m_bForced || squad.IsMounted() || ACR_Transport.CrewedVehicle(squad) || ACR_AirLift.Busy(squad)) return false;
+  if (squad.OrderState() != ACR_EOrderState.ASSAULT || !squad.GetAnchor()) return false;
+  centre = squad.m_AITarget.GetOrigin();
+  radius = squad.m_AITarget.m_fRadius;
+  return vector.DistanceXZ(squad.GetAnchor().GetOrigin(), centre) <= radius;
+ }
+
+ // A defender at its post: defending or posted at a base, on a Defend order, inside the base.
+ static bool DefenderLeash(ACR_Squad squad, out vector centre, out float radius)
+ {
+  if (!SquadTacticsOn() || !squad || !squad.m_AITarget || !squad.m_Group) return false;
+  if (squad.m_iAITask != ACR_EAITask.DEFEND && squad.m_iAITask != ACR_EAITask.POSTED) return false;
+  if (squad.HasPlayer() || squad.m_Commander != 0 || squad.m_bForced || squad.IsMounted() || ACR_Transport.CrewedVehicle(squad) || ACR_AirLift.Busy(squad)) return false;
+  if (squad.OrderState() != ACR_EOrderState.DEFEND || !squad.GetAnchor()) return false;
+  // Only the plain Defend waypoint: garrisons stay in their buildings.
+  AIWaypoint waypoint = squad.m_Group.GetCurrentWaypoint();
+  if (!waypoint || !waypoint.GetPrefabData() || !waypoint.GetPrefabData().GetPrefabName().Contains("AIWaypoint_Defend")) return false;
+  centre = squad.m_AITarget.GetOrigin();
+  radius = Math.Max(squad.m_AITarget.m_fRadius, BBB_OrderLeash.DEFEND_RADIUS);
+  return vector.DistanceXZ(squad.GetAnchor().GetOrigin(), centre) <= radius;
+ }
+
+ override bool HostLeash(SCR_AIGroup group, out vector centre, out float radius)
+ {
+  ACR_Squad squad = SquadOf(group);
+  if (!squad) return false;
+  return AttackerLeash(squad, centre, radius) || DefenderLeash(squad, centre, radius);
  }
 
  override bool LeaveAlone(IEntity vehicle) { return m_Manager.IsGunnerDriven(vehicle); }
@@ -127,12 +184,15 @@ class ACR_BBBHooks : BBB_Hooks
   return state == ACR_EOrderState.NONE || state == ACR_EOrderState.HOLD || state == ACR_EOrderState.DEFEND;
  }
 
- // BBB's committed squad tactic (contact pause, assault, hold, reorganise) only for the same
- // waiting squads as contact relay: its HOLD stops advances, so ACA's movers, attackers and
- // flankers keep their plan and vanilla/BBB reactions as before.
+ // BBB's committed squad tactic (contact pause, assault, hold, reorganise) for the same waiting
+ // squads as contact relay, and for attackers inside the objective (#31): its HOLD stops
+ // advances, so ACA's movers, stagers and flankers keep their plan.
  override bool AllowSquadTactic(SCR_AIGroup group)
  {
-  return AllowContactRelay(group);
+  if (AllowContactRelay(group)) return true;
+  vector centre;
+  float radius;
+  return AttackerLeash(SquadOf(group), centre, radius);
  }
 
  override bool AllowMorale(SCR_AIGroup group)

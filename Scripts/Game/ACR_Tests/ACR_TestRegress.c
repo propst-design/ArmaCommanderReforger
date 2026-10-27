@@ -141,7 +141,7 @@ class ACR_TestRegress
  }
 
  // Checks a full run makes (Skip counts as made). Raise it with every new check.
- static const int EXPECTED = 129; // includes seven BBB order-leash, five roadblock placement, fourteen doctrine, two covered-approach and one attack-takers check
+ static const int EXPECTED = 130; // includes eight BBB order-leash, five roadblock placement, fourteen doctrine, two covered-approach and one attack-takers check
  static SCR_AIGroup s_RecoveryGroup;
  static SCR_AIGroup s_BoardingGroup;
  static SCR_AIGroup s_CancelBoardingGroup;
@@ -331,6 +331,7 @@ class ACR_TestRegress
    if (!hooks.IsBinding(fixture.m_Group)) specialistBinding = false;
   }
   Check("BBB leash: transport regroup and construction remain binding", specialistBinding);
+  CheckSquadTacticLeash(hooks, fixture);
   fixture.m_Mode = savedMode; fixture.m_Commander = savedCommander;
   fixture.m_iOrderedBy = savedIssuer; fixture.m_bForced = savedForced;
   fixture.SetOrder(savedLabel, savedState);
@@ -355,6 +356,40 @@ class ACR_TestRegress
   crew.m_Mode = savedMode; crew.m_Commander = savedCommander;
   crew.m_iOrderedBy = savedIssuer; crew.m_bForced = savedForced;
   crew.SetOrder(savedLabel, savedState);
+ }
+
+ // #31: an attacker gets squad tactics and a leash on the target's ring only on its ASSAULT order
+ // inside the ring; staging (MOVE) or outside the ring it keeps the old policy; -acrSquadTactics 0
+ // turns it off (the option is re-read every 5 s, so the off case is the static helper's).
+ static void CheckSquadTacticLeash(ACR_BBBHooks hooks, ACR_Squad fixture)
+ {
+  ACR_Base target;
+  foreach (ACR_Base base : ACR_Base.s_All) if (base && !base.m_bRetired) { target = base; break; }
+  if (!target || !fixture.GetAnchor())
+  {
+   Skip("BBB leash: attackers get squad tactics and the ring as leash only inside the objective", "no base or anchor");
+   return;
+  }
+  int savedTask = fixture.m_iAITask;
+  ACR_Base savedTarget = fixture.m_AITarget;
+  float savedRadius = target.m_fRadius;
+  float gap = vector.DistanceXZ(fixture.GetAnchor().GetOrigin(), target.GetOrigin());
+  fixture.m_iAITask = ACR_EAITask.ATTACK;
+  fixture.m_AITarget = target;
+  vector centre;
+  float radius;
+  target.m_fRadius = gap + 20;
+  fixture.SetOrder("Leash policy fixture", ACR_EOrderState.ASSAULT);
+  bool inside = hooks.HostLeash(fixture.m_Group, centre, radius) && radius == gap + 20 && vector.DistanceXZ(centre, target.GetOrigin()) < 0.1 && hooks.AllowSquadTactic(fixture.m_Group);
+  fixture.SetOrder("Leash policy fixture", ACR_EOrderState.MOVE);
+  bool staging = !hooks.HostLeash(fixture.m_Group, centre, radius) && !hooks.AllowSquadTactic(fixture.m_Group);
+  fixture.SetOrder("Leash policy fixture", ACR_EOrderState.ASSAULT);
+  target.m_fRadius = Math.Max(1, gap - 20);
+  bool outside = gap < 21 || !hooks.HostLeash(fixture.m_Group, centre, radius);
+  target.m_fRadius = savedRadius;
+  fixture.m_iAITask = savedTask;
+  fixture.m_AITarget = savedTarget;
+  Check("BBB leash: attackers get squad tactics and the ring as leash only inside the objective", inside && staging && outside, string.Format("inside %1 staging-free %2 outside-free %3 (anchor %4 m from %5)", inside, staging, outside, (int)gap, target.m_sName));
  }
 
  // A roadblock click by a joint of two road pieces, or on a side road by a T-crossing, stays on
