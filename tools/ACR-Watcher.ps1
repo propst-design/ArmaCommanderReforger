@@ -311,6 +311,9 @@ function Remove-KnownNoise($text) {
     $text = [regex]::Replace($text, "SCRIPT\s+\(E\): Math\.RandomFloat: invalid parameters min = ([\d.]+) max = \1(?!\d)", 'vanilla AI look-timer warning (ignored)')
     # Vanilla ammo storage (built composition) on a dedicated server: its resupply action has no storage manager.
     $text = ($text -split "`n" | Where-Object { $_ -notmatch "SCR_ResupplySelfSupportStationAction.*no storage manager found" }) -join "`n"
+    # Vanilla AI comms: a contact report whose target is gone by the time it is spoken (Everon long
+    # soak 27 Oct), and the failed request it reports in turn.
+    $text = ($text -split "`n" | Where-Object { $_ -notmatch "SCR_AISoundHandling: SetSignalsAndTransmit: Missing entity or position for|SCR_AICommsHandler: SCR_AISoundHandling\.SetSignalsAndTransmit failed for request" }) -join "`n"
     return $text
 }
 
