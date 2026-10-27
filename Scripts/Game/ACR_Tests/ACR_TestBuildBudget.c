@@ -3,10 +3,11 @@
 // 20 RP in it, which unit purchases keep back and the status line shows; it stops at 100 RP
 // and at what the side holds; engineering spending comes out of it. #28: over 600 banked RP the
 // share rises with the surplus and the budget is topped up from it; at or below 600 nothing changes.
-// #28 step 2: a rich side keeps more for fire missions and fires at lower thresholds.
+// #28 step 2: a rich side keeps more for fire missions and fires at lower thresholds; step 3: it
+// weighs its purchases towards dearer units.
 class ACR_TestBuildBudget
 {
- static const int CHECKS = 9;
+ static const int CHECKS = 10;
 
  static void Run(ACR_TestHarness h, int tick)
  {
@@ -56,6 +57,7 @@ class ACR_TestBuildBudget
 
   CheckSurplus(ai, us);
   CheckRichFire(ai, us);
+  CheckQuality();
 
   // The share is clamped to 30%.
   ACR_Options.Set("acrAIBuildShare", "80");
@@ -136,5 +138,20 @@ class ACR_TestBuildBudget
   ACR_TestRegress.Check("budget: a rich side keeps more for fire missions and fires at lower thresholds", ok,
    string.Format("factor %1 -> %2, support budget %3 -> %4, air threat 8 -> %5, heavy prep 12 -> %6", poorFactor, richFactor, poorBudget, richBudget, air, prep));
   us.m_iRP = 0;
+ }
+
+ // #28 step 3: a rich side weighs its purchases by price once more (none of it below the surplus).
+ protected static void CheckQuality()
+ {
+  ACR_RequisitionEntry team = new ACR_RequisitionEntry();
+  team.Set("team", "", "", 12, 1);
+  ACR_RequisitionEntry apc = new ACR_RequisitionEntry();
+  apc.Set("apc", "", "", 76, 1);
+  apc.m_iBaseCost = 75;
+  float poor = ACR_AICommander.QualityWeight(apc, 1);
+  float teamRich = ACR_AICommander.QualityWeight(team, 2);
+  float apcRich = ACR_AICommander.QualityWeight(apc, 2);
+  bool ok = poor == 1 && teamRich < 0.5 && apcRich == 3;
+  ACR_TestRegress.Check("budget: a rich side weighs purchases towards dearer units", ok, string.Format("at x1 %1; at x2 team %2, APC %3", poor, teamRich, apcRich));
  }
 }
