@@ -135,6 +135,16 @@ class ACR_BBBHooks : BBB_Hooks
   return state != ACR_EOrderState.MOVE && state != ACR_EOrderState.ASSAULT && state != ACR_EOrderState.HUNT && state != ACR_EOrderState.DEFEND && state != ACR_EOrderState.HOLD && state != ACR_EOrderState.SUPPRESS;
  }
 
+ // AdoptWaypoint runs every Fast order at the player's level so it outranks combat. When that
+ // order is ACA's own waypoint (AI commander or the commander screen, not a squad a player
+ // commands natively and not a GM waypoint), BBB keeps armed crews aboard for gates and heals (#57).
+ override bool HostOrder(SCR_AIGroup group)
+ {
+  ACR_Squad squad = SquadOf(group);
+  if (!squad || !squad.m_Waypoint || squad.m_Commander != 0 || BBB.HasPlayer(group)) return false;
+  return group.GetCurrentWaypoint() == squad.m_Waypoint;
+ }
+
  override bool ManagesVehicleDriving(SCR_AIGroup group)
  {
   return SquadOf(group) != null;
