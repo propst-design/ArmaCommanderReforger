@@ -28,6 +28,7 @@ class ACR_TestHarness : Managed
  static const int MODE_TACTICS = 15;
  static const int MODE_TRANSPORT = 16;
  static const int MODE_STALL = 17;
+ static const int MODE_STALLWAIT = 118; // #53: a vehicle waiting for its own crew to board isn't stuck
  static const int MODE_RIDE = 18;
  static const int MODE_LOGISTICS = 19;
  static const int MODE_QUEUE = 20;
@@ -111,6 +112,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrTacticsTest", flag)) mode = MODE_TACTICS;
   if (System.GetCLIParam("acrTransportTest", flag)) mode = MODE_TRANSPORT;
   if (System.GetCLIParam("acrStallTest", flag)) mode = MODE_STALL;
+  if (System.GetCLIParam("acrStallWaitTest", flag)) mode = MODE_STALLWAIT;
   if (System.GetCLIParam("acrRideTest", flag)) mode = MODE_RIDE;
   if (System.GetCLIParam("acrLogisticsTest", flag)) mode = MODE_LOGISTICS;
   if (System.GetCLIParam("acrQueueTest", flag)) mode = MODE_QUEUE;
@@ -241,6 +243,7 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_TACTICS) { m_Battle.TestTactics(); return; }
   if (m_Mode == MODE_TRANSPORT) { m_Vehicles.TestTransport(); return; }
   if (m_Mode == MODE_STALL) { m_Vehicles.TestStall(); return; }
+  if (m_Mode == MODE_STALLWAIT) { ACR_TestStallWait.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RIDE) { m_Vehicles.TestRide(); return; }
   if (m_Mode == MODE_LOGISTICS) { m_Logistics.TestLogistics(); return; }
   if (m_Mode == MODE_QUEUE) { m_Battle.TestQueue(); return; }
