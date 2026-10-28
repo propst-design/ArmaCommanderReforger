@@ -23,6 +23,8 @@ class ACR_TestHooks
  string Pockets() { return ""; }
  // Quick start a test asks for (even / uneven), "" = the host option (ACR_QuickStart).
  string QuickStart() { return ""; }
+ // FIA guerrillas a test asks for (few / many / off), "" = the host option (ACR_Guerrillas).
+ string Guerrillas() { return ""; }
  // AI doctrine a test asks for (ACR_AIDoctrine key), "" = the host option or random.
  string AIDoctrine(string factionKey) { return ""; }
  // Side a test's player deploys on without the deploy screen ("west" / "east"), "" = the menu.

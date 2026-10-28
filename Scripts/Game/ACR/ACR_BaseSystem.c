@@ -210,7 +210,8 @@ class ACR_BaseSystem : Managed
    if (!base.m_sOwner.IsEmpty() && key != base.m_sOwner)
    {
     // An FIA pocket is found once its garrison would deploy against you.
-    if (base.m_bPocket && distance <= SPAWN_RANGE && !base.m_aDetectedBy.Contains(key))
+    // Hidden FIA (-acrFIAHidden): only by entering it (above), and nobody is told.
+    if (base.m_bPocket && distance <= SPAWN_RANGE && !base.m_aDetectedBy.Contains(key) && !ACR_Guerrillas.Hidden())
     {
      base.m_aDetectedBy.Insert(key);
      manager.NotifyFaction(key, string.Format("FIA resistance at %1", base.m_sName));

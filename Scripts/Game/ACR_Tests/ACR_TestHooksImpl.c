@@ -44,6 +44,8 @@ modded class ACR_TestHooks
   if (System.IsCLIParam("acrSlopesTest")) ACR_TestSlopes.Run(seconds);
   // -acrPathProbeTest: can foot squads reach Gallows Base's centre (ACR_TestPathProbe).
   if (System.IsCLIParam("acrPathProbeTest")) ACR_TestPathProbe.Run(seconds);
+  // -acrGuerrillasTest: FIA guerrilla cells (ACR_TestGuerrillas, #89).
+  if (System.IsCLIParam("acrGuerrillasTest")) ACR_TestGuerrillas.Run(seconds);
   if (System.IsCLIParam("acrGenerateTest")) ACR_TestGenerate.Run(seconds);
   if (System.IsCLIParam("acrGenerateEveronTest")) ACR_TestGenerate.RunEveron(seconds);
   // -acrPocketsTest: FIA pockets of resistance (ACR_TestPockets).
@@ -64,6 +66,13 @@ modded class ACR_TestHooks
  {
   if (!System.IsCLIParam("world") || System.IsCLIParam("acrDeployMenuTest")) return "";
   return "west";
+ }
+
+ // Tests keep their worlds as authored; the guerrilla test and the balance soaks get guerrillas.
+ override string Guerrillas()
+ {
+  if (System.IsCLIParam("acrGuerrillasTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrLongSoakTest")) return "few";
+  return "";
  }
 
  // Tests keep their worlds as authored; the pocket test and the balance soaks get pockets.
