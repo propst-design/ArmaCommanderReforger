@@ -17,7 +17,7 @@ SPECS = {
                 guid='AC230926A0010001', dirs=['Scripts', 'Configs', 'Missions', 'Prefabs', 'Worlds'],
                 files=['LICENSE.md', 'README.md', 'MISSION-MAKING.md']),
     'BBB': dict(folder='BetterBattleBuddies', title='Better Battle Buddies',
-                guid='BBB0261015000001', dirs=['Scripts/Game/BBB', 'Configs/BBB', 'Prefabs/BBB'],
+                guid='BBB0261015000001', dirs=['Scripts/Game/BBB', 'Configs/BBB', 'Prefabs/BBB', 'UI/layouts/BBB'],
                 files=['LICENSE.md', 'README.md']),
     'AIO': dict(folder='AIOCommandMenu', title='AiO Command Menu (Reforger)',
                 guid='629405AEFC950C12', dirs=['Scripts', 'Configs'],

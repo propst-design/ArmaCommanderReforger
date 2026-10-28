@@ -67,6 +67,9 @@ class GuardTests(unittest.TestCase):
         runtime.write_text('BehaviorTree { Name "handheld flare fixture" }\n')
         meta = Path(str(runtime) + '.meta')
         meta.write_text('MetaFileClass { Name "{BBB0F1A200000001}Prefabs/BBB/FireHandheldFlare.bt" }\n')
+        layout = self.bbb / 'UI/layouts/BBB/BBB_SettingsTab.layout'
+        layout.parent.mkdir(parents=True, exist_ok=True)
+        layout.write_text('HorizontalLayoutWidgetClass { Name "settings tab fixture" }\n')
         test_script = self.bbb / 'Scripts/Game/BBB_Tests/BBB_FlareTest.c'
         test_script.parent.mkdir(parents=True, exist_ok=True)
         test_script.write_text('class BBB_FlareTest {}\n')
@@ -80,6 +83,7 @@ class GuardTests(unittest.TestCase):
         payload = parent / SPECS['BBB']['folder']
         self.assertEqual((payload / runtime.relative_to(self.bbb)).read_bytes(), runtime.read_bytes())
         self.assertEqual((payload / meta.relative_to(self.bbb)).read_bytes(), meta.read_bytes())
+        self.assertEqual((payload / layout.relative_to(self.bbb)).read_bytes(), layout.read_bytes())
         self.assertFalse((payload / test_script.relative_to(self.bbb)).exists())
         self.assertFalse((payload / test_prefab.relative_to(self.bbb)).exists())
 

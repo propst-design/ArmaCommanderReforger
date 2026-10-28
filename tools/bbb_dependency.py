@@ -28,7 +28,7 @@ def source():
 def release_files(root):
     for name in ['addon.gproj', 'resourceDatabase.rdb', 'README.md', 'LICENSE.md']:
         yield root / name
-    for directory in ['Scripts/Game/BBB', 'Configs/BBB']:
+    for directory in ['Scripts/Game/BBB', 'Configs/BBB', 'UI/layouts/BBB']:
         yield from (p for p in sorted((root / directory).rglob('*')) if p.is_file())
 
 
