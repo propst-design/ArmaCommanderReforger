@@ -116,7 +116,77 @@ class ACR_OrderDisplay : Managed
   dot.m_iColor = color;
   dot.m_Vertices = {};
   m_Canvas.TessellateCircle(Vector(x, y, 0), radius, 12, dot.m_Vertices);
-  m_Commands.Insert(dot);
+  AddPolygon(dot);
+ }
+
+ // ---------------------------------------------------------------- filled shapes
+ // The game triangulates every PolygonDrawCommand, every frame, and logs "DrawPolygon triangulation
+ // failed, is the polygon degenerated?" for each one it can't. Live (27 Oct, Everon): 160,000 of those
+ // lines, up to 30 a frame, while the map was zoomed in: the far squads' status bars and order dots
+ // were tens of thousands of pixels off the canvas, where a shape a few pixels wide no longer
+ // triangulates. Such shapes are skipped (nobody can see them), and so is one with fewer than three
+ // distinct points, no area or a NaN. Anything on the canvas draws exactly as before.
+ static const float POLYGON_MIN_AREA = 0.05; // square pixels
+ static const float POLYGON_MARGIN = 2; // pixels past the canvas edge that still count as on it
+ static const float POLYGON_FAR = 1000000000; // a coordinate past this (or NaN) is garbage
+
+ // Whether the game can fill this polygon ({x0, y0, x1, y1, ...}) and it shows on a width x height
+ // canvas (a size of 0 means not known: not checked).
+ static bool PolygonDrawable(array<float> vertices, float width, float height)
+ {
+  if (!vertices || vertices.Count() % 2 != 0) return false;
+  int points = vertices.Count() / 2;
+  if (points < 3) return false;
+  float x0 = vertices[0];
+  float y0 = vertices[1];
+  float minX = x0;
+  float maxX = x0;
+  float minY = y0;
+  float maxY = y0;
+  float twiceArea = 0;
+  int distinct = 0;
+  for (int p = 0; p < points; p++)
+  {
+   float x = vertices[p * 2];
+   float y = vertices[p * 2 + 1];
+   // NaN fails every comparison, so this rejects it too.
+   if (!(Math.AbsFloat(x) < POLYGON_FAR) || !(Math.AbsFloat(y) < POLYGON_FAR)) return false;
+   minX = Math.Min(minX, x);
+   maxX = Math.Max(maxX, x);
+   minY = Math.Min(minY, y);
+   maxY = Math.Max(maxY, y);
+   int q = (p + 1) % points;
+   float nx = vertices[q * 2];
+   float ny = vertices[q * 2 + 1];
+   if (Math.AbsFloat(nx - x) > 0.01 || Math.AbsFloat(ny - y) > 0.01) distinct++;
+   // Shoelace, relative to the first point so far-off coordinates keep their precision.
+   twiceArea += (x - x0) * (ny - y0) - (nx - x0) * (y - y0);
+  }
+  if (distinct < 3 || Math.AbsFloat(twiceArea) < 2 * POLYGON_MIN_AREA) return false;
+  if (width <= 0 || height <= 0) return true;
+  if (maxX < -POLYGON_MARGIN || maxY < -POLYGON_MARGIN) return false;
+  return minX <= width + POLYGON_MARGIN && minY <= height + POLYGON_MARGIN;
+ }
+
+ // The canvas's size in native pixels (the units of WorldToScreen and of the draw commands).
+ protected void CanvasSize(out float width, out float height)
+ {
+  width = 0;
+  height = 0;
+  if (m_Canvas) m_Canvas.GetScreenSize(width, height);
+  WorkspaceWidget workspace = GetGame().GetWorkspace();
+  if (!workspace) return;
+  width = Math.Max(width, workspace.GetWidth());
+  height = Math.Max(height, workspace.GetHeight());
+ }
+
+ // A filled shape, unless the game couldn't fill it or it's off the canvas (PolygonDrawable).
+ void AddPolygon(PolygonDrawCommand polygon)
+ {
+  if (!polygon) return;
+  float width, height;
+  CanvasSize(width, height);
+  if (PolygonDrawable(polygon.m_Vertices, width, height)) m_Commands.Insert(polygon);
  }
 
  // ---------------------------------------------------------------- order lines
@@ -261,12 +331,12 @@ class ACR_OrderDisplay : Managed
   PolygonDrawCommand back1 = new PolygonDrawCommand();
   back1.m_iColor = darkColor;
   back1.m_Vertices = {x0, y0, x1, y0, x1, y1};
-  m_Commands.Insert(back1);
+  AddPolygon(back1);
 
   PolygonDrawCommand back2 = new PolygonDrawCommand();
   back2.m_iColor = darkColor;
   back2.m_Vertices = {x0, y0, x1, y1, x0, y1};
-  m_Commands.Insert(back2);
+  AddPolygon(back2);
 
   float fillWidth = width * fill;
   if (fillWidth < 1.0) return;
@@ -276,12 +346,12 @@ class ACR_OrderDisplay : Managed
   PolygonDrawCommand bar1 = new PolygonDrawCommand();
   bar1.m_iColor = barColor;
   bar1.m_Vertices = {x, y, right, y, right, y + height};
-  m_Commands.Insert(bar1);
+  AddPolygon(bar1);
 
   PolygonDrawCommand bar2 = new PolygonDrawCommand();
   bar2.m_iColor = barColor;
   bar2.m_Vertices = {x, y, right, y + height, x, y + height};
-  m_Commands.Insert(bar2);
+  AddPolygon(bar2);
  }
 
  // ---------------------------------------------------------------- bases, zones

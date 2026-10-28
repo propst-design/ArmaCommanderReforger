@@ -45,6 +45,7 @@ class ACR_TestHarness : Managed
  static const int MODE_TAGS = 31;
  static const int MODE_SHARED = 32;
  static const int MODE_REGRESS = 33;
+ static const int MODE_MAPPOLYGON = 117; // the command map's filled-shape guard (ACR_OrderDisplay.PolygonDrawable)
  static const int MODE_GETOUT = 34;
  static const int MODE_MORTAR = 35;
  static const int MODE_CREW = 36;
@@ -128,6 +129,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrTagsTest", flag)) mode = MODE_TAGS;
   if (System.GetCLIParam("acrSharedTest", flag)) mode = MODE_SHARED;
   if (System.GetCLIParam("acrRegressTest", flag)) mode = MODE_REGRESS;
+  if (System.GetCLIParam("acrMapPolygonTest", flag)) mode = MODE_MAPPOLYGON;
   if (System.GetCLIParam("acrMortarTest", flag)) mode = MODE_MORTAR;
   if (System.GetCLIParam("acrBatteryTest", flag)) mode = MODE_BATTERY;
   if (System.GetCLIParam("acrBlastTest", flag) || System.GetCLIParam("acrBlastOldTest", flag)) mode = MODE_BLAST;
@@ -256,6 +258,7 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_TAGS) { ACR_TestShared.TestTags(this, m_Ticks); return; }
   if (m_Mode == MODE_SHARED) { ACR_TestShared.TestShared(this, m_Ticks); return; }
   if (m_Mode == MODE_REGRESS) { ACR_TestRegress.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_MAPPOLYGON) { ACR_TestMapPolygon.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_GETOUT) { ACR_TestGetOut.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_MORTAR) { ACR_TestMortar.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_CREW) { ACR_TestCrew.Run(this, m_Ticks); return; }
