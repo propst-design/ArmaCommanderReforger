@@ -12,7 +12,193 @@
         "0.5.0",
         "0.5.7"
       ],
-      "pending": null,
+      "pending": {
+        "version": "0.5.8",
+        "messages": [
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 1/18 · relay d7d657fa3a0b6ff5:1\n\n0.5.8\n\n### Players and spawning\n\n- Choose your side: players now pick a side, an officer loadout and where to deploy on the game's deploy screen once the host presses Start, so both sides can be played by people (#39). Before, everyone spawned as a West commander unless the host forced the whole lobby onto one side. An AI commander still runs any side with no player in command, so player-vs-player, co-op and mixed games all work from the same scenario.\n- Deploy at any base your side holds that can deploy units (HQs, military sites and built FOBs by default): each has a spawn point named after it on the deploy map, closed while the base is contested or the FOB is offline. The HQ is the default, and a side that has lost everywhere else can always fall back to its HQ point.\n- Each player has their own respawn timer (the host's respawn delay), shown on the deploy screen. Before, one dead commander held up the whole side's spawn point.\n- You stay on the side you first deployed on for the whole match, reconnects included. Hosts and admins can move a player with `/acr side west|east <player>`.\n- The scenarios offer 16 player slots (8 per side). They advertised 8 before.\n- In a solo game, the war now waits while the game is paused (the Esc menu, and the deploy screen in a solo game). Before, AI commanders kept buying squads that couldn't appear while paused, and those purchases timed out and were refunded.\n\n### AI commanders\n\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 2/18 · relay d7d657fa3a0b6ff5:2\n\n- AI commanders refill worn-down squads before buying new units: a squad back at a base gets its replacements even if that dips into the fire-support reserve, and new purchases wait while one is waiting for the RP. Before, refills had to leave the whole reserve untouched, so in a long Everon game one side refilled 3 squads and bought 21 units while squads of 1-3 men sat at bases.\n- AI attacks on a held base need infantry that can walk in and take it: recon teams don't make up an attack, an attack whose infantry is killed or falls back is called off at once, one whose squads never got near their staging point is called off instead of sending a lone squad in from far out, and a base of fire goes in itself when it is the last squad left. Before, a counterattack could be a single recon vehicle 2.5 km away that overwatched 400 m short of the base until the attack timed out.\n- AI squads on foot take a covered way to their staging point: when the direct line runs in view of the objective, they swing round it out of sight (behind a rise, through dead ground) as long as the detour stays reasonable, and the forming up waits for the longer walk. Staging points move a little further round or out where the objective can't see them. Before, a flanking squad walked the shortest path across the front of the objective.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 3/18 · relay d7d657fa3a0b6ff5:3\n\n- A soldier stranded off walkable ground (on top of a sandbag pile, say) steps back onto it when his move order keeps getting dropped, and an AI squad that can't reach the base it was sent to for reinforcements gives up after a minute instead of being re-sent every 15 seconds. Before, one RU machine gunner on a FOB's sandbags lost every order for over half an hour.\n- The AI commander doesn't send a medic team or another support team to grab an empty base any more, as it already kept them out of attacks (#34).\n- An AI attack or grab whose squads all report the target unreachable is called off at once, so they get new orders within seconds. Before, the commander waited out the attack's full time limit: on Everon a grab of Gallows Base, which can't be walked into from the south, kept its squad standing idle for 17 minutes.\n- AI mortar teams follow the fighting: they move up to the own base nearest the enemy's known bases and the bases being attacked, instead of staying at the HQ whenever any unclaimed site happened to be in range (on Everon both teams sat at their HQs all game and fired one mission in two hours).\n- A changed AI doctrine gets one review to settle in before it is judged, so doctrines change at most every 20 minutes. Before, a side taking losses could flip between Firepower and Fortress every 10 minutes.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 4/18 · relay d7d657fa3a0b6ff5:4\n\n- An AI doctrine that changed is kept at least 30 minutes, and the AI never switches straight back to the doctrine it just left for the same kind of reason (#29): losing ground and heavy losses count as one reason, and every counter as one. Before, a side that kept bleeding swapped between Fortress and Firepower at every review it was judged, and two AI sides could chase each other's counters all match.\n- AI doctrine reviews don't count bases taken as winning while the side is losing men heavily: early on most bases taken are empty, and a commander losing 20 men for 4 kills used to think its doctrine was working.\n- AI defences are built, upgraded and manned (playtest: one roadblock and one empty hasty position all game). Roadblocks, minefields and new Fortify positions go to whichever of the side's three bases nearest the enemy lacks one, not only the single nearest base. Its positions are upgraded (lowest tier first) before new ones are dug. One minefield is laid at a time, and no squad (AI or player) is sent to lay a field where another of its side is already on its way to lay one. With no free squad near the base (450 m for a roadblock, 600 m for mines, 500 m for Fortify), the nearest free squad within 1.5 km takes the job; past the doctrine's ride distance it rides out in a truck when one is free and is given, and pays for, the job at the drop. A squad on its way to refill isn't sent. A builder now stays on the roadblock or position it built (up to 2 per side); those squads aren't sent on attacks, and leave to defend a base only when their side is outnumbered there, or ",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 5/18 · relay d7d657fa3a0b6ff5:5\n\nas a last resort. A lower cap keeps those holding longest. An empty position at a front base (its holder killed, or gone to defend) is manned again by the nearest free squad while the doctrine's holders allow, and only positions in use (manned, or at a front base) count towards the doctrine's number, so ones the front has left behind no longer stop new ones. A manned tier II position counts its holders half again towards its base's defence, a tier III twice, so the AI values keeping it manned. With the build budget on, engineering is paid out of it, and it gets at least 2 RP every 15 s on top of its share. A **Fortress** AI builds and mans more: twice the budget's share and trickle, up to four Fortify positions, and up to four builders that stay on what they built, pulled away only when their side is outnumbered at a base. A position whose upgrade was refused twice for the same reason is given up by the AI. Rate-limited log lines say what held a build up.\n- A rich AI side digs in (#28): with the AI build budget on, a side with more than 600 RP banked raises the budget's share with the surplus, to twice its share at the 1000 RP cap (still at most 50%), and keeps the budget topped up from what it holds over 600 (still at most 100 RP), so its roadblocks, minefields and positions get built instead of the RP sitting at the cap. In overnight Everon games the leading side sat at the cap from about 105 minutes with nothing left to buy. At or below 600 RP nothing changes.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 6/18 · relay d7d657fa3a0b6ff5:6\n\n- A rich AI side fires more (#28): over 600 RP banked, by the same measure that raises its build budget (x1 at 600, x2 at the 1000 RP cap), it keeps RP for one more fire mission and counts air and rocket strikes whatever its doctrine, up to twice its doctrine's fire-support cap; it shells the attackers of a base that is merely in a fight (at the cap, from half its defence) rather than only one that is losing; it calls gun runs, rocket strikes and air preparation at lower threats and against fewer defenders (half at the cap); and its forward observers call missions more often. So the surplus turns into fire missions instead of sitting at the cap. At or below 600 RP nothing changes.\n- A rich AI side buys quality, not quantity (#28): over 600 RP banked its purchases lean towards dearer units, more the richer it is (at the 1000 RP cap a 76 RP APC is three times as likely, a 12 RP team half as likely), armed vehicles are held back less, and when it needs a transport it takes an armed one such as an APC over a plain truck when it can. The squad cap is unchanged, and refills still come before any purchase.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 7/18 · relay d7d657fa3a0b6ff5:7\n\n- AI vehicle crews stay aboard on fast moves (#57): the crew of an armed vehicle no longer climb out at a gate or to heal a crewmate while their squad's order is in Fast mode, as they already didn't in Combat mode. Before, every Fast order counted as a player's order to Better Battle Buddies, which leaves those alone, so on AI commanders' attack moves and reinforcement runs LAV and BTR crews got out at gates and to treat a wounded commander. Orders a player gives a squad they command directly, and Game Master orders, still let them get out.\n- A vehicle crewman Better Battle Buddies turned out of his hatch on a quiet stretch goes back in when a Fast or player order arrives, instead of riding into the fight turned out (Better Battle Buddies #7).\n- AI squads can use squad tactics inside an objective (#31; host option, off by default): with `-acrSquadTactics 1`, once an attacking squad is inside the base it was sent to take, Better Battle Buddies' squad tactics run it (assault by bounds, flank a dug-in enemy, hold when outnumbered, search when contact is lost), never leaving the base's ring; the AI commander still picks the target, stages the squads and sets the base of fire, and squads staging or riding are left alone. Squads defending a base on a Defend order may bound to cover or push back an enemy inside the base, never chasing out of it (garrisons in buildings stay put). Off by default because AI-vs-AI test games showed no clear gain yet; Better Battle Buddies' squad tactics are being revisited first.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 8/18 · relay d7d657fa3a0b6ff5:8\n\n- AI building budget (host option, off by default): `-acrAIBuildShare N` makes each AI commander set N% (at most 30) of the RP it gains aside for engineering, up to 100 RP. Unit purchases leave that money alone, so its roadblocks, minefields (`-acrMinesAI`) and Fortify positions (`-acrFortifyAI`) get built instead of losing out to the next squad. The AI status log line shows the budget. The setup screen has a row for it: **AI build budget** (off, 10, 15 or 25% of income).\n- AI minefields go where they do most: mixed fields across the road 60-150 m ahead of the side's own roadblock, where its gunners cover them, more on the enemy's road route and at chokepoints; AP fields in dead ground and tree lines in front of its positions. The spots are scored and tried best first, the old ring last, so the AI never lays fewer fields than before.\n- The AI picks its FOB sites by score instead of taking the first that fits: every one of the old spots back from the front base that is clear is scored for room (the HQ and all its upgrade and defence spots clear), concealment from the enemy base and its approach, a road close by for the trucks, the distance back from the front, cover from our roadblocks and Fortify positions, the enemy's road route (off it is better) and towns (outside is better). Never fewer FOBs: the old first fit is always one of the candidates. The search is spread over a few strategy ticks.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 9/18 · relay d7d657fa3a0b6ff5:9\n\n- AI Fortify positions go where they see the approach: spots 80-200 m out towards the enemy are scored on their field of fire from a gunner's eye, slight high ground, no dead ground close in front, cover behind (counted twice), upgrades that fit, and overlooking the side's own roadblock or field, and tried best first. Spots on paved ground score less for every point of the position on it, spots on an airfield (by its runway lights, runway decals or an apron's concrete panels) and spots walled in by a building or other tall structure within 30 m in front (its field of fire stops there) score least, so the edge of open ground with cover behind wins; in a playtest both of a side's starting positions went on Arland's airfield, its longest field of fire, and a position faced a wall. The first spot tried is picked at random among those within 12% of the best score (seeded from the match's seed), so the AI doesn't dig in on the same spot every match. The old line spots are still tried, so the AI never digs fewer positions than before.\n- AI choices vary between matches: where an AI choice is made from scored options, it is picked at random among those within 12% of the best (the best most likely, never a poor one), seeded from the match's seed so the same seed makes the same choices. `-acrVariety 0` always takes the best. The AI's Fortify spots use it first.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 10/18 · relay d7d657fa3a0b6ff5:10\n\n- AI attacks only count the squads that can get there: on foot within 2.1 km, in their own vehicles, by a taxi they can actually get (each taxi counted once), or by a ready air lift. A target beyond their reach is skipped, and the forming up waits for the slowest squad's walk or ride, up to 20 minutes. Before, squads 2-3 km off were sent on foot and the attack went in before they came (#27).\n- An AI squad that left its roadblock or Fortify position to defend a base goes back to hold it once that defence is over, before a new attack can take it: in a playtest two holders went to defend, then onto an attack, and their positions stood empty for 15 minutes. It goes back only while the position is still ours, standing and unmanned, the doctrine's holders allow it, and within 20 minutes of leaving. The \"waits for a free squad\" log lines for AI builds now say what the side's free squads are (unarmed vehicles, vehicle crews, support teams, the reserve, due to refit, on other jobs, unfit for the job, in reach but not free for it, further out) and how many of the rest are defending, attacking or busy otherwise.\n\n### Engineering\n\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 11/18 · relay d7d657fa3a0b6ff5:11\n\n- Fortify positions get defenders: tier I holds 1 of the side's garrison soldiers in reserve at the position, tier II 2 and tier III 4 (an upgrade adds the difference). Like a base's garrison they deploy when an enemy comes within 400 m, defend the position, pack up once none is within 450 m and are used up as they die; a position that is gone takes its reserve with it. Sizes: `-acrFortifyDefenders1` / `-acrFortifyDefenders2` / `-acrFortifyDefenders3` (0 for none). Checkpoints can get them too with `-acrRoadblockDefenders N` (off by default).\n- Sandbag positions, barbed wire and barricades lie on sloping ground instead of standing dead level: tilted to the ground under the ends of their footprint, at most 12 degrees. On a slope the site checks accept, one end used to float while the other was buried. Tents, buildings, bunkers, towers, checkpoints and gun nests stay upright. `-acrGroundTilt 0` places everything level as before.\n\n### The battlefield\n\n- Gunners stay on held guns (on by default; setup row **Gunners stay on held guns**, `-acrHoldGuns 0` for vanilla): a squad holding a spot (Defend, a checkpoint, a Fortify position, FOB defences) keeps its men on the static guns there. Vanilla took a gunner off his gun whenever anything he knew of, even a minute old, or just the sound of firing, was outside the gun's arc, so checkpoint and nest guns kept standing empty. Now he leaves only for an enemy he saw in the last 10 s within 60 m (a real flank), and a held gun that stands empty for 8 s is manned again by the nearest man of the squad.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 12/18 · relay d7d657fa3a0b6ff5:12\n\n- A Fortify position's guns stay manned while its squad is away: when the squad holding a tier II or III position leaves it for another job (laying mines in front, say), men from the position's reserve defenders man its guns, and they go back into the reserve once a squad holds it again. The squad goes as ordered. Before, the nest stood empty until the squad came back (playtest).\n\n### Fixes\n\n- Base garrisons no longer spawn inside walls (#73). FIA at the resistance pockets kept appearing stuck in houses and walls. Each garrison, patrol and guard soldier now gets a spot with room to stand, out in the open and on ground soldiers can walk; with none nearby, the nearest walkable spot to the base centre. Soldiers with a window post still go straight to it.\n- The command map no longer floods the log with \"DrawPolygon triangulation failed\" (up to 2,000 lines a second when zoomed in on Everon): status bars and dots off the screen aren't drawn.\n- A ride waits at the drop until its AI riders are out (up to 20 s, as it already did for a player). Before, the transport drove home as soon as it dropped them off, and an LAV, whose rear seats don't let men out once it moves, carried some of them home (#23). A man still aboard after the dismount's second try is taken out without a door; in the LAV's rear seats, where every exit was refused (the game said nothing was pending), his vehicle action queue is cleared first, and as a last resort he moves to another seat and gets out from there.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 13/18 · relay d7d657fa3a0b6ff5:13\n\n- A stuck vehicle giving a ride re-routes like a soft vehicle instead of holding where it is like a fighting one. A ride never takes a vehicle with a manned gun, so an LAV taxi that held only dropped the ride, with its riders still aboard (#23).\n- Arland now starts on a dedicated server set up with a server config (the usual way to host). The Arland scenario and the Western medic shared one resource ID, so the server loaded the medic instead of the mission and stopped (#41). The medic has its own ID now; the scenario's ID is unchanged.\n- AI FOB builds are no longer given up while the construction truck is still driving to a far site. The build's 3-minute give-up clock ran from when the truck was sent, so a site more than about 3 minutes' drive away was abandoned on the way. Now every 10 m the truck gets closer counts as progress, and a truck that stops getting closer (stuck or blocked) still gives up 3 minutes later. In Everon soaks, 8 builds were given up in 2 hours and USSR built no FOB; with the fix none was given up in 100 minutes, USSR had its FOB at 22 minutes and US had FOBs at 53 and 73 minutes.\n- An AI side no longer marks the site of a FOB it has just built as abandoned. For up to 2 seconds after a build finished, before the FOB appeared, the AI could take the build for one that was given up, so it avoided the new FOB's own site for 10 minutes and wouldn't rebuild a lost HQ there in that time.\n- A map marker removed while a player held the mouse on it (ACA rebuilds its markers as squads change) no longer throws an exception every frame: the drag just ends (pn11).\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 14/18 · relay d7d657fa3a0b6ff5:14\n\n- The squads of an AI attack form up on separate approach lines again (#52). Moving a staging point out of the objective's sight could turn it up to 20 degrees towards a neighbouring line, so later squads' lines no longer fitted and the fourth squad of an attack was sent to the first squad's staging point. A point moved out of sight now keeps clear of every other line, taken or not.\n- A vehicle waiting for its own crew to get in is no longer taken as stuck (#53). In a playtest an LAV's gunner got out at a gate; while he climbed back in, the LAV counted as stuck, backed up away from him twice, then held where it was and dropped the player's move order. Now the stuck clock waits while one of the crew is getting in or out or standing by the vehicle (up to a minute, so a real stall still shows), a new order starts the clock afresh, and back-ups only add up towards giving up until the vehicle gets 40 m past the spot where it was stuck. The log says when a vehicle is waiting for its crew. Under fire the old limits apply.\n- AI squads in contact are left to BBB's fire and manoeuvre: ACA's own automatic flank of a stalled contact is switched off (#54). It hardly ever started (twice in 11 playtests), because a squad's own gunfire made it count as pinned down, and two mods steering the same squad in a firefight could only fight each other.\n\n### Command and setup\n\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 15/18 · relay d7d657fa3a0b6ff5:15\n\n- AC:A Think (hosts and admins): an **AC:A Think** button in the map's Debug box, or `/acr think [west|east|off] [log]` in chat anywhere, opens a card showing what each AI commander is thinking, live: squads free, defending and attacking, each attack's phase, staging points and base of fire, RP, support and build budget and doctrine; then either every squad of that side (task, order, target, how long since its last order and how many it got in 5 minutes, flagged when that looks like a loop, and whether it is recovering a dropped move) or the commander's last 20 decisions. The button cycles West squads, West decisions, East squads, East decisions and off. Only the player looking gets the updates, every 3 s while the card is open.\n- The RTS camera has a Minefield button next to Roadblock: it cycles AP, AT and mixed mines (and off), the toast gives the price, and a right-click lays them with the selected squad, as the map panel's minefield orders do (#4).\n- The RTS camera has a **Fortify** button next to Minefield: armed, a right-click digs the selected squad in there, or upgrades our position there, through the map's own Fortify order (its tier, facing and price); the toast gives the tier I price. Arming any other mode turns it off.\n- The RTS camera aims too: with Fortify, Roadblock or a minefield armed, a right-drag aims the order instead of turning the camera. It goes where the button went down and faces where it came up, with a gold arrow on the ground while you drag; a plain right-click orders as before.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 16/18 · relay d7d657fa3a0b6ff5:16\n\n- The RTS camera shows where our squads are going and what our side has spotted, as the command map does (#66). Every squad's current order and its queued points are drawn from the squad in the order's colour, with a ring on each point of the selected squads; other squads' lines are fainter and left out beyond 1.5 km. Enemies our side has spotted get a red diamond at their last known spot, labelled with what they are, how long ago they were seen and how far away they are, and they fade once they're old news until our side forgets them (2.5 km at most). Right-click one with a squad selected to hunt it, as on the map.\n- The second-in-command, its core (#14, `-acr2IC 1`, off by default): on a side a player commands, or one with no AI commander, every squad nobody has claimed is the AI's, and it runs them with the AI commander's own logic: attacks, defenders, grabs, posting idle squads, roadblocks and minefields. A player claims a squad by leading it or giving it an order, and hands it back with the squad panel's **AI commands this squad** toggle; the FOB panel's **AI manages this FOB** hands a FOB over for its supplies and upgrades. The squads it runs carry an [AI] tag on the map. It builds only out of the AI build budget, never from the side's RP, and a squad handed back gets its own move mode back (its attacks and rides run Fast). A side the AI commander leads never has one, its start-up hold included.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 17/18 · relay d7d657fa3a0b6ff5:17\n\n- Patrol (map panel, a new row of standing orders): a squad walks its queued points in a loop. Give it a move order, Shift + right-click more points, then click **Patrol**; the point it is heading for joins the loop, and Defend or Garrison points are walked through. With one point it walks between where it stands and that point; a squad standing still sets off at once. A new order or clicking Patrol again ends it. The squad's status shows \"patrolling N points\".\n- Drag to aim: roadblocks, Fortify and the minefields still face the threat on a plain right-click. Right-click and drag sets the facing instead: the order goes where you pressed and faces where you let go, with a gold arrow on the map while you drag (while one of these orders is armed, a right-drag aims instead of panning the map; the keyboard and the screen edges still pan). A dragged minefield off the road lies square to the arrow, one on a road runs along it the way you dragged; an upgrade of a Fortify position keeps its facing (the order says so). The facing is sent with the order, so it works the same for every player in multiplayer; the AI commander keeps facing the threat.\n\n### Support\n\n- A mortar team sets up out of the way of vehicles: not on or within 5 m of a road, and not within 30 m of a base's centre, where bought vehicles appear (#33). It looks up to 40 m round for such a spot (24 m before).\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Arma Commander Actual — 0.5.8\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 18/18 · relay d7d657fa3a0b6ff5:18\n\n- A mortar team whose last two fire missions fired nothing takes no more missions until its tube is set up again (the support list says why). An AI commander's team moves a short way and sets up again by itself. Before, the AI kept paying for or queueing missions on a team that couldn't fire, every few minutes.\n- A helicopter whose engine or rotor was shot up while it stood on its pad is repaired by servicing. Before, it looked fully healthy, wasn't repaired, and went back into servicing every minute for the rest of the game (the side couldn't use it or buy another). Vehicles serviced at depots and on reinforcement get the same full repair.\n\n### Intel\n\n- \"The enemy commander has changed tactics\" only names the old doctrine when it had been confirmed. A hint such as \"Firepower or Fortress\" could include the new doctrine, so the line could say \"no longer Fortress\" as the enemy switched to Fortress.",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          }
+        ],
+        "next": 0,
+        "inflight": null
+      },
       "delivered": {
         "0.5.7": [
           "1564098843732353084",
