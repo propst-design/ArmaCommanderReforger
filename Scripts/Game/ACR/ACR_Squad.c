@@ -747,6 +747,7 @@ class ACR_Squad : Managed
   m_Group.GetWaypoints(previousOrders);
   foreach (AIWaypoint previousOrder : previousOrders) m_Group.RemoveWaypoint(previousOrder);
   DeleteWaypointSoon(m_Waypoint);
+  DropQueuedHop();
   m_Waypoint = waypoint;
   m_Group.AddWaypoint(waypoint);
   return waypoint;
@@ -809,6 +810,7 @@ class ACR_Squad : Managed
   m_Group.GetWaypoints(previousOrders);
   foreach (AIWaypoint previousOrder : previousOrders) m_Group.RemoveWaypoint(previousOrder);
   DeleteWaypointSoon(m_Waypoint);
+  DropQueuedHop();
   m_Waypoint = null;
  }
 
@@ -2497,10 +2499,119 @@ class ACR_Squad : Managed
  {
   m_iWaypointRecoveries = 0;
   m_fNextWaypointRecovery = 0;
+  SkipStraightHops();
   vector leg = m_aRoute[0];
   m_aRoute.RemoveOrdered(0);
   if (m_aRoute.IsEmpty()) RestoreOrderAt(m_Route, m_Route.m_sPrefab, leg, m_Route.m_fRadius);
   else RestoreOrderAt(m_Route, WP_MOVE, leg, 25);
+ }
+
+ // #86: the game's driver brakes as it nears the end of a waypoint and plans a new path
+ // before it sets off for the next, so every road hop (BBB_Roads.LEG, 160 m) was a stop.
+ // On a straight stretch a crewed vehicle aims for the farthest hop up to ROAD_AIM_M ahead
+ // whose skipped hops all lie within ROAD_STRAIGHT_M of the line there; hops at bends and
+ // junctions are kept, so it still follows the planned roads. -acrRoadFlow 0: every hop.
+ static const float ROAD_AIM_M = 600;
+ static const float ROAD_STRAIGHT_M = 60; // cc86q2: 25 m merged 1 hop of 15 on a winding road
+ static const float ROAD_HANDOVER_S = 6; // next hop this many seconds out at the current speed
+
+ static bool s_bRoadFlowOff; // tests: the old hop-by-hop driving for an A/B
+ static bool RoadFlow()
+ {
+  return !s_bRoadFlowOff && ACR_LogisticsRules.Choice("acrRoadFlow", "1") != "0";
+ }
+
+ protected void SkipStraightHops()
+ {
+  if (m_aRoute.Count() < 2 || !IsMounted() || !RoadFlow()) return;
+  IEntity driven = ACR_Transport.CrewedVehicle(this);
+  if (!driven) return;
+  vector from = driven.GetOrigin();
+  // Handing over short of the current hop (not in m_aRoute any more): it must be on the line too.
+  bool viaCurrent = m_MoveTarget != vector.Zero && vector.DistanceXZ(from, m_MoveTarget) < 200;
+  int aim = 0;
+  for (int k = 1; k < m_aRoute.Count(); k++)
+  {
+   if (vector.DistanceXZ(from, m_aRoute[k]) > ROAD_AIM_M) break;
+   bool straight = !viaCurrent || ACR_AICommander.DistanceToSegment(m_MoveTarget, from, m_aRoute[k]) <= ROAD_STRAIGHT_M;
+   for (int j = 0; j < k && straight; j++)
+    straight = ACR_AICommander.DistanceToSegment(m_aRoute[j], from, m_aRoute[k]) <= ROAD_STRAIGHT_M;
+   if (!straight) break;
+   aim = k;
+  }
+  if (aim > 0) PrintFormat("[ACR] ROAD %1: straight road, skipping %2 hops (%3 left)", m_Name, aim, m_aRoute.Count() - aim);
+  for (int skip = 0; skip < aim; skip++) m_aRoute.RemoveOrdered(0);
+ }
+
+ // The next hop waits behind the current waypoint, so the group goes on to it when the
+ // current one completes instead of us deleting it and making a new one (which stopped the
+ // driver to re-plan). Not the last hop: the order's own waypoint ends the route as before.
+ protected AIWaypoint m_QueuedHop;
+
+ // The order's own waypoint, or the road hop queued behind it (the group may be on it
+ // for up to a squad tick before FlowHops makes it the order's waypoint).
+ bool IsOrderWaypoint(AIWaypoint waypoint)
+ {
+  return waypoint && (waypoint == m_Waypoint || waypoint == m_QueuedHop);
+ }
+
+ protected void DropQueuedHop()
+ {
+  if (!m_QueuedHop) return;
+  if (m_Group) m_Group.RemoveWaypoint(m_QueuedHop);
+  DeleteWaypointSoon(m_QueuedHop);
+  m_QueuedHop = null;
+ }
+
+ // True when it looked after the route this tick.
+ protected bool FlowHops(IEntity driven, float handover)
+ {
+  if (!RoadFlow()) return false;
+  AIWaypoint current = m_Group.GetCurrentWaypoint();
+  if (m_QueuedHop)
+  {
+   // The group moved on to it: it is the order's waypoint now.
+   if (current == m_QueuedHop)
+   {
+    DeleteWaypointSoon(m_Waypoint);
+    m_Waypoint = m_QueuedHop;
+    m_MoveTarget = m_QueuedHop.GetOrigin();
+    m_QueuedHop = null;
+    if (!m_aRoute.IsEmpty()) m_aRoute.RemoveOrdered(0);
+    m_iWaypointRecoveries = 0;
+    m_fNextWaypointRecovery = 0;
+    return true;
+   }
+   if (current == m_Waypoint && current) return true;
+   // Something else replaced the waypoints (a player, a recovery): the queued hop is stale.
+   DropQueuedHop();
+   return false;
+  }
+  if (m_aRoute.Count() < 2 || !current || current != m_Waypoint || m_sOrderPrefab != WP_MOVE) return false;
+  if (vector.DistanceXZ(driven.GetOrigin(), m_MoveTarget) > handover + 80) return true;
+  SkipStraightHops();
+  if (m_aRoute.Count() < 2) return false;
+  Resource resource = Resource.Load(WP_MOVE);
+  if (!resource.IsValid()) return false;
+  EntitySpawnParams params = new EntitySpawnParams();
+  params.TransformMode = ETransformMode.WORLD;
+  params.Transform[3] = m_aRoute[0];
+  AIWaypoint hop = AIWaypoint.Cast(GetGame().SpawnEntityPrefabLocal(resource, null, params));
+  if (!hop) return false;
+  hop.SetCompletionRadius(25);
+  SCR_AIWaypoint scripted = SCR_AIWaypoint.Cast(hop);
+  if (scripted && m_bForced) scripted.SetPriorityLevel(SCR_AIActionBase.PRIORITY_LEVEL_PLAYER);
+  m_Group.AddWaypoint(hop);
+  m_QueuedHop = hop;
+  return true;
+ }
+
+ // How near the current hop a crewed vehicle gets the next one: far enough out that the
+ // driver hasn't started braking yet, with a squad tick (1 s) to spare.
+ protected float RoadHandover(IEntity driven)
+ {
+  if (!RoadFlow() || !driven.GetPhysics()) return 70;
+  return Math.Max(70, driven.GetPhysics().GetVelocity().Length() * ROAD_HANDOVER_S);
  }
 
  // ---- queued orders (Shift + right-click on the map)
@@ -2663,7 +2774,10 @@ class ACR_Squad : Managed
   // brakes as it nears the end of a waypoint, so handing over at 30 m made it stop
   // for a second at every hop (1 Oct live test).
   float handover = 30;
-  if (IsMounted() && ACR_Transport.CrewedVehicle(this)) handover = 70;
+  IEntity driven;
+  if (IsMounted()) driven = ACR_Transport.CrewedVehicle(this);
+  if (driven) handover = RoadHandover(driven);
+  if (driven && FlowHops(driven, handover)) return;
   if (!waypoints.IsEmpty())
   {
    if (leader && vector.DistanceXZ(leader.GetOrigin(), m_MoveTarget) < handover) NextLeg();

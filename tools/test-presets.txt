@@ -189,3 +189,5 @@ rtsoverlay|-acrRTSOverlayTest 1|60
 stallwait|-acrStallWaitTest 1|130
 recrew|-acrRecrewTest 1|120
 mortargiveup|-acrMortarGiveUpTest 1|100
+roadhops|-acrRoadHopsTest 1|500
+roadhopsoff|-acrRoadHopsOffTest 1|500

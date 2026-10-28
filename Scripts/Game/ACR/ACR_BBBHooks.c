@@ -142,7 +142,7 @@ class ACR_BBBHooks : BBB_Hooks
  {
   ACR_Squad squad = SquadOf(group);
   if (!squad || !squad.m_Waypoint || squad.m_Commander != 0 || BBB.HasPlayer(group)) return false;
-  return group.GetCurrentWaypoint() == squad.m_Waypoint;
+  return squad.IsOrderWaypoint(group.GetCurrentWaypoint());
  }
 
  override bool ManagesVehicleDriving(SCR_AIGroup group)
