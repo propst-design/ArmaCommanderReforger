@@ -212,6 +212,14 @@ class ACR_BBBHooks : BBB_Hooks
   return SquadOf(group) == null;
  }
 
+ // Squad retreats are ACA's (AllowMorale), but one cornered man giving up is a soldier's
+ // decision: he leaves the squad (counted missing, refilled by Reinforce like a death) and
+ // ACR_BaseSystem leaves prisoners out of holding and contesting bases.
+ override bool AllowSurrender(SCR_AIGroup group)
+ {
+  return true;
+ }
+
  override void OnLitter(IEntity item)
  {
   if (m_Manager.m_Cleanup) m_Manager.m_Cleanup.AddLitter(item);

@@ -148,7 +148,8 @@ class ACR_BaseSystem : Managed
  }
 
  // Every living, conscious character with a faction: AI agents plus player bodies. The
- // unconscious don't hold, contest or spot (Jacob 19 Oct: nobody comes to finish them off).
+ // unconscious don't hold, contest or spot (Jacob 19 Oct: nobody comes to finish them off),
+ // nor do BBB prisoners (unarmed, kneeling, out of their squads).
  protected void CollectBodies(ACR_Manager manager)
  {
   m_Bodies.Clear();
@@ -167,6 +168,7 @@ class ACR_BaseSystem : Managed
  {
   ChimeraCharacter character = ChimeraCharacter.Cast(entity);
   if (!character || m_Bodies.Contains(character) || character.GetCharacterController().IsDead() || character.GetCharacterController().IsUnconscious()) return;
+  if (BBB_Morale.IsPrisoner(character)) return;
   // Stationed support helicopter crews are not capture troops.
   AIControlComponent control = AIControlComponent.Cast(character.FindComponent(AIControlComponent));
   if (control && control.GetControlAIAgent() && manager.m_Supports)

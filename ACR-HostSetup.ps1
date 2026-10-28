@@ -90,7 +90,8 @@ $script:BBBOptions = @(
   @{ Flag = 'bbbSmokeCooldown'; Group = 'Smoke'; Label = 'Squad cooldown (s)'; Default = '30'; Min = 5; Max = 180 }
   @{ Flag = 'bbbSmokeDist'; Group = 'Smoke'; Label = 'Throw distance (m)'; Default = '20'; Min = 8; Max = 35 }
   @{ Flag = 'bbbMorale'; Group = 'Morale'; Label = 'Badly hurt squads break contact (experimental)'; Default = '0' }
-  @{ Flag = 'bbbMoraleSurrender'; Group = 'Morale'; Label = 'Cornered, out-of-ammo men surrender'; Default = '1' }
+  @{ Flag = 'bbbMoraleSurrender'; Group = 'Morale'; Label = 'Cut-off, pinned men out of ammo may surrender'; Default = '1' }
+  @{ Flag = 'bbbMoraleSurrenderFates'; Group = 'Morale'; Label = 'Surrenders can go wrong (executions, fake surrenders)'; Default = '1' }
   @{ Flag = 'bbbMoraleCasualties'; Group = 'Morale'; Label = 'Break at this share of casualties'; Default = '0.5'; Min = 0.11; Max = 0.9 }
   @{ Flag = 'bbbMoraleSuppression'; Group = 'Morale'; Label = 'Break at this squad suppression'; Default = '0.6'; Min = 0.11; Max = 1 }
   @{ Flag = 'bbbMoraleDistance'; Group = 'Morale'; Label = 'Withdrawal bound (m)'; Default = '25'; Min = 10; Max = 50 }
