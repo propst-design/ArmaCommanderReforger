@@ -534,7 +534,7 @@ class ACR_Setup
   if (key == "quickstart" && value == "even") return "the map split along a front line, garrisons and roadblocks up";
   if (key == "quickstart" && value == "uneven") return "one side holds two thirds, the other starts with double RP";
   if (key == "quickstart") return "off (both sides start from their HQ)";
-  if (key == "guerrillas" && value == "few") return "a few cells: road ambushes, houses (whole/half map)";
+  if (key == "guerrillas" && value == "few") return "a few cells (whole/half map)";
   if (key == "guerrillas" && value == "many") return "many cells (whole/half map)";
   if (key == "guerrillas" && value == "off") return "off";
   if (key == "fiahidden" && value == "1") return "on: no FIA messages, pockets found by entering";
