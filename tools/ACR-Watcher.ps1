@@ -176,11 +176,15 @@ function Update-TestPack($name, $source) {
     try { $stamp = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(($files | Sort-Object) -join "`n"))).Replace('-', '') } finally { $sha.Dispose() }
     $out = Join-Path $PackRoot "addons\$name"
     $stampFile = Join-Path $PackRoot "$name.stamp"
-    if ((Test-Path -LiteralPath (Join-Path $out 'data.pak')) -and (Test-Path -LiteralPath $stampFile) -and (Get-Content -LiteralPath $stampFile -Raw).Trim() -eq $stamp) { return $null }
+    $tmp = "$out.new"
+    # A pack nested in the old one (the swap below failed, 27 Oct) means the old one is stale.
+    $nested = Join-Path $out "$name.new"
+    if ((Test-Path -LiteralPath (Join-Path $out 'data.pak')) -and !(Test-Path -LiteralPath $nested) -and (Test-Path -LiteralPath $stampFile) -and (Get-Content -LiteralPath $stampFile -Raw).Trim() -eq $stamp) { return $null }
+    # No stamp until the new pack is in place: any failure below repacks on the next run.
+    Remove-Item -LiteralPath $stampFile -Force -ErrorAction SilentlyContinue
     $wb = Find-Workbench
     $gameAddons = Join-Path (Split-Path (Find-Game) -Parent) 'addons'
     # Pack into a fresh folder and swap it in, so a failed pack leaves the last good one.
-    $tmp = "$out.new"
     $wbProfile = Join-Path $PackRoot 'workbench'
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force $tmp, $wbProfile | Out-Null
@@ -189,8 +193,16 @@ function Update-TestPack($name, $source) {
     $proc = Start-Process -FilePath $wb -ArgumentList $wbArgs -WindowStyle Hidden -PassThru
     if (!$proc.WaitForExit(900000)) { Stop-Process -Id $proc.Id -ErrorAction SilentlyContinue; return "packing $name timed out" }
     if (!(Test-Path -LiteralPath (Join-Path $tmp 'data.pak'))) { return "packing $name failed (Workbench log: $wbProfile\logs)" }
-    Remove-Item -LiteralPath $out -Recurse -Force -ErrorAction SilentlyContinue
-    Move-Item -LiteralPath $tmp -Destination $out
+    # The swap. A server that has just been stopped can still hold the old data.pak for a moment:
+    # removing it failed silently, Move-Item then put the new pack inside the old folder and the
+    # stamp was written, so every pak: run tested the old pack (27 Oct, a day's stale BBB and ACA).
+    for ($try = 0; $try -lt 10 -and (Test-Path -LiteralPath $out); $try++) {
+        Remove-Item -LiteralPath $out -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath $out) { Start-Sleep -Seconds 2 }
+    }
+    if (Test-Path -LiteralPath $out) { return "couldn't replace the old $name pack in $out (still in use? close any server or Workbench using it)" }
+    try { Move-Item -LiteralPath $tmp -Destination $out -ErrorAction Stop } catch { return "couldn't move the new $name pack into place: $($_.Exception.Message)" }
+    if (!(Test-Path -LiteralPath (Join-Path $out 'data.pak')) -or (Test-Path -LiteralPath $nested)) { return "the new $name pack isn't in place in $out" }
     Set-Content -LiteralPath $stampFile -Value $stamp -Encoding ASCII
     return $null
 }
@@ -206,7 +218,8 @@ function Invoke-ServerTest($id, $preset, $config, $packed) {
     $prefix = 'srv'; if ($packed) { $prefix = 'pak' }
     if ($config.Workbench) { Write-Result $id @('status=refused', 'reason=inspect cannot run on the server'); return }
     # Never two test servers at once (an old one is closed first).
-    if ($script:TestServerPid) { Stop-Process -Id $script:TestServerPid -ErrorAction SilentlyContinue; $script:TestServerPid = 0 }
+    # Wait for it to exit: it holds the packs a pak: run is about to replace.
+    if ($script:TestServerPid) { Stop-Process -Id $script:TestServerPid -ErrorAction SilentlyContinue; Wait-Process -Id $script:TestServerPid -Timeout 30 -ErrorAction SilentlyContinue; $script:TestServerPid = 0 }
     $server = Find-SteamApp 'Arma Reforger Server' 'ArmaReforgerServer.exe'
     if (!$server) { Write-Result $id @('status=refused', 'reason=Arma Reforger Server not found'); return }
     $world = 'Worlds/ACR_TestRange.ent'
@@ -277,7 +290,8 @@ function Invoke-ServerTest($id, $preset, $config, $packed) {
         }
         if (((Get-Date) - $started).TotalSeconds -gt ($config.TimeoutSec + 30)) { break }
     }
-    if (!$proc.HasExited) { Stop-Process -Id $proc.Id -ErrorAction SilentlyContinue }
+    # Wait for it to exit, so the next queued pak: run can replace the packs it holds.
+    if (!$proc.HasExited) { Stop-Process -Id $proc.Id -ErrorAction SilentlyContinue; [void]$proc.WaitForExit(30000) }
     $script:TestServerPid = 0
     $result = @("status=$outcome", "preset=${prefix}:$preset", "started=$($started.ToString('s'))", "seconds=$([int]((Get-Date) - $started).TotalSeconds)", "log=$log")
     if ($packed) { $result += "packSeconds=$packSeconds" }
