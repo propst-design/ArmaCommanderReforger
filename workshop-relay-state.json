@@ -96,8 +96,11 @@
             "flags": 4
           }
         ],
-        "next": 0,
-        "inflight": 0
+        "next": 1,
+        "inflight": null,
+        "receipts": [
+          "1564861703467048980"
+        ]
       }
     }
   }
