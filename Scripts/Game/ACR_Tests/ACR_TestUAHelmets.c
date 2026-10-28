@@ -26,6 +26,8 @@ class ACR_TestUAHelmets : BBB_AimTest
 
 	protected void BeginHelmets()
 	{
+		// The helmets are the UA mod's: without it the run can't be valid, so it says why (#54).
+		if (!ACR_FactionSelection.UkraineModLoaded()) { ACR_TestRegress.Abort("uahelmets", "needs the UA (UAAF) mod loaded; this run has none"); return; }
 		if (!ACR_UALoadout.Active() || !FindSite()) { m_Failed++; FinishHelmets(); return; }
 		LoadLane();
 		ACR_UALoadout.HelmetPool(m_Helmets);

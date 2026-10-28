@@ -100,7 +100,7 @@ class ACR_TestMotorized
     detail = string.Format("Bravo '%1' mounted %2, %3 m apart; LAV '%4' %5 m from the drop", s_Bravo.m_Order, s_Bravo.IsMounted(), (int)apart, crew.m_Order, (int)atDrop);
    }
    ACR_TestRegress.Check("motorized: riders dropped and the LAV stays at the drop-off", dropped && stayed, detail);
-   ACR_TestRegress.Complete("motorized");
+   ACR_TestRegress.Complete("motorized", 3);
   }
  }
 }

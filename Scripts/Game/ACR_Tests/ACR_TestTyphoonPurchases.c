@@ -76,6 +76,17 @@ class ACR_TestTyphoonPurchases
   if (!manager) return;
   if (tick == 10)
   {
+   // Its fixtures are RHS and UAAF vehicles: without those mods (e.g. srv:, which loads ACA and
+   // BBB only) the run can't be valid, so it says why instead of failing its checks (#54).
+   bool rhsBase = false;
+   foreach (ACR_Base rhs : ACR_Base.s_All)
+    if (rhs.m_sOwner == "RHS_AFRF") rhsBase = true;
+   if (!rhsBase)
+   {
+    ACR_TestRegress.Abort("typhoons", "needs RHS and UAAF loaded (-acrFactions ru_ua); no base is held by RHS_AFRF in this run");
+    GetGame().GetCallqueue().Remove(Run);
+    return;
+   }
    if (!manager.m_Supports) manager.m_Supports = new ACR_Supports(manager);
    unowned = ACR_Manager.SpawnPrefab("{9BF596A3464B6DB8}Prefabs/Vehicles/Wheeled/K4386/K4386_Camo.et", ACR_Manager.Ground("1420 0 2860"));
    SCR_BaseCompartmentManagerComponent emptySeats;

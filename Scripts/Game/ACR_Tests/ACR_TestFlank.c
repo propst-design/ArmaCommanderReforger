@@ -125,6 +125,10 @@ class ACR_TestFlank
     man.GetDamageManager().EnableDamageHandling(false);
    }
    s_Squad.m_CombatFlank = new ACR_CombatFlank();
+   // ACA's flank alone (#54): BBB's fire and manoeuvre takes the contact and bounds the squad
+   // forward, so it never stands still long enough to count as stalled. That's right in play
+   // (a squad advancing by bounds isn't stuck), but it isn't what this check is about.
+   BBB_FireManeuver.s_bOn = false;
    s_Squad.MoveTo(s_Objective);
    s_Squad.m_Group.GetGroupUtilityComponent().SetCombatMode(EAIGroupCombatMode.HOLD_FIRE);
    s_Enemy = SCR_AIGroup.Cast(ACR_Manager.SpawnPrefab("{657590C1EC9E27D3}Prefabs/Groups/OPFOR/Group_USSR_LightFireTeam.et", ACR_Manager.Ground(s_Start + s_Direction * 100)));
@@ -149,6 +153,37 @@ class ACR_TestFlank
    bool pinned;
    if (ACR_CombatFlank.Contact(s_Squad, observed, pinned)) s_bFresh = true;
    if (s_Squad.m_CombatFlank.m_iStarted > s_iStarted) s_bAutomatic = true;
+   if (tick % 5 == 0)
+   {
+    // Why the automatic flank does or doesn't start (ACR_CombatFlank.Tick's conditions).
+    IEntity body = s_Squad.GetAnchor();
+    float toGoal = -1;
+    float facing = -2;
+    if (body)
+    {
+     toGoal = vector.DistanceXZ(body.GetOrigin(), s_Squad.m_MoveTarget);
+     vector goal = s_Squad.m_MoveTarget - body.GetOrigin();
+     vector enemy = observed - body.GetOrigin();
+     goal[1] = 0; enemy[1] = 0;
+     goal.Normalize(); enemy.Normalize();
+     facing = vector.Dot(goal, enemy);
+    }
+    PrintFormat("[ACR] FLANKTEST t=%1 eligible=%2 state=%3 mode=%4 contact=%5 pinned=%6 toGoal=%7 facing=%8 active=%9", tick, ACR_CombatFlank.Eligible(s_Squad), typename.EnumToString(ACR_EOrderState, s_Squad.OrderState()), s_Squad.m_Mode, s_bFresh, pinned, (int)toGoal, facing, s_Squad.m_CombatFlank.Active());
+    string men = "";
+    array<AIAgent> members = {};
+    s_Squad.GetAgents(members);
+    foreach (AIAgent member : members)
+    {
+     SCR_AIUtilityComponent mu = SCR_AIUtilityComponent.Cast(member.FindComponent(SCR_AIUtilityComponent));
+     if (!mu) continue;
+     float measure = -1;
+     if (mu.m_ThreatSystem) measure = mu.m_ThreatSystem.GetThreatMeasure();
+     string mode = "?";
+     if (mu.m_CombatComponent) mode = typename.EnumToString(EAIGroupCombatMode, mu.m_CombatComponent.GetCombatMode());
+     men += string.Format(" %1/%2", Math.Round(measure * 100) / 100, mode);
+    }
+    PrintFormat("[ACR] FLANKTEST t=%1 threat/mode per man:%2", tick, men);
+   }
    if (tick > 65) Ammo(s_Squad);
   }
   if (tick == 65 && s_Squad)
@@ -163,6 +198,7 @@ class ACR_TestFlank
    ACR_TestRegress.Check("native rifle fire continues in combat fixture", s_iShots > 0, s_iShots.ToString());
    if (s_Enemy) SCR_EntityHelper.DeleteEntityAndChildren(s_Enemy);
    if (s_Squad) s_Squad.Halt("Holding");
+   BBB_FireManeuver.s_bOn = true;
    ACR_TestRegress.Complete("flank", 20);
   }
  }

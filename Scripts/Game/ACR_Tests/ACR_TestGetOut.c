@@ -75,8 +75,13 @@ class ACR_TestGetOut
   if (tick == 73)
   {
    int left = Aboard(alpha);
-   ACR_TestRegress.Check("passengers in another squad's vehicle get out on Get out", left == 0, string.Format("still aboard %1", left));
-   ACR_TestRegress.Complete("getout");
+   // getoutold is the control run, the game's Get out waypoint alone (no EnsureGetOut): there the
+   // passengers staying aboard is what shows the fallback is needed (#54, as crewold in #56).
+   if (ACR_Squad.s_bNoGetOutFallback)
+    ACR_TestRegress.Check("control: the game's Get out waypoint alone leaves passengers in another squad's vehicle aboard", left > 0, string.Format("still aboard %1", left));
+   else
+    ACR_TestRegress.Check("passengers in another squad's vehicle get out on Get out", left == 0, string.Format("still aboard %1", left));
+   ACR_TestRegress.Complete("getout", 1);
   }
  }
 }
