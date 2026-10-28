@@ -1,4 +1,4 @@
-// srv:pathprobe (Everon, about 3 min): can foot squads reach Gallows Base's centre?
+// srv:pathprobe (Everon, about 6 min): can foot squads reach Gallows Base's centre?
 // Everon night soak 26 Oct: two squads given grabs there had their move waypoint dropped by
 // the engine every 10 s ("nearest walkable point, 0 m off") and gave up; the base stayed
 // unclaimed for the whole first hour. Four fire teams start 180 m out (the ride drop-off to
@@ -7,13 +7,14 @@
 // east and west approaches reach it; from the south the engine drops the move every 10 s (the
 // centre is a wooded yard walled with concrete panels). Checks: each squad either gets inside
 // the 60 m arrival distance or gives up as unreachable (so the AI drops the attack), and the
-// drop-off approach gets in.
+// drop-off approach gets in. #30: the south squad goes round (ACR_Squad.DetourRound) and gets in too.
 class ACR_TestPathProbe
 {
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
  static const vector DROP = "5292.18 34.6188 10703.3"; // the ride drop-off of the soak's first grab
  static const float START_M = 180;
  static const float ARRIVED_M = 60;
+ static const int END_S = 330; // #30: the south squad's way round (back out, flank, in) is about 600 m
  // 4 and 5 start beside the drop-off one: "Probe Rode" with a truck 1.3 km away counted as its
  // own (as after a ride), "Probe Plain" without (does a stale group vehicle break its moves?).
  static const int COUNT = 6;
@@ -86,7 +87,7 @@ class ACR_TestPathProbe
     if (second % 10 == 0) PrintFormat("[ACR] PROBE t=%1 %2: %3 m from the centre (best %4), order '%5', waypoint %6", second, s_aNames[k], (int)d, (int)s_aBest[k], probe.m_Order, probe.m_Group && probe.m_Group.GetCurrentWaypoint() != null);
    }
   }
-  if (second == 175)
+  if (second == END_S)
   {
    int reached = 0;
    for (int n = 0; n < COUNT; n++)
@@ -102,8 +103,9 @@ class ACR_TestPathProbe
    }
    // 26 Oct: reachable from the drop-off (north-west), east and west; the south side isn't.
    ACR_TestRegress.Check("pathprobe: the drop-off approach the AI's rides use reaches the centre", s_aBest[0] < ARRIVED_M, string.Format("best %1 m", (int)s_aBest[0]));
+   ACR_TestRegress.Check("pathprobe: the south squad goes round and reaches the centre (#30)", s_aBest[2] < ARRIVED_M, string.Format("best %1 m", (int)s_aBest[2]));
    PrintFormat("[ACR] PROBE DIAG %1 of %2 probes reach Gallows Base's centre (rode %3 m, plain %4 m)", reached, COUNT, (int)s_aBest[4], (int)s_aBest[5]);
-   ACR_TestRegress.Complete("pathprobe", 7);
+   ACR_TestRegress.Complete("pathprobe", 8);
   }
  }
 

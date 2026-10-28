@@ -2831,7 +2831,10 @@ class ACR_Squad : Managed
   if (m_iWaypointRecoveries >= 2)
   {
    vector reachable;
-   if (ReachableNear(m_MoveTarget, 5 + 15 * (m_iWaypointRecoveries - 2), reachable))
+   bool found = ReachableNear(m_MoveTarget, 5 + 15 * (m_iWaypointRecoveries - 2), reachable);
+   // #30: the spot itself is walkable, so the way in from this side is the problem.
+   if ((!found || vector.DistanceXZ(reachable, m_MoveTarget) < 3) && DetourRound()) return;
+   if (found)
    {
     how = string.Format("nearest walkable point, %1 m off", (int)vector.DistanceXZ(reachable, m_MoveTarget));
     target = reachable;
@@ -2841,6 +2844,62 @@ class ACR_Squad : Managed
   IssueWaypoint(m_sOrderPrefab, target, m_fOrderRadius, m_bForced);
   PrintFormat("[ACR] MOVE %1: waypoint disappeared before arrival; recovery %2/4 (%3), group vehicles %4", m_Name, m_iWaypointRecoveries, how, GroupVehicleCount());
   if (m_iWaypointRecoveries >= 4) m_bRecoveryLast = true;
+ }
+
+ // #30 (Everon): some base centres sit in walled yards the engine paths into from some sides
+ // only (srv:pathprobe: Gallows Base from the south, the move dropped every 10 s while the
+ // spot is on the navmesh; the south approach is a dead end, and a leg to a point 80 m round
+ // the side failed as well). A foot squad goes round instead: back out DETOUR_M the way it came,
+ // to a point DETOUR_M out on one flank (where the probes from there got in), then the same
+ // order again. A detour leg that fails too tries the other flank; after two the usual
+ // recoveries run out, so a spot no side reaches still ends as unreachable.
+ static const float DETOUR_M = 180;
+ protected int m_iDetourSerial = -1;
+ protected int m_iDetours;
+ protected vector m_vDetourGoal;
+ protected vector m_vDetourAway; // from the goal towards where the squad came from
+ protected bool DetourRound()
+ {
+  if (IsMounted()) return false;
+  IEntity anchor = GetAnchor();
+  if (!anchor) return false;
+  bool onDetour = m_iDetourSerial == m_iOrderSerial && vector.DistanceXZ(m_MoveTarget, m_vDetourGoal) > 1;
+  if (m_iDetourSerial != m_iOrderSerial)
+  {
+   vector away = anchor.GetOrigin() - m_MoveTarget;
+   away[1] = 0;
+   if (away.LengthSq() < 1) return false;
+   away.Normalize();
+   m_iDetourSerial = m_iOrderSerial;
+   m_iDetours = 0;
+   m_vDetourGoal = m_MoveTarget;
+   m_vDetourAway = away;
+  }
+  if (m_iDetours >= 2) return false;
+  vector goal = m_vDetourGoal;
+  vector side = Vector(m_vDetourAway[2], 0, -m_vDetourAway[0]);
+  if (m_iDetours == 1) side = side * -1;
+  vector back, flank;
+  if (!ReachableNear(goal + side * DETOUR_M, 30, flank)) return false;
+  bool backOut = vector.DistanceXZ(anchor.GetOrigin(), goal) < DETOUR_M - 30 && ReachableNear(goal + m_vDetourAway * DETOUR_M, 30, back);
+  // The legs of the last detour still ahead go; the goal and the order's own route after it stay.
+  if (onDetour)
+  {
+   while (!m_aRoute.IsEmpty() && vector.DistanceXZ(m_aRoute[0], goal) > 1) m_aRoute.RemoveOrdered(0);
+  }
+  else
+  {
+   if (m_aRoute.IsEmpty()) m_Route = ACR_OrderSnapshot.Make(m_sOrderPrefab, goal, m_fOrderRadius, m_Order, OrderState(), m_OrderKind);
+   m_aRoute.InsertAt(goal, 0);
+  }
+  m_aRoute.InsertAt(flank, 0);
+  if (backOut) m_aRoute.InsertAt(back, 0);
+  m_iDetours++;
+  string how = "";
+  if (backOut) how = string.Format("back out to %1, then ", ACR_Manager.Grid(back));
+  PrintFormat("[ACR] MOVE %1: can't get in to %2 from this side, going round (%3%4, detour %5/2)", m_Name, ACR_Manager.Grid(goal), how, ACR_Manager.Grid(flank), m_iDetours);
+  NextLeg();
+  return true;
  }
 
  // Said once when the last recovery also fails, so an order is never dropped silently.
