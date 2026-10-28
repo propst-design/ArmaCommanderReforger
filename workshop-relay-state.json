@@ -97,7 +97,7 @@
           }
         ],
         "next": 0,
-        "inflight": null
+        "inflight": 0
       }
     }
   }
