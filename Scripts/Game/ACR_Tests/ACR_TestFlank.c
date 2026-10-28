@@ -11,7 +11,7 @@ class ACR_TestFlank
  static SCR_AIGroup s_Enemy;
  static int s_iAmmo, s_iStarted, s_iShots;
  static ref map<BaseWeaponComponent, int> s_Ammo = new map<BaseWeaponComponent, int>();
- static bool s_bFresh, s_bAutomatic;
+ static bool s_bFresh, s_bAutomatic, s_bBBB;
  static void Run(ACR_TestHarness h, int tick)
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
@@ -112,8 +112,8 @@ class ACR_TestFlank
    ACR_TestRegress.Check("a native replacement waypoint survives player handover", nativeJoin && nativeOrder && !s_Squad.m_CombatFlank.Active() && s_Squad.m_Group.GetCurrentWaypoint() == nativeOrder);
    s_Squad.Halt("Holding");
    if (nativeOrder) SCR_EntityHelper.DeleteEntityAndChildren(nativeOrder);
-   // A live sensor/firing phase: the enemy is armed but holds fire, so no
-   // casualty or suppression randomness can prevent the stalled-contact check.
+   // A live sensor/firing phase: the enemy is armed but holds fire, so no casualty or
+   // suppression randomness decides who takes the contact (BBB, not ACA's flank: #54).
    array<AIAgent> fighters = {};
    s_Squad.GetAgents(fighters);
    foreach (int n, AIAgent fighter : fighters)
@@ -125,10 +125,6 @@ class ACR_TestFlank
     man.GetDamageManager().EnableDamageHandling(false);
    }
    s_Squad.m_CombatFlank = new ACR_CombatFlank();
-   // ACA's flank alone (#54): BBB's fire and manoeuvre takes the contact and bounds the squad
-   // forward, so it never stands still long enough to count as stalled. That's right in play
-   // (a squad advancing by bounds isn't stuck), but it isn't what this check is about.
-   BBB_FireManeuver.s_bOn = false;
    s_Squad.MoveTo(s_Objective);
    s_Squad.m_Group.GetGroupUtilityComponent().SetCombatMode(EAIGroupCombatMode.HOLD_FIRE);
    s_Enemy = SCR_AIGroup.Cast(ACR_Manager.SpawnPrefab("{657590C1EC9E27D3}Prefabs/Groups/OPFOR/Group_USSR_LightFireTeam.et", ACR_Manager.Ground(s_Start + s_Direction * 100)));
@@ -153,52 +149,22 @@ class ACR_TestFlank
    bool pinned;
    if (ACR_CombatFlank.Contact(s_Squad, observed, pinned)) s_bFresh = true;
    if (s_Squad.m_CombatFlank.m_iStarted > s_iStarted) s_bAutomatic = true;
-   if (tick % 5 == 0)
-   {
-    // Why the automatic flank does or doesn't start (ACR_CombatFlank.Tick's conditions).
-    IEntity body = s_Squad.GetAnchor();
-    float toGoal = -1;
-    float facing = -2;
-    if (body)
-    {
-     toGoal = vector.DistanceXZ(body.GetOrigin(), s_Squad.m_MoveTarget);
-     vector goal = s_Squad.m_MoveTarget - body.GetOrigin();
-     vector enemy = observed - body.GetOrigin();
-     goal[1] = 0; enemy[1] = 0;
-     goal.Normalize(); enemy.Normalize();
-     facing = vector.Dot(goal, enemy);
-    }
-    PrintFormat("[ACR] FLANKTEST t=%1 eligible=%2 state=%3 mode=%4 contact=%5 pinned=%6 toGoal=%7 facing=%8 active=%9", tick, ACR_CombatFlank.Eligible(s_Squad), typename.EnumToString(ACR_EOrderState, s_Squad.OrderState()), s_Squad.m_Mode, s_bFresh, pinned, (int)toGoal, facing, s_Squad.m_CombatFlank.Active());
-    string men = "";
-    array<AIAgent> members = {};
-    s_Squad.GetAgents(members);
-    foreach (AIAgent member : members)
-    {
-     SCR_AIUtilityComponent mu = SCR_AIUtilityComponent.Cast(member.FindComponent(SCR_AIUtilityComponent));
-     if (!mu) continue;
-     float measure = -1;
-     if (mu.m_ThreatSystem) measure = mu.m_ThreatSystem.GetThreatMeasure();
-     string mode = "?";
-     if (mu.m_CombatComponent) mode = typename.EnumToString(EAIGroupCombatMode, mu.m_CombatComponent.GetCombatMode());
-     men += string.Format(" %1/%2", Math.Round(measure * 100) / 100, mode);
-    }
-    PrintFormat("[ACR] FLANKTEST t=%1 threat/mode per man:%2", tick, men);
-   }
+   // Contact is BBB's (#54): its fire and manoeuvre takes the squad, not ACA's flank.
+   if (BBB_FireManeuver.Job(s_Squad.m_Group)) s_bBBB = true;
    if (tick > 65) Ammo(s_Squad);
   }
   if (tick == 65 && s_Squad)
   {
-   ACR_TestRegress.Check("hold fire prevents automatic flanking", !s_bAutomatic);
    s_Squad.m_Group.GetGroupUtilityComponent().SetCombatMode(EAIGroupCombatMode.FIRE_AT_WILL);
   }
   if (tick == 110)
   {
    ACR_TestRegress.Check("live native sensors supply fresh infantry contact", s_bFresh);
-   ACR_TestRegress.Check("stalled contact automatically triggers flank", s_bAutomatic);
+   ACR_TestRegress.Check("contact is BBB's: its fire and manoeuvre takes the squad (#54)", s_bBBB);
+   ACR_TestRegress.Check("ACA's automatic flank of a stalled contact stays off (#54)", !s_bAutomatic);
    ACR_TestRegress.Check("native rifle fire continues in combat fixture", s_iShots > 0, s_iShots.ToString());
    if (s_Enemy) SCR_EntityHelper.DeleteEntityAndChildren(s_Enemy);
    if (s_Squad) s_Squad.Halt("Holding");
-   BBB_FireManeuver.s_bOn = true;
    ACR_TestRegress.Complete("flank", 20);
   }
  }

@@ -7,6 +7,11 @@ class ACR_CombatFlank : Managed
  protected float m_fStillSince, m_fNextCheck, m_fNextFlank, m_fStarted, m_fNextRecovery;
  protected int m_iSerial, m_iLeg, m_iRecoveries;
  int m_iStarted;
+ // The automatic flank of a stalled contact (Tick) is off (#54, Jacob 27 Oct): BBB's fire and
+ // manoeuvre and squad tactics own how a squad in contact moves. It also never fired in play: a
+ // squad shooting raises its own threat measure to 0.9-1.0, so Contact() always reported it
+ // pinned (2 starts in 11 playtests). Begin() and an active manoeuvre still work; true restores it.
+ static bool s_bAutomatic = false;
  bool Active() { return m_Original != null; }
  ACR_OrderSnapshot Original() { return m_Original; }
  void Cancel() { m_Original = null; m_fStillSince = 0; }
@@ -190,6 +195,7 @@ class ACR_CombatFlank : Managed
    }
    return true;
   }
+  if (!s_bAutomatic) { m_fStillSince = 0; return false; }
   if (now < m_fNextCheck) return false;
   m_fNextCheck = now + 3000;
   if (!Eligible(squad) || now < m_fNextFlank) { m_fStillSince = 0; return false; }
