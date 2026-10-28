@@ -101,7 +101,7 @@
           }
         ],
         "next": 0,
-        "inflight": null
+        "inflight": 0
       },
       "delivered": {
         "0.1.6": [
