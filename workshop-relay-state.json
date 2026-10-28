@@ -82,7 +82,23 @@
         "0.2.0",
         "0.1.0"
       ],
-      "pending": null
+      "pending": {
+        "version": "0.3.3",
+        "messages": [
+          {
+            "content": "AiO Command Menu -Reforger- — 0.3.3\nhttps://reforger.armaplatform.com/workshop/629405AEFC950C12\nPart 1/1 · relay 2557d5f13919f0db:1\n\n0.3.3\n\n- More > Become leader / Step down as leader changes leadership in your own squad, including taking over from an AI leader while possessing a squad member. Another player cannot be displaced.\n- Defense > Grenades & smoke: Frag there, Smoke there and Smoke screen there (up to three men) use the grenades your soldiers carry. Men throw from their posts or move up when the target is beyond throwing range, and frags are refused when a friendly is within 15 m of the target.\n- Garrison building gets your men inside properly. Each man takes a window post facing out, with the nearest man on each post. Men no longer pick spots on top of beds and tables, they give up on unreachable posts in seconds rather than standing still for most of a minute, and they move to another free post. The squad remembers floors and rooms it found no way into. You get one report once everyone is in, saying how many men are in position and how many found no way in. Distant buildings load their navigation data as soon as you give the order.\n- Clear building shares the rooms between the men, so they no longer queue in single file through narrow houses. A man whose rooms are all unreachable ends inside at a room he can reach.\n- Fall back, Peel back and Attack > Flank now throw a smoke screen between the squad and the enemy when the squad is in contact, using men who carry smoke.",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          }
+        ],
+        "next": 0,
+        "inflight": null
+      }
     }
   }
 }
