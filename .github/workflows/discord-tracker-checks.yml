@@ -1,0 +1,18 @@
+name: Discord tracker checks
+on:
+  pull_request:
+    paths: ['tools/discord_tracker/**', 'docs/discord-tracker.md', '.github/workflows/discord-tracker*.yml']
+  push:
+    branches: [main]
+    paths: ['tools/discord_tracker/**', 'docs/discord-tracker.md', '.github/workflows/discord-tracker*.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Mirror against an in-memory GitHub and Discord, without secrets or network
+        run: python3 -m unittest discover -s tools/discord_tracker -p 'test_*.py' -v

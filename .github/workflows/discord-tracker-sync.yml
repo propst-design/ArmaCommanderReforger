@@ -1,0 +1,55 @@
+name: Discord tracker sync
+
+# Reusable. ArmaCommanderReforger, BetterBattleBuddies and AIOCommandMenu each call it from their
+# own discord-tracker.yml, so an issue event reaches Discord within about a minute.
+# Setup and behaviour: docs/discord-tracker.md.
+on:
+  workflow_call:
+    inputs:
+      mod:
+        description: Short mod name; the post title prefix and the forum tag
+        type: string
+        required: true
+      title:
+        description: Full mod name, for the roadmap post
+        type: string
+        required: true
+      tracker-channel:
+        type: string
+        default: ''
+      roadmap-channel:
+        type: string
+        default: ''
+      full:
+        type: boolean
+        default: false
+    secrets:
+      DISCORD_BOT_TOKEN:
+        required: false
+
+permissions: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: propst-design/ArmaCommanderReforger
+          ref: main
+          sparse-checkout: tools/discord_tracker
+          persist-credentials: false
+      - name: Mirror issues and the roadmap to Discord
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_TRACKER_CHANNEL_ID: ${{ inputs.tracker-channel }}
+          DISCORD_ROADMAP_CHANNEL_ID: ${{ inputs.roadmap-channel }}
+          TRACKER_MOD: ${{ inputs.mod }}
+          TRACKER_TITLE: ${{ inputs.title }}
+          TRACKER_FULL: ${{ inputs.full }}
+        run: python3 tools/discord_tracker/tracker.py

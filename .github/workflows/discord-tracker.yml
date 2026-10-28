@@ -1,0 +1,42 @@
+name: Discord tracker
+
+# Mirrors this repository's issues to the Discord tracker forum and its roadmap issue to the
+# roadmap forum. The logic and setup live in propst-design/ArmaCommanderReforger
+# (docs/discord-tracker.md).
+on:
+  issues:
+    types: [opened, edited, deleted, closed, reopened, labeled, unlabeled]
+  issue_comment:
+    types: [created, edited, deleted]
+  schedule:
+    - cron: '41 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      full:
+        description: 'Recheck every mirrored issue, not only open and recently updated ones'
+        type: boolean
+        default: false
+
+# Runs queue one at a time. A queued run GitHub replaces is caught up by the next, which
+# rechecks every open issue and anything updated in the last two days.
+concurrency:
+  group: discord-tracker
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  sync:
+    if: github.repository == 'propst-design/ArmaCommanderReforger' && !github.event.issue.pull_request
+    uses: ./.github/workflows/discord-tracker-sync.yml
+    permissions:
+      contents: read
+      issues: read
+    with:
+      mod: ACA
+      title: "Arma Commander: Actual"
+      tracker-channel: ${{ vars.DISCORD_TRACKER_CHANNEL_ID }}
+      roadmap-channel: ${{ vars.DISCORD_ROADMAP_CHANNEL_ID }}
+      full: ${{ inputs.full == true }}
+    secrets:
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
