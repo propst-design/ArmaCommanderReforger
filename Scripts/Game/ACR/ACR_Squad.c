@@ -2898,6 +2898,9 @@ class ACR_Squad : Managed
   string how = "";
   if (backOut) how = string.Format("back out to %1, then ", ACR_Manager.Grid(back));
   PrintFormat("[ACR] MOVE %1: can't get in to %2 from this side, going round (%3%4, detour %5/2)", m_Name, ACR_Manager.Grid(goal), how, ACR_Manager.Grid(flank), m_iDetours);
+  // The commander who gave the order sees why it walks away from the target.
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (manager && m_iOrderedBy > 0) manager.Notify(m_iOrderedBy, string.Format("%1 can't get in to %2 from this side, going round", m_Name, ACR_Manager.Grid(goal)));
   NextLeg();
   return true;
  }
