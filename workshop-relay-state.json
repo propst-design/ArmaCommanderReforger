@@ -56,7 +56,53 @@
         "0.1.0",
         "0.1.6"
       ],
-      "pending": null,
+      "pending": {
+        "version": "0.1.7",
+        "messages": [
+          {
+            "content": "Better Battle Buddies — 0.1.7\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 1/4 · relay beed08154d2dfbb8:1\n\n0.1.7\n\n- A **Battle Buddies** tab in the game's Settings menu, so you can set up how BBB's AI fights without touching launch parameters. Every option has a switch or slider with a short description, grouped by feature. Save setups as presets, then duplicate, rename, delete and share them: Export copies a preset to the clipboard and tells you where its file is. Two built-in presets to start from: BBB default (what the mod ships) and Vanilla (every BBB feature off). A preset applies when a mission starts, in singleplayer and in games you host; on someone else's server, that server's settings apply. Server hosts drop the file into the server's profile folder under BBB/Presets and start the server with -bbbPreset <name>. Launch parameters still win over a preset, so existing server setups keep working unchanged.\n- New options for values that used to be fixed: how long squads assault, hold and reorganise; how far a squad without a radio can call out a contact, and how fresh a sighting must be to pass on; the grenade throwing lane; smoke and illumination cooldowns; the morale breaking point and how far a broken squad falls back. Also two of the game's own AI values, skill and spotting speed, set when a soldier spawns; anything a host mod, Game Master or mission sets later still wins. Every new option defaults to today's behaviour.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Better Battle Buddies — 0.1.7\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 2/4 · relay beed08154d2dfbb8:2\n\n- Soldiers fighting from a building stay in it. Before, the game's combat movement sent a soldier who'd stood still for a few seconds to cover 10-30 m towards the enemy, and its reaction to being shot at sent him sprinting in a random direction: both meant out of the door into the open, so garrisons emptied within seconds of the first shot. Now a soldier inside keeps his window while he can see the enemy, moves to another window in the same building when he can't, ducks behind the walls when shot at instead of running out, and stands back up to see over the sill instead of lying blind on the floor. Defenders hold even when they lose sight of the enemy; others go after him as before if the building gives them no view. An enemy inside the same building is still fought room to room (-bbbIndoorHold 0).\n- Soldiers no longer throw frag grenades from inside buildings or into a wall or overhang just in front of them. The old check only looked 3 m straight ahead, but a grenade is lobbed, so it could hit the ceiling or the wall above a window and land at the thrower's feet.\n- Squads routed on foot round a bay or lake keep a little inland instead of hugging the waterline, and no leg of the route ends on a beach. Before, a leg could end right at the water's edge, where the game's pathfinding sometimes fails every move and the squad stood there for good (-bbbShoreRoutes 0).\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Better Battle Buddies — 0.1.7\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 3/4 · relay beed08154d2dfbb8:3\n\n- Armour learning judges each round fired, not each hit. Before, it could decide in seconds that a 25 mm cannon or an M72 couldn't hurt a BTR-70 they were wrecking, and gunners stopped firing at it: it judged every spall fragment as a hit of its own and only counted damage to the exact part struck, so wheels, engines and gearboxes destroyed behind the hull counted for nothing, and the 25 mm's spall was credited to other rounds. Now a round's spall, fragments and blast all count as that round, and it got through if the vehicle lost health anywhere or someone inside was hurt. Rifle rounds that do nothing to armour are still learned as useless (-bbbArmour 0).\n- For mod makers: a host mod can give a squad its own leash, a circle it may manoeuvre in (an objective, a post). While it is set it replaces the order leash for every Better Battle Buddies behaviour, and fire and manoeuvre may then run under a Defend waypoint, inside that circle only. Nothing changes for squads without one, so Conflict and Game Master play as before.\n- A vehicle crewman that Better Battle Buddies turned out of his hatch goes back in when a player or Game Master order arrives, before the order takes over. Before, BBB let go of the hatch with him still out and never took it back, so he rode out the fight exposed, and stayed out after the order ended. He turns out again only after the usual 30 quiet seconds once the order is over (-bbbCrewTurnout 0).\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Better Battle Buddies — 0.1.7\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 4/4 · relay beed08154d2dfbb8:4\n\n- For mod makers: a host mod can tell BBB that a group's player-level order is its own, not a player's (new hook `HostOrder`). Some hosts run their AI commander's urgent moves at the player's level so they outrank combat. Under such an order, the crew of an armed vehicle now stay in their seats at gates and when a crewmate needs healing, as they do under an ordinary order. Real player and Game Master orders are still left alone.\n- Base-game AI fix: no more script error when a squad spots an enemy that has no faction (a NULL pointer to `targetFaction` while marking it on the map). That enemy just isn't marked on the map.",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          }
+        ],
+        "next": 0,
+        "inflight": null
+      },
       "delivered": {
         "0.1.6": [
           "1564098960505966683",
