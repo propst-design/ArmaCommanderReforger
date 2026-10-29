@@ -546,7 +546,7 @@ class ACR_Guerrillas
   float yaw;
   string refusal;
   if (!ACR_Roadblocks.ValidateSite(cell.m_vKillZone, road, yaw, refusal, post.m_sFaction)) return "no barricade: " + refusal;
-  cell.m_Block = ACR_Roadblocks.SpawnRoadblock(post.m_sFaction, road, yaw, post.m_sName, ACR_ERoadblockType.BARRICADE);
+  cell.m_Block = ACR_Roadblocks.SpawnRoadblock(post.m_sFaction, road, yaw, post.m_sName, ACR_ERoadblockType.BARRICADE, false);
   if (!cell.m_Block) return "no barricade: it didn't spawn";
   return "the road blocked";
  }

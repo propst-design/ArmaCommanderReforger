@@ -102,6 +102,10 @@ class ACR_TestGuerrillas
   }
   Check("guerrillas: the ambush deploys when enemies come up the road", group != null && men > 0, string.Format("%1 men", men));
   Check("guerrillas: they lie in wait off the road, holding their fire", men > 0 && offRoad == men && CombatMode(group) == EAIGroupCombatMode.HOLD_FIRE && !s_Ambush.m_Cell.m_bSprung, string.Format("%1 of %2 off the road, combat mode %3", offRoad, men, typename.EnumToString(EAIGroupCombatMode, CombatMode(group))));
+  // An FIA barricade blocks the road: no lane cut through it for anyone (#85's lane is for a side's own roadblocks).
+  ACR_Roadblock block = s_Ambush.m_Cell.m_Block;
+  if (block) Check("guerrillas: its barricade has no lane through it", block.m_iLaneMoved == 0, string.Format("%1 pieces moved", block.m_iLaneMoved));
+  else ACR_TestRegress.Skip("guerrillas: its barricade has no lane through it", "this ambush didn't block the road (a 40 % roll)");
  }
 
  protected static void IntoKillZone(ACR_Manager manager)
@@ -203,7 +207,7 @@ class ACR_TestGuerrillas
 
  protected static void Finish()
  {
-  ACR_TestRegress.Complete("guerrillas", 12);
+  ACR_TestRegress.Complete("guerrillas", 13);
  }
 
  protected static EAIGroupCombatMode CombatMode(SCR_AIGroup group)

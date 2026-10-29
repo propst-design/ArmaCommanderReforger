@@ -455,7 +455,8 @@ class ACR_Roadblocks : Managed
 		return comp.ACR_LayoutSize();
 	}
 
-	static ACR_Roadblock SpawnRoadblock(string factionKey, vector pos, float yaw, string squadName = "", int type = ACR_ERoadblockType.MEDIUM)
+	// lane false: no lane for anyone's vehicles (an FIA ambush's barricade is there to stop the convoy).
+	static ACR_Roadblock SpawnRoadblock(string factionKey, vector pos, float yaw, string squadName = "", int type = ACR_ERoadblockType.MEDIUM, bool lane = true)
 	{
 		ResourceName prefab = PrefabFor(type, factionKey, RoadWidthAt(pos));
 		type = TypeFor(type, factionKey);
@@ -475,7 +476,8 @@ class ACR_Roadblocks : Managed
 		ent.SetYawPitchRoll(Vector(yaw, 0, 0));
 		ACR_GroundTilt.Place(ent, prefab, pos, yaw); // barricades lie on the ground; checkpoints stay upright
 		// A lane our own trucks and APCs can drive, before the navmesh is rebuilt round it.
-		int laneMoved = ACR_RoadblockLane.Open(ent, type == ACR_ERoadblockType.BARRICADE);
+		int laneMoved;
+		if (lane) laneMoved = ACR_RoadblockLane.Open(ent, type == ACR_ERoadblockType.BARRICADE);
 		// Every machine shows the lane: a client builds the composition from its prefab (ACR_StructureLayout).
 		if (laneMoved > 0) ACR_StructureLayout.Record(ent);
 
@@ -500,7 +502,7 @@ class ACR_Roadblocks : Managed
 		rb.m_iType = type;
 		rb.m_iLaneMoved = laneMoved;
 		rb.m_vPost = pos;
-		if (!ACR_RoadblockLane.s_bOff)
+		if (lane && !ACR_RoadblockLane.s_bOff)
 		{
 			rb.m_vPost = ACR_RoadblockLane.Post(ent, rb.m_Turret);
 			rb.m_fPostRadius = ACR_RoadblockLane.POST_RADIUS;
