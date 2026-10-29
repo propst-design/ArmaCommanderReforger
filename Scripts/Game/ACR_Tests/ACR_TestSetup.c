@@ -221,6 +221,9 @@ class ACR_TestSetup
  protected static int s_iMapBeforeDelete;
  protected static vector s_vRememberedMapCenter;
  protected static float s_fRememberedMapZoom;
+ protected static int s_iMapSeedBefore;
+ protected static SCR_ButtonTextComponent s_MapSeedButton;
+
  static void RunMap(int second)
  {
   SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
@@ -243,9 +246,20 @@ class ACR_TestSetup
    ACR_TestRegress.Check("setup map: hover expands full details and leave restores compact text", pc && pc.ACR_TestBaseHover(), "actual enter/leave callbacks");
    ACR_TestRegress.Check("setup map: repeated creation replaces and positions the widget", pc && pc.ACR_TestBaseRecreate(), "old root detached, new root at world projection");
    ACR_TestRegress.Check("setup map: the dialog stays hidden while the map is open", SCR_ConfigurableDialogUi.GetCurrentDialog() == null, "");
+   // New seed on the map: rolls the layout without going back to the dialog.
+   s_iMapSeedBefore = ACR_Generator.Seed();
+   SCR_MapMenuUI seedMenu = SCR_MapMenuUI.Cast(GetGame().GetMenuManager().GetTopMenu());
+   Widget seedWidget;
+   if (seedMenu) seedWidget = seedMenu.GetRootWidget().FindAnyWidget("ACR_SetupSeed");
+   if (seedWidget) s_MapSeedButton = SCR_ButtonTextComponent.FindButtonTextComponent(seedWidget);
+   if (s_MapSeedButton) s_MapSeedButton.m_OnClicked.Invoke(s_MapSeedButton);
   }
   if (second == 20)
   {
+   int seedMarkers = 0;
+   if (pc) seedMarkers = pc.ACR_BaseMarkerCount();
+   int seedNow = ACR_Generator.Seed();
+   ACR_TestRegress.Check("setup map: New seed button rolls a new layout and the map redraws it", s_MapSeedButton && seedNow != s_iMapSeedBefore && seedMarkers == ACR_Setup.s_PreviewNames.Count() && ACR_SetupClient.s_sRows.Contains(seedNow.ToString()), string.Format("seed %1 -> %2, %3 markers, %4 planned", s_iMapSeedBefore, seedNow, seedMarkers, ACR_Setup.s_PreviewNames.Count()));
    array<ref ACR_GenSite> layout = {};
    array<ACR_GenSite> hqs = {};
    ACR_Generator.Plan(ACR_Generator.Seed(), ACR_Skirmish.SizeOption(), layout, hqs);
@@ -348,7 +362,7 @@ class ACR_TestSetup
    bool sameView = restored && restored.IsOpen() && s_fRememberedMapZoom > 0 && vector.DistanceXZ(s_vRememberedMapCenter, Vector(restoredX, 0, restoredZ)) < 5 && Math.AbsFloat(restored.GetCurrentZoom() - s_fRememberedMapZoom) < 0.001;
    ACR_TestRegress.Check("setup map: reopening gameplay map preserves pan and zoom", sameView, string.Format("centre %1 -> %2, zoom %3", s_vRememberedMapCenter, Vector(restoredX, 0, restoredZ), s_fRememberedMapZoom));
    ACR_TestRegress.Check("setup map: reopened gameplay restores visible base captions", pc && pc.ACR_TestBaseCaptionsVisible(true), "also after mouse leave");
-   ACR_TestRegress.Complete("setupmap", 22);
+   ACR_TestRegress.Complete("setupmap", 23);
   }
  }
 

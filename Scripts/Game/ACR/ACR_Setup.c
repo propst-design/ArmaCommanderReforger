@@ -791,7 +791,7 @@ class ACR_SetupClient
   if (s_Dialog) { s_Dialog.Close(); s_Dialog = null; }
   GetGame().GetMenuManager().OpenMenu(ChimeraMenuPreset.MapMenu);
   string hint = "The planned layout. Press Escape or Return to match setup to go back.";
-  if (s_sRows.Contains("Show and edit")) hint = "Click a CP, then its destination or Delete selected CP. HQs can only be moved. Undo layout edits restores moves and deletions. Markers show RP value and hidden sites. Press Escape or Return to match setup to go back.";
+  if (s_sRows.Contains("Show and edit")) hint = "Click a CP, then its destination or Delete selected CP. HQs can only be moved. Undo layout edits restores moves and deletions; New seed rolls a different layout (edits belong to one seed). Markers show RP value and hidden sites. Press Escape or Return to match setup to go back.";
   SCR_HintManagerComponent.ShowCustomHint(hint, "AC: Actual", 12, true);
  }
 
@@ -817,6 +817,7 @@ modded class SCR_MapMenuUI
 {
  protected Widget m_ACR_SetupReturn;
  protected Widget m_ACR_SetupDelete;
+ protected Widget m_ACR_SetupSeed;
  protected bool m_ACR_SetupPreview;
 
  override void OnMenuOpen()
@@ -841,14 +842,25 @@ modded class SCR_MapMenuUI
    button.SetText("Return to match setup");
    button.m_OnClicked.Insert(ACR_OnSetupReturn);
   }
-  if (!ACR_SetupClient.s_bAllowed || !ACR_SetupClient.s_sRows.Contains("Show and edit")) return;
+  if (!ACR_SetupClient.s_bAllowed) return;
+  // New seed: the setup's Layout seed row (a generated layout, or a quick start's split) without
+  // going back to the dialog; the server sends the new preview and the map redraws it.
+  if (ACR_SetupClient.s_sRows.Contains("seed\t"))
+  {
+   m_ACR_SetupSeed = ACR_SetupButton("ACR_SetupSeed", 152, "New seed");
+   SCR_ButtonTextComponent seedButton = SCR_ButtonTextComponent.FindButtonTextComponent(m_ACR_SetupSeed);
+   if (seedButton) seedButton.m_OnClicked.Insert(ACR_OnSetupSeed);
+  }
+  if (!ACR_SetupClient.s_sRows.Contains("Show and edit")) return;
   m_ACR_SetupDelete = GetGame().GetWorkspace().CreateWidgets("{75C912A1C89BE6C2}UI/layouts/WidgetLibrary/Buttons/WLib_ButtonText.layout", GetRootWidget());
   if (!m_ACR_SetupDelete) return;
   m_ACR_SetupDelete.SetName("ACR_SetupDelete");
   FrameSlot.SetAnchorMin(m_ACR_SetupDelete, 1, 0);
   FrameSlot.SetAnchorMax(m_ACR_SetupDelete, 1, 0);
   FrameSlot.SetAlignment(m_ACR_SetupDelete, 1, 0);
-  FrameSlot.SetPos(m_ACR_SetupDelete, -24, 152);
+  float deleteY = 152;
+  if (m_ACR_SetupSeed) deleteY = 208;
+  FrameSlot.SetPos(m_ACR_SetupDelete, -24, deleteY);
   FrameSlot.SetSize(m_ACR_SetupDelete, 340, 48);
   SCR_ButtonTextComponent deleteButton = SCR_ButtonTextComponent.FindButtonTextComponent(m_ACR_SetupDelete);
   if (deleteButton)
@@ -856,6 +868,26 @@ modded class SCR_MapMenuUI
    deleteButton.SetText("Delete selected CP");
    deleteButton.m_OnClicked.Insert(ACR_OnSetupDelete);
   }
+ }
+
+ protected Widget ACR_SetupButton(string name, float y, string text)
+ {
+  Widget root = GetGame().GetWorkspace().CreateWidgets("{75C912A1C89BE6C2}UI/layouts/WidgetLibrary/Buttons/WLib_ButtonText.layout", GetRootWidget());
+  if (!root) return null;
+  root.SetName(name);
+  FrameSlot.SetAnchorMin(root, 1, 0);
+  FrameSlot.SetAnchorMax(root, 1, 0);
+  FrameSlot.SetAlignment(root, 1, 0);
+  FrameSlot.SetPos(root, -24, y);
+  FrameSlot.SetSize(root, 340, 48);
+  SCR_ButtonTextComponent button = SCR_ButtonTextComponent.FindButtonTextComponent(root);
+  if (button) button.SetText(text);
+  return root;
+ }
+
+ protected void ACR_OnSetupSeed(SCR_ButtonBaseComponent button)
+ {
+  ACR_SetupClient.Request("seed");
  }
 
  protected void ACR_OnSetupDelete(SCR_ButtonBaseComponent button)
@@ -888,6 +920,8 @@ modded class SCR_MapMenuUI
   m_ACR_SetupReturn = null;
   if (m_ACR_SetupDelete) m_ACR_SetupDelete.RemoveFromHierarchy();
   m_ACR_SetupDelete = null;
+  if (m_ACR_SetupSeed) m_ACR_SetupSeed.RemoveFromHierarchy();
+  m_ACR_SetupSeed = null;
   super.OnMenuClose();
  }
 }
