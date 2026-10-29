@@ -644,11 +644,15 @@ modded class SCR_PlayerController
    if (!component) return false;
    if (mouseLeave) component.OnMouseLeave(root, null, 0, 0);
    TextWidget caption = TextWidget.Cast(root.FindAnyWidget("MarkerText"));
-   if (!caption || !caption.IsVisible() || caption.GetText() != marker.m_BaseCaption)
+   // A base under the real mouse cursor (someone focused the game window) shows its full
+   // details: that is the hover working, not a hidden caption (cc88map4, 28 Oct).
+   string wanted = marker.m_BaseCaption;
+   if (component.ACR_Hovered()) wanted = marker.m_BaseHover;
+   if (!caption || !caption.IsVisible() || caption.GetText() != wanted)
    {
     string shown = "no caption";
     if (caption) shown = string.Format("visible %1 text '%2'", caption.IsVisible(), caption.GetText());
-    PrintFormat("[ACR] TEST caption hidden: wanted '%1', %2, root visible %3", marker.m_BaseCaption, shown, root.IsVisible());
+    PrintFormat("[ACR] TEST caption hidden: wanted '%1', %2, root visible %3", wanted, shown, root.IsVisible());
     return false;
    }
   }
