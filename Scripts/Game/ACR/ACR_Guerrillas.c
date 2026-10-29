@@ -49,12 +49,15 @@ class ACR_Guerrillas
  static const float HIDE_CLEAR = 18;     // m from any road where they lie in wait (cc89guer1: 12 let men onto it)
  static const float SPACING = 700;       // m between two cells
  static const float BASE_CLEAR = 150;    // m outside any base's circle
- static const int MAX_ROUTES = 14;       // road searches at the start
+ static const int MAX_ROUTES = 20;       // road searches at the start (cc89rs2: 14 left too few sites to move on to)
  static const int MAX_HOUSE_LOOKS = 30;  // building searches at the start
+ static const float AMBUSH_HQ_CLEAR = 900; // m from a starting base for an ambush (houses: as the pockets)
 
  static ref array<vector> s_aRoads = {};  // ambush sites to pick from (road points)
  static ref array<float> s_aWeights = {}; // ... and how many of the routes pass there
  static ref array<vector> s_aHouses = {}; // buildings to pick from
+ static ref array<vector> s_aStarts = {}; // the starting bases (held at Apply)
+ protected static float s_fHouseClear;     // m from a starting base for a house
 
  static int CountOption(bool half, out int houses)
  {
@@ -92,6 +95,10 @@ class ACR_Guerrillas
   s_aRoads.Clear();
   s_aWeights.Clear();
   s_aHouses.Clear();
+  s_aStarts.Clear();
+  s_mTraffic.Clear();
+  s_mTrafficAt.Clear();
+  s_iSeconds = 0;
   int size = ACR_Skirmish.SizeOption();
   if (ACR_Skirmish.s_Active) size = ACR_Skirmish.s_Active.m_eSize;
   if (size == ACR_ESkirmishSize.FLASHPOINT) return;
@@ -118,9 +125,11 @@ class ACR_Guerrillas
   PrintFormat("[ACR] GUERRILLAS %1 cells of %2 wanted (%3 road sites, %4 houses to pick from, %5 m from starting bases, %6 ms)", placed, roads + houses, s_aRoads.Count(), s_aHouses.Count(), (int)clearance, System.GetTickCount() - started);
  }
 
- // The places cells pick from: points on the roads between bases, weighted by how many of the
- // routes searched pass there, and buildings by those roads; all away from both starting bases
- // (as the pockets) and outside every base.
+ // The places cells pick from: points on the roads out of each starting base to its nearest
+ // bases (where the sides drive first), then between other bases, weighted by how many of the
+ // routes searched pass there; and buildings by those roads. Ambushes keep AMBUSH_HQ_CLEAR from
+ // the starting bases, houses as far as the pockets; all outside every base. Later in the match
+ // the cells follow the traffic (Resite).
  protected static float Survey()
  {
   array<ACR_Base> held = {};
@@ -129,18 +138,42 @@ class ACR_Guerrillas
   {
    if (base.m_bRetired || base.m_bHidden) continue;
    all.Insert(base);
-   if (!base.m_sOwner.IsEmpty() && !base.m_bPocket) held.Insert(base);
+   if (!base.m_sOwner.IsEmpty() && !base.m_bPocket)
+   {
+    held.Insert(base);
+    s_aStarts.Insert(base.GetOrigin());
+   }
   }
   float gap = 0;
   foreach (ACR_Base a : held)
    foreach (ACR_Base b : held)
     if (a.m_sOwner != b.m_sOwner) gap = Math.Max(gap, vector.DistanceXZ(a.GetOrigin(), b.GetOrigin()));
   float clearance = Math.Min(ACR_Pockets.MIN_HQ_DISTANCE, Math.Max(1000, gap * 0.25));
-  // Routes from each base to a random neighbour 0.8-3 km away: the roads both sides will use.
+  s_fHouseClear = clearance;
+  // First out of each starting base to its three nearest bases 0.8-3 km away, then from random
+  // bases to a random neighbour as far: the roads both sides will use.
+  array<vector> froms = {};
+  array<vector> tos = {};
+  foreach (ACR_Base start : held)
+  {
+   array<ACR_Base> nearest = {};
+   foreach (ACR_Base other : all)
+   {
+    float gapTo = vector.DistanceXZ(start.GetOrigin(), other.GetOrigin());
+    if (other == start || gapTo < 800 || gapTo > 3000) continue;
+    int at = 0;
+    while (at < nearest.Count() && vector.DistanceXZ(start.GetOrigin(), nearest[at].GetOrigin()) < gapTo) at++;
+    nearest.InsertAt(other, at);
+   }
+   for (int q = 0; q < nearest.Count() && q < 3; q++)
+   {
+    froms.Insert(start.GetOrigin());
+    tos.Insert(nearest[q].GetOrigin());
+   }
+  }
   array<int> order = {};
   foreach (int n, ACR_Base unused : all) order.Insert(n);
-  int routes;
-  while (routes < MAX_ROUTES && !order.IsEmpty())
+  while (froms.Count() < MAX_ROUTES && !order.IsEmpty())
   {
    int pick = Math.RandomInt(0, order.Count());
    ACR_Base from = all[order[pick]];
@@ -152,13 +185,17 @@ class ACR_Guerrillas
     if (to != from && d >= 800 && d <= 3000) near.Insert(to);
    }
    if (near.IsEmpty()) continue;
+   froms.Insert(from.GetOrigin());
+   tos.Insert(near.GetRandomElement().GetOrigin());
+  }
+  foreach (int route, vector routeFrom : froms)
+  {
    array<vector> legs = {};
    int nodes, millis;
-   if (!BBB_Roads.Route(from.GetOrigin(), near.GetRandomElement().GetOrigin(), legs, nodes, millis)) continue;
-   routes++;
+   if (!BBB_Roads.Route(routeFrom, tos[route], legs, nodes, millis)) continue;
    foreach (vector leg : legs)
    {
-    if (!Usable(leg, held, all, clearance)) continue;
+    if (!Usable(leg, AMBUSH_HQ_CLEAR)) continue;
     bool merged;
     foreach (int k, vector known : s_aRoads)
     {
@@ -178,13 +215,14 @@ class ACR_Guerrillas
   foreach (vector site : s_aRoads)
   {
    if (looks >= MAX_HOUSE_LOOKS) break;
-   if (Math.RandomFloat01() > 0.5) continue;
+   // Roads near a starting base (ambushes may sit there) have no house far enough out.
+   if (!Usable(site, clearance - 150) || Math.RandomFloat01() > 0.5) continue;
    looks++;
    array<IEntity> buildings = {};
    ACR_Garrison.BuildingsWithin(site, 150, buildings);
    foreach (IEntity building : buildings)
    {
-    if (!Usable(building.GetOrigin(), held, all, clearance)) continue;
+    if (!Usable(building.GetOrigin(), clearance)) continue;
     s_aHouses.Insert(building.GetOrigin());
     break;
    }
@@ -192,12 +230,128 @@ class ACR_Guerrillas
   return clearance;
  }
 
- protected static bool Usable(vector at, array<ACR_Base> held, array<ACR_Base> all, float clearance)
+ protected static bool Usable(vector at, float clearance)
  {
   if (BBB_Terrain.IsWaterAt(at)) return false;
-  foreach (ACR_Base start : held) if (vector.DistanceXZ(at, start.GetOrigin()) < clearance) return false;
-  foreach (ACR_Base base : all) if (vector.DistanceXZ(at, base.GetOrigin()) < base.m_fRadius + BASE_CLEAR) return false;
+  foreach (vector start : s_aStarts) if (vector.DistanceXZ(at, start) < clearance) return false;
+  foreach (ACR_Base base : ACR_Base.s_All) if (!base.m_bRetired && !base.m_bHidden && vector.DistanceXZ(at, base.GetOrigin()) < base.m_fRadius + BASE_CLEAR) return false;
   return true;
+ }
+
+ // ---------------------------------------------------------------- following the traffic
+ // FIA watches the roads: every TRAFFIC_EVERY_S the main sides' moving vehicles on a road are
+ // counted in TRAFFIC_CELL squares. Every RESITE_EVERY_S one ambush cell that is waiting (not out,
+ // not moving on after a fight) on a quiet road moves to the busiest stretch that is clearly
+ // busier, usable (as Survey), SPACING from other cells, with a hiding place and no enemy near
+ // right now; then the counts halve, so old traffic fades.
+ static const float TRAFFIC_CELL = 100;
+ static const int TRAFFIC_EVERY_S = 5;
+ static const int RESITE_EVERY_S = 300;
+ static const float TRAFFIC_REACH = 250;  // a stretch: the counts this close to a point
+ static const float RESITE_MIN = 4;       // a stretch needs this many sightings to draw a cell
+ static const float MOVING = 3;           // m/s: a vehicle this fast is travelling
+ static ref map<int, float> s_mTraffic = new map<int, float>();
+ static ref map<int, vector> s_mTrafficAt = new map<int, vector>();
+ protected static int s_iSeconds;
+
+ static void NoteTraffic(vector pos)
+ {
+  int key = (int)(pos[0] / TRAFFIC_CELL) * 10000 + (int)(pos[2] / TRAFFIC_CELL);
+  float count;
+  s_mTraffic.Find(key, count);
+  s_mTraffic.Set(key, count + 1);
+  if (!s_mTrafficAt.Contains(key)) s_mTrafficAt.Set(key, pos);
+ }
+
+ static float TrafficNear(vector pos)
+ {
+  float sum;
+  foreach (int key, float count : s_mTraffic)
+   if (vector.DistanceXZ(s_mTrafficAt.Get(key), pos) <= TRAFFIC_REACH) sum += count;
+  return sum;
+ }
+
+ protected static void SampleTraffic(ACR_Manager manager)
+ {
+  array<IEntity> seen = {};
+  foreach (ACR_Squad squad : manager.m_Squads)
+  {
+   if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() == ACR_Pockets.FACTION) continue;
+   IEntity vehicle = ACR_Transport.CrewedVehicle(squad);
+   if (!vehicle || seen.Contains(vehicle)) continue;
+   seen.Insert(vehicle);
+   Physics physics = vehicle.GetPhysics();
+   if (!physics || physics.GetVelocity().Length() < MOVING) continue;
+   if (ACR_Minefields.RoadClearance(vehicle.GetOrigin()) > 8) continue;
+   NoteTraffic(vehicle.GetOrigin());
+  }
+ }
+
+ static bool Resite()
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  bool moved;
+  // The busiest stretches first.
+  array<vector> places = {};
+  array<float> counts = {};
+  foreach (int key, float unused : s_mTraffic)
+  {
+   vector at = s_mTrafficAt.Get(key);
+   float busy = TrafficNear(at);
+   if (busy < RESITE_MIN) continue;
+   int slot = 0;
+   while (slot < counts.Count() && counts[slot] >= busy) slot++;
+   places.InsertAt(at, slot);
+   counts.InsertAt(busy, slot);
+  }
+  foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
+  {
+   if (moved || places.IsEmpty()) break;
+   ACR_GuerrillaCell cell = post.m_Cell;
+   if (!cell || cell.m_bHouse || post.m_Group || post.m_bGone || !Ready(post)) continue;
+   float here = TrafficNear(cell.m_vKillZone);
+   foreach (int i, vector place : places)
+   {
+    if (counts[i] < here * 2 + RESITE_MIN) break;
+    if (!AmbushSiteOk(place, post)) continue;
+    if (manager && ACR_Defenders.EnemyWithin(manager, post.m_sFaction, place, HOUSE_RANGE)) continue;
+    string from = ACR_Manager.Grid(cell.m_vKillZone);
+    SetRoad(post, place);
+    post.m_sName = string.Format("FIA ambush %1", ACR_Manager.Grid(cell.m_vKillZone));
+    PrintFormat("[ACR] GUERRILLAS ambush from %1 (%2 sightings) to the traffic at %3 (%4)", from, (int)here, ACR_Manager.Grid(cell.m_vKillZone), (int)counts[i]);
+    moved = true;
+    break;
+   }
+  }
+  array<int> faded = {};
+  foreach (int key, float count : s_mTraffic)
+  {
+   if (count * 0.5 < 0.5) faded.Insert(key);
+   else s_mTraffic.Set(key, count * 0.5);
+  }
+  foreach (int gone : faded)
+  {
+   s_mTraffic.Remove(gone);
+   s_mTrafficAt.Remove(gone);
+  }
+  return moved;
+ }
+
+ // An ambush could sit at 'at': usable, SPACING from every cell but 'except', a hiding place by the road.
+ static bool AmbushSiteOk(vector at, ACR_DefenderPost except)
+ {
+  if (!Usable(at, AMBUSH_HQ_CLEAR) || Crowded(at, except)) return false;
+  vector road, dir, hide;
+  float width;
+  return RoadSite(at, road, dir, width, hide);
+ }
+
+ // Another cell within SPACING of 'at'.
+ protected static bool Crowded(vector at, ACR_DefenderPost except)
+ {
+  foreach (ACR_DefenderPost other : ACR_Defenders.s_Posts)
+   if (other != except && other.m_Cell && !other.m_bGone && vector.DistanceXZ(other.m_Cell.m_vKillZone, at) < SPACING) return true;
+  return false;
  }
 
  // A new cell at a free site, false with none left.
@@ -222,11 +376,11 @@ class ACR_Guerrillas
 
  // A site from the survey, the most travelled roads likelier, SPACING from every other cell. A
  // road site with nowhere to hide beside it (roads all round, open ground) leaves the list.
- protected static bool PickSite(bool house, out vector site)
+ protected static bool PickSite(bool house, out vector site, float spacing = SPACING)
  {
   for (int attempt = 0; attempt < 12; attempt++)
   {
-   int index = PickIndex(house);
+   int index = PickIndex(house, spacing);
    if (index < 0) return false;
    if (house)
    {
@@ -246,7 +400,7 @@ class ACR_Guerrillas
   return false;
  }
 
- protected static int PickIndex(bool house)
+ protected static int PickIndex(bool house, float spacing)
  {
   array<vector> places = s_aRoads;
   if (house) places = s_aHouses;
@@ -256,7 +410,7 @@ class ACR_Guerrillas
   {
    bool crowded;
    foreach (ACR_DefenderPost other : ACR_Defenders.s_Posts)
-    if (other.m_Cell && !other.m_bGone && vector.DistanceXZ(other.m_Cell.m_vKillZone, place) < SPACING) crowded = true;
+    if (other.m_Cell && !other.m_bGone && vector.DistanceXZ(other.m_Cell.m_vKillZone, place) < spacing) crowded = true;
    if (crowded) continue;
    free.Insert(i);
    if (house) total += 1;
@@ -397,12 +551,15 @@ class ACR_Guerrillas
   return "the road blocked";
  }
 
- // Every second (ACR_Manager.Tick): spring, fight, pull back.
+ // Every second (ACR_Manager.Tick): spring, fight, pull back; watch the traffic.
  static void Tick()
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
-  if (!manager || !manager.m_Bases) return;
+  if (!manager || !manager.m_Bases || s_aStarts.IsEmpty()) return;
   float now = GetGame().GetWorld().GetWorldTime();
+  s_iSeconds++;
+  if (s_iSeconds % TRAFFIC_EVERY_S == 0) SampleTraffic(manager);
+  if (s_iSeconds % RESITE_EVERY_S == 0) Resite();
   foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
   {
    if (!post.m_Cell || !post.m_Group) continue;
@@ -504,7 +661,8 @@ class ACR_Guerrillas
   vector site;
   vector old = cell.m_vKillZone;
   cell.m_vKillZone = vector.Zero; // its own old site doesn't crowd the pick
-  if (!PickSite(cell.m_bHouse, site)) site = old;
+  // Short of free sites, closer to the others rather than back where it fought.
+  if (!PickSite(cell.m_bHouse, site) && !PickSite(cell.m_bHouse, site, SPACING * 0.5)) site = old;
   cell.m_vKillZone = site;
   post.m_vPos = site;
   if (!cell.m_bHouse) SetRoad(post, site);

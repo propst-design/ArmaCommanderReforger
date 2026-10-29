@@ -3,7 +3,8 @@
 // base; a US fire team 400 m up the road deploys an ambush lying in wait off the road, holding its
 // fire; the team in the kill zone springs it (fire at will); it pulls back after its fight; with
 // nobody near it packs up, its barricade (if any) goes, and it moves on to another road later; a
-// house cell deploys round its building holding its fire.
+// house cell deploys round its building holding its fire; traffic on a far road draws a waiting
+// ambush there.
 class ACR_TestGuerrillas
 {
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
@@ -28,6 +29,7 @@ class ACR_TestGuerrillas
   if (second == 42) PulledBack();
   if (second == 43) Away(manager, "Guerrilla Bait");
   if (second == 57) MovedOn();
+  if (second == 58) FollowsTraffic();
   if (!s_House) return;
   if (second == 58) Approach(manager, "House Bait", s_House.m_Cell.m_vKillZone, 300);
   if (second == 62) HoldFire(manager, "House Bait");
@@ -48,12 +50,14 @@ class ACR_TestGuerrillas
    if (post.m_Cell.m_bHouse) { houses++; if (!s_House) s_House = post; }
    else { roads++; if (!s_Ambush) s_Ambush = post; }
    vector site = post.m_Cell.m_vKillZone;
-   foreach (ACR_Base start : starts) if (vector.DistanceXZ(site, start.GetOrigin()) < 1000) clear = false;
+   float keep = 1000;
+   if (!post.m_Cell.m_bHouse) keep = ACR_Guerrillas.AMBUSH_HQ_CLEAR;
+   foreach (ACR_Base start : starts) if (vector.DistanceXZ(site, start.GetOrigin()) < keep) clear = false;
    foreach (ACR_Base base : ACR_Base.s_All) if (!base.m_bRetired && vector.DistanceXZ(site, base.GetOrigin()) < base.m_fRadius) outside = false;
    detail += string.Format(" %1(%2)", post.m_sName, post.m_iReserve);
   }
   Check("guerrillas: a few road ambushes and houses on the whole map", roads >= 2 && roads <= 4 && houses >= 1 && houses <= 3, string.Format("%1 roads, %2 houses:%3", roads, houses, detail));
-  Check("guerrillas: away from both starting bases", clear, "");
+  Check("guerrillas: away from both starting bases (ambushes 900 m, houses 1 km)", clear, "");
   Check("guerrillas: outside every base", outside, "");
   if (!s_Ambush) Finish();
   else
@@ -161,6 +165,28 @@ class ACR_TestGuerrillas
   if (!s_House) Finish();
  }
 
+ // Traffic on a stretch far from every cell: one waiting ambush moves there.
+ protected static void FollowsTraffic()
+ {
+  array<vector> busy = {};
+  foreach (vector road : ACR_Guerrillas.s_aRoads)
+  {
+   if (busy.Count() >= 5) break;
+   // Stretches an ambush could take (cc89rs5guer: two picked by distance alone had no hiding place).
+   bool far = ACR_Guerrillas.AmbushSiteOk(road, null);
+   foreach (vector other : busy) if (vector.DistanceXZ(other, road) < 800) far = false;
+   if (far) busy.Insert(road);
+  }
+  foreach (int n, vector stretch : busy)
+   for (int k = 0; k < 6 + n; k++) ACR_Guerrillas.NoteTraffic(stretch);
+  bool moved = ACR_Guerrillas.Resite();
+  bool there;
+  foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
+   if (post.m_Cell && !post.m_Cell.m_bHouse)
+    foreach (vector point : busy) if (vector.DistanceXZ(post.m_Cell.m_vKillZone, point) < ACR_Guerrillas.TRAFFIC_REACH) there = true;
+  Check("guerrillas: a waiting ambush moves to the roads the sides drive", moved && there, string.Format("%1 busy stretches, moved %2, a cell there %3", busy.Count(), moved, there));
+ }
+
  protected static void HouseDeployed()
  {
   SCR_AIGroup group = s_House.m_Group;
@@ -177,7 +203,7 @@ class ACR_TestGuerrillas
 
  protected static void Finish()
  {
-  ACR_TestRegress.Complete("guerrillas", 11);
+  ACR_TestRegress.Complete("guerrillas", 12);
  }
 
  protected static EAIGroupCombatMode CombatMode(SCR_AIGroup group)
