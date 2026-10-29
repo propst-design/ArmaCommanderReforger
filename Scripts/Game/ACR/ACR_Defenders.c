@@ -83,7 +83,7 @@ class ACR_Defenders
     if (!ACR_Guerrillas.Ready(post)) continue;
     range = ACR_Guerrillas.Range(post);
    }
-   if (post.m_iReserve <= 0 || !EnemyWithin(manager, post.m_sFaction, post.m_vPos, range)) continue;
+   if (post.m_iReserve <= 0 || !EnemyWithin(manager, post.m_sFaction, post.m_vPos, range, post.m_Cell != null)) continue;
    post.m_Group = manager.m_Bases.SpawnGuards(post.m_sFaction, post.m_vPos, post.m_iReserve, post.m_sName + " defenders", post.m_fRadius);
    if (!post.m_Group) continue;
    PrintFormat("[ACR] DEFENDERS %1 deployed: %2 soldiers", post.m_sName, post.m_iReserve);
@@ -199,12 +199,14 @@ class ACR_Defenders
   return seated;
  }
 
- // A living enemy soldier (a squad's or a player) within range of pos.
- static bool EnemyWithin(ACR_Manager manager, string faction, vector pos, float range)
+ // A living enemy soldier (a squad's or a player) within range of pos. For a guerrilla cell
+ // ('cell'), sides FIA spares (ACR_Insurgency.Spared) don't count.
+ static bool EnemyWithin(ACR_Manager manager, string faction, vector pos, float range, bool cell = false)
  {
   foreach (ACR_Squad squad : manager.m_Squads)
   {
    if (!squad.GetFaction() || ACR_Insurgency.Friendly(squad.GetFaction().GetFactionKey(), faction)) continue;
+   if (cell && ACR_Insurgency.Spared(squad.GetFaction().GetFactionKey())) continue;
    IEntity anchor = squad.GetAnchor();
    if (!anchor || vector.DistanceXZ(anchor.GetOrigin(), pos) > range + 300) continue;
    array<AIAgent> agents = {};
@@ -222,7 +224,8 @@ class ACR_Defenders
    IEntity player = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
    if (!player || !ACR_Respawn.IsAlive(player)) continue;
    string key = ACR_Intel.FactionKeyOf(player);
-   if (!key.IsEmpty() && !ACR_Insurgency.Friendly(key, faction) && vector.DistanceXZ(player.GetOrigin(), pos) <= range) return true;
+   if (key.IsEmpty() || ACR_Insurgency.Friendly(key, faction) || (cell && ACR_Insurgency.Spared(key))) continue;
+   if (vector.DistanceXZ(player.GetOrigin(), pos) <= range) return true;
   }
   return false;
  }

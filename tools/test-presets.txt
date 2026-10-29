@@ -186,6 +186,7 @@ longsoakkolguyev|-acrLongSoakTest 1|7380|Worlds/ACR_Kolguyev.ent
 pathprobe|-acrPathProbeTest 1|400|Worlds/ACR_Everon.ent
 guerrillas|-acrGuerrillasTest 1|150|Worlds/ACR_Everon.ent
 insurgency|-acrInsurgencyTest 1|170|Worlds/ACR_Everon.ent
+fialeaning|-acrFIALeaningTest 1|100|Worlds/ACR_Everon.ent
 kolguyevsoak|-acrEveronSoakTest 1|1380|Worlds/ACR_Kolguyev.ent
 deploymenu|-acrDeployMenuTest 1|180|Worlds/ACR_Arland.ent
 mappolygon|-acrMapPolygonTest 1|60

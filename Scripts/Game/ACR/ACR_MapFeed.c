@@ -172,7 +172,7 @@ class ACR_MapFeed
   // Per player: command status (the countdown is counted on by the client).
   string key = frame.m_sKey;
   bool commander = manager.IsCommander(id);
-  string text = manager.CommandStatus(id);
+  string text = manager.CommandStatus(id) + ACR_Insurgency.StandingTag(key);
   int rp = manager.m_Bases.GetRP(key);
   int income = manager.m_Bases.GetIncome(key);
   int seconds = manager.m_Bases.SecondsToIncome();

@@ -68,6 +68,7 @@ class ACR_Report
   IEntity shooter;
   if (instigator) shooter = instigator.GetInstigatorEntity();
   if (victim) ACR_Insurgency.OnLoss(ACR_Intel.FactionKeyOf(victim), victim.GetOrigin(), ACR_Intel.FactionKeyOf(shooter));
+  if (victim && ACR_Intel.FactionKeyOf(victim) == ACR_Pockets.FACTION) ACR_Insurgency.OnFIAKilled(victim, ACR_Intel.FactionKeyOf(shooter));
   if (!Running()) return;
   string side = ACR_Intel.FactionKeyOf(victim);
   ACR_SideStats lost = Of(side);
@@ -97,6 +98,7 @@ class ACR_Report
 
  static void OnCapture(string base, string by, string from)
  {
+  ACR_Insurgency.OnCapture(by, from);
   ACR_SideStats won = Of(by);
   if (won) { won.m_iBasesWon++; Event(by, "took " + base); }
   ACR_SideStats lost = Of(from);
@@ -150,5 +152,20 @@ modded class SCR_VehicleDamageManagerComponent
   string side = ACR_Intel.FactionKeyOf(GetOwner());
   super.OnDamageStateChanged(newState, previousDamageState, isJIP);
   if (newState == EDamageState.DESTROYED && previousDamageState != EDamageState.DESTROYED && !isJIP) ACR_Report.OnVehicleDown(GetOwner(), GetInstigator(), side);
+ }
+}
+
+// A building destroyed counts against the side that did it (ACR_Insurgency, leaning by conduct).
+modded class SCR_DestructibleBuildingComponent
+{
+ protected override void OnDamageStateChanged(EDamageState newState, EDamageState previousDamageState, bool isJIP)
+ {
+  bool wasDestroyed = m_bDestroyed;
+  super.OnDamageStateChanged(newState, previousDamageState, isJIP);
+  if (newState != EDamageState.DESTROYED || wasDestroyed || isJIP || IsProxy() || !ACR_Insurgency.Leaning()) return;
+  Instigator instigator = GetInstigator();
+  IEntity by;
+  if (instigator) by = instigator.GetInstigatorEntity();
+  ACR_Insurgency.OnBuildingDown(GetOwner().GetOrigin(), ACR_Intel.FactionKeyOf(by));
  }
 }

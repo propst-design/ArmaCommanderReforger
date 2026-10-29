@@ -683,6 +683,12 @@ class ACR_Intel : Managed
   return line;
  }
 
+ // Seen for this side by someone outside it (an FIA tip-off, ACR_Insurgency).
+ void Tip(IEntity enemy, float now, string spotter)
+ {
+  Note(enemy, now, spotter);
+ }
+
  void AddFeed(float now, string line)
  {
   m_Feed.InsertAt(line, 0);

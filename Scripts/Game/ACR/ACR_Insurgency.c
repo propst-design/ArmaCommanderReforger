@@ -8,6 +8,20 @@
 //  - Dangerous roads: where a side loses men or vehicles to FIA on a road, the spot is marked on
 //    that side's map ("FIA ambush", DANGER_MS). Its AI commander sends a free combat squad to clear
 //    it, and holds supply runs whose way passes it until it is cleared or the mark runs out.
+//  - Leaning by conduct (part 2, -acrFIALeaning 1, setup row "FIA leans by conduct"): each main
+//    side has a standing with FIA (0-100), and FIA treats it by its tier:
+//     hostile (<25): ambushes go after its traffic first (twice the weight)
+//     wary (25-49):  as part 1's hostile FIA
+//     neutral (50-74): the guerrilla cells leave it alone (don't deploy, spring or follow its
+//                    traffic); the pockets still hold their ground
+//     friendly (75+): as part 1's ally (game factions friendly, free passage through pockets, it
+//                    knows them), plus tip-offs: its enemies near an FIA cell or pocket show on
+//                    its map
+//    It falls when the side kills FIA (less when a cell sprang on it), takes a pocket, holds a
+//    base near a pocket, or destroys buildings (more near FIA); it climbs back slowly after 5 min
+//    with no offence, up to 80. The allegiance sets the start (its ally 85, a hostile side 35).
+//    Commanders see their tier in the panel's command line and get a feed line when it changes.
+//    Civilian harm is meant to count too once civilians exist (#49).
 class ACR_DangerRoad : Managed
 {
  string m_sSide;
@@ -17,6 +31,24 @@ class ACR_DangerRoad : Managed
  ACR_Squad m_Sweeper;   // sent to clear it (ACR_AICommander.ManageDangerRoads)
  float m_fQuietSince;   // the sweeper there with no contact since (0: not yet)
  int m_iSweeps;         // sweepers sent
+}
+
+enum ACR_EFIAStanding
+{
+ HOSTILE,
+ WARY,
+ NEUTRAL,
+ FRIENDLY
+}
+
+// A main side's standing with FIA (leaning by conduct).
+class ACR_FIASide : Managed
+{
+ string m_sSide;
+ float m_fStanding;
+ int m_iTier;
+ float m_fLastOffence;
+ ref map<string, float> m_mTipped = new map<string, float>(); // squad name: tipped off about until
 }
 
 class ACR_Insurgency
@@ -43,36 +75,301 @@ class ACR_Insurgency
   return "";
  }
 
- // Two factions that don't fight: the same one, or FIA and its ally.
+ // Two factions that don't fight: the same one, or FIA and a side it is friendly with (its ally,
+ // or a side whose standing is friendly).
  static bool Friendly(string a, string b)
  {
   if (a == b) return true;
-  if (a != ACR_Pockets.FACTION && b != ACR_Pockets.FACTION) return false;
-  return !s_sAlly.IsEmpty() && (a == s_sAlly || b == s_sAlly);
+  if (a == ACR_Pockets.FACTION) return s_aFriends.Contains(b);
+  if (b == ACR_Pockets.FACTION) return s_aFriends.Contains(a);
+  return false;
  }
 
  // Server, once the layout is applied (ACR_Skirmish.ApplyOnce): the game's factions, and the ally
- // knows the pockets.
+ // knows the pockets; with leaning, each side's starting standing.
  static void Apply()
  {
   s_aRoads.Clear();
+  // A replay of Apply (tests): friendships from the last one end first.
+  array<string> old = {};
+  old.Copy(s_aFriends);
+  foreach (string was : old) Unfriend(was);
+  s_aFriends.Clear();
+  s_aSides.Clear();
+  s_iSeconds = 0;
   s_sAlly = AllyOption();
-  string ally = s_sAlly;
-  if (ally.IsEmpty()) return;
+  s_bLeaning = LeaningOption() && FIAInWorld();
+  if (s_bLeaning)
+  {
+   array<string> sides = {ACR_FactionSelection.West(), ACR_FactionSelection.East()};
+   foreach (string side : sides)
+   {
+    ACR_FIASide standing = new ACR_FIASide();
+    standing.m_sSide = side;
+    standing.m_fStanding = START;
+    if (side == s_sAlly) standing.m_fStanding = START_ALLY;
+    standing.m_iTier = TierOf(standing.m_fStanding, ACR_EFIAStanding.HOSTILE);
+    standing.m_fLastOffence = -RECOVER_AFTER_MS;
+    s_aSides.Insert(standing);
+    if (standing.m_iTier == ACR_EFIAStanding.FRIENDLY) Befriend(side);
+    PrintFormat("[ACR] INSURGENCY FIA leaning: %1 starts %2 (%3)", side, Label(standing.m_iTier), (int)standing.m_fStanding);
+   }
+   return;
+  }
+  if (s_sAlly.IsEmpty()) return;
+  int known = Befriend(s_sAlly);
+  PrintFormat("[ACR] INSURGENCY FIA sides with %1 (%2 pockets known to it)", s_sAlly, known);
+ }
+
+ protected static bool FIAInWorld()
+ {
+  string fia = ACR_Pockets.FACTION;
+  return ACR_FactionSelection.West() != fia && ACR_FactionSelection.East() != fia && GetGame().GetFactionManager() && GetGame().GetFactionManager().GetFactionByKey(fia);
+ }
+
+ // FIA and 'side' at peace: the game's factions friendly, and the side knows the pockets.
+ // Returns the pockets it learnt of.
+ protected static int Befriend(string side)
+ {
+  if (!s_aFriends.Contains(side)) s_aFriends.Insert(side);
   SCR_FactionManager factions = SCR_FactionManager.Cast(GetGame().GetFactionManager());
-  if (!factions) return;
+  if (!factions) return 0;
   SCR_Faction fia = SCR_Faction.Cast(factions.GetFactionByKey(ACR_Pockets.FACTION));
-  SCR_Faction friend = SCR_Faction.Cast(factions.GetFactionByKey(ally));
-  if (!fia || !friend || fia == friend) return;
+  SCR_Faction friend = SCR_Faction.Cast(factions.GetFactionByKey(side));
+  if (!fia || !friend || fia == friend) return 0;
   factions.SetFactionsFriendly(fia, friend);
   int known;
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (!base.m_bPocket || base.m_aDetectedBy.Contains(ally)) continue;
-   base.m_aDetectedBy.Insert(ally);
+   if (!base.m_bPocket || base.m_aDetectedBy.Contains(side)) continue;
+   base.m_aDetectedBy.Insert(side);
    known++;
   }
-  PrintFormat("[ACR] INSURGENCY FIA sides with %1 (%2 pockets known to it)", ally, known);
+  return known;
+ }
+
+ // No longer friends: the game's factions hostile again (what the side learnt, it keeps).
+ protected static void Unfriend(string side)
+ {
+  s_aFriends.RemoveItem(side);
+  SCR_FactionManager factions = SCR_FactionManager.Cast(GetGame().GetFactionManager());
+  if (!factions) return;
+  SCR_Faction fia = SCR_Faction.Cast(factions.GetFactionByKey(ACR_Pockets.FACTION));
+  SCR_Faction friend = SCR_Faction.Cast(factions.GetFactionByKey(side));
+  if (fia && friend && fia != friend) factions.SetFactionsHostile(fia, friend);
+ }
+
+ // ---------------------------------------------------------------- leaning by conduct
+
+ static const float START = 35;            // a side FIA isn't allied to (wary)
+ static const float START_ALLY = 85;       // the side FIA is allied to (friendly)
+ static const float RECOVER_CAP = 80;      // restraint alone brings it this far
+ static const float RECOVER_PER_MIN = 0.5;
+ static const float RECOVER_AFTER_MS = 300000; // no offence for this long before it climbs
+ static const float MARGIN = 3;            // a tier is only left this far below its bound
+ static const float KILL = 3;              // an FIA man killed
+ static const float KILL_SPRUNG = 1;       // ... by a side a cell sprang on (self-defence)
+ static const float SPRUNG_REACH = 400;    // m from a sprung cell: its fight
+ static const float POCKET_TAKEN = 15;
+ static const float BUILDING = 2;          // a building destroyed
+ static const float BUILDING_NEAR = 4;     // ... within NEAR_FIA of a pocket or cell
+ static const float NEAR_FIA = 1000;
+ static const float LAND_REACH = 1500;     // a base this close to an FIA pocket ...
+ static const float LAND_PER_MIN = 0.25;   // ... costs this a minute
+ static const float TIP_REACH = 500;       // enemies this close to a cell or pocket are tipped off
+ static const float TIP_AGAIN_MS = 300000; // about the same squad
+ static ref array<ref ACR_FIASide> s_aSides = {};
+ protected static ref array<string> s_aFriends = {};
+ protected static bool s_bLeaning;
+ protected static int s_iSeconds;
+
+ static bool Leaning() { return s_bLeaning; }
+
+ protected static bool LeaningOption()
+ {
+  string value;
+  if (!ACR_Options.Get("acrFIALeaning", value)) return false;
+  value.ToLower();
+  return value == "1" || value == "on" || value == "true";
+ }
+
+ static ACR_FIASide SideOf(string side)
+ {
+  foreach (ACR_FIASide standing : s_aSides) if (standing.m_sSide == side) return standing;
+  return null;
+ }
+
+ // The side's tier (wary without leaning, or for a side not tracked).
+ static int Tier(string side)
+ {
+  ACR_FIASide standing = SideOf(side);
+  if (!standing) return ACR_EFIAStanding.WARY;
+  return standing.m_iTier;
+ }
+
+ // The guerrilla cells leave this side alone (neutral or better, or FIA's friend).
+ static bool Spared(string side)
+ {
+  if (s_aFriends.Contains(side)) return true;
+  return s_bLeaning && Tier(side) >= ACR_EFIAStanding.NEUTRAL;
+ }
+
+ // How much this side's traffic draws the ambushes (ACR_Guerrillas.SampleTraffic).
+ static float TrafficWeight(string side)
+ {
+  if (Spared(side)) return 0;
+  if (s_bLeaning && Tier(side) == ACR_EFIAStanding.HOSTILE) return 2;
+  return 1;
+ }
+
+ static string Label(int tier)
+ {
+  if (tier == ACR_EFIAStanding.HOSTILE) return "hostile";
+  if (tier == ACR_EFIAStanding.NEUTRAL) return "neutral";
+  if (tier == ACR_EFIAStanding.FRIENDLY) return "friendly";
+  return "wary";
+ }
+
+ // The panel's command line (ACR_MapFeed): "" without leaning.
+ static string StandingTag(string side)
+ {
+  ACR_FIASide standing = SideOf(side);
+  if (!s_bLeaning || !standing) return "";
+  return "  |  FIA: " + Label(standing.m_iTier);
+ }
+
+ // The tier for 'value', leaving 'current' downwards only MARGIN below its bound.
+ static int TierOf(float value, int current)
+ {
+  int tier = ACR_EFIAStanding.HOSTILE;
+  if (value >= 25) tier = ACR_EFIAStanding.WARY;
+  if (value >= 50) tier = ACR_EFIAStanding.NEUTRAL;
+  if (value >= 75) tier = ACR_EFIAStanding.FRIENDLY;
+  if (tier >= current) return tier;
+  float bound = 25 * current;
+  if (value < bound - MARGIN) return tier;
+  return current;
+ }
+
+ // The standing moves by 'delta' (an offence when 'offence'); 'why' goes in the feed line if the
+ // tier changes.
+ static void Change(string side, float delta, string why, bool offence)
+ {
+  ACR_FIASide standing = SideOf(side);
+  if (!s_bLeaning || !standing || delta == 0 || !Replication.IsServer()) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (offence) standing.m_fLastOffence = now;
+  standing.m_fStanding = Math.Clamp(standing.m_fStanding + delta, 0, 100);
+  int tier = TierOf(standing.m_fStanding, standing.m_iTier);
+  if (tier == standing.m_iTier) return;
+  if (standing.m_iTier == ACR_EFIAStanding.FRIENDLY) Unfriend(side);
+  standing.m_iTier = tier;
+  if (tier == ACR_EFIAStanding.FRIENDLY) Befriend(side);
+  string line = string.Format("FIA is now %1 towards us (%2)", Label(tier), why);
+  PrintFormat("[ACR] INSURGENCY FIA standing of %1: %2 (%3, %4)", side, Label(tier), (int)standing.m_fStanding, why);
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  ACR_Intel intel;
+  if (manager) intel = manager.IntelFor(side);
+  if (intel) intel.AddFeed(now, line);
+ }
+
+ // An FIA man killed by 'by' (ACR_Report): less where a cell sprang an ambush on them.
+ static void OnFIAKilled(IEntity victim, string by)
+ {
+  if (!s_bLeaning || !victim || !SideOf(by)) return;
+  float cost = KILL;
+  foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
+  {
+   if (!post.m_Cell || !post.m_Cell.m_bSprung) continue;
+   if (vector.DistanceXZ(post.m_vPos, victim.GetOrigin()) < SPRUNG_REACH || vector.DistanceXZ(post.m_Cell.m_vKillZone, victim.GetOrigin()) < SPRUNG_REACH) cost = KILL_SPRUNG;
+  }
+  Change(by, -cost, "FIA fighters killed", true);
+ }
+
+ // A base taken by 'by' from 'from' (ACR_Report).
+ static void OnCapture(string by, string from)
+ {
+  if (from == ACR_Pockets.FACTION) Change(by, -POCKET_TAKEN, "an FIA pocket taken", true);
+ }
+
+ // A building destroyed at 'pos' by someone of 'by' (the modded SCR_DestructibleBuildingComponent).
+ static void OnBuildingDown(vector pos, string by)
+ {
+  if (!s_bLeaning || !SideOf(by)) return;
+  float cost = BUILDING;
+  if (NearFIA(pos, NEAR_FIA)) cost = BUILDING_NEAR;
+  PrintFormat("[ACR] INSURGENCY %1 destroyed a building at %2 (-%3)", by, ACR_Manager.Grid(pos), cost);
+  Change(by, -cost, "buildings destroyed", true);
+ }
+
+ // An FIA pocket or guerrilla cell within 'range' of pos.
+ static bool NearFIA(vector pos, float range)
+ {
+  foreach (ACR_Base base : ACR_Base.s_All) if (base.m_bPocket && vector.DistanceXZ(base.GetOrigin(), pos) < range) return true;
+  foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts) if (post.m_Cell && !post.m_bGone && vector.DistanceXZ(post.m_Cell.m_vKillZone, pos) < range) return true;
+  return false;
+ }
+
+ // Once a minute: bases near pockets cost, restraint pays; friendly sides get tip-offs.
+ static void TickLeaning()
+ {
+  float now = GetGame().GetWorld().GetWorldTime();
+  foreach (ACR_FIASide standing : s_aSides)
+  {
+   int near;
+   foreach (ACR_Base base : ACR_Base.s_All)
+   {
+    if (base.m_bPocket || base.m_bRetired || base.m_sOwner != standing.m_sSide) continue;
+    foreach (ACR_Base pocket : ACR_Base.s_All)
+    {
+     if (!pocket.m_bPocket || vector.DistanceXZ(base.GetOrigin(), pocket.GetOrigin()) > LAND_REACH) continue;
+     near++;
+     break;
+    }
+   }
+   float delta = -LAND_PER_MIN * near;
+   string why = "our bases by FIA land";
+   if (now - standing.m_fLastOffence >= RECOVER_AFTER_MS && standing.m_fStanding < RECOVER_CAP)
+   {
+    float climb = Math.Min(RECOVER_PER_MIN, RECOVER_CAP - standing.m_fStanding);
+    delta += climb;
+    if (delta > 0) why = "we left FIA alone";
+   }
+   Change(standing.m_sSide, delta, why, false);
+   if (standing.m_iTier == ACR_EFIAStanding.FRIENDLY) TipOff(standing, now);
+  }
+ }
+
+ // FIA tells its friend about the friend's enemies near its cells and pockets.
+ protected static void TipOff(ACR_FIASide standing, float now)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager) return;
+  ACR_Intel intel = manager.IntelFor(standing.m_sSide);
+  if (!intel) return;
+  foreach (ACR_Squad squad : manager.m_Squads)
+  {
+   if (!squad.GetFaction()) continue;
+   string key = squad.GetFaction().GetFactionKey();
+   if (key == standing.m_sSide || key == ACR_Pockets.FACTION || Friendly(key, standing.m_sSide)) continue;
+   IEntity anchor = squad.GetAnchor();
+   if (!anchor || !NearFIA(anchor.GetOrigin(), TIP_REACH)) continue;
+   float until;
+   if (standing.m_mTipped.Find(squad.GetName(), until) && now < until) continue;
+   array<AIAgent> agents = {};
+   squad.GetAgents(agents);
+   int men;
+   foreach (AIAgent agent : agents)
+   {
+    IEntity body = agent.GetControlledEntity();
+    if (!body || !ACR_Respawn.IsAlive(body)) continue;
+    intel.Tip(body, now, "FIA");
+    men++;
+   }
+   if (men == 0) continue;
+   standing.m_mTipped.Set(squad.GetName(), now + TIP_AGAIN_MS);
+   intel.AddFeed(now, string.Format("FIA tip-off: %1 enemy soldiers near %2", men, ACR_Manager.Grid(anchor.GetOrigin())));
+  }
  }
 
  // ---------------------------------------------------------------- dangerous roads
@@ -105,9 +402,14 @@ class ACR_Insurgency
   if (intel) intel.AddFeed(now, string.Format("FIA ambush at %1: the road there is dangerous", ACR_Manager.Grid(pos)));
  }
 
- // Every second (ACR_Manager.Tick): marks run out.
+ // Every second (ACR_Manager.Tick): marks run out; once a minute, the leaning.
  static void Tick()
  {
+  if (s_bLeaning && Replication.IsServer())
+  {
+   s_iSeconds++;
+   if (s_iSeconds % 60 == 0) TickLeaning();
+  }
   if (s_aRoads.IsEmpty()) return;
   float now = GetGame().GetWorld().GetWorldTime();
   for (int i = s_aRoads.Count() - 1; i >= 0; i--)

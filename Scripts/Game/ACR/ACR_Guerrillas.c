@@ -254,12 +254,12 @@ class ACR_Guerrillas
  static ref map<int, vector> s_mTrafficAt = new map<int, vector>();
  protected static int s_iSeconds;
 
- static void NoteTraffic(vector pos)
+ static void NoteTraffic(vector pos, float weight = 1)
  {
   int key = (int)(pos[0] / TRAFFIC_CELL) * 10000 + (int)(pos[2] / TRAFFIC_CELL);
   float count;
   s_mTraffic.Find(key, count);
-  s_mTraffic.Set(key, count + 1);
+  s_mTraffic.Set(key, count + weight);
   if (!s_mTrafficAt.Contains(key)) s_mTrafficAt.Set(key, pos);
  }
 
@@ -277,13 +277,16 @@ class ACR_Guerrillas
   foreach (ACR_Squad squad : manager.m_Squads)
   {
    if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() == ACR_Pockets.FACTION) continue;
+   // A side FIA spares draws no ambush; one it is hostile to draws them twice as hard.
+   float weight = ACR_Insurgency.TrafficWeight(squad.GetFaction().GetFactionKey());
+   if (weight <= 0) continue;
    IEntity vehicle = ACR_Transport.CrewedVehicle(squad);
    if (!vehicle || seen.Contains(vehicle)) continue;
    seen.Insert(vehicle);
    Physics physics = vehicle.GetPhysics();
    if (!physics || physics.GetVelocity().Length() < MOVING) continue;
    if (ACR_Minefields.RoadClearance(vehicle.GetOrigin()) > 8) continue;
-   NoteTraffic(vehicle.GetOrigin());
+   NoteTraffic(vehicle.GetOrigin(), weight);
   }
  }
 
@@ -314,7 +317,7 @@ class ACR_Guerrillas
    {
     if (counts[i] < here * 2 + RESITE_MIN) break;
     if (!AmbushSiteOk(place, post)) continue;
-    if (manager && ACR_Defenders.EnemyWithin(manager, post.m_sFaction, place, HOUSE_RANGE)) continue;
+    if (manager && ACR_Defenders.EnemyWithin(manager, post.m_sFaction, place, HOUSE_RANGE, true)) continue;
     string from = ACR_Manager.Grid(cell.m_vKillZone);
     SetRoad(post, place);
     post.m_sName = string.Format("FIA ambush %1", ACR_Manager.Grid(cell.m_vKillZone));
@@ -584,13 +587,13 @@ class ACR_Guerrillas
   if (alive < cell.m_iOut) return "a man hit";
   if (cell.m_bHouse)
   {
-   if (ACR_Defenders.EnemyWithin(manager, post.m_sFaction, cell.m_vKillZone, HOUSE_CLOSE)) return "enemies close";
+   if (ACR_Defenders.EnemyWithin(manager, post.m_sFaction, cell.m_vKillZone, HOUSE_CLOSE, true)) return "enemies close";
    return "";
   }
-  if (ACR_Defenders.EnemyWithin(manager, post.m_sFaction, cell.m_vKillZone, KILL_RADIUS)) return "enemies in the kill zone";
+  if (ACR_Defenders.EnemyWithin(manager, post.m_sFaction, cell.m_vKillZone, KILL_RADIUS, true)) return "enemies in the kill zone";
   IEntity leader;
   if (post.m_Group.GetLeaderAgent()) leader = post.m_Group.GetLeaderAgent().GetControlledEntity();
-  if (leader && ACR_Defenders.EnemyWithin(manager, post.m_sFaction, leader.GetOrigin(), CLOSE)) return "enemies too close";
+  if (leader && ACR_Defenders.EnemyWithin(manager, post.m_sFaction, leader.GetOrigin(), CLOSE, true)) return "enemies too close";
   return "";
  }
 
@@ -623,7 +626,7 @@ class ACR_Guerrillas
  }
 
  // While deployed (ACR_Defenders.Tick): stays out while an enemy is near; pulled back, until
- // none is near its men.
+ // none is near its men. Any enemy, spared or not: men in a fight don't vanish.
  static bool StayOut(ACR_Manager manager, ACR_DefenderPost post)
  {
   ACR_GuerrillaCell cell = post.m_Cell;
