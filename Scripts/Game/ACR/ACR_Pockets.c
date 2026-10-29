@@ -70,7 +70,9 @@ class ACR_Pockets
   foreach (ACR_Base base : ACR_Base.s_All)
   {
    if (base.m_bRetired) continue;
-   if (!base.m_sOwner.IsEmpty()) held.Insert(base);
+   // Bases a quick start handed out aren't starting bases: pockets keep their distance from HQs.
+   if (!base.m_sOwner.IsEmpty() && !ACR_QuickStart.Assigned(base)) held.Insert(base);
+   else if (!base.m_sOwner.IsEmpty()) continue;
    else if (!base.m_bBuilt && !base.m_bHidden) open.Insert(base);
   }
   if (held.IsEmpty()) return;
@@ -86,6 +88,9 @@ class ACR_Pockets
    bool nearStart = false;
    foreach (ACR_Base start : held)
     if (vector.DistanceXZ(site.GetOrigin(), start.GetOrigin()) < clearance) nearStart = true;
+   // Nor right beside a quick start's front: its garrisons would be at each other from the start.
+   foreach (ACR_Base given : ACR_QuickStart.s_Assigned)
+    if (vector.DistanceXZ(site.GetOrigin(), given.GetOrigin()) < ACR_QuickStart.POCKET_CLEARANCE) nearStart = true;
    if (!nearStart) candidates.Insert(site);
   }
   array<ACR_Base> picked = {};

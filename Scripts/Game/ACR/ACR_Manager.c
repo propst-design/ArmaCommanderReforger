@@ -226,6 +226,7 @@ class ACR_Manager : Managed
   ACR_FactionSelection.Reset();
   ACR_Vehicles.Reset();
   ACR_Generator.Reset();
+  ACR_QuickStart.Reset();
   ACR_Minefields.Reset();
   ACR_Fortify.Reset();
   ACR_SpawnPoints.Reset();

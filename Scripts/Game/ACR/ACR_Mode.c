@@ -125,6 +125,7 @@ class ACR_Mode : GenericEntity
    PrintFormat("[ACR] Starting unit: %1 (%2) at %3: %4 %5 %6", unit.m_sName, factionKey, groupPos, FilePath.StripPath(group), FilePath.StripPath(vehicle), FilePath.StripPath(passengers));
   }
   if (ACR_DoctrineKits.Enabled()) ACR_DoctrineKits.GiveAll();
+  ACR_QuickStart.Fortify();
  }
 
  // Optional log summary for automated runs (-acrScenarioTest 1).

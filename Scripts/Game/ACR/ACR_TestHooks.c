@@ -21,6 +21,8 @@ class ACR_TestHooks
  string SkirmishLayout() { return ""; }
  // FIA pockets a test asks for (few / many / off), "" = the host option (ACR_Pockets).
  string Pockets() { return ""; }
+ // Quick start a test asks for (even / uneven), "" = the host option (ACR_QuickStart).
+ string QuickStart() { return ""; }
  // AI doctrine a test asks for (ACR_AIDoctrine key), "" = the host option or random.
  string AIDoctrine(string factionKey) { return ""; }
  // Side a test's player deploys on without the deploy screen ("west" / "east"), "" = the menu.

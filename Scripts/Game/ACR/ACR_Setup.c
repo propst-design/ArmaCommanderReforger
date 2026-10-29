@@ -21,6 +21,8 @@ class ACR_Setup
  protected static ref array<string> s_PreviewOwners = {};
  protected static ref array<string> s_PreviewDetails = {};
  protected static ref array<float> s_PreviewRadii = {};
+ protected static ref array<float> s_PreviewWeights = {}; // quick start split (ACR_QuickStart.Weight)
+ protected static ref array<bool> s_PreviewHidden = {};
  protected static ref map<int, string> s_PreviewSent = new map<int, string>();
 
  static bool Wanted()
@@ -62,11 +64,12 @@ class ACR_Setup
  {
   string layout = Current("layout");
   bool generated = layout.StartsWith("gen:");
+  string quick = Current("quickstart");
   int seed = 0;
-  if (generated) seed = ACR_Generator.Seed();
+  if (generated || quick != "off") seed = ACR_Generator.Seed();
   string west = ACR_FactionSelection.West();
   string east = ACR_FactionSelection.East();
-  string signature = string.Format("%1|%2|%3|%4|%5", layout, seed, west, east, ACR_Generator.s_iMovesVersion);
+  string signature = string.Format("%1|%2|%3|%4|%5|%6", layout, seed, west, east, ACR_Generator.s_iMovesVersion, quick);
   if (signature == s_sPreviewSig) return;
   s_sPreviewSig = signature;
   s_PreviewPos.Clear();
@@ -74,6 +77,8 @@ class ACR_Setup
   s_PreviewOwners.Clear();
   s_PreviewDetails.Clear();
   s_PreviewRadii.Clear();
+  s_PreviewWeights.Clear();
+  s_PreviewHidden.Clear();
   if (generated)
   {
    array<ref ACR_GenSite> plan = {};
@@ -85,7 +90,7 @@ class ACR_Setup
     string detail = site.Describe();
     if (hqs.Count() == 2 && site == hqs[0]) { owner = west; detail = "HQ (" + ACR_FactionSelection.DisplayName(west) + "), 2 RP"; }
     if (hqs.Count() == 2 && site == hqs[1]) { owner = east; detail = "HQ (" + ACR_FactionSelection.DisplayName(east) + "), 2 RP"; }
-    AddPreview(site.m_vPos, site.m_sName, owner, detail, site.m_fRadius);
+    AddPreview(site.m_vPos, site.m_sName, owner, detail, site.m_fRadius, ACR_QuickStart.Weight(site.m_bIncome, site.m_iValue), site.m_sKind == "landmark");
    }
   }
   else
@@ -98,14 +103,40 @@ class ACR_Setup
     string baseDetail = string.Format("Control point, %1 RP", base.m_iValue);
     if (!base.m_bIncome) baseDetail = "Control point, no income";
     if (base.m_bHidden) baseDetail += " | Hidden";
-    AddPreview(base.GetOrigin(), base.m_sName, baseOwner, baseDetail, base.m_fRadius);
+    AddPreview(base.GetOrigin(), base.m_sName, baseOwner, baseDetail, base.m_fRadius, ACR_QuickStart.Weight(base.m_bIncome, base.m_iValue), base.m_bHidden);
    }
   }
+  if (quick != "off") PreviewQuickStart(quick, seed, west, east);
   PrintFormat("[ACR] SETUP preview %1: %2 bases", signature, s_PreviewNames.Count());
  }
 
- protected static void AddPreview(vector pos, string name, string owner, string detail, float radius)
+ // Quick start (#88): the preview shows the split ACR_QuickStart.Apply will make (same seed and
+ // bases). Hidden landmarks and held bases stay as they are.
+ protected static void PreviewQuickStart(string mode, int seed, string west, string east)
  {
+  array<int> sides = {};
+  foreach (int i, string owner : s_PreviewOwners)
+  {
+   int side = -1;
+   if (owner == west) side = 0;
+   else if (owner == east) side = 1;
+   else if (owner != "" || s_PreviewHidden[i]) side = -2;
+   sides.Insert(side);
+  }
+  string front = ACR_QuickStart.Split(s_PreviewPos, s_PreviewWeights, sides, seed, mode, ACR_Skirmish.SizeOption() == ACR_ESkirmishSize.FLASHPOINT);
+  foreach (int j, int given : sides)
+  {
+   if (s_PreviewOwners[j] != "") continue;
+   if (given == 0) s_PreviewOwners[j] = west;
+   if (given == 1) s_PreviewOwners[j] = east;
+  }
+  PrintFormat("[ACR] SETUP quick start preview %1 seed %2: %3", mode, seed, front);
+ }
+
+ protected static void AddPreview(vector pos, string name, string owner, string detail, float radius, float weight = 0.5, bool hidden = false)
+ {
+  s_PreviewWeights.Insert(weight);
+  s_PreviewHidden.Insert(hidden);
   s_PreviewPos.Insert(pos);
   s_PreviewNames.Insert(name);
   s_PreviewOwners.Insert(owner);
@@ -206,10 +237,10 @@ class ACR_Setup
   string rows;
   bool generated = Current("layout").StartsWith("gen:");
   // The map preview sits right under the battlefield and its seed (25 Oct: it was last, a page away).
-  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "shared", "holdguns", "declutter", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai"};
+  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "shared", "holdguns", "declutter", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai"};
   foreach (string key : keys)
   {
-   if (key == "seed" && !generated) continue;
+   if (key == "seed" && !generated && Current("quickstart") == "off") continue;
    // Opens the map on the host's own screen with the layout drawn on it (client side).
    if (key == "map")
    {
@@ -263,6 +294,7 @@ class ACR_Setup
   if (key == "layout") return "Battlefield";
   if (key == "seed") return "Layout seed";
   if (key == "pockets") return "FIA resistance";
+  if (key == "quickstart") return "Quick start";
   if (key == "threat") return "Threat";
   if (key == "pricing") return "Prices";
   if (key == "ai") return "AI commanders";
@@ -325,6 +357,7 @@ class ACR_Setup
    foreach (string candidate : keys) if (candidate != other) values.Insert(candidate);
   }
   else if (key == "pockets") values = {"few", "many", "off"};
+  else if (key == "quickstart") values = {"off", "even", "uneven"};
   else if (key == "threat") values = {"low", "normal", "high"};
   else if (key == "pricing") values = {"stepped", "stock"};
   else if (key == "ai")
@@ -357,6 +390,7 @@ class ACR_Setup
  static string Option(string key)
  {
   if (key == "pockets") return "acrPockets";
+  if (key == "quickstart") return "acrQuickStart";
   if (key == "threat") return "acrThreat";
   if (key == "pricing") return "acrPricing";
   if (key == "ai") return "acrAI";
@@ -417,6 +451,7 @@ class ACR_Setup
   if (value == "")
   {
    if (key == "pockets") return "few";
+   if (key == "quickstart") return "off";
    if (key == "deployment") return "military";
    if (key == "reinforcement") return "settlements";
    if (key == "fobservices") return "supplies";
@@ -488,6 +523,9 @@ class ACR_Setup
   if (key == "pockets" && value == "few") return "a few pockets (whole/half map)";
   if (key == "pockets" && value == "many") return "many pockets (whole/half map)";
   if (key == "pockets" && value == "off") return "off";
+  if (key == "quickstart" && value == "even") return "the map split along a front line, garrisons and roadblocks up";
+  if (key == "quickstart" && value == "uneven") return "one side holds two thirds, the other starts with double RP";
+  if (key == "quickstart") return "off (both sides start from their HQ)";
   if (key == "deployment" && value == "military") return "military bases / HQs / FOBs";
   if (key == "deployment" && value == "hq") return "HQs / FOBs only";
   if (key == "deployment" && value == "all") return "all deployment-enabled points";

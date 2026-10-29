@@ -175,6 +175,7 @@ bbbfeatureaudit|-acrBbbFeatureAuditTest 1|200|Worlds/BBB_TestArland.ent
 bbborderleash|-acrBbbOrderLeashTest 1|190|Worlds/BBB_TestArland.ent
 typhoons|-acrTyphoonPurchaseTest 1|120
 pockets|-acrPocketsTest 1|150|Worlds/ACR_Everon.ent
+quickstart|-acrQuickStartTest 1|150|Worlds/ACR_Everon.ent
 basedefences|-acrBaseDefencesTest 1|120|Worlds/ACR_Everon.ent
 basedefencessurvey|-acrBaseDefencesSurveyTest 1|90|Worlds/ACR_Everon.ent
 basedefencessurveyarland|-acrBaseDefencesSurveyTest 1|90|Worlds/ACR_Arland.ent

@@ -155,6 +155,7 @@ class ACR_Skirmish : GenericEntity
    ACR_Skirmish layout = Choose();
    if (layout) layout.Apply();
   }
+  ACR_QuickStart.Apply();
   ACR_Pockets.Apply();
  }
 

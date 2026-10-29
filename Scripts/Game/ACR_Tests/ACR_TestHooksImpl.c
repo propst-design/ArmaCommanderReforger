@@ -48,6 +48,8 @@ modded class ACR_TestHooks
   if (System.IsCLIParam("acrGenerateEveronTest")) ACR_TestGenerate.RunEveron(seconds);
   // -acrPocketsTest: FIA pockets of resistance (ACR_TestPockets).
   if (System.IsCLIParam("acrPocketsTest")) ACR_TestPockets.Run(seconds);
+  // -acrQuickStartTest: the map already split between the sides (ACR_TestQuickStart).
+  if (System.IsCLIParam("acrQuickStartTest")) ACR_TestQuickStart.Run(seconds);
   // -acrBaseDefencesTest: the fortification planner on Everon (ACR_TestBaseDefences).
   if (System.IsCLIParam("acrBaseDefencesTest")) ACR_TestBaseDefences.Run(seconds);
   if (System.IsCLIParam("acrBaseDefencesSurveyTest")) ACR_TestBaseDefences.RunSurvey(seconds);
@@ -67,8 +69,14 @@ modded class ACR_TestHooks
  // Tests keep their worlds as authored; the pocket test and the balance soaks get pockets.
  override string Pockets()
  {
-  if (System.IsCLIParam("acrPocketsTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrLongSoakTest")) return "few";
+  if (System.IsCLIParam("acrPocketsTest") || System.IsCLIParam("acrQuickStartTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrLongSoakTest")) return "few";
   if (System.IsCLIParam("acrSetupTest") || System.IsCLIParam("acrSetupUiTest") || System.IsCLIParam("acrSetupGenTest") || System.IsCLIParam("acrSetupMapTest")) return "off";
+  return "";
+ }
+
+ override string QuickStart()
+ {
+  if (System.IsCLIParam("acrQuickStartTest")) return "even";
   return "";
  }
 
