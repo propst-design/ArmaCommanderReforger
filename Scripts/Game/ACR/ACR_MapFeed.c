@@ -634,6 +634,8 @@ class ACR_MapFeed
   ACR_Fortify.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   // ...and its ambushes' kill zones (pale rings).
   ACR_Ambush.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
+  // ...and the areas its QRFs cover (pale rings).
+  ACR_Qrf.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   // ...and roads where FIA ambushed it (danger areas, ACR_Insurgency).
   ACR_Insurgency.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   foreach (int r, vector rangePos : frame.m_ZonePos) sig += P(rangePos) + frame.m_ZoneLabels[r] + ";";

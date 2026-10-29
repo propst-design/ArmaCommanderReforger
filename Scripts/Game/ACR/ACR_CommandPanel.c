@@ -39,6 +39,7 @@ enum ACR_EPanelAction
  BARRICADE,
  FORTIFY,
  PATROL,
+ QRF,
  DEBUG_TOGGLE = 50,
  DEBUG_THINK,             // the AC:A Think card (ACR_Think)
  DEBUG_ACTION = 60,       // + ACR_EDebug (below 100)
@@ -64,7 +65,8 @@ enum ACR_ECursorMode
  ROADBLOCK_S,
  ROADBLOCK_L,
  BARRICADE,
- FORTIFY
+ FORTIFY,
+ QRF
 }
 
 // Arma Commander side panel on the fullscreen map. Built from script out of the
@@ -130,6 +132,7 @@ class ACR_CommandPanel : Managed
  protected SCR_ButtonTextComponent m_EstablishFobButton;
  protected Widget m_EstablishFobWidget;
  protected ref array<SCR_ButtonTextComponent> m_RoadblockButtons = {}; // by ACR_ERoadblockType
+ protected SCR_ButtonTextComponent m_QrfButton;
  protected Widget m_RoadblockWidget;
  protected SCR_ButtonTextComponent m_PatrolButton;
  protected Widget m_MinesWidget;
@@ -255,6 +258,7 @@ class ACR_CommandPanel : Managed
   // Standing orders.
   Widget orders4 = ws.CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_OrderSection);
   m_PatrolButton = AddButton(orders4, "Patrol", ACR_EPanelAction.PATROL, true);
+  m_QrfButton = AddButton(orders4, "QRF", ACR_EPanelAction.QRF, true);
   m_ReinforceButton = AddButton(m_OrderSection, "Reinforce", ACR_EPanelAction.REINFORCE);
   m_EstablishFobButton = AddButton(m_OrderSection, "Establish FOB", ACR_EPanelAction.ESTABLISH_FOB);
   m_EstablishFobWidget = m_LastButtonWidget;
@@ -604,6 +608,11 @@ class ACR_CommandPanel : Managed
   {
    if (cursorMode == ACR_ECursorMode.ESTABLISH_FOB) m_EstablishFobButton.SetText("[Establish FOB]");
    else m_EstablishFobButton.SetText("Establish FOB");
+  }
+  if (m_QrfButton)
+  {
+   if (cursorMode == ACR_ECursorMode.QRF) m_QrfButton.SetText("[QRF]");
+   else m_QrfButton.SetText("QRF");
   }
   int armed = RoadblockOfMode(cursorMode);
   foreach (int type, SCR_ButtonTextComponent roadblockButton : m_RoadblockButtons)

@@ -10,9 +10,11 @@
 //   how much the side holds; vehicles stay at the HQ;
 // - roadblocks at the front, sited by the AI's own siting (ACR_RoadblockSiting) once the world
 //   runs (Fortify, from ACR_Mode.SpawnStartingUnits). They count towards the AI's doctrine limit.
+//   Then tier I dug-in positions and minefields there, on the AI's own scored spots (DigIn,
+//   LayFields).
 // The same seed (acrSeed, the setup's Layout seed row) gives the same split; the setup map preview
 // shows it. Option -acrQuickStart off (default) | even | uneven (setup row "Quick start").
-// Not here yet: FOBs, minefields and dug-in positions already up; a start situation per side.
+// Not here yet: FOBs already up; a start situation per side.
 class ACR_QuickStart
 {
  static const float UNEVEN_SHARE = 0.65;  // what the bigger side holds in an uneven start
@@ -43,6 +45,9 @@ class ACR_QuickStart
   s_Front.Clear();
   s_sFront = "";
   s_bFortified = false;
+  s_mPositions.Clear();
+  s_mFields.Clear();
+  if (GetGame()) GetGame().GetCallqueue().Remove(FrontWorks);
  }
 
  // What a base is worth to hold: its RP if it pays, a little if not.
@@ -381,5 +386,153 @@ class ACR_QuickStart
    }
    PrintFormat("[ACR] QUICKSTART %1: %2 roadblocks at the front", key, built);
   }
+  // Then dug-in positions and minefields, after the roadblocks (their siting scores spots that
+  // overlook or cover what is already up), once the starting squads have registered: a position
+  // and a field are planned as one of our infantry squads would dig or lay them, and right after
+  // the units spawn there is none yet (srv:quickstart, 30 Oct: 0 and 0 at every base).
+  GetGame().GetCallqueue().CallLater(FrontWorks, WORKS_RETRY_MS, false, 0);
+ }
+
+ static const int WORKS_RETRY_MS = 3000;
+ static const int WORKS_TRIES = 10;  // 30 s at most for the squads to register
+
+ protected static void FrontWorks(int attempt)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager) return;
+  array<string> keys = {ACR_FactionSelection.West(), ACR_FactionSelection.East()};
+  bool ready = true;
+  foreach (string key : keys)
+  {
+   if (!s_Front.IsEmpty() && !ACR_DoctrineKits.InfantryNear(manager, key, s_Front[0].GetOrigin())) ready = false;
+  }
+  if (!ready && attempt + 1 < WORKS_TRIES)
+  {
+   GetGame().GetCallqueue().CallLater(FrontWorks, WORKS_RETRY_MS, false, attempt + 1);
+   return;
+  }
+  if (!ready) PrintFormat("[ACR] QUICKSTART a side has no infantry squad after %1 s: front works only where one is", WORKS_TRIES * WORKS_RETRY_MS / 1000);
+  float westValue = Held(keys[0]);
+  float eastValue = Held(keys[1]);
+  foreach (string side : keys)
+  {
+   // A bigger side in an uneven start gets one more of each, an Engineers company one more
+   // minefield (its kit already dug two positions in).
+   int extra = 0;
+   if (Mode() == "uneven" && ((side == keys[0] && westValue > eastValue) || (side == keys[1] && eastValue > westValue))) extra = 1;
+   int positions = DigIn(side, POSITIONS + extra);
+   int mines = 1 + extra;
+   if (ACR_DoctrineKits.CompanyOf(side) == "engineers") mines++;
+   int fields = LayFields(side, mines);
+   PrintFormat("[ACR] QUICKSTART %1: %2 dug-in positions and %3 minefields at the front", side, positions, fields);
+   s_mPositions.Set(side, positions);
+   s_mFields.Set(side, fields);
+  }
+ }
+
+ // Quick start's front works besides the roadblocks (user, pn13 playtest 29 Oct: "with the quick
+ // start, fortified positions and minefield are missing"): tier I positions and minefields, built
+ // at once and free, as the start's roadblocks are, on the AI's own scored spots
+ // (ACR_PositionSiting, ACR_MineSiting) facing the nearest enemy base.
+ static const int POSITIONS = 2;           // tier I positions a side
+ static const float POSITION_APART = 300;  // m: a front base with a position of ours this close has one
+ static ref map<string, int> s_mPositions = new map<string, int>(); // tests: built per side
+ static ref map<string, int> s_mFields = new map<string, int>();
+
+ // Up to 'wanted' tier I positions, one per front base of 'key' that has none near.
+ protected static int DigIn(string key, int wanted)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager || !ACR_Fortify.Enabled()) return 0;
+  int built = 0;
+  foreach (ACR_Base base : s_Front)
+  {
+   if (built >= wanted) break;
+   if (base.m_sOwner != key || ACR_Fortify.NearestOwn(key, base.GetOrigin(), POSITION_APART)) continue;
+   ACR_Base enemy = NearestEnemy(base);
+   // The plan sites it as this squad would dig it (facing, its upgrades' fit); nobody walks there.
+   ACR_Squad squad = ACR_DoctrineKits.InfantryNear(manager, key, base.GetOrigin());
+   if (!enemy || !squad)
+   {
+    PrintFormat("[ACR] QUICKSTART %1: no position at %2: no enemy base or no infantry squad of ours to site it from", key, base.m_sName);
+    continue;
+   }
+   array<ref ACR_PositionSite> sites = {};
+   int nearFields;
+   ACR_PositionSiting.Candidates(squad, key, base.GetOrigin(), enemy.GetOrigin(), sites, nearFields);
+   string why = string.Format("%1 spots, none fit", sites.Count());
+   foreach (ACR_PositionSite site : sites)
+   {
+    string refusal;
+    ACR_FortifyPlan plan = ACR_Fortify.Plan(squad, site.m_vPos, refusal, enemy.GetOrigin());
+    if (!plan || plan.m_Target) continue;
+    ACR_Fortification fort = ACR_Fortify.Build(plan, refusal);
+    if (!fort)
+    {
+     why = refusal;
+     continue;
+    }
+    built++;
+    PrintFormat("[ACR] QUICKSTART %1: a position on the approach to %2 at %3 (%4)", key, base.m_sName, fort.m_vPos, ACR_PositionSiting.Breakdown(site));
+    why = "";
+    break;
+   }
+   if (!why.IsEmpty()) PrintFormat("[ACR] QUICKSTART %1: no position at %2: %3", key, base.m_sName, why);
+  }
+  return built;
+ }
+
+ // Up to 'wanted' minefields, one per front base of 'key', laid at once. Dynamism (ACR_Variety):
+ // the first spot tried is picked among the near-best, seeded by the side and the base.
+ protected static int LayFields(string key, int wanted)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager || !ACR_Minefields.Enabled()) return 0;
+  ACR_AICommander ai = manager.EnsureAICommander(key);
+  int laid = 0;
+  foreach (ACR_Base base : s_Front)
+  {
+   if (laid >= wanted) break;
+   if (base.m_sOwner != key) continue;
+   ACR_Base enemy = NearestEnemy(base);
+   ACR_Squad squad = ACR_DoctrineKits.InfantryNear(manager, key, base.GetOrigin());
+   if (!enemy || !squad || !ai)
+   {
+    PrintFormat("[ACR] QUICKSTART %1: no minefield at %2: no enemy base or no infantry squad of ours to lay it", key, base.m_sName);
+    continue;
+   }
+   array<ref ACR_MineSite> sites = {};
+   int crowded;
+   ACR_MineSiting.Candidates(ai, key, base.GetOrigin(), enemy.GetOrigin(), sites, crowded);
+   array<float> scores = {};
+   foreach (ACR_MineSite scored : sites) scores.Insert(scored.m_fScore);
+   int first = ACR_Variety.Pick(scores, string.Format("quickstart mines %1 %2", key, base.m_sName));
+   if (first > 0)
+   {
+    ACR_MineSite picked = sites[first];
+    sites.RemoveOrdered(first);
+    sites.InsertAt(picked, 0);
+   }
+   string why = string.Format("%1 spots, %2 more too near our own defences or bases", sites.Count(), crowded);
+   foreach (ACR_MineSite site : sites)
+   {
+    string refusal;
+    ACR_MinePlan plan = ACR_Minefields.Plan(squad, site.m_eKind, site.m_vPos, refusal, enemy.GetOrigin());
+    if (!plan)
+    {
+     why = refusal;
+     continue;
+    }
+    ACR_Minefields.Lay(plan, 1, null);
+    ACR_Minefields.Finish(plan);
+    if (!plan.m_Field || plan.m_Field.m_aMines.IsEmpty()) continue;
+    laid++;
+    PrintFormat("[ACR] QUICKSTART %1: %2 on the approach to %3 at %4 (%5 mines; %6)", key, ACR_Minefields.Name(site.m_eKind), base.m_sName, plan.m_vSite, plan.m_Field.m_aMines.Count(), ACR_MineSiting.Breakdown(site));
+    why = "";
+    break;
+   }
+   if (!why.IsEmpty()) PrintFormat("[ACR] QUICKSTART %1: no minefield at %2: %3", key, base.m_sName, why);
+  }
+  return laid;
  }
 }

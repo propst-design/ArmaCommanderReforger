@@ -455,7 +455,7 @@ class ACR_DoctrineKits
   return string.Format("%1 spots, none taken (last: %2)", sites.Count(), refusal);
  }
 
- protected static ACR_Squad InfantryNear(ACR_Manager manager, string faction, vector pos)
+ static ACR_Squad InfantryNear(ACR_Manager manager, string faction, vector pos)
  {
   ACR_Squad best;
   float bestDistance = float.MAX;

@@ -84,7 +84,12 @@ class ACR_Fortify
  static const float MAX_AIM_UP = 15;       // a gun aims this far up rising ground in front of it
  static const float UPGRADE_HOLD_S = 900;  // a refused upgrade: the AI leaves the position this long
  static const int UPGRADE_GIVE_UP = 2;     // ... and for good once refused this often for one reason
- static const float HOLD_RADIUS = 24;      // the holding squad's Defend: every gun's place inside
+ static const float HOLD_RADIUS = 24;      // the position's ring on the map, and its reserve defenders' area
+ // #93 (playtest 29 Oct): a Defend of HOLD_RADIUS round the centre reached 10 m past the wire, and the
+ // holders stood in the field in front. They hold a circle behind the line instead (HoldCentre): its
+ // front edge is at the sandbags, short of the wire (6-14 m out); the guns are held by ACR_GunHold.
+ static const float HOLDER_BACK = 8;       // m behind the line's centre
+ static const float HOLDER_RADIUS = 16;
  static const float FLANK_TURN = 20;       // the heavy MG turns in this far from its flank
  static float WORK_SCALE = 1;              // tests shorten the work
 
@@ -318,6 +323,15 @@ class ACR_Fortify
   vector world = origin + Vector(forward[2], 0, -forward[0]) * local[0] + forward * local[2];
   world[1] = GetGame().GetWorld().GetSurfaceY(world[0], world[2]);
   return world;
+ }
+
+ // Where the holding squad's Defend goes (HOLDER_RADIUS round it): behind the line, or its centre
+ // when the ground behind is water.
+ static vector HoldCentre(ACR_Fortification fort)
+ {
+  vector centre = ToWorld(fort.m_vPos, fort.m_fYaw, Vector(0, 0, -HOLDER_BACK));
+  if (BBB_Terrain.IsWaterAt(centre)) return fort.m_vPos;
+  return centre;
  }
 
  // Where a spot's piece goes: where its current piece stands, else the spot itself or the first

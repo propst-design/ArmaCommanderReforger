@@ -213,6 +213,19 @@ class ACR_TestVehicles : Managed
  vector m_StallStart;
  vector m_LoneStart;
 
+ bool m_bLoneOut;
+
+ // A frozen driver lets a truck roll on a slope, which reads as moving (a frozen truck rolled
+ // 20-95 m after its second back-up, 29 Oct): held still between back-ups.
+ void Pin(IEntity vehicle)
+ {
+  if (!vehicle) return;
+  Physics phys = vehicle.GetPhysics();
+  if (!phys) return;
+  phys.SetVelocity(vector.Zero);
+  phys.SetAngularVelocity(vector.Zero);
+ }
+
  void Freeze(IEntity vehicle)
  {
   ChimeraCharacter driver = ACR_Squad.DriverOf(vehicle);
@@ -240,7 +253,7 @@ class ACR_TestVehicles : Managed
   float walked;
   IEntity anchor = squad.GetAnchor();
   if (anchor && vehicle) walked = vector.DistanceXZ(anchor.GetOrigin(), vehicle.GetOrigin());
-  return string.Format("alive=%1 aboard=%2 order='%3' tries=%4 unsticking=%5 vehicleMoved=%6m squadFromVehicle=%7m combat=%8", alive, aboard, squad.m_Order, squad.UnstickTries(), squad.IsUnsticking(), (int)moved, (int)walked, squad.IsCombatUnit());
+  return string.Format("alive=%1 aboard=%2 order='%3' tries=%4 unsticking=%5 vehicleMoved=%6m squadFromVehicle=%7m combat=%8 moveFailsKept=%9", alive, aboard, squad.m_Order, squad.UnstickTries(), squad.IsUnsticking(), (int)moved, (int)walked, squad.IsCombatUnit(), squad.MoveFailsKept());
  }
 
  bool AllAboard(ACR_Squad squad, IEntity vehicle)
@@ -304,9 +317,10 @@ class ACR_TestVehicles : Managed
    if (m_SoftVehicle)
    {
     m_SoftStart = m_SoftVehicle.GetOrigin();
-    // No fuel as well: frozen drivers let a truck roll on a slope, which reads as moving.
+    // Nearly no fuel as well: frozen drivers let a truck roll on a slope, which reads as moving. Not
+    // empty: a crew whose tank is empty gets out as vanilla has it (the Lone Truck's check).
     SCR_FuelManagerComponent softTank = SCR_FuelManagerComponent.Cast(m_SoftVehicle.FindComponent(SCR_FuelManagerComponent));
-    if (softTank) softTank.SetTotalFuelPercentage(0);
+    if (softTank) softTank.SetTotalFuelPercentage(0.02);
     m_SoftSquad.MoveTo(h.Ground("1700 0 2850"));
     Freeze(m_SoftVehicle);
    }
@@ -325,7 +339,9 @@ class ACR_TestVehicles : Managed
    ACR_TestRegress.Check("stall: stuck time recorded (AI won't re-crew it at once)", m_SoftSquad && m_SoftSquad.m_fStuckAt > 0);
    bool armedHeld = m_StuckSquad.m_Order == "Stuck, holding" && AllAboard(m_StuckSquad, m_StuckVehicle);
    ACR_TestRegress.Check("stall: armed stuck truck holds with its crew", armedHeld, StallState(m_StuckSquad, m_StuckVehicle, m_StallStart));
-   ACR_TestRegress.Complete("stall", 5);
+   // An empty tank: the crew gets out as vanilla has it (ACR_Squad.OnGroupMoveFailed leaves it be).
+   ACR_TestRegress.Check("stall: an out-of-fuel truck's crew gets out", m_bLoneOut, StallState(m_LoneSquad, m_LoneVehicle, m_LoneStart));
+   ACR_TestRegress.Complete("stall", 6);
   }
   if (h.m_Ticks == 172) Print("[ACR] TEST COMPLETE");
   if (!m_StuckSquad || h.m_Ticks <= 14) return;
@@ -341,10 +357,17 @@ class ACR_TestVehicles : Managed
    Freeze(m_StuckVehicle); // still "stuck"
   }
   m_bWasUnsticking = unsticking;
+  if (!unsticking) Pin(m_StuckVehicle);
+  // The Lone Truck's crew getting out is seen as it happens: the enemy team may kill them after.
+  if (!m_bLoneOut && m_LoneSquad && m_LoneSquad.CountAlive() > 0 && !AllAboard(m_LoneSquad, m_LoneVehicle))
+  {
+   m_bLoneOut = true;
+   PrintFormat("[ACR] STALL lone truck's crew got out at t=%1", h.m_Ticks);
+  }
   if (m_SoftSquad && m_SoftVehicle)
   {
    if (m_SoftSquad.Reroutes() > 0 && !m_bSoftRerouted) { m_bSoftRerouted = true; PrintFormat("[ACR] STALL soft truck re-routed at t=%1", h.m_Ticks); }
-   if (!m_SoftSquad.IsUnsticking()) Freeze(m_SoftVehicle); // stays stuck, whatever route it is given
+   if (!m_SoftSquad.IsUnsticking()) { Freeze(m_SoftVehicle); Pin(m_SoftVehicle); } // stays stuck, whatever route it is given
    if (h.m_Ticks % 5 == 0) PrintFormat("[ACR] STALL t=%1 soft: %2", h.m_Ticks, StallState(m_SoftSquad, m_SoftVehicle, m_SoftStart));
   }
   if (h.m_Ticks % 5 == 0)

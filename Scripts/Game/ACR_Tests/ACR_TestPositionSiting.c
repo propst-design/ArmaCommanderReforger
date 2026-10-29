@@ -8,7 +8,7 @@
 class ACR_TestPositionSiting
 {
  static const int CHECKS = 5;
- static const int CHECKS_ARLAND = 3;
+ static const int CHECKS_ARLAND = 5;
 
  static void Run(ACR_TestHarness h, int tick)
  {
@@ -232,6 +232,50 @@ class ACR_TestPositionSiting
   return true;
  }
 
+ // A spot 8 m from the nearest fence or wall (a Structures/Walls prefab over 0.9 m) to the Airfield
+ // base within 300 m, on the base's side, and the fence's nearest point.
+ protected static IEntity s_Fence;
+ protected static float s_fFence;
+ protected static string s_sFence;
+ protected static bool FenceTestSpot(out vector spot, out vector fenceAt)
+ {
+  s_Fence = null;
+  s_fFence = -1;
+  s_sFence = "no fence found";
+  if (s_vWallBase == vector.Zero) return false;
+  GetGame().GetWorld().QueryEntitiesBySphere(s_vWallBase, 300, FindFence, null, EQueryEntitiesFlags.STATIC);
+  if (!s_Fence) return false;
+  vector mins, maxs;
+  s_Fence.GetWorldBounds(mins, maxs);
+  fenceAt = Vector(Math.Clamp(s_vWallBase[0], mins[0], maxs[0]), 0, Math.Clamp(s_vWallBase[2], mins[2], maxs[2]));
+  vector away = s_vWallBase - fenceAt;
+  away[1] = 0;
+  away.Normalize();
+  spot = ACR_Manager.Ground(fenceAt + away * 8);
+  fenceAt[1] = spot[1];
+  return true;
+ }
+
+ protected static bool FindFence(IEntity e)
+ {
+  if (!e || e.GetParent() || !e.GetPrefabData()) return true;
+  string name = e.GetPrefabData().GetPrefabName();
+  name.ToLower();
+  if (!name.Contains("structures/walls/")) return true;
+  vector mins, maxs;
+  e.GetWorldBounds(mins, maxs);
+  float ground = GetGame().GetWorld().GetSurfaceY(e.GetOrigin()[0], e.GetOrigin()[2]);
+  if (maxs[1] - Math.Max(mins[1], ground) < 0.9) return true;
+  vector near = Vector(Math.Clamp(s_vWallBase[0], mins[0], maxs[0]), 0, Math.Clamp(s_vWallBase[2], mins[2], maxs[2]));
+  float d = vector.DistanceXZ(near, s_vWallBase);
+  if (d < 20) return true;
+  if (s_fFence >= 0 && d >= s_fFence) return true;
+  s_Fence = e;
+  s_fFence = d;
+  s_sFence = FilePath.StripPath(e.GetPrefabData().GetPrefabName());
+  return true;
+ }
+
  protected static bool AddNear(IEntity e)
  {
   if (!e || s_aNear.Count() >= 14) return s_aNear.Count() < 14;
@@ -268,6 +312,30 @@ class ACR_TestPositionSiting
   }
   ACR_TestRegress.Check("possiting (Arland): a spot 15 m in front of a structure is walled in", wall >= 0 && wall <= 16,
    string.Format("from %1 facing %2 (%3): %4 at %5 m", wallSpot, wallAt, s_sWallBuilding, wallWhat, wall));
+
+  // #93: a spot 10 m out from that building, facing away from it, is still too close to it (the wall
+  // check only sees the arc in front); a spot 8 m behind the nearest fence, facing across it, is
+  // hemmed in.
+  ACR_PositionSite beside = new ACR_PositionSite();
+  if (s_WallBuilding)
+  {
+   vector outward = wallSpot - wallAt;
+   outward[1] = 0;
+   outward.Normalize();
+   vector besideSpot = ACR_Manager.Ground(wallAt + outward * 10);
+   ACR_PositionSiting.FenceOrBuilding(besideSpot, Math.Atan2(outward[0], outward[2]) * Math.RAD2DEG, beside);
+  }
+  ACR_TestRegress.Check("possiting (Arland): a spot 10 m from a building, facing away from it, counts the building", beside.m_fBuilding >= 0 && beside.m_fBuilding <= 11,
+   string.Format("%1: %2 at %3 m", s_sWallBuilding, beside.m_sBuilding, beside.m_fBuilding));
+  ACR_PositionSite fenced = new ACR_PositionSite();
+  vector fenceSpot, fenceAt;
+  if (FenceTestSpot(fenceSpot, fenceAt))
+  {
+   vector toFence = fenceAt - fenceSpot;
+   ACR_PositionSiting.FenceOrBuilding(fenceSpot, Math.Atan2(toFence[0], toFence[2]) * Math.RAD2DEG, fenced);
+  }
+  ACR_TestRegress.Check("possiting (Arland): a spot 8 m behind a fence, facing across it, is hemmed in", fenced.m_fFence >= 0 && fenced.m_fFence <= 9,
+   string.Format("from %1 facing %2 (%3): %4 at %5 m", fenceSpot, fenceAt, s_sFence, fenced.m_sFence, fenced.m_fFence));
 
   bool off = true;
   int found;

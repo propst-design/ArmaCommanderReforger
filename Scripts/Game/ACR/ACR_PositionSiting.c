@@ -18,6 +18,11 @@
 //   (WALL_ARC either side of the facing) costs WALL_COST, and its sight ahead stops there (pn11,
 //   27 Oct: the kit's Airfield position faced a hangar wall 20 m off while the rays, through the
 //   hangar's open doors, said "sees 120 m");
+// - not against a fence or a building (#93, playtest 29 Oct: sandbags dug in by a farm building and
+//   a wooden fence, facing a field across the fence): a fence or wall (a Structures/Walls prefab)
+//   higher than FENCE_HEIGHT within FENCE_REACH in a wider arc (FENCE_ARC), or within FENCE_HUG in
+//   any direction, costs FENCE_COST; a building within BUILDING_CLEAR in any direction (the wall
+//   check only sees the arc) costs BUILDING_COST;
 // - its upgrades fit (tiers II and III go in later), as before;
 // - it overlooks a roadblock or minefield of ours (covers it).
 // Better siting never means fewer positions: the score only orders the candidates, every one
@@ -36,7 +41,11 @@ class ACR_PositionSite : Managed
  bool m_bAirfield;     // on an airfield's runway, taxiway or apron (OnAirfield): all paved
  float m_fWall = -1;   // m to a structure in its arc (WallAhead), -1 none
  string m_sWall;       // what it is
- bool m_bFits;         // its upgrades would fit
+ float m_fFence = -1;  // m to a fence or wall in front or close by (FenceOrBuilding), -1 none
+ string m_sFence;
+ float m_fBuilding = -1; // m to a building on any side, -1 none
+ string m_sBuilding;
+ bool m_bFits;       // its upgrades would fit
  string m_sOverlooks;  // "roadblock", "minefield" or "" (what of ours it sees within OVERLOOK m)
 }
 
@@ -55,6 +64,15 @@ class ACR_PositionSiting
  static const float WALL_ARC = 50;            // degrees either side of the facing
  static const float WALL_HEIGHT = 2.5;        // m over the spot's ground: taller hides what is behind it
  static const float WALL_COST = 8;
+ static const float FENCE_REACH = 25;         // m: a fence this close in FENCE_ARC hems its field of fire in
+ static const float FENCE_ARC = 70;           // degrees either side of the facing
+ static const float FENCE_HUG = 6;            // m: a fence this close on any side: dug in against it
+ static const float FENCE_HEIGHT = 0.9;       // m over the spot's ground: a gunner's fire clears lower ones
+ static const float FENCE_COST = 5;
+ static const float BUILDING_CLEAR = 15;      // m: a building this close on any side
+ static const float BUILDING_SIZE = 4;        // m: wider and deeper than this (not a post, a lamp, a sign)
+ static const float BUILDING_MAX = 80;        // m: but not a forest block or a whole terrain piece
+ static const float BUILDING_COST = 5;
  static const float ROADBLOCK_TOP = 2.5;      // m: a roadblock is seen when a point this high over it is (its own logs or sandbags hide its ground)
 
  // Candidates round our front base at 'basePos' facing 'enemyPos' for 'squad' (its upgrades' fit
@@ -171,6 +189,7 @@ class ACR_PositionSiting
   if (site.m_bAirfield) site.m_iPaved = PAVED_SAMPLES;
   site.m_fWall = WallAhead(pos, bearing, site.m_sWall);
   if (site.m_fWall >= 0) site.m_fSight = Math.Min(site.m_fSight, site.m_fWall);
+  FenceOrBuilding(pos, bearing, site);
   site.m_sOverlooks = Overlooks(faction, eye);
   site.m_fScore = Score(site);
   return site;
@@ -244,6 +263,60 @@ class ACR_PositionSiting
   return true;
  }
 
+ // The nearest fence or wall hemming a spot at 'pos' facing 'bearing' in, and the nearest building on
+ // any side (their footprints' nearest points), into 'site' (-1: none).
+ protected static ref ACR_PositionSite s_FenceSite;
+ static void FenceOrBuilding(vector pos, float bearing, ACR_PositionSite site)
+ {
+  site.m_fFence = -1;
+  site.m_fBuilding = -1;
+  s_FenceSite = site;
+  s_vWallFrom = pos;
+  s_vWallFrom[1] = GetGame().GetWorld().GetSurfaceY(pos[0], pos[2]);
+  s_fWallBearing = bearing;
+  GetGame().GetWorld().QueryEntitiesBySphere(pos, FENCE_REACH + 25, CheckFenceOrBuilding, null, EQueryEntitiesFlags.STATIC);
+  s_FenceSite = null;
+ }
+
+ protected static bool CheckFenceOrBuilding(IEntity e)
+ {
+  if (!e || e.GetParent() || Tree.Cast(e)) return true;
+  vector mins, maxs;
+  e.GetWorldBounds(mins, maxs);
+  float high = maxs[1] - Math.Max(mins[1], s_vWallFrom[1]);
+  if (high < FENCE_HEIGHT) return true;
+  vector near = Vector(Math.Clamp(s_vWallFrom[0], mins[0], maxs[0]), 0, Math.Clamp(s_vWallFrom[2], mins[2], maxs[2]));
+  float d = vector.DistanceXZ(near, s_vWallFrom);
+  if (d < 1) return true; // inside its bounds: the terrain, a forest block
+  string name = e.ClassName();
+  if (e.GetPrefabData()) name = e.GetPrefabData().GetPrefabName();
+  string lower = name;
+  lower.ToLower();
+  if (lower.Contains("structures/walls/"))
+  {
+   float to = Math.Atan2(near[0] - s_vWallFrom[0], near[2] - s_vWallFrom[2]) * Math.RAD2DEG;
+   float diff = Math.AbsFloat(to - s_fWallBearing);
+   while (diff > 180) diff = Math.AbsFloat(diff - 360);
+   bool hems = (d <= FENCE_REACH && diff <= FENCE_ARC) || d <= FENCE_HUG;
+   if (hems && (s_FenceSite.m_fFence < 0 || d < s_FenceSite.m_fFence))
+   {
+    s_FenceSite.m_fFence = d;
+    s_FenceSite.m_sFence = FilePath.StripPath(name);
+   }
+   return true;
+  }
+  float wide = maxs[0] - mins[0];
+  float deep = maxs[2] - mins[2];
+  if (high < WALL_HEIGHT || wide < BUILDING_SIZE || deep < BUILDING_SIZE || wide > BUILDING_MAX || deep > BUILDING_MAX) return true;
+  if (d > BUILDING_CLEAR) return true;
+  if (s_FenceSite.m_fBuilding < 0 || d < s_FenceSite.m_fBuilding)
+  {
+   s_FenceSite.m_fBuilding = d;
+   s_FenceSite.m_sBuilding = FilePath.StripPath(name);
+  }
+  return true;
+ }
+
  // By an airfield's runway lights, runway decals or concrete panels (an apron, a taxiway).
  protected static bool s_bAirfield;
  static bool OnAirfield(vector pos)
@@ -269,6 +342,8 @@ class ACR_PositionSiting
   score -= site.m_iDeadFront * 0.75;
   score -= site.m_iPaved * PAVED_COST;
   if (site.m_fWall >= 0) score -= WALL_COST;
+  if (site.m_fFence >= 0) score -= FENCE_COST;
+  if (site.m_fBuilding >= 0) score -= BUILDING_COST;
   if (site.m_bCoverBehind) score += 2;
   if (site.m_bFits) score += 2;
   if (!site.m_sOverlooks.IsEmpty()) score += 2;
@@ -286,6 +361,8 @@ class ACR_PositionSiting
   else why += string.Format(", dead ground at %1 of 4 spots in front", site.m_iDeadFront);
   if (site.m_bCoverBehind) why += ", cover behind";
   if (site.m_fWall >= 0) why += string.Format(", walled in by %1 %2 m in front", site.m_sWall, (int)site.m_fWall);
+  if (site.m_fFence >= 0) why += string.Format(", hemmed in by %1 %2 m off", site.m_sFence, (int)site.m_fFence);
+  if (site.m_fBuilding >= 0) why += string.Format(", %1 m from %2", (int)site.m_fBuilding, site.m_sBuilding);
   if (site.m_bAirfield) why += ", on an airfield";
   else if (site.m_iPaved > 0) why += string.Format(", on paved ground (%1 of %2 points)", site.m_iPaved, PAVED_SAMPLES);
   if (site.m_bFits) why += ", its upgrades fit";

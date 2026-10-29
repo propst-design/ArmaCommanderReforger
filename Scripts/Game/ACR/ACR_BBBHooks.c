@@ -109,7 +109,18 @@ class ACR_BBBHooks : BBB_Hooks
  {
   ACR_Squad squad = SquadOf(group);
   if (!squad) return false;
-  return AttackerLeash(squad, centre, radius) || DefenderLeash(squad, centre, radius);
+  return FortLeash(squad, centre, radius) || AttackerLeash(squad, centre, radius) || DefenderLeash(squad, centre, radius);
+ }
+
+ // A squad holding a fortified position of ours: BBB's own moves (fire and manoeuvre, answering
+ // incoming fire) stay inside its hold behind the line, not out past the wire (#93).
+ static bool FortLeash(ACR_Squad squad, out vector centre, out float radius)
+ {
+  if (!squad || !squad.m_Fortification || squad.HasPlayer() || squad.m_Commander != 0) return false;
+  if (squad.OrderState() != ACR_EOrderState.DEFEND) return false;
+  centre = ACR_Fortify.HoldCentre(squad.m_Fortification);
+  radius = ACR_Fortify.HOLDER_RADIUS;
+  return true;
  }
 
  override bool LeaveAlone(IEntity vehicle) { return m_Manager.IsGunnerDriven(vehicle); }

@@ -153,6 +153,7 @@ ridetruck|-acrRideTruckTest 1|400
 patrol|-acrPatrolTest 1|600
 holdreturn|-acrHoldReturnTest 1|90
 capscale|-acrCapScaleTest 1|120
+qrf|-acrQrfTest 1|300
 bbbfiremaneuver|-acrBbbFireManeuverTest 1|500|Worlds/BBB_TestArland.ent
 bbbfiremaneuverperf|-acrBbbFireManeuverPerfTest 1|160|Worlds/BBB_TestArland.ent
 bbbfiremaneuverprobe|-acrBbbFireManeuverProbeTest 1|170|Worlds/BBB_TestArland.ent

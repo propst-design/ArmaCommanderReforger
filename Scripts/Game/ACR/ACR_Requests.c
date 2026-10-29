@@ -261,6 +261,7 @@ class ACR_Requests : Managed
    case ACR_ERequest.ORDER_ROADBLOCK_L: return "establishing roadblock";
    case ACR_ERequest.ORDER_BARRICADE: return "building barricade";
    case ACR_ERequest.ORDER_FORTIFY: return "fortifying";
+   case ACR_ERequest.ORDER_QRF: return "standing by as a QRF";
   }
   return "moving";
  }
@@ -285,7 +286,7 @@ class ACR_Requests : Managed
   if (!m_Manager.IsCommander(pc.GetPlayerId())) return outcome.Refuse("Only the commander can give map orders. Take command first.");
   IEntity anchor = squad.GetAnchor();
   if (!anchor) return outcome.Refuse("That squad is not ready");
-  bool usesPoint = command == ACR_ERequest.MOVE_TO || command == ACR_ERequest.ORDER_DEFEND || command == ACR_ERequest.ORDER_GET_IN || command == ACR_ERequest.ORDER_SET_LZ || command == ACR_ERequest.ORDER_RIDE || command == ACR_ERequest.QUEUE_MOVE || command == ACR_ERequest.QUEUE_DEFEND || command == ACR_ERequest.ORDER_HUNT || command == ACR_ERequest.ORDER_GARRISON || command == ACR_ERequest.QUEUE_GARRISON || command == ACR_ERequest.ORDER_ESTABLISH_FOB || ACR_Roadblocks.TypeOfRequest(command) >= 0 || ACR_Minefields.IsRequest(command) || command == ACR_ERequest.ORDER_FORTIFY;
+  bool usesPoint = command == ACR_ERequest.MOVE_TO || command == ACR_ERequest.ORDER_DEFEND || command == ACR_ERequest.ORDER_GET_IN || command == ACR_ERequest.ORDER_SET_LZ || command == ACR_ERequest.ORDER_RIDE || command == ACR_ERequest.QUEUE_MOVE || command == ACR_ERequest.QUEUE_DEFEND || command == ACR_ERequest.ORDER_HUNT || command == ACR_ERequest.ORDER_GARRISON || command == ACR_ERequest.QUEUE_GARRISON || command == ACR_ERequest.ORDER_ESTABLISH_FOB || ACR_Roadblocks.TypeOfRequest(command) >= 0 || ACR_Minefields.IsRequest(command) || command == ACR_ERequest.ORDER_FORTIFY || command == ACR_ERequest.ORDER_QRF;
   // Reject nonsense coordinates from a client.
   if (usesPoint && (vector.Distance(point, anchor.GetOrigin()) > 20000 || !ACR_Manager.OnMap(point))) return outcome.Refuse("Order is too far away");
   // Map clicks made inside Game Master / build mode are not orders (the client checks too).
@@ -470,6 +471,14 @@ class ACR_Requests : Managed
      return outcome.Accept(name + ": establishing FOB");
     }
     return outcome.Refuse(name + ": unable to establish FOB");
+   }
+   case ACR_ERequest.ORDER_QRF:
+   {
+    string qrfWhy;
+    if (!ACR_Qrf.CanOrder(squad, qrfWhy)) return outcome.Refuse(name + ": " + qrfWhy);
+    if (!squad.Qrf(point)) return outcome.Refuse(name + ": could not stand by there");
+    PrintFormat("[ACR] QRF player=%1 squad=%2 post=%3", pc.GetPlayerId(), name, point);
+    return outcome.Accept(string.Format("%1: %2, covering %3 m", name, OrderWords(command), ACR_Qrf.RADIUS));
    }
    default:
     return outcome.Refuse("Unknown command");

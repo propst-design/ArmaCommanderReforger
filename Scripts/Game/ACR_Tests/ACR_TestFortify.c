@@ -14,7 +14,15 @@
 // set aside don't abandon it.
 class ACR_TestFortify
 {
- static const int CHECKS = 39;
+ static const int CHECKS = 41;
+
+ // How far towards the threat of a position's line a point is (negative: behind it).
+ static float LocalZ(ACR_Fortification fort, vector pos)
+ {
+  float rad = fort.m_fYaw * Math.DEG2RAD;
+  vector offset = pos - fort.m_vPos;
+  return offset[0] * Math.Sin(rad) + offset[2] * Math.Cos(rad);
+ }
  static const ResourceName BOULDER = "{1F0AA3EA77753B5D}Prefabs/Rocks/Granite/Granite_Boulder_02.et";
  static const ResourceName SANDBAG_WALL = "{A3A7C365E845B1B6}PrefabsEditable/Auto/Props/Military/Sandbags/E_Sandbag_01_long_high_burlap.et";
  static int s_iStep;
@@ -169,6 +177,28 @@ class ACR_TestFortify
    bool manned = Manned(s_Fort);
    if (!manned && waited < 60) return;
    ACR_TestRegress.Check("fortify: a gunner mans the position's MG", manned, string.Format("after %1 s", waited));
+   // #93: the holders hold a circle behind the line that stops short of the wire, and BBB's own
+   // moves are leashed to it; nobody on foot stands out past the sandbags.
+   vector hold = ACR_Fortify.HoldCentre(s_Fort);
+   float holdZ = LocalZ(s_Fort, hold);
+   bool behind = vector.DistanceXZ(alpha.m_MoveTarget, hold) < 1 && alpha.m_fOrderRadius == ACR_Fortify.HOLDER_RADIUS && holdZ < -5 && holdZ + ACR_Fortify.HOLDER_RADIUS < 9;
+   vector leashAt;
+   float leashRadius;
+   bool leashed = ACR_BBBHooks.FortLeash(alpha, leashAt, leashRadius) && vector.DistanceXZ(leashAt, hold) < 1 && leashRadius == ACR_Fortify.HOLDER_RADIUS;
+   ACR_TestRegress.Check("fortify: the holders hold behind the line, short of the wire, leashed there for BBB", behind && leashed, string.Format("hold %1 m from the line (radius %2), order radius %3, leash %4", (int)holdZ, ACR_Fortify.HOLDER_RADIUS, alpha.m_fOrderRadius, leashed));
+   int forward;
+   string spread = "";
+   array<AIAgent> holders = {};
+   alpha.GetAgents(holders);
+   foreach (AIAgent holder : holders)
+   {
+    IEntity body = holder.GetControlledEntity();
+    if (!ACR_Respawn.IsAlive(body) || ACR_Transport.VehicleOf(body)) continue;
+    float z = LocalZ(s_Fort, body.GetOrigin());
+    spread += string.Format("%1 ", (int)z);
+    if (z > 6) forward++;
+   }
+   ACR_TestRegress.Check("fortify: no holder on foot out past the sandbags (wire at 6-14 m)", forward == 0, string.Format("men at %1m from the line", spread));
    // A third order called off before the pieces go in: all of it back, guns left.
    s_iRP = us.m_iRP;
    bool ordered = ACR_Fortify.Order(alpha, s_vSite, why);

@@ -2,7 +2,8 @@
 // Checks: both sides hold bases beyond their HQ, balanced by what they earn; the split is the
 // seed's (what the setup preview shows); an uneven split gives one side about two thirds; front
 // garrisons bigger than rear ones; a small neutral strip; FIA pockets keep off the front; foot
-// squads start at front bases plus holding squads; roadblocks up at the front for both sides.
+// squads start at front bases plus holding squads; roadblocks, dug-in positions and minefields up at
+// the front for both sides, the fields clear of the side's own positions and roadblocks.
 class ACR_TestQuickStart
 {
  static void Run(int tick)
@@ -15,6 +16,7 @@ class ACR_TestQuickStart
   }
   if (tick == 10) Split();
   if (tick == 30) Forces(manager);
+  if (tick == 70) Works();
  }
 
  protected static void Split()
@@ -142,6 +144,35 @@ class ACR_TestQuickStart
     if (vector.DistanceXZ(leader.GetOrigin(), front.GetOrigin()) < 150) { forward++; break; }
   }
   ACR_TestRegress.Check("quickstart: holding squads spawned at the front", forward >= 2, string.Format("%1 at a front base", forward));
-  ACR_TestRegress.Complete("quickstart", 10);
+ }
+
+ // Dug-in positions and minefields at the front too (pn13 playtest: they were missing). They go in
+ // once the starting squads have registered (up to 30 s after the start), so later than Forces.
+ protected static void Works()
+ {
+  string west = ACR_FactionSelection.West();
+  string east = ACR_FactionSelection.East();
+  int westForts = ACR_Fortify.CountPositions(west);
+  int eastForts = ACR_Fortify.CountPositions(east);
+  ACR_TestRegress.Check("quickstart: dug-in positions at the front for both sides", westForts >= 1 && eastForts >= 1, string.Format("%1 %2 (quick start %3), %4 %5 (quick start %6)", west, westForts, ACR_QuickStart.s_mPositions.Get(west), east, eastForts, ACR_QuickStart.s_mPositions.Get(east)));
+  int westFields, eastFields;
+  bool apart = true;
+  string apartText = "";
+  foreach (ACR_Minefield field : ACR_Minefields.s_Fields)
+  {
+   if (!field || field.m_aMines.IsEmpty()) continue;
+   if (field.m_sFaction == west) westFields++;
+   if (field.m_sFaction == east) eastFields++;
+   // Clear of the side's own positions and roadblocks, as the AI keeps its own fields.
+   ACR_Fortification near = ACR_Fortify.NearestOwn(field.m_sFaction, field.m_vPos, ACR_AICommander.DEFENCE_STANDOFF);
+   if (near) { apart = false; apartText += string.Format(" field %1 %2 m from a position;", field.m_iId, (int)vector.DistanceXZ(near.m_vPos, field.m_vPos)); }
+   foreach (ACR_Roadblock rb : ACR_Roadblocks.s_aRoadblocks)
+   {
+    if (rb && rb.m_sFaction == field.m_sFaction && vector.DistanceXZ(rb.m_vPos, field.m_vPos) < ACR_AICommander.DEFENCE_STANDOFF) { apart = false; apartText += string.Format(" field %1 %2 m from a roadblock;", field.m_iId, (int)vector.DistanceXZ(rb.m_vPos, field.m_vPos)); }
+   }
+  }
+  ACR_TestRegress.Check("quickstart: a minefield laid at the front for both sides", westFields >= 1 && eastFields >= 1, string.Format("%1 %2, %3 %4", west, westFields, east, eastFields));
+  ACR_TestRegress.Check(string.Format("quickstart: the fields keep %1 m from the side's own positions and roadblocks", ACR_AICommander.DEFENCE_STANDOFF), apart && westFields + eastFields > 0, apartText);
+  ACR_TestRegress.Complete("quickstart", 13);
  }
 }
