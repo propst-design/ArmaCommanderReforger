@@ -68,7 +68,7 @@ class ACR_Options
  static void Log()
  {
   string line;
-  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAHidden", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrHoldGuns", "acrMapDeclutter", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders"};
+  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIAHidden", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrHoldGuns", "acrMapDeclutter", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders"};
   foreach (string name : names)
   {
    string value;
@@ -98,6 +98,8 @@ class ACR_MissionHeader : SCR_MissionHeader
  string m_sAcrGuerrillas;
  [Attribute("", UIWidgets.EditBox, "Hidden FIA: 1 = no messages about FIA; pockets are only found by entering them (-acrFIAHidden)")]
  string m_sAcrFIAHidden;
+ [Attribute("", UIWidgets.EditBox, "Who FIA sides with: hostile (both, default), west or east (-acrFIAAllegiance)")]
+ string m_sAcrFIAAllegiance;
  [Attribute("", UIWidgets.EditBox, "Faction pair: vanilla, ru_us, ru_ua, us_ua or two faction keys WEST,EAST (-acrFactions)")]
  string m_sAcrFactions;
  [Attribute("", UIWidgets.EditBox, "Put every player on this faction key, or any (-acrPlayers)")]
@@ -192,6 +194,7 @@ class ACR_MissionHeader : SCR_MissionHeader
   Text(values, "acrQuickStart", m_sAcrQuickStart);
   Text(values, "acrGuerrillas", m_sAcrGuerrillas);
   Text(values, "acrFIAHidden", m_sAcrFIAHidden);
+  Text(values, "acrFIAAllegiance", m_sAcrFIAAllegiance);
   Text(values, "acrFactions", m_sAcrFactions);
   Text(values, "acrPlayers", m_sAcrPlayers);
   Text(values, "acrThreat", m_sAcrThreat);

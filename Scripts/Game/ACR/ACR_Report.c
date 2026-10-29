@@ -65,6 +65,9 @@ class ACR_Report
 
  static void OnSoldierDown(IEntity victim, Instigator instigator)
  {
+  IEntity shooter;
+  if (instigator) shooter = instigator.GetInstigatorEntity();
+  if (victim) ACR_Insurgency.OnLoss(ACR_Intel.FactionKeyOf(victim), victim.GetOrigin(), ACR_Intel.FactionKeyOf(shooter));
   if (!Running()) return;
   string side = ACR_Intel.FactionKeyOf(victim);
   ACR_SideStats lost = Of(side);
@@ -77,6 +80,9 @@ class ACR_Report
 
  static void OnVehicleDown(IEntity vehicle, Instigator instigator, string side)
  {
+  IEntity shooter;
+  if (instigator) shooter = instigator.GetInstigatorEntity();
+  if (vehicle) ACR_Insurgency.OnLoss(side, vehicle.GetOrigin(), ACR_Intel.FactionKeyOf(shooter));
   if (!Running()) return;
   ACR_SideStats lost = Of(side);
   if (lost) lost.m_iVehiclesLost++;

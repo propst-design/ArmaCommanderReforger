@@ -190,7 +190,9 @@ class ACR_BaseSystem : Managed
    if (!body) continue; // deleted this tick (e.g. a garrison packed up after a capture)
    string key = m_BodyFactions[i];
    float distance = vector.DistanceXZ(body.GetOrigin(), center);
-   if (distance <= base.m_fRadius)
+   // FIA's ally neither fights nor takes its pockets (ACR_Insurgency).
+   bool friendOfOwner = base.m_bPocket && key != base.m_sOwner && ACR_Insurgency.Friendly(key, base.m_sOwner);
+   if (distance <= base.m_fRadius && !friendOfOwner)
    {
     int count;
     inside.Find(key, count);
@@ -207,7 +209,7 @@ class ACR_BaseSystem : Managed
      }
     }
    }
-   if (!base.m_sOwner.IsEmpty() && key != base.m_sOwner)
+   if (!base.m_sOwner.IsEmpty() && key != base.m_sOwner && !friendOfOwner)
    {
     // An FIA pocket is found once its garrison would deploy against you.
     // Hidden FIA (-acrFIAHidden): only by entering it (above), and nobody is told.

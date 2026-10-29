@@ -46,6 +46,8 @@ modded class ACR_TestHooks
   if (System.IsCLIParam("acrPathProbeTest")) ACR_TestPathProbe.Run(seconds);
   // -acrGuerrillasTest: FIA guerrilla cells (ACR_TestGuerrillas, #89).
   if (System.IsCLIParam("acrGuerrillasTest")) ACR_TestGuerrillas.Run(seconds);
+  // -acrInsurgencyTest: FIA allegiance and dangerous roads (ACR_TestInsurgency, #89).
+  if (System.IsCLIParam("acrInsurgencyTest")) ACR_TestInsurgency.Run(seconds);
   if (System.IsCLIParam("acrGenerateTest")) ACR_TestGenerate.Run(seconds);
   if (System.IsCLIParam("acrGenerateEveronTest")) ACR_TestGenerate.RunEveron(seconds);
   // -acrPocketsTest: FIA pockets of resistance (ACR_TestPockets).
@@ -71,14 +73,14 @@ modded class ACR_TestHooks
  // Tests keep their worlds as authored; the guerrilla test and the balance soaks get guerrillas.
  override string Guerrillas()
  {
-  if (System.IsCLIParam("acrGuerrillasTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrLongSoakTest")) return "few";
+  if (System.IsCLIParam("acrGuerrillasTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrLongSoakTest")) return "few";
   return "";
  }
 
  // Tests keep their worlds as authored; the pocket test and the balance soaks get pockets.
  override string Pockets()
  {
-  if (System.IsCLIParam("acrPocketsTest") || System.IsCLIParam("acrQuickStartTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrLongSoakTest")) return "few";
+  if (System.IsCLIParam("acrPocketsTest") || System.IsCLIParam("acrQuickStartTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrLongSoakTest")) return "few";
   if (System.IsCLIParam("acrSetupTest") || System.IsCLIParam("acrSetupUiTest") || System.IsCLIParam("acrSetupGenTest") || System.IsCLIParam("acrSetupMapTest")) return "off";
   return "";
  }

@@ -163,7 +163,7 @@ class ACR_Intel : Managed
      if (!target || !RecentDetection(target.GetTimeSinceDetected())) continue;
      IEntity seen = target.GetTargetEntity();
      string key = FactionKeyOf(seen);
-     if (!key.IsEmpty() && key != m_sFaction) NoteAt(seen, now - target.GetTimeSinceDetected() * 1000, squad.GetName(), target.GetLastDetectedPosition());
+     if (!key.IsEmpty() && !ACR_Insurgency.Friendly(key, m_sFaction)) NoteAt(seen, now - target.GetTimeSinceDetected() * 1000, squad.GetName(), target.GetLastDetectedPosition());
     }
    }
   }
@@ -260,7 +260,7 @@ class ACR_Intel : Managed
   {
    IEntity other = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
    string otherSide = FactionKeyOf(other);
-   if (other && !otherSide.IsEmpty() && otherSide != m_sFaction && !enemies.Contains(other)) enemies.Insert(other);
+   if (other && !otherSide.IsEmpty() && !ACR_Insurgency.Friendly(otherSide, m_sFaction) && !enemies.Contains(other)) enemies.Insert(other);
   }
   foreach (IEntity enemy : enemies)
   {

@@ -8,7 +8,8 @@ enum ACR_EAITask
  BUILD_FOB, // establishing a forward base
  ROADBLOCK, // establishing or holding a forward roadblock
  MINES,     // laying a minefield on an approach (-acrMinesAI)
- FORTIFY    // digging in or upgrading a position on an approach (-acrFortifyAI)
+ FORTIFY,   // digging in or upgrading a position on an approach (-acrFortifyAI)
+ SWEEP      // clearing a road where FIA ambushed the side (ACR_Insurgency, #89)
 }
 
 enum ACR_ESapperDemoState
@@ -1090,6 +1091,7 @@ class ACR_AICommander : Managed
   Recrew();
   t = ACR_Perf.Lap("ai.post", t);
   ManageLogistics();
+  ManageDangerRoads();
   ManageFobBuild();
   ManageFobUpgrades();
   int beforeBuild = m_Manager.m_Bases.GetRP(m_sFaction);
@@ -1405,10 +1407,18 @@ class ACR_AICommander : Managed
   return base.OwnerSeenBy(m_sFaction);
  }
 
+ // Held, as this commander knows it, by someone it fights: an FIA pocket of an FIA allied to
+ // this side is not (ACR_Insurgency).
+ protected bool HostileOwner(ACR_Base base)
+ {
+  string seen = SeenOwner(base);
+  return !seen.IsEmpty() && !ACR_Insurgency.Friendly(seen, m_sFaction);
+ }
+
  bool HasKnownEnemyBase()
  {
   foreach (ACR_Base base : ACR_Base.s_All)
-   if (!SeenOwner(base).IsEmpty() && base.m_sOwner != m_sFaction && Visible(base)) return true;
+   if (HostileOwner(base) && Visible(base)) return true;
   return false;
  }
 
@@ -1425,7 +1435,7 @@ class ACR_AICommander : Managed
   float best = float.MAX;
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (base.m_sOwner == m_sFaction || SeenOwner(base).IsEmpty() || !Visible(base) || base == except) continue;
+   if (base.m_sOwner == m_sFaction || !HostileOwner(base) || !Visible(base) || base == except) continue;
    float d = vector.DistanceXZ(base.GetOrigin(), point);
    if (d < best) { best = d; nearest = base; }
   }
@@ -2378,7 +2388,7 @@ class ACR_AICommander : Managed
   {
    foreach (ACR_Base base : ACR_Base.s_All)
    {
-    if (base.m_sOwner == m_sFaction || SeenOwner(base).IsEmpty() || !Visible(base) || IsAttacking(base) || CoolingDown(base)) continue;
+    if (base.m_sOwner == m_sFaction || !HostileOwner(base) || !Visible(base) || IsAttacking(base) || CoolingDown(base)) continue;
     float cost = Math.Max(10, DefenceOf(base) * ATTACK_RATIO * m_Doctrine.m_fAttackRatio);
     float dist = NearestFreeDistance(free, base.GetOrigin());
     // FIA pockets: cleared when in the way (near our own bases), after the real enemy.
@@ -4064,8 +4074,7 @@ class ACR_AICommander : Managed
  {
   if (base.m_sOwner == m_sFaction) return false;
   foreach (ACR_AIAttack attack : m_Attacks) if (attack.m_Target == base) return true;
-  string seen = SeenOwner(base);
-  return !seen.IsEmpty() && seen != m_sFaction;
+  return HostileOwner(base);
  }
 
  // The own, safe base closest to what the mortar covers (but not right on top of any base
@@ -4783,7 +4792,7 @@ class ACR_AICommander : Managed
     bool holding = squad.m_iAITask == ACR_EAITask.DEFEND || squad.m_iAITask == ACR_EAITask.POSTED || !squad.m_Group.GetCurrentWaypoint();
     bool crewFree = crew && !crew.HasPlayer() && !m_ServiceJobs.Contains(crew) && !StuckLately(crew);
     string what = ACR_Logistics.ServiceName(service);
-    if (crewFree && (holding || squad.IsMounted() == false && best > 800))
+    if (crewFree && (holding || squad.IsMounted() == false && best > 800) && !DangerOnTheWay(crew, PositionOf(squad)))
     {
      // Bring the truck to them.
      crew.SetMode(ACR_EMoveMode.FAST);
@@ -4815,10 +4824,85 @@ class ACR_AICommander : Managed
    if (logistics.StockPercent(serviceVehicle) < 25) goal = HomeBase();
    if (!goal || vector.DistanceXZ(serviceVehicle.GetOrigin(), goal.GetOrigin()) < goal.m_fRadius) continue;
    if (idleCrew.OrderState() == ACR_EOrderState.MOVE && vector.DistanceXZ(idleCrew.RouteDestination(), goal.GetOrigin()) < goal.m_fRadius + 80) continue;
+   if (DangerOnTheWay(idleCrew, goal.GetOrigin())) continue;
    idleCrew.RouteTo(ACR_Manager.Ground(goal.GetOrigin()), ACR_Squad.WP_MOVE, -1, "Moving", 0);
    Say(string.Format("[ACR] AI %1: %2 to %3 (%4)", m_sFaction, idleCrew.GetName(), goal.m_sName, ACR_Logistics.ServiceName(serviceMask)));
   }
  }
+
+ // ---------------------------------------------------------------- dangerous roads (#89)
+ // Where FIA cost this side men on a road (ACR_Insurgency): a free combat squad goes to clear it
+ // (escorting the road), and supply runs whose way passes it wait until it is cleared or the mark
+ // runs out. A road gets two sweepers at most (one that can't get there is replaced once).
+ protected float m_fDangerSaidAt = -1000000;
+ protected bool DangerOnTheWay(ACR_Squad crew, vector destination)
+ {
+  ACR_DangerRoad road = ACR_Insurgency.OnTheWay(m_sFaction, PositionOf(crew), destination);
+  if (!road) return false;
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (now - m_fDangerSaidAt > 60000)
+  {
+   m_fDangerSaidAt = now;
+   Say(string.Format("[ACR] AI %1: %2 waits, FIA ambushed the road at %3", m_sFaction, crew.GetName(), ACR_Manager.Grid(road.m_vPos)));
+  }
+  return true;
+ }
+
+ static const float SWEEP_REACH = 3000;
+ protected void ManageDangerRoads()
+ {
+  if (ACR_Insurgency.s_aRoads.IsEmpty()) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  array<ACR_DangerRoad> cleared = {};
+  foreach (ACR_DangerRoad road : ACR_Insurgency.s_aRoads)
+  {
+   if (road.m_sSide != m_sFaction) continue;
+   ACR_Squad sweeper = road.m_Sweeper;
+   if (sweeper && (!m_Manager.m_Squads.Contains(sweeper) || sweeper.CountAlive() <= 0 || sweeper.HasPlayer() || sweeper.m_iAITask != ACR_EAITask.SWEEP || sweeper.GaveUpUnreachable()))
+   {
+    if (sweeper.m_iAITask == ACR_EAITask.SWEEP) sweeper.m_iAITask = ACR_EAITask.FREE;
+    road.m_Sweeper = null;
+    road.m_fQuietSince = 0;
+    sweeper = null;
+   }
+   if (!sweeper)
+   {
+    if (road.m_iSweeps >= 2) continue;
+    sweeper = FindSweeper(road.m_vPos);
+    if (!sweeper) continue;
+    road.m_Sweeper = sweeper;
+    road.m_iSweeps++;
+    sweeper.m_iAITask = ACR_EAITask.SWEEP;
+    sweeper.SetMode(ACR_EMoveMode.COMBAT);
+    Travel(sweeper, road.m_vPos, false, 0);
+    Say(string.Format("[ACR] AI %1: %2 to clear the road at %3 (FIA ambush)", m_sFaction, sweeper.GetName(), ACR_Manager.Grid(road.m_vPos)));
+    continue;
+   }
+   if (vector.DistanceXZ(PositionOf(sweeper), road.m_vPos) > 80 || sweeper.KnownEnemies(300) > 0)
+   {
+    road.m_fQuietSince = 0;
+    continue;
+   }
+   if (road.m_fQuietSince <= 0) road.m_fQuietSince = now;
+   if (now - road.m_fQuietSince >= ACR_Insurgency.CLEAR_QUIET_MS) cleared.Insert(road);
+  }
+  foreach (ACR_DangerRoad done : cleared) ACR_Insurgency.Clear(done, done.m_Sweeper.GetName() + " found nobody there");
+ }
+
+ protected ACR_Squad FindSweeper(vector at)
+ {
+  array<ACR_Squad> free = {};
+  MySquads(free, true);
+  SortByDistance(free, at);
+  foreach (ACR_Squad squad : free)
+  {
+   if (squad.CountAlive() < 2 || IsSupportTeam(squad) || !squad.IsCombatUnit()) continue;
+   if (vector.DistanceXZ(PositionOf(squad), at) > SWEEP_REACH) return null;
+   return squad;
+  }
+  return null;
+ }
+ void ManageDangerRoadsForTest() { ManageDangerRoads(); }
 
  // A service vehicle that gave up stuck (ACR_Squad.m_fStuckAt: holding where it is) waits before
  // it is sent anywhere again, as Recrew does. Jacob's 26 Oct game: an arsenal truck stuck by its
@@ -6496,6 +6580,7 @@ class ACR_AICommander : Managed
   if (task == ACR_EAITask.ROADBLOCK) return "on a roadblock";
   if (task == ACR_EAITask.MINES) return "laying mines";
   if (task == ACR_EAITask.FORTIFY) return "digging in";
+  if (task == ACR_EAITask.SWEEP) return "clearing a road";
   if (task == ACR_EAITask.ATTACK) return "attacking" + at;
   return "in reserve";
  }

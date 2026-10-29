@@ -204,7 +204,7 @@ class ACR_Defenders
  {
   foreach (ACR_Squad squad : manager.m_Squads)
   {
-   if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() == faction) continue;
+   if (!squad.GetFaction() || ACR_Insurgency.Friendly(squad.GetFaction().GetFactionKey(), faction)) continue;
    IEntity anchor = squad.GetAnchor();
    if (!anchor || vector.DistanceXZ(anchor.GetOrigin(), pos) > range + 300) continue;
    array<AIAgent> agents = {};
@@ -222,7 +222,7 @@ class ACR_Defenders
    IEntity player = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
    if (!player || !ACR_Respawn.IsAlive(player)) continue;
    string key = ACR_Intel.FactionKeyOf(player);
-   if (!key.IsEmpty() && key != faction && vector.DistanceXZ(player.GetOrigin(), pos) <= range) return true;
+   if (!key.IsEmpty() && !ACR_Insurgency.Friendly(key, faction) && vector.DistanceXZ(player.GetOrigin(), pos) <= range) return true;
   }
   return false;
  }
