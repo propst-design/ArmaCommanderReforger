@@ -636,6 +636,7 @@ class ACR_MapFeed
   ACR_Ambush.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   // ...and roads where FIA ambushed it (danger areas, ACR_Insurgency).
   ACR_Insurgency.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
+  ACR_Guerrillas.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   foreach (int r, vector rangePos : frame.m_ZonePos) sig += P(rangePos) + frame.m_ZoneLabels[r] + ";";
   frame.m_sZonesSig = sig;
   frame.m_Bytes.Set("zones", sig.Length() + frame.m_ZonePos.Count() * 16 + 12);

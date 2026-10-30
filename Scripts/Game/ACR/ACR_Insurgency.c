@@ -22,6 +22,10 @@
 //    with no offence, up to 80. The allegiance sets the start (its ally 85, a hostile side 35).
 //    Commanders see their tier in the panel's command line and get a feed line when it changes.
 //    Civilian harm is meant to count too once civilians exist (#49).
+//  - Hideouts (ACR_Guerrillas): a side that fights one has found it: a feed line, and it is
+//    marked like a dangerous road (no time limit, supply runs don't wait for it) so the side's AI
+//    sends a squad to clear it. Destroying one costs standing (HIDEOUT_TAKEN). FIA's friends
+//    know where its hideouts are.
 class ACR_DangerRoad : Managed
 {
  string m_sSide;
@@ -31,6 +35,7 @@ class ACR_DangerRoad : Managed
  ACR_Squad m_Sweeper;   // sent to clear it (ACR_AICommander.ManageDangerRoads)
  float m_fQuietSince;   // the sweeper there with no contact since (0: not yet)
  int m_iSweeps;         // sweepers sent
+ ACR_DefenderPost m_Hideout; // a found FIA hideout to clear, not a road (no time limit)
 }
 
 enum ACR_EFIAStanding
@@ -145,6 +150,9 @@ class ACR_Insurgency
    base.m_aDetectedBy.Insert(side);
    known++;
   }
+  array<ACR_DefenderPost> hideouts = {};
+  ACR_Guerrillas.Hideouts(hideouts);
+  foreach (ACR_DefenderPost hideout : hideouts) ACR_Guerrillas.Know(hideout, side);
   return known;
  }
 
@@ -178,6 +186,8 @@ class ACR_Insurgency
  static const float LAND_PER_MIN = 0.25;   // ... costs this a minute
  static const float TIP_REACH = 500;       // enemies this close to a cell or pocket are tipped off
  static const float TIP_AGAIN_MS = 300000; // about the same squad
+ static const float HIDEOUT_TAKEN = 10;    // a hideout destroyed, for each side with men there
+ static const float HIDEOUT_TAKEN_REACH = 600;
  static ref array<ref ACR_FIASide> s_aSides = {};
  protected static ref array<string> s_aFriends = {};
  protected static bool s_bLeaning;
@@ -302,6 +312,89 @@ class ACR_Insurgency
   Change(by, -cost, "buildings destroyed", true);
  }
 
+ // ---------------------------------------------------------------- hideouts
+
+ // The main sides with a living man (a squad's or a player) within range of pos.
+ static void SidesNear(vector pos, float range, notnull array<string> sides)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager) return;
+  foreach (ACR_Squad squad : manager.m_Squads)
+  {
+   if (!squad.GetFaction()) continue;
+   string key = squad.GetFaction().GetFactionKey();
+   if (key == ACR_Pockets.FACTION || sides.Contains(key)) continue;
+   IEntity anchor = squad.GetAnchor();
+   if (!anchor || vector.DistanceXZ(anchor.GetOrigin(), pos) > range + 300) continue;
+   array<AIAgent> agents = {};
+   squad.GetAgents(agents);
+   foreach (AIAgent agent : agents)
+   {
+    IEntity body = agent.GetControlledEntity();
+    if (!body || !ACR_Respawn.IsAlive(body) || vector.DistanceXZ(body.GetOrigin(), pos) > range) continue;
+    sides.Insert(key);
+    break;
+   }
+  }
+  array<int> players = {};
+  GetGame().GetPlayerManager().GetPlayers(players);
+  foreach (int id : players)
+  {
+   IEntity player = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
+   if (!player || !ACR_Respawn.IsAlive(player)) continue;
+   string side = ACR_Intel.FactionKeyOf(player);
+   if (side.IsEmpty() || side == ACR_Pockets.FACTION || sides.Contains(side)) continue;
+   if (vector.DistanceXZ(player.GetOrigin(), pos) <= range) sides.Insert(side);
+  }
+ }
+
+ // A hideout opened fire (ACR_Guerrillas.Spring): the sides with men near have found it.
+ static void HideoutFound(ACR_DefenderPost post)
+ {
+  array<string> sides = {};
+  SidesNear(post.m_vPos, ACR_Guerrillas.HIDEOUT_FOUND, sides);
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  float now = GetGame().GetWorld().GetWorldTime();
+  foreach (string side : sides)
+  {
+   if (Friendly(side, ACR_Pockets.FACTION) || !ACR_Guerrillas.Know(post, side)) continue;
+   ACR_DangerRoad mark = new ACR_DangerRoad();
+   mark.m_sSide = side;
+   mark.m_vPos = post.m_vPos;
+   mark.m_fUntil = now;
+   mark.m_Hideout = post;
+   s_aRoads.Insert(mark);
+   PrintFormat("[ACR] INSURGENCY %1 found %2", side, post.m_sName);
+   ACR_Intel intel;
+   if (manager) intel = manager.IntelFor(side);
+   if (intel) intel.AddFeed(now, string.Format("FIA hideout found at %1", ACR_Manager.Grid(post.m_vPos)));
+  }
+ }
+
+ // A hideout wiped out (ACR_Guerrillas.PackedUp): its marks go, the sides that knew it hear,
+ // and the sides with men there pay for it in standing.
+ static void HideoutDestroyed(ACR_DefenderPost post)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  float now = GetGame().GetWorld().GetWorldTime();
+  for (int i = s_aRoads.Count() - 1; i >= 0; i--)
+  {
+   if (s_aRoads[i].m_Hideout != post) continue;
+   Release(s_aRoads[i]);
+   s_aRoads.RemoveOrdered(i);
+  }
+  foreach (string knew : post.m_Cell.m_aKnownBy)
+  {
+   ACR_Intel intel;
+   if (manager) intel = manager.IntelFor(knew);
+   if (intel) intel.AddFeed(now, string.Format("FIA hideout at %1 destroyed", ACR_Manager.Grid(post.m_vPos)));
+  }
+  array<string> sides = {};
+  SidesNear(post.m_vPos, HIDEOUT_TAKEN_REACH, sides);
+  foreach (string side : sides) Change(side, -HIDEOUT_TAKEN, "an FIA hideout destroyed", true);
+  PrintFormat("[ACR] INSURGENCY %1 destroyed (%2 sides there)", post.m_sName, sides.Count());
+ }
+
  // An FIA pocket or guerrilla cell within 'range' of pos.
  static bool NearFIA(vector pos, float range)
  {
@@ -414,7 +507,8 @@ class ACR_Insurgency
   float now = GetGame().GetWorld().GetWorldTime();
   for (int i = s_aRoads.Count() - 1; i >= 0; i--)
   {
-   if (now < s_aRoads[i].m_fUntil) continue;
+   if (s_aRoads[i].m_Hideout && !s_aRoads[i].m_Hideout.m_bGone) continue;
+   if (!s_aRoads[i].m_Hideout && now < s_aRoads[i].m_fUntil) continue;
    PrintFormat("[ACR] INSURGENCY the dangerous road at %1 for %2 ran out", ACR_Manager.Grid(s_aRoads[i].m_vPos), s_aRoads[i].m_sSide);
    Release(s_aRoads[i]);
    s_aRoads.RemoveOrdered(i);
@@ -443,7 +537,7 @@ class ACR_Insurgency
  static ACR_DangerRoad OnTheWay(string side, vector a, vector b)
  {
   foreach (ACR_DangerRoad road : s_aRoads)
-   if (road.m_sSide == side && ACR_AICommander.DistanceToSegment(road.m_vPos, a, b) < DANGER_RADIUS) return road;
+   if (!road.m_Hideout && road.m_sSide == side && ACR_AICommander.DistanceToSegment(road.m_vPos, a, b) < DANGER_RADIUS) return road;
   return null;
  }
 
@@ -452,7 +546,7 @@ class ACR_Insurgency
  {
   foreach (ACR_DangerRoad road : s_aRoads)
   {
-   if (road.m_sSide != faction) continue;
+   if (road.m_sSide != faction || road.m_Hideout) continue; // drawn by ACR_Guerrillas.Zones
    positions.Insert(road.m_vPos);
    radii.Insert(DANGER_RADIUS);
    labels.Insert("FIA ambush");

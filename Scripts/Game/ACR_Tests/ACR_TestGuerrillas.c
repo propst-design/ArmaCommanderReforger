@@ -46,7 +46,7 @@ class ACR_TestGuerrillas
   string detail = "";
   foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
   {
-   if (!post.m_Cell) continue;
+   if (!post.m_Cell || post.m_Cell.m_bHideout) continue; // hideouts: srv:hideouts
    if (post.m_Cell.m_bHouse) { houses++; if (!s_House) s_House = post; }
    else { roads++; if (!s_Ambush) s_Ambush = post; }
    vector site = post.m_Cell.m_vKillZone;

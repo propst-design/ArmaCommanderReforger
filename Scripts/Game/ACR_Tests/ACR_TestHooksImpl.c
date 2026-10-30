@@ -50,6 +50,8 @@ modded class ACR_TestHooks
   if (System.IsCLIParam("acrInsurgencyTest")) ACR_TestInsurgency.Run(seconds);
   // -acrFIALeaningTest: FIA leans by conduct (ACR_TestFIALeaning, #89 part 2).
   if (System.IsCLIParam("acrFIALeaningTest")) ACR_TestFIALeaning.Run(seconds);
+  // -acrHideoutsTest: FIA hideouts (ACR_TestHideouts, #89).
+  if (System.IsCLIParam("acrHideoutsTest")) ACR_TestHideouts.Run(seconds);
   if (System.IsCLIParam("acrGenerateTest")) ACR_TestGenerate.Run(seconds);
   if (System.IsCLIParam("acrGenerateEveronTest")) ACR_TestGenerate.RunEveron(seconds);
   // -acrPocketsTest: FIA pockets of resistance (ACR_TestPockets).
@@ -75,14 +77,14 @@ modded class ACR_TestHooks
  // Tests keep their worlds as authored; the guerrilla test and the balance soaks get guerrillas.
  override string Guerrillas()
  {
-  if (System.IsCLIParam("acrGuerrillasTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrFIALeaningTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrLongSoakTest")) return "few";
+  if (System.IsCLIParam("acrGuerrillasTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrFIALeaningTest") || System.IsCLIParam("acrHideoutsTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrLongSoakTest")) return "few";
   return "";
  }
 
  // Tests keep their worlds as authored; the pocket test and the balance soaks get pockets.
  override string Pockets()
  {
-  if (System.IsCLIParam("acrPocketsTest") || System.IsCLIParam("acrQuickStartTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrFIALeaningTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrLongSoakTest")) return "few";
+  if (System.IsCLIParam("acrPocketsTest") || System.IsCLIParam("acrQuickStartTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrFIALeaningTest") || System.IsCLIParam("acrHideoutsTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrLongSoakTest")) return "few";
   if (System.IsCLIParam("acrSetupTest") || System.IsCLIParam("acrSetupUiTest") || System.IsCLIParam("acrSetupGenTest") || System.IsCLIParam("acrSetupMapTest")) return "off";
   return "";
  }

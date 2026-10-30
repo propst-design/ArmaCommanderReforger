@@ -10,6 +10,12 @@
 //    pull back away from the road and pack up, and set up on another road later.
 //  - House: a few men in the windows of an ordinary building away from every base
 //    (ACR_Garrison posts), quiet until enemies come close; after a fight they move on too.
+//  - Hideout: FIA's home in a small isolated group of buildings (a farm or hamlet, not a village,
+//    not by a base), 6-8 men in the windows. It never moves and fights to the last. While it
+//    stands it feeds the cells round it (a man back to a short-handed cell within 3 km every
+//    10 min) and raises a new cell every 30 min while there are fewer than at the start. A side
+//    that fights it has found it: a "FIA hideout" ring on its map, and its AI sends a squad to
+//    clear it (ACR_Insurgency). Destroyed, the cells round it are no longer fed.
 // Unseen until found like every enemy: a side only learns of a cell by contact (ACR_Intel).
 // A cell that is wiped out is gone for the match. Options: -acrGuerrillas off|few|many (setup row
 // "FIA guerrillas": default few with the setup screen, off otherwise, as the pockets), and
@@ -17,8 +23,11 @@
 // entering it (ACR_BaseSystem).
 class ACR_GuerrillaCell : Managed
 {
- bool m_bHouse;
- vector m_vKillZone;     // ambush: the road point it watches; house: the building
+ bool m_bHouse;          // a house (a hideout is one too)
+ bool m_bHideout;
+ int m_iStart;           // men at the start (a hideout tops a cell back up to this)
+ ref array<string> m_aKnownBy = {}; // hideout: sides that know where it is
+ vector m_vKillZone;     // ambush: the road point it watches; house: the building; hideout: its buildings' middle
  vector m_vRoadDir;      // ambush: along the road there
  float m_fRoadWidth;
  ACR_Roadblock m_Block;  // the barricade it laid this time (none: a plain ambush)
@@ -58,6 +67,20 @@ class ACR_Guerrillas
  static ref array<vector> s_aHouses = {}; // buildings to pick from
  static ref array<vector> s_aStarts = {}; // the starting bases (held at Apply)
  protected static float s_fHouseClear;     // m from a starting base for a house
+
+ static const float HIDEOUT_CLUSTER = 60;     // m: buildings this close to one another make a group
+ static const int HIDEOUT_MIN_BUILDINGS = 3;
+ static const float HIDEOUT_ISOLATION = 300;  // more than HIDEOUT_MAX_AROUND buildings this close: a village
+ static const int HIDEOUT_MAX_AROUND = 10;
+ static const float HIDEOUT_SPACING = 1500;   // m between two hideouts
+ static const int MAX_HIDEOUT_LOOKS = 40;     // spots looked at for building groups at the start
+ static const float HIDEOUT_AREA = 60;        // its men hold the windows this far round its middle
+ static const float HIDEOUT_CLOSE = 150;      // it opens fire on enemies this close
+ static const float HIDEOUT_FOUND = 400;      // a side with men this close when it opens fire has found it
+ static const float SUPPLY_REACH = 3000;      // it feeds the cells this close
+ static const int SUPPLY_EVERY_S = 600;
+ static const int RAISE_EVERY_S = 1800;
+ protected static int s_iWantedCells;         // cells (not hideouts) placed at the start
 
  static int CountOption(bool half, out int houses)
  {
@@ -122,7 +145,165 @@ class ACR_Guerrillas
   int placed;
   for (int i = 0; i < roads; i++) if (AddCell(false)) placed++;
   for (int j = 0; j < houses; j++) if (AddCell(true)) placed++;
+  s_iWantedCells = placed;
   PrintFormat("[ACR] GUERRILLAS %1 cells of %2 wanted (%3 road sites, %4 houses to pick from, %5 m from starting bases, %6 ms)", placed, roads + houses, s_aRoads.Count(), s_aHouses.Count(), (int)clearance, System.GetTickCount() - started);
+  int hideoutsStarted = System.GetTickCount();
+  int wanted = roads / 2;
+  array<vector> sites = {};
+  FindHideouts(wanted, sites);
+  foreach (vector site : sites) AddHideout(site);
+  PrintFormat("[ACR] GUERRILLAS %1 hideouts of %2 wanted (%3 ms)", sites.Count(), wanted, System.GetTickCount() - hideoutsStarted);
+ }
+
+ // ---------------------------------------------------------------- hideouts
+
+ // Up to 'wanted' hideout sites: the middle of a group of HIDEOUT_MIN_BUILDINGS+ buildings with
+ // few others round it, looked for 0.8-2.5 km out from random bases, as far from the starting
+ // bases as the houses, outside every base, apart from the cells and each other; the bigger
+ // groups and those further off the roads first.
+ static void FindHideouts(int wanted, notnull array<vector> sites)
+ {
+  if (wanted <= 0) return;
+  array<ACR_Base> bases = {};
+  foreach (ACR_Base base : ACR_Base.s_All) if (!base.m_bRetired && !base.m_bHidden) bases.Insert(base);
+  if (bases.IsEmpty()) return;
+  array<vector> found = {};
+  array<float> scores = {};
+  for (int look = 0; look < MAX_HIDEOUT_LOOKS; look++)
+  {
+   float angle = Math.RandomFloat(0, Math.PI2);
+   vector spot = bases.GetRandomElement().GetOrigin() + Vector(Math.Cos(angle), 0, Math.Sin(angle)) * Math.RandomFloat(800, 2500);
+   if (!Usable(spot, s_fHouseClear)) continue;
+   vector middle;
+   int members;
+   if (!BuildingGroup(spot, middle, members)) continue;
+   if (!Usable(middle, s_fHouseClear)) continue;
+   float score = members + Math.Min(3, ACR_Minefields.RoadClearance(middle) / 50);
+   int slot = 0;
+   while (slot < scores.Count() && scores[slot] >= score) slot++;
+   found.InsertAt(middle, slot);
+   scores.InsertAt(score, slot);
+  }
+  foreach (vector candidate : found)
+  {
+   if (sites.Count() >= wanted) break;
+   bool apart = !Crowded(candidate, null);
+   foreach (vector taken : sites) if (vector.DistanceXZ(taken, candidate) < HIDEOUT_SPACING) apart = false;
+   if (apart) sites.Insert(candidate);
+  }
+ }
+
+ // The biggest group of buildings round 'spot', if it is one: HIDEOUT_MIN_BUILDINGS+ within
+ // HIDEOUT_CLUSTER of one of them, no more than HIDEOUT_MAX_AROUND within HIDEOUT_ISOLATION.
+ protected static bool BuildingGroup(vector spot, out vector middle, out int members)
+ {
+  array<IEntity> near = {};
+  ACR_Garrison.BuildingsWithin(spot, HIDEOUT_ISOLATION, near);
+  if (near.Count() < HIDEOUT_MIN_BUILDINGS) return false;
+  IEntity best;
+  int bestCount;
+  foreach (IEntity building : near)
+  {
+   int count;
+   foreach (IEntity other : near) if (vector.DistanceXZ(building.GetOrigin(), other.GetOrigin()) <= HIDEOUT_CLUSTER) count++;
+   if (count <= bestCount) continue;
+   bestCount = count;
+   best = building;
+  }
+  if (bestCount < HIDEOUT_MIN_BUILDINGS) return false;
+  array<IEntity> around = {};
+  ACR_Garrison.BuildingsWithin(best.GetOrigin(), HIDEOUT_ISOLATION, around);
+  if (around.Count() > HIDEOUT_MAX_AROUND) return false;
+  vector sum;
+  members = 0;
+  foreach (IEntity member : around)
+  {
+   if (vector.DistanceXZ(member.GetOrigin(), best.GetOrigin()) > HIDEOUT_CLUSTER) continue;
+   sum = sum + member.GetOrigin();
+   members++;
+  }
+  middle = sum * (1.0 / members);
+  return !BBB_Terrain.IsWaterAt(middle);
+ }
+
+ static ACR_DefenderPost AddHideout(vector site)
+ {
+  int men = Math.RandomIntInclusive(6, 8);
+  ACR_DefenderPost post = ACR_Defenders.Add(ACR_Pockets.FACTION, site, string.Format("FIA hideout %1", ACR_Manager.Grid(site)), HIDEOUT_AREA);
+  post.m_iReserve = men;
+  ACR_GuerrillaCell cell = new ACR_GuerrillaCell();
+  cell.m_bHouse = true;
+  cell.m_bHideout = true;
+  cell.m_iStart = men;
+  cell.m_vKillZone = site;
+  post.m_Cell = cell;
+  post.m_fSpawnRange = HOUSE_RANGE;
+  PrintFormat("[ACR] GUERRILLAS %1: %2 men", post.m_sName, men);
+  return post;
+ }
+
+ // Hideouts standing (the cells' homes).
+ static void Hideouts(notnull array<ACR_DefenderPost> posts)
+ {
+  foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
+   if (post.m_Cell && post.m_Cell.m_bHideout && !post.m_bGone) posts.Insert(post);
+ }
+
+ // Every SUPPLY_EVERY_S: each hideout sends a man to each short-handed idle cell in reach.
+ static int Supply()
+ {
+  array<ACR_DefenderPost> hideouts = {};
+  Hideouts(hideouts);
+  int sent;
+  foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
+  {
+   ACR_GuerrillaCell cell = post.m_Cell;
+   if (!cell || cell.m_bHideout || post.m_bGone || post.m_Group || post.m_iReserve >= cell.m_iStart) continue;
+   foreach (ACR_DefenderPost hideout : hideouts)
+   {
+    if (vector.DistanceXZ(hideout.m_vPos, cell.m_vKillZone) > SUPPLY_REACH) continue;
+    post.m_iReserve++;
+    sent++;
+    PrintFormat("[ACR] GUERRILLAS %1 sends a man to %2 (%3 of %4)", hideout.m_sName, post.m_sName, post.m_iReserve, cell.m_iStart);
+    break;
+   }
+  }
+  return sent;
+ }
+
+ // Every RAISE_EVERY_S: with a hideout standing and fewer cells than at the start, a new one.
+ static bool Raise()
+ {
+  array<ACR_DefenderPost> hideouts = {};
+  Hideouts(hideouts);
+  if (hideouts.IsEmpty()) return false;
+  int cells;
+  foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts) if (post.m_Cell && !post.m_Cell.m_bHideout && !post.m_bGone) cells++;
+  if (cells >= s_iWantedCells) return false;
+  bool house = Math.RandomFloat01() < 0.4;
+  if (!AddCell(house) && !AddCell(!house)) return false;
+  PrintFormat("[ACR] GUERRILLAS a hideout raised a new cell (%1 of %2)", cells + 1, s_iWantedCells);
+  return true;
+ }
+
+ // The command map: a ring on each hideout the side knows.
+ static void Zones(string faction, notnull array<vector> positions, notnull array<float> radii, notnull array<string> labels)
+ {
+  foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
+  {
+   if (!post.m_Cell || !post.m_Cell.m_bHideout || post.m_bGone || !post.m_Cell.m_aKnownBy.Contains(faction)) continue;
+   positions.Insert(post.m_vPos);
+   radii.Insert(HIDEOUT_AREA + 40);
+   labels.Insert("FIA hideout");
+  }
+ }
+
+ // 'side' learns where the hideout is (ACR_Insurgency: found by a fight, or FIA's friend).
+ static bool Know(ACR_DefenderPost post, string side)
+ {
+  if (side.IsEmpty() || post.m_Cell.m_aKnownBy.Contains(side)) return false;
+  post.m_Cell.m_aKnownBy.Insert(side);
+  return true;
  }
 
  // The places cells pick from: points on the roads out of each starting base to its nearest
@@ -369,6 +550,7 @@ class ACR_Guerrillas
   post.m_iReserve = men;
   ACR_GuerrillaCell cell = new ACR_GuerrillaCell();
   cell.m_bHouse = house;
+  cell.m_iStart = men;
   cell.m_vKillZone = site;
   post.m_Cell = cell;
   post.m_fSpawnRange = HOUSE_RANGE;
@@ -508,8 +690,10 @@ class ACR_Guerrillas
   if (cell.m_bHouse)
   {
    // Into the building's windows (as a base garrison), the rest round it.
-   int posts = ACR_Garrison.AssignArea(group, group.GetLeaderAgent(), cell.m_vKillZone, 25, cell.m_iOut);
-   if (posts > 0) Order(group, ACR_Squad.WP_GARRISON, cell.m_vKillZone, 25, true);
+   float area = 25;
+   if (cell.m_bHideout) area = HIDEOUT_AREA;
+   int posts = ACR_Garrison.AssignArea(group, group.GetLeaderAgent(), cell.m_vKillZone, area, cell.m_iOut);
+   if (posts > 0) Order(group, ACR_Squad.WP_GARRISON, cell.m_vKillZone, area, true);
    PrintFormat("[ACR] GUERRILLAS %1 deployed: %2 men in the house, %3 window posts", post.m_sName, cell.m_iOut, posts);
    return;
   }
@@ -563,6 +747,8 @@ class ACR_Guerrillas
   s_iSeconds++;
   if (s_iSeconds % TRAFFIC_EVERY_S == 0) SampleTraffic(manager);
   if (s_iSeconds % RESITE_EVERY_S == 0) Resite();
+  if (s_iSeconds % SUPPLY_EVERY_S == 0) Supply();
+  if (s_iSeconds % RAISE_EVERY_S == 0) Raise();
   foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
   {
    if (!post.m_Cell || !post.m_Group) continue;
@@ -574,7 +760,8 @@ class ACR_Guerrillas
     if (why != "") Spring(manager, post, alive, why, now);
     continue;
    }
-   if (cell.m_bWithdrawing) continue;
+   // A hideout holds its ground to the last.
+   if (cell.m_bWithdrawing || cell.m_bHideout) continue;
    float hit = HIT_S;
    if (cell.m_bHouse) hit = HOUSE_HIT_S;
    if (alive * 2 <= cell.m_iAliveAtSpring || now - cell.m_fSprungAt >= hit * 1000) Withdraw(post, alive);
@@ -587,7 +774,9 @@ class ACR_Guerrillas
   if (alive < cell.m_iOut) return "a man hit";
   if (cell.m_bHouse)
   {
-   if (ACR_Defenders.EnemyWithin(manager, post.m_sFaction, cell.m_vKillZone, HOUSE_CLOSE, true)) return "enemies close";
+   float close = HOUSE_CLOSE;
+   if (cell.m_bHideout) close = HIDEOUT_CLOSE;
+   if (ACR_Defenders.EnemyWithin(manager, post.m_sFaction, cell.m_vKillZone, close, true)) return "enemies close";
    return "";
   }
   if (ACR_Defenders.EnemyWithin(manager, post.m_sFaction, cell.m_vKillZone, KILL_RADIUS, true)) return "enemies in the kill zone";
@@ -606,6 +795,7 @@ class ACR_Guerrillas
   cell.m_iAliveAtSpring = alive;
   SetCombatMode(post.m_Group, EAIGroupCombatMode.FIRE_AT_WILL);
   PrintFormat("[ACR] GUERRILLAS %1 sprung (%2), %3 men", post.m_sName, why, alive);
+  if (cell.m_bHideout) ACR_Insurgency.HideoutFound(post);
  }
 
  // Hit and run: away from the road (or from the house), then packed up once clear (StayOut).
@@ -658,9 +848,10 @@ class ACR_Guerrillas
   {
    PrintFormat("[ACR] GUERRILLAS %1 wiped out", post.m_sName);
    ACR_Defenders.Remove(post);
+   if (cell.m_bHideout) ACR_Insurgency.HideoutDestroyed(post);
    return;
   }
-  if (!fought) return;
+  if (!fought || cell.m_bHideout) return;
   vector site;
   vector old = cell.m_vKillZone;
   cell.m_vKillZone = vector.Zero; // its own old site doesn't crowd the pick
@@ -677,6 +868,7 @@ class ACR_Guerrillas
 
  static string Kind(ACR_GuerrillaCell cell)
  {
+  if (cell.m_bHideout) return "hideout";
   if (cell.m_bHouse) return "house";
   return "ambush";
  }

@@ -4867,7 +4867,9 @@ class ACR_AICommander : Managed
    }
    if (!sweeper)
    {
-    if (road.m_iSweeps >= 2) continue;
+    int most = 2;
+    if (road.m_Hideout) most = 3;
+    if (road.m_iSweeps >= most) continue;
     sweeper = FindSweeper(road.m_vPos);
     if (!sweeper) continue;
     road.m_Sweeper = sweeper;
@@ -4875,7 +4877,9 @@ class ACR_AICommander : Managed
     sweeper.m_iAITask = ACR_EAITask.SWEEP;
     sweeper.SetMode(ACR_EMoveMode.COMBAT);
     Travel(sweeper, road.m_vPos, false, 0);
-    Say(string.Format("[ACR] AI %1: %2 to clear the road at %3 (FIA ambush)", m_sFaction, sweeper.GetName(), ACR_Manager.Grid(road.m_vPos)));
+    string what = "the road at %1 (FIA ambush)";
+    if (road.m_Hideout) what = "the FIA hideout at %1";
+    Say(string.Format("[ACR] AI %1: %2 to clear %3", m_sFaction, sweeper.GetName(), string.Format(what, ACR_Manager.Grid(road.m_vPos))));
     continue;
    }
    if (vector.DistanceXZ(PositionOf(sweeper), road.m_vPos) > 80 || sweeper.KnownEnemies(300) > 0)
@@ -4884,7 +4888,17 @@ class ACR_AICommander : Managed
     continue;
    }
    if (road.m_fQuietSince <= 0) road.m_fQuietSince = now;
-   if (now - road.m_fQuietSince >= ACR_Insurgency.CLEAR_QUIET_MS) cleared.Insert(road);
+   if (now - road.m_fQuietSince < ACR_Insurgency.CLEAR_QUIET_MS) continue;
+   // A hideout is only clear once it is destroyed: a quiet sweeper there is freed, and another
+   // may be sent.
+   if (!road.m_Hideout)
+   {
+    cleared.Insert(road);
+    continue;
+   }
+   sweeper.m_iAITask = ACR_EAITask.FREE;
+   road.m_Sweeper = null;
+   road.m_fQuietSince = 0;
   }
   foreach (ACR_DangerRoad done : cleared) ACR_Insurgency.Clear(done, done.m_Sweeper.GetName() + " found nobody there");
  }
