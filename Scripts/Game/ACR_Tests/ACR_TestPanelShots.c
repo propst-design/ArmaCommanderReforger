@@ -166,12 +166,12 @@ class ACR_TestPanelShots
   int done = after + 47 + PANELS * BACK_TICKS;
   if (tick == done) Shot("panel_6_back");
   RunHints(pc, panel, tick - done - 1);
-  if (tick == done + 50) GetGame().GetMenuManager().CloseMenuByPreset(ChimeraMenuPreset.MapMenu);
-  if (tick == done + 56)
+  if (tick == done + 56) GetGame().GetMenuManager().CloseMenuByPreset(ChimeraMenuPreset.MapMenu);
+  if (tick == done + 62)
   {
    ACR_TestRegress.Check("panelshots: the strip is back after the map", ACR_KeyHints.ShownForTest(), "");
    FileIO.DeleteFile(ACR_UiPrefs.TEST_PREFS);
-   ACR_TestRegress.Complete("panelshots", 53);
+   ACR_TestRegress.Complete("panelshots", 58);
   }
  }
 
@@ -184,14 +184,16 @@ class ACR_TestPanelShots
   {
    float hx, hy, hw, hh;
    ACR_TestRegress.Check("panelshots: a hint shows on the map", ACR_PanelMover.HintRect(hx, hy, hw, hh), ACR_PanelMover.HintPathForTest());
-   ACR_TestRegress.Check("panelshots: the panel at home isn't over the hint", ACR_PanelMover.ClearOfHintForTest(ACR_UiPrefs.PANEL), string.Format("%1", ACR_PanelMover.TopLeftForTest(ACR_UiPrefs.PANEL)));
+   ACR_TestRegress.Check("panelshots: the panel stays at home for a hint", ACR_PanelMover.ShownX(ACR_UiPrefs.PANEL) == ACR_UiPrefs.PANEL_HOME_X && ACR_PanelMover.ShownY(ACR_UiPrefs.PANEL) == ACR_UiPrefs.PANEL_HOME_Y, string.Format("%1, %2", ACR_PanelMover.ShownX(ACR_UiPrefs.PANEL), ACR_PanelMover.ShownY(ACR_UiPrefs.PANEL)));
+   ACR_TestRegress.Check("panelshots: the hint stands beside the panel, not under it", ACR_PanelMover.ClearOfHintForTest(ACR_UiPrefs.PANEL), string.Format("%1", ACR_PanelMover.TopLeftForTest(ACR_UiPrefs.PANEL)));
    ACR_TestRegress.Check("panelshots: the hint's layout is lifted over the panels", ACR_PanelMover.HintLiftedForTest(), ACR_PanelMover.HintPathForTest());
    Shot("panel_7_hint_home");
    SCR_HintManagerComponent.HideHint();
   }
   if (at == 8)
   {
-   ACR_TestRegress.Check("panelshots: the panel is back at home after the hint", ACR_PanelMover.ShownX(ACR_UiPrefs.PANEL) == ACR_UiPrefs.PANEL_HOME_X && ACR_PanelMover.ShownY(ACR_UiPrefs.PANEL) == ACR_UiPrefs.PANEL_HOME_Y, string.Format("%1, %2", ACR_PanelMover.ShownX(ACR_UiPrefs.PANEL), ACR_PanelMover.ShownY(ACR_UiPrefs.PANEL)));
+   ACR_TestRegress.Check("panelshots: the hint's column is back in its place after", ACR_PanelMover.HintShiftForTest() == 0, string.Format("%1", ACR_PanelMover.HintShiftForTest()));
+   ACR_TestRegress.Check("panelshots: the panel is still at home after the hint", ACR_PanelMover.ShownX(ACR_UiPrefs.PANEL) == ACR_UiPrefs.PANEL_HOME_X && ACR_PanelMover.ShownY(ACR_UiPrefs.PANEL) == ACR_UiPrefs.PANEL_HOME_Y, string.Format("%1, %2", ACR_PanelMover.ShownX(ACR_UiPrefs.PANEL), ACR_PanelMover.ShownY(ACR_UiPrefs.PANEL)));
    // The spot from the playtest: dragged to the top right, over the hint.
    ACR_UiPrefs.SetSpot(ACR_UiPrefs.PANEL, -6, 9);
    ShowHint("Alpha 1: fortifying. The same, with the panel on the player's own spot right over the hint box.");
@@ -200,7 +202,8 @@ class ACR_TestPanelShots
   {
    float spotX, spotY;
    ACR_UiPrefs.Spot(ACR_UiPrefs.PANEL, spotX, spotY);
-   ACR_TestRegress.Check("panelshots: a moved panel steps out of the hint's way", ACR_PanelMover.ClearOfHintForTest(ACR_UiPrefs.PANEL), string.Format("%1", ACR_PanelMover.TopLeftForTest(ACR_UiPrefs.PANEL)));
+   ACR_TestRegress.Check("panelshots: a moved panel stays on its spot for a hint", ACR_PanelMover.ShownX(ACR_UiPrefs.PANEL) == -6 && ACR_PanelMover.ShownY(ACR_UiPrefs.PANEL) == 9, string.Format("%1, %2", ACR_PanelMover.ShownX(ACR_UiPrefs.PANEL), ACR_PanelMover.ShownY(ACR_UiPrefs.PANEL)));
+   ACR_TestRegress.Check("panelshots: the hint stands beside a moved panel", ACR_PanelMover.ClearOfHintForTest(ACR_UiPrefs.PANEL), string.Format("%1", ACR_PanelMover.TopLeftForTest(ACR_UiPrefs.PANEL)));
    ACR_TestRegress.Check("panelshots: and the player's spot is unchanged", spotX == -6 && spotY == 9, string.Format("%1, %2", spotX, spotY));
    Shot("panel_8_hint_moved");
    s_bKeysBefore = ACR_UiPrefs.s_bKeyHints;
@@ -224,12 +227,12 @@ class ACR_TestPanelShots
   }
   if (at == 26)
   {
-   ACR_TestRegress.Check("panelshots: INTEL steps aside too", ACR_PanelMover.ClearOfHintForTest(ACR_UiPrefs.FEED), string.Format("%1", ACR_PanelMover.TopLeftForTest(ACR_UiPrefs.FEED)));
+   ACR_TestRegress.Check("panelshots: the hint stands beside INTEL too", ACR_PanelMover.ClearOfHintForTest(ACR_UiPrefs.FEED), string.Format("%1", ACR_PanelMover.TopLeftForTest(ACR_UiPrefs.FEED)));
    SCR_HintManagerComponent.HideHint();
   }
   if (at == 31)
   {
-   ACR_TestRegress.Check("panelshots: and returns", ACR_PanelMover.ShownX(ACR_UiPrefs.FEED) == 1500 && ACR_PanelMover.ShownY(ACR_UiPrefs.FEED) == 100, string.Format("%1, %2", ACR_PanelMover.ShownX(ACR_UiPrefs.FEED), ACR_PanelMover.ShownY(ACR_UiPrefs.FEED)));
+   ACR_TestRegress.Check("panelshots: and INTEL stays there", ACR_PanelMover.ShownX(ACR_UiPrefs.FEED) == 1500 && ACR_PanelMover.ShownY(ACR_UiPrefs.FEED) == 100, string.Format("%1, %2", ACR_PanelMover.ShownX(ACR_UiPrefs.FEED), ACR_PanelMover.ShownY(ACR_UiPrefs.FEED)));
    ACR_UiPrefs.Forget(ACR_UiPrefs.FEED);
    // An armed order: its words beside the panel.
    ACR_SquadsList list = pc.ACR_SquadsListForTest();
@@ -270,6 +273,31 @@ class ACR_TestPanelShots
    ACR_TestRegress.Check("panelshots: and of a panel put where they went", moved >= 0, string.Format("%1", moved));
    Shot("panel_12_radio_moved");
    ACR_UiPrefs.Forget(ACR_UiPrefs.FEED);
+   // A player's row of panels across the top (pn25 playtest): no room left beside them for the lines.
+   ACR_UiPrefs.SetSpot(ACR_UiPrefs.FEED, 76, 0);
+   ACR_UiPrefs.SetSpot(ACR_UiPrefs.SQUADS, 445, 0);
+   ACR_UiPrefs.SetSpot(ACR_UiPrefs.CARD, 900, 0);
+   SCR_ChatPanelManager rowChat = SCR_ChatPanelManager.GetInstance();
+   if (rowChat)
+   {
+    for (int rowLine = 1; rowLine <= 5; rowLine++) rowChat.OnNewMessage(string.Format("[Radio] Alpha 1: contact, %1 infantry, 150 m E of Farm.", rowLine));
+   }
+  }
+  if (at == 49)
+  {
+   float row = ACR_PanelMover.ChatLeftForTest();
+   ACR_TestRegress.Check("panelshots: radio lines stand clear of a row of panels too", row >= 0, string.Format("%1", row));
+   Shot("panel_13_radio_row");
+   ShowHint("AC: Actual: you are already in your command unit. The same, with a row of panels across the top.");
+  }
+  if (at == 52)
+  {
+   ACR_TestRegress.Check("panelshots: the hint stands beside the panel with a row across the top", ACR_PanelMover.ClearOfHintForTest(ACR_UiPrefs.PANEL) && ACR_PanelMover.ClearOfHintForTest(ACR_UiPrefs.CARD), ACR_PanelMover.HintPathForTest());
+   Shot("panel_14_hint_row");
+   SCR_HintManagerComponent.HideHint();
+   ACR_UiPrefs.Forget(ACR_UiPrefs.FEED);
+   ACR_UiPrefs.Forget(ACR_UiPrefs.SQUADS);
+   ACR_UiPrefs.Forget(ACR_UiPrefs.CARD);
   }
  }
 

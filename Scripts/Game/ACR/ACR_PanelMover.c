@@ -7,8 +7,9 @@
 //
 // The game's hints: on the map the hint box sits in the map menu's own HUD layout (MapMenu.layout,
 // HudManagerLayout > Group_Right > Slot_Hints, top right, z 0), a sibling of these panels (z 1000), so a
-// panel over it hid it. While a hint shows its layout is lifted over them all, and every panel it
-// overlaps stands clear of it (ACR_UiPrefs.StepAside) and returns after: the spot is never written.
+// panel over it hid it. While a hint shows its layout is lifted over them all, and its column steps left of
+// any panel in the way (ClearHint). The panels stay put: one that moved for a hint landed on the next panel
+// (pn25 playtest).
 
 // Where the game's hint box is while it shows.
 modded class SCR_HintUIComponent
@@ -133,6 +134,9 @@ class ACR_PanelMover
  protected static float s_fHintH;
  protected static Widget s_HintLayer;         // what is lifted for it, and its own z order
  protected static int s_iHintLayerZ;
+ protected static const float HINT_COLUMN_LEFT = 1320; // Group_Right's own left offset in the layout
+ protected static Widget s_HintColumn;        // Group_Right, and how far left of its place it stands
+ protected static float s_fHintShift;
 
  static Color BarColor(bool lit)
  {
@@ -180,7 +184,11 @@ class ACR_PanelMover
   if (!slot) return;
   if (s_Drag == slot) s_Drag = null;
   s_aSlots.RemoveItem(slot);
-  if (s_aSlots.IsEmpty()) LiftHint(null);
+  if (s_aSlots.IsEmpty())
+  {
+   LiftHint(null);
+   ShiftHintColumn(0);
+  }
  }
 
  // Where it stands by itself: followed each frame if it follows something.
@@ -375,19 +383,6 @@ class ACR_PanelMover
    float screenH = ws.DPIUnscale(ws.GetHeight());
    x = ACR_UiPrefs.ClampX(x, slot.m_fAnchorX, screenW, width);
    y = ACR_UiPrefs.FitY(y, slot.m_fAnchorY, screenH, height);
-   // Out of a hint's way, unless the player is holding it. From its own spot each frame, so it goes
-   // back by itself when the hint does.
-   if (s_bHint && slot != s_Drag && width > 0 && height > 0)
-   {
-    float left = ACR_UiPrefs.ToEdge(x, slot.m_fAnchorX, screenW, width);
-    float top = ACR_UiPrefs.ToEdge(y, slot.m_fAnchorY, screenH, height);
-    float toLeft, toTop;
-    if (ACR_UiPrefs.StepAside(left, top, width, height, s_fHintX, s_fHintY, s_fHintW, s_fHintH, screenW, screenH, toLeft, toTop))
-    {
-     x = ACR_UiPrefs.FromEdge(toLeft, slot.m_fAnchorX, screenW, width);
-     y = ACR_UiPrefs.FromEdge(toTop, slot.m_fAnchorY, screenH, height);
-    }
-   }
   }
   slot.SetPos(x, y);
  }
@@ -418,6 +413,59 @@ class ACR_PanelMover
   }
  }
 
+ // The hint's column stands left of whatever panel is in the way, worked out from the screen's edge each
+ // frame, so it comes back when the hint goes. A panel being dragged doesn't count until it's put down.
+ protected static void ClearHint(Widget hint)
+ {
+  Widget column = hint;
+  while (column && column.GetName() != "Group_Right") column = column.GetParent();
+  if (!column)
+  {
+   ShiftHintColumn(0);
+   return;
+  }
+  // A map opened again has a new column, in its own place.
+  if (column != s_HintColumn) s_fHintShift = 0;
+  s_HintColumn = column;
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  float columnX, columnY, columnW, columnH;
+  column.GetScreenPos(columnX, columnY);
+  column.GetScreenSize(columnW, columnH);
+  // What the box keeps from the column's right edge: both read now, so the layout's lag behind a shift doesn't count.
+  float margin = ws.DPIUnscale(columnX + columnW) - (s_fHintX + s_fHintW);
+  float home = ws.DPIUnscale(ws.GetWidth()) - margin - s_fHintW;
+  float left = home;
+  // Until it stops moving: stepping past one panel can land on another.
+  bool moved = true;
+  for (int pass = 0; moved && pass <= s_aSlots.Count(); pass++)
+  {
+   moved = false;
+   foreach (ACR_PanelSlot slot : s_aSlots)
+   {
+    Widget box = slot.Box();
+    if (!box || slot == s_Drag) continue;
+    float x, y, w, h;
+    box.GetScreenPos(x, y);
+    box.GetScreenSize(w, h);
+    x = ws.DPIUnscale(x);
+    y = ws.DPIUnscale(y);
+    w = ws.DPIUnscale(w);
+    h = ws.DPIUnscale(h);
+    if (w <= 0 || h <= 0 || !ACR_UiPrefs.Overlap(left, s_fHintY, s_fHintW, s_fHintH, x, y, w, h)) continue;
+    left = x - ACR_UiPrefs.STEP_GAP - s_fHintW;
+    moved = true;
+   }
+  }
+  ShiftHintColumn(Math.Max(home - Math.Max(left, 0), 0));
+ }
+
+ protected static void ShiftHintColumn(float shift)
+ {
+  if (!s_HintColumn || Math.AbsFloat(shift - s_fHintShift) < 1) return;
+  s_fHintShift = shift;
+  FrameSlot.SetOffsets(s_HintColumn, HINT_COLUMN_LEFT - shift, 0, shift, 0);
+ }
+
  // A hint's rectangle while one shows (unscaled px).
  static bool HintRect(out float x, out float y, out float w, out float h)
  {
@@ -434,7 +482,10 @@ class ACR_PanelMover
  protected static const float CHAT_WIDTH = 480;  // what its lines take (the longest seen, 452); its slot is 600 wide
  protected static const float CHAT_RIGHT = 1320; // the group's own right offset in the layout
  protected static const float CHAT_GAP = 12;
+ protected static const float CHAT_TOOLBAR = 84; // the map's own tool buttons, on the left below the top row
+ protected static const float CHAT_HEIGHT = 170; // what five lines take: they run on past their slot, which may measure less
  protected static float s_fChatLeft;
+ protected static float s_fChatTop;
 
  protected static Widget ChatSlot()
  {
@@ -449,15 +500,52 @@ class ACR_PanelMover
   Widget chat = ChatSlot();
   if (!chat || !chat.GetParent()) return;
   WorkspaceWidget ws = GetGame().GetWorkspace();
-  float chatX, top, chatW, chatH;
-  chat.GetScreenPos(chatX, top);
+  float chatW, chatH;
   chat.GetScreenSize(chatW, chatH);
-  top = ws.DPIUnscale(top);
-  float height = ws.DPIUnscale(chatH);
-  float left = 0;
-  // Twice: stepping past one panel can land on the next.
-  for (int pass = 0; pass < 2; pass++)
+  float height = Math.Max(ws.DPIUnscale(chatH), CHAT_HEIGHT);
+  float screenW = ws.DPIUnscale(ws.GetWidth());
+  float screenH = ws.DPIUnscale(ws.GetHeight());
+  // Along the top if there's room past the panels; if they fill the row, under the first panels that leave
+  // room (pn25 playtest: four panels across the top left the lines under the command panel).
+  array<float> tops = {0};
+  foreach (ACR_PanelSlot under : s_aSlots)
   {
+   Widget box = under.Box();
+   if (!box) continue;
+   float boxX, boxY, boxW, boxH;
+   box.GetScreenPos(boxX, boxY);
+   box.GetScreenSize(boxW, boxH);
+   if (boxW > 0 && boxH > 0) tops.Insert(ws.DPIUnscale(boxY + boxH) + CHAT_GAP);
+  }
+  tops.Sort();
+  float left = screenW - CHAT_WIDTH;
+  float top = 0;
+  foreach (float tried : tops)
+  {
+   if (tried + height > screenH) continue;
+   float from = 0;
+   if (tried > 0) from = CHAT_TOOLBAR;
+   float fits = ChatFits(from, tried, height);
+   if (fits + CHAT_WIDTH > screenW) continue;
+   left = fits;
+   top = tried;
+   break;
+  }
+  if (Math.AbsFloat(left - s_fChatLeft) < 1 && Math.AbsFloat(top - s_fChatTop) < 1) return;
+  s_fChatLeft = left;
+  s_fChatTop = top;
+  FrameSlot.SetOffsets(chat.GetParent(), left, top, CHAT_RIGHT - left, 0);
+ }
+
+ // The lines' left edge at this height: past every panel in their way.
+ protected static float ChatFits(float left, float top, float height)
+ {
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  // Until it stops moving: stepping past one panel can land on another.
+  bool moved = true;
+  for (int pass = 0; moved && pass <= s_aSlots.Count(); pass++)
+  {
+   moved = false;
    foreach (ACR_PanelSlot slot : s_aSlots)
    {
     Widget box = slot.Box();
@@ -469,13 +557,12 @@ class ACR_PanelMover
     y = ws.DPIUnscale(y);
     w = ws.DPIUnscale(w);
     h = ws.DPIUnscale(h);
-    if (w > 0 && h > 0 && ACR_UiPrefs.Overlap(left, top, CHAT_WIDTH, height, x, y, w, h)) left = x + w + CHAT_GAP;
+    if (w <= 0 || h <= 0 || !ACR_UiPrefs.Overlap(left, top, CHAT_WIDTH, height, x, y, w, h)) continue;
+    left = x + w + CHAT_GAP;
+    moved = true;
    }
   }
-  left = Math.Min(left, ws.DPIUnscale(ws.GetWidth()) - CHAT_WIDTH);
-  if (Math.AbsFloat(left - s_fChatLeft) < 1) return;
-  s_fChatLeft = left;
-  FrameSlot.SetOffsets(chat.GetParent(), left, 0, CHAT_RIGHT - left, 0);
+  return left;
  }
 
  // Every frame the map is open (ACR_CommandPanel.TickDrag).
@@ -492,6 +579,7 @@ class ACR_PanelMover
   s_fHintH = ws.DPIUnscale(h);
   LiftHint(hint);
   foreach (ACR_PanelSlot slot : s_aSlots) Place(slot);
+  ClearHint(hint);
   ClearChat();
  }
 
@@ -547,6 +635,7 @@ class ACR_PanelMover
  }
 
  static bool HintLiftedForTest() { return s_HintLayer && s_HintLayer.GetZOrder() == HINT_Z; }
+ static float HintShiftForTest() { return s_fHintShift; }
 
  // The chat lines' column clear of every panel: where it stands, -1 not clear, -2 no chat slot.
  static float ChatLeftForTest()
@@ -565,7 +654,7 @@ class ACR_PanelMover
    float x, y, w, h;
    box.GetScreenPos(x, y);
    box.GetScreenSize(w, h);
-   if (w > 0 && h > 0 && ACR_UiPrefs.Overlap(left, ws.DPIUnscale(top), CHAT_WIDTH, ws.DPIUnscale(chatH), ws.DPIUnscale(x), ws.DPIUnscale(y), ws.DPIUnscale(w), ws.DPIUnscale(h))) return -1;
+   if (w > 0 && h > 0 && ACR_UiPrefs.Overlap(left, ws.DPIUnscale(top), CHAT_WIDTH, Math.Max(ws.DPIUnscale(chatH), CHAT_HEIGHT), ws.DPIUnscale(x), ws.DPIUnscale(y), ws.DPIUnscale(w), ws.DPIUnscale(h))) return -1;
   }
   return left;
  }
