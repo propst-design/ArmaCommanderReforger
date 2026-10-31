@@ -60,6 +60,7 @@ pads|-acrPadsTest 1|130|Worlds/ACR_Arland.ent
 helipad|-acrHelipadTest 1|280
 garrison|-acrGarrisonTest 1|220
 garrisonoffice|-acrGarrisonOfficeTest 1|220
+garrisonstuck|-acrGarrisonStuckTest 1|220
 bbbmedic|-acrBbbMedicTest 1|1800
 bbbmedicroad|-acrBbbMedicRoadTest 1|1800
 structures|-acrStructuresTest 1|160

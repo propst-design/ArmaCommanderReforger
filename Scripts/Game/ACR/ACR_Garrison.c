@@ -276,6 +276,7 @@ class ACR_Garrison
   SCR_AIGroupUtilityComponent utility = SCR_AIGroupUtilityComponent.Cast(group.FindComponent(SCR_AIGroupUtilityComponent));
   if (!utility) return;
   AIActionBase activity = utility.GetCurrentAction();
+  if (SCR_AIMoveActivity.Cast(activity)) { TakeInStragglers(group, waypoint); return; }
   if (!SCR_AIDefendActivity.Cast(activity) && !SCR_AIIdleActivity.Cast(activity)) return; // still on the way, or fighting
   // In a fight soldiers leave their posts to shoot (the game's attack outranks them):
   // that's no sign a post can't be reached, so nothing is counted then.
@@ -371,6 +372,51 @@ class ACR_Garrison
   PrintFormat("[ACR] GARRISON %1: %2 posts nobody could reach dropped, %3 replacements (%4 handed out)", group.GetCustomName(), dropped.Count(), chosen.Count(), handed);
   // The defend activity is over (everyone's post failed at once): start it afresh.
   if (!SCR_AIDefendActivity.Cast(activity)) waypoint.GetOnWaypointPropertiesChanged().Invoke();
+ }
+
+ // The game hands out the posts only once every soldier is inside the waypoint's radius: one man
+ // jammed on the way (a fence, a doorway) kept the whole squad milling about outside with no posts
+ // (srv:garrisonoffice, 30 Oct: one man 25 m out for 40 s, 3 of 9 on posts). A man outside it who
+ // hasn't moved for STRAGGLER_LIMIT s is taken in by widening the radius to him; WatchPosts
+ // tightens it again once the defend activity runs.
+ static const int STRAGGLER_LIMIT = 8;
+ static const float STRAGGLER_REACH = 60;
+ protected static ref map<IEntity, vector> s_StragglerAt = new map<IEntity, vector>();
+ protected static ref map<IEntity, int> s_StragglerFor = new map<IEntity, int>();
+ static int s_iWidened; // tests
+
+ protected static void TakeInStragglers(SCR_AIGroup group, SCR_DefendWaypoint waypoint)
+ {
+  array<AIAgent> agents = {};
+  group.GetAgents(agents);
+  float radius = waypoint.GetCompletionRadius();
+  float wanted = radius;
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (!body) continue;
+   float gap = vector.DistanceXZ(body.GetOrigin(), waypoint.GetOrigin());
+   if (gap <= radius)
+   {
+    s_StragglerAt.Remove(body);
+    s_StragglerFor.Remove(body);
+    continue;
+   }
+   vector was;
+   int still;
+   if (s_StragglerAt.Find(body, was) && vector.Distance(body.GetOrigin(), was) < 0.5)
+   {
+    s_StragglerFor.Find(body, still);
+    still++;
+   }
+   else s_StragglerAt.Set(body, body.GetOrigin());
+   s_StragglerFor.Set(body, still);
+   if (still >= STRAGGLER_LIMIT && gap < STRAGGLER_REACH) wanted = Math.Max(wanted, gap + 2);
+  }
+  if (wanted <= radius) return;
+  waypoint.SetCompletionRadius(wanted);
+  s_iWidened++;
+  PrintFormat("[ACR] GARRISON %1: a man stuck %2 m out, radius widened to take him in", group.GetCustomName(), Math.Round(wanted - 2));
  }
 
  // A new post to one soldier who has none, the way the game's defend activity hands
