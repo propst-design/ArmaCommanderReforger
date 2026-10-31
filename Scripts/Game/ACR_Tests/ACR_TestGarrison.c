@@ -13,6 +13,8 @@ class ACR_TestGarrison
  static SCR_AIGroup s_Enemy;
  static SCR_AIGroup s_Group;  // the squad garrisoning
  static bool s_bOffice;       // -acrGarrisonOfficeTest
+ static bool s_bStuck;        // -acrGarrisonStuckTest: the office, one soldier frozen on the way in (#128)
+ static AIAgent s_Frozen;
 
  static ResourceName RifleSquadOf(ACR_Manager manager, string key)
  {
@@ -203,8 +205,37 @@ class ACR_TestGarrison
     PrintFormat("[ACR] GARRISON TEST   post %1 facing %2 (%3)", op.GetOrigin(), op.GetTransformAxis(2), op.GetPrefabData().GetPrefabName());
    }
   }
+  // -acrGarrisonStuckTest: the man farthest from the office stops dead on the way in (as one jammed
+  // at a fence does); the game hands out no posts until everyone is inside the waypoint's radius.
+  if (s_bStuck && tick == 14)
+  {
+   array<AIAgent> walkers = {};
+   sq.GetAgents(walkers);
+   float farthest = -1;
+   foreach (AIAgent walker : walkers)
+   {
+    if (walker == s_Group.GetLeaderAgent() || !walker.GetControlledEntity()) continue;
+    float away = vector.DistanceXZ(walker.GetControlledEntity().GetOrigin(), s_Building.GetOrigin());
+    if (away > farthest) { farthest = away; s_Frozen = walker; }
+   }
+   if (s_Frozen) s_Frozen.DeactivateAI();
+   PrintFormat("[ACR] GARRISON TEST stuck: froze a man %1 m from the office", Math.Round(farthest));
+  }
+  if (s_bStuck && tick == 60)
+  {
+   array<IEntity> handed = {};
+   ACR_Garrison.PostEntities(s_Group, handed);
+   int taken;
+   foreach (IEntity hp : handed)
+   {
+    AISmartActionComponent ha = AISmartActionComponent.Cast(hp.FindComponent(AISmartActionComponent));
+    if (ha && ha.GetUser()) taken++;
+   }
+   ACR_TestRegress.Check("garrison: a stuck man doesn't hold the posts back", ACR_Garrison.s_iWidened > 0 && taken >= s_iWanted - 1, string.Format("radius widened %1 times, %2 of %3 posts taken", ACR_Garrison.s_iWidened, taken, s_iWanted));
+   if (s_Frozen) s_Frozen.ActivateAI();
+  }
   // Under fire: a Soviet fire team 140 m out where the first post looks. Do they stay in?
-  if (tick == 60)
+  if (tick == 70)
   {
    array<IEntity> lookPosts = {};
    ACR_Garrison.PostEntities(s_Group, lookPosts);
@@ -233,7 +264,7 @@ class ACR_TestGarrison
    s_Enemy = enemy;
   }
   // ...and it walks at the house, so there is a fight to hold through.
-  if (tick == 63 && s_Enemy)
+  if (tick == 73 && s_Enemy)
   {
    ACR_Squad attackers = manager.FindSquadByGroup(s_Enemy);
    if (attackers) attackers.MoveTo(ACR_Manager.Ground(s_Building.GetOrigin()));
@@ -281,9 +312,9 @@ class ACR_TestGarrison
     string doing = "?";
     SCR_ChimeraAIAgent chimera = SCR_ChimeraAIAgent.Cast(agent);
     if (chimera && chimera.m_UtilityComponent && chimera.m_UtilityComponent.GetCurrentBehavior()) doing = chimera.m_UtilityComponent.GetCurrentBehavior().ClassName();
-    where += string.Format(" %1 m (%2, y %3)", (int)nearest, doing, body.GetOrigin()[1]);
+    where += string.Format(" %1 m (%2, y %3)", Math.Round(nearest * 10) / 10, doing, body.GetOrigin()[1]);
    }
-   if (tick < 60) s_iBestOnPost = Math.Max(s_iBestOnPost, onPost);
+   if (tick < 70) s_iBestOnPost = Math.Max(s_iBestOnPost, onPost);
    if (tick == 120)
    {
     // holding = still at the building (inside the tightened waypoint radius + 3 m)
@@ -295,7 +326,7 @@ class ACR_TestGarrison
     }
     s_iAliveUnderFire = sq.CountAlive();
    }
-   if (tick > 60 && sq.KnownEnemies(350) > 0) s_bContact = true;
+   if (tick > 70 && sq.KnownEnemies(350) > 0) s_bContact = true;
    float rounds;
    foreach (AIAgent counted : agents) if (counted.GetControlledEntity()) rounds += ACR_Logistics.SoldierMagazines(counted.GetControlledEntity());
    PrintFormat("[ACR] GARRISON TEST t=%1: %2/%3 on a post, %4 inside the first building, %5 posts in use, order '%6', enemies known %7, magazines %8, post distances:%9", tick, onPost, agents.Count(), inside, used, sq.m_Order, sq.KnownEnemies(350), rounds, where);

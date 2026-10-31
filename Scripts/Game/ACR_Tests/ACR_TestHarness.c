@@ -224,6 +224,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrHelipadTest", flag)) mode = MODE_HELIPAD;
   if (System.GetCLIParam("acrGarrisonTest", flag)) mode = MODE_GARRISON;
   if (System.GetCLIParam("acrGarrisonOfficeTest", flag)) { mode = MODE_GARRISON; ACR_TestGarrison.s_bOffice = true; }
+  if (System.GetCLIParam("acrGarrisonStuckTest", flag)) { mode = MODE_GARRISON; ACR_TestGarrison.s_bOffice = true; ACR_TestGarrison.s_bStuck = true; }
   if (System.GetCLIParam("acrStructuresTest", flag)) mode = MODE_STRUCTURES;
   if (System.GetCLIParam("acrCrewTest", flag) || System.GetCLIParam("acrCrewOldTest", flag)) mode = MODE_CREW;
   if (System.GetCLIParam("acrGetOutTest", flag) || System.GetCLIParam("acrGetOutOldTest", flag)) mode = MODE_GETOUT;
