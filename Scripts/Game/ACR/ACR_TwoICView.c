@@ -165,6 +165,8 @@ class ACR_TwoICView : Managed
    // INTEL goes just below it while it shows.
    m_CardRoot.SetZOrder(1001);
    m_CardRoot.SetName(CARD_NAME);
+   ACR_PanelMover.Add(ACR_UiPrefs.CARD, m_CardRoot, 0, 0, LEFT, TOP);
+   ACR_PanelMover.Body(ACR_UiPrefs.CARD, m_CardRoot);
   }
   CreateCompact(box);
   CreateFull(box);
@@ -333,6 +335,8 @@ class ACR_TwoICView : Managed
  protected void CreateChannel(Widget parent)
  {
   Widget channel = Place(parent, ACR_TwoICStyle.PanelBox(parent, CHANNEL_WIDTH - 32, 16, 12, m_ChannelRoot), 1, BOTTOM);
+  ACR_PanelMover.Add(ACR_UiPrefs.CHANNEL, m_ChannelRoot, 0, 1, LEFT, BOTTOM);
+  ACR_PanelMover.Body(ACR_UiPrefs.CHANNEL, m_ChannelRoot);
   Widget header = ACR_TwoICStyle.Row(channel);
   TextWidget heading = ACR_TwoICStyle.Text(header, "2IC CHANNEL", ACR_TwoICStyle.Accent(), 20, true);
   AlignableSlot.SetVerticalAlign(heading, LayoutVerticalAlign.Center);
@@ -940,6 +944,8 @@ class ACR_TwoICView : Managed
 
  void Destroy()
  {
+  ACR_PanelMover.Remove(ACR_UiPrefs.CARD);
+  ACR_PanelMover.Remove(ACR_UiPrefs.CHANNEL);
   array<Widget> roots = {m_CardRoot, m_ChannelRoot, m_AskRoot, m_FobHereRoot, m_EstablishRoot, m_SuggestRoot, m_SiteCardRoot, m_BadgeText};
   foreach (Widget site : m_SiteRoots) roots.Insert(site);
   foreach (Widget pill : m_RingPills) roots.Insert(pill);
@@ -1405,18 +1411,18 @@ class ACR_TwoICView : Managed
   return height;
  }
 
- // The channel sits above the debug panel when that shows.
+ // The channel sits above the debug panel when that shows where it stands by itself.
  void PlaceChannel(Widget debugRoot)
  {
   if (!m_ChannelRoot) return;
   float bottom = BOTTOM;
-  if (debugRoot && debugRoot.IsVisible())
+  if (debugRoot && debugRoot.IsVisible() && !ACR_UiPrefs.Moved(ACR_UiPrefs.DEBUG_BOX))
   {
    float w, h;
    debugRoot.GetScreenSize(w, h);
    bottom -= GetGame().GetWorkspace().DPIUnscale(h) + GAP;
   }
-  FrameSlot.SetPos(m_ChannelRoot, LEFT, bottom);
+  ACR_PanelMover.Natural(ACR_UiPrefs.CHANNEL, LEFT, bottom);
  }
 
  bool Contains(Widget widget)
@@ -2116,7 +2122,7 @@ modded class SCR_PlayerController
    m_ACR_TwoICPanel.SetData(m_ACR_TwoICSquadIds, m_ACR_TwoICSquadNames, m_ACR_TwoICWheres, m_ACR_TwoICDoings, m_ACR_TwoICRunBys, m_ACR_TwoICSquadFlags, m_ACR_TwoICFobs, m_ACR_TwoICFobFlags, m_ACR_TwoICShare, m_ACR_TwoICSmall, reserve, reserveMax, m_ACR_IsCommander, myName);
   }
   float feedTop = ACR_TwoICView.TOP;
-  if (shown) feedTop += m_ACR_TwoICView.CardHeight() + ACR_TwoICView.GAP;
+  if (shown && !ACR_UiPrefs.Moved(ACR_UiPrefs.CARD)) feedTop += m_ACR_TwoICView.CardHeight() + ACR_TwoICView.GAP;
   m_ACR_Panel.SetFeedTop(feedTop);
  }
 

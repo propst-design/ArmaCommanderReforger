@@ -4,21 +4,24 @@
 // down; the selected ones marked. A row selects its squad (Shift adds it, as Shift + a marker
 // click); Show also sends the map there (as the 2IC panel's Show); hovering a row rings where the
 // squad stands. The search box above the rows keeps only the squads whose name or kind has what
-// was typed in it ("2nd", "mortar"). The header folds the list away to one line, and back; zoomed
-// right out it folds by itself, as INTEL and the ACA panel do (a click on it opens it there). A long
-// list scrolls. (SCR_PlayerController in ACR_PlayerMapSquads fills it.)
+// was typed in it ("2nd", "mortar"). The button in its title bar folds the list away to one line, and
+// back; zoomed right out it folds by itself, as INTEL and the ACA panel do (that button opens it there).
+// The title bar drags the list (ACR_PanelMover). A long list scrolls. (SCR_PlayerController in
+// ACR_PlayerMapSquads fills it.)
 class ACR_SquadsList : Managed
 {
  static const ResourceName SEARCH_LAYOUT = "{67B4F07635959DC7}UI/layouts/WidgetLibrary/EditBox/WLib_EditBoxSearch.layout";
  static const float WIDTH = 420;
  static const float ROW_HEIGHT = 34;
  static const float SHOW_WIDTH = 64;
+ static const float FOLD_WIDTH = 64;
  static const int NAME_CHARS = 22;  // a longer name is cut short to fit the row
  static bool s_bFolded;             // the player folded it (kept while the game runs)
 
  Widget m_Root;
  protected SCR_PlayerController m_Owner;
- protected SCR_ButtonTextComponent m_Header;
+ protected TextWidget m_Title;
+ protected SCR_ButtonTextComponent m_Fold;
  protected Widget m_Body;
  protected EditBoxWidget m_Search;
  protected SizeLayoutWidget m_ListBox;
@@ -44,8 +47,18 @@ class ACR_SquadsList : Managed
   FrameSlot.SetAlignment(m_Root, 0, 0);
   FrameSlot.SetSizeToContent(m_Root, true);
   m_Root.SetZOrder(1000);
-  m_Header = ACR_TwoICStyle.Button(column, "SQUADS", ACR_TwoICStyle.BUTTON_MENU, WIDTH - 16, 16, 30);
-  if (m_Header) m_Header.m_OnClicked.Insert(OnHeader);
+  // The title and the fold button; the title bar over all but the button (RegisterPanel).
+  Widget header = ACR_TwoICStyle.Row(column);
+  AlignableSlot.SetHorizontalAlign(header, LayoutHorizontalAlign.Stretch);
+  m_Title = ACR_TwoICStyle.Text(header, "SQUADS", ACR_TwoICStyle.White(), 16);
+  if (m_Title)
+  {
+   ACR_TwoICStyle.Grow(m_Title);
+   AlignableSlot.SetVerticalAlign(m_Title, LayoutVerticalAlign.Center);
+   AlignableSlot.SetPadding(m_Title, 8, 0, 0, 0);
+  }
+  m_Fold = ACR_TwoICStyle.Button(header, "Hide", ACR_TwoICStyle.BUTTON_QUIET, FOLD_WIDTH, 15, 30);
+  if (m_Fold) m_Fold.m_OnClicked.Insert(OnFold);
   m_Body = ACR_TwoICStyle.Column(column);
   AlignableSlot.SetHorizontalAlign(m_Body, LayoutHorizontalAlign.Stretch);
   // The search box (the game's own, as the server browser's).
@@ -75,6 +88,9 @@ class ACR_SquadsList : Managed
   AlignableSlot.SetHorizontalAlign(m_List, LayoutHorizontalAlign.Stretch);
   AlignableSlot.SetVerticalAlign(m_List, LayoutVerticalAlign.Top);
   m_Body.SetVisible(!Folded());
+  ACR_PanelMover.Add(ACR_UiPrefs.SQUADS, m_Root, 0, 0, ACR_UiPrefs.FEED_HOME_X, ACR_UiPrefs.FEED_HOME_Y);
+  ACR_PanelMover.Grip(ACR_UiPrefs.SQUADS, m_Root);
+  ACR_PanelMover.TitleBar(ACR_UiPrefs.SQUADS, m_Root, 36, FOLD_WIDTH + 8);
  }
 
  bool Folded()
@@ -153,11 +169,15 @@ class ACR_SquadsList : Managed
   m_iTotal = total;
   string header = string.Format("SQUADS  ·  %1", total);
   if (ids.Count() < total) header = string.Format("SQUADS  ·  %1 of %2", ids.Count(), total);
-  if (Folded()) header += "   (show)";
-  if (header != m_sHeader && m_Header)
+  if (header != m_sHeader && m_Title)
   {
    m_sHeader = header;
-   m_Header.SetText(header);
+   m_Title.SetText(header);
+  }
+  if (m_Fold)
+  {
+   if (Folded()) m_Fold.SetText("Show");
+   else m_Fold.SetText("Hide");
   }
   if (Folded()) return;
   bool same = ids.Count() == m_Ids.Count();
@@ -235,7 +255,7 @@ class ACR_SquadsList : Managed
 
  void Place(float x, float y)
  {
-  if (m_Root) FrameSlot.SetPos(m_Root, x, y);
+  ACR_PanelMover.Natural(ACR_UiPrefs.SQUADS, x, y);
  }
 
  void SetVisible(bool visible)
@@ -256,6 +276,7 @@ class ACR_SquadsList : Managed
  void Destroy()
  {
   if (m_Owner) m_Owner.ACR_SquadPickerHover(RplId.Invalid());
+  ACR_PanelMover.Remove(ACR_UiPrefs.SQUADS);
   if (m_Root) m_Root.RemoveFromHierarchy();
   m_Root = null;
  }
@@ -296,7 +317,7 @@ class ACR_SquadsList : Managed
  }
  bool FoldedForTest() { return Folded(); }
 
- protected void OnHeader(SCR_ButtonBaseComponent button)
+ protected void OnFold(SCR_ButtonBaseComponent button)
  {
   if (m_bFar) m_bFarOpen = !m_bFarOpen;
   else s_bFolded = !s_bFolded;

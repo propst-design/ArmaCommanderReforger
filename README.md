@@ -137,6 +137,8 @@ Open with M or F9:
 | W/A/S/D in a turret | Gunner drive with an AI driver (a map order hands control back) |
 | Command menu key (default: backtick) | Native squad orders, only while possessing a squad leader |
 
+The ACA panel and INTEL's header can be dragged anywhere on the map (double click: back home). Off the map the keys show along the top of the screen; **Key reminders** on the ACA panel hides them.
+
 F7 only takes over living soldiers in your side's commandable squads, never another player's soldier
 or command unit. Keys can be rebound under **Settings > Controls > AC: Actual**. PC keyboard/mouse
 is the tested control scheme; console/controller play remains unverified.

@@ -22,13 +22,14 @@ modded class ACR_CommandPanel
   return bottom;
  }
 
- // The left edge and bottom of the ACA panel docked top right (or its bar when folded), unscaled
- // px; false when neither shows.
- bool ACR_RightBox(out float left, out float bottom)
+ // The left and right edges and the bottom of the ACA panel (or its bar when folded), unscaled px;
+ // false when neither shows.
+ bool ACR_RightBox(out float left, out float right, out float bottom)
  {
   WorkspaceWidget ws = GetGame().GetWorkspace();
   bool any;
   left = ws.DPIUnscale(ws.GetWidth());
+  right = 0;
   bottom = 0;
   array<Widget> boxes = {m_Root, m_DeclAcaBar};
   foreach (Widget box : boxes)
@@ -40,6 +41,7 @@ modded class ACR_CommandPanel
    if (w <= 0 || h <= 0) continue;
    any = true;
    left = Math.Min(left, ws.DPIUnscale(x));
+   right = Math.Max(right, ws.DPIUnscale(x + w));
    bottom = Math.Max(bottom, ws.DPIUnscale(y + h));
   }
   return any;
@@ -118,7 +120,7 @@ modded class SCR_PlayerController
  // The bottom right corner: the legend (its marks) at the bottom, the layer switches above it. A
  // tall ACA panel (a squad selected: its orders, roadblocks, mines, Fortify) reaches down into that
  // corner (pn14: the switches sat over its hint line and hid the legend), so then both stand left
- // of it instead.
+ // of it instead. Layer switches the player has put elsewhere (ACR_PanelMover) take the legend along.
  static const float CORNER_MARGIN = 24;
  static const float CORNER_GAP = 12;
  protected void ACR_PlaceCorner()
@@ -140,10 +142,21 @@ modded class SCR_PlayerController
    barW = ws.DPIUnscale(barW);
    barH = ws.DPIUnscale(barH);
   }
+  if (m_ACR_LayerBar && ACR_UiPrefs.Moved(ACR_UiPrefs.LAYERS))
+  {
+   float shownX = ACR_PanelMover.ShownX(ACR_UiPrefs.LAYERS);
+   float shownY = ACR_PanelMover.ShownY(ACR_UiPrefs.LAYERS);
+   // Under the switches, or over them when that runs off the screen.
+   float legendY = shownY + 6 + legendH;
+   if (legendY > -6) legendY = shownY - barH - 6;
+   if (legend) FrameSlot.SetPos(m_wDeclLegend, shownX, legendY);
+   return;
+  }
   float stackTop = screenH - CORNER_MARGIN - legendH - 6 - barH;
   float right = CORNER_MARGIN;
-  float panelLeft, panelBottom;
-  if (m_ACR_Panel && m_ACR_Panel.ACR_RightBox(panelLeft, panelBottom) && panelBottom > stackTop - CORNER_GAP && panelLeft < screenW - CORNER_MARGIN)
+  float panelLeft, panelRight, panelBottom;
+  float stackLeft = screenW - CORNER_MARGIN - Math.Max(legendW, barW);
+  if (m_ACR_Panel && m_ACR_Panel.ACR_RightBox(panelLeft, panelRight, panelBottom) && panelBottom > stackTop - CORNER_GAP && panelRight > stackLeft && panelLeft < screenW - CORNER_MARGIN)
    right = screenW - panelLeft + CORNER_GAP;
   m_fACR_CornerRight = right;
   if (legend) FrameSlot.SetPos(m_wDeclLegend, -right, -CORNER_MARGIN);
@@ -197,18 +210,21 @@ modded class SCR_PlayerController
    InputManager input = GetGame().GetInputManager();
    if (input) input.ActivateContext("ACR_SquadSearchContext");
   }
-  // Under INTEL, clear of the debug box at the bottom.
+  // Under INTEL, wherever that stands, until the player puts the list somewhere of its own (a
+  // double click on its title brings it back under INTEL). Clear of a debug box below it.
   WorkspaceWidget ws = GetGame().GetWorkspace();
   float top = Math.Max(96, m_ACR_Panel.ACR_LeftBottom() + 10);
+  m_ACR_SquadsList.Place(ACR_PanelMover.ShownX(ACR_UiPrefs.FEED), top);
+  float spotX, spotY;
+  if (ACR_UiPrefs.Spot(ACR_UiPrefs.SQUADS, spotX, spotY)) top = spotY;
   float floor = ws.DPIUnscale(ws.GetHeight()) - 24;
   Widget debugBox = m_ACR_Panel.DebugRoot();
   if (debugBox && debugBox.IsVisible())
   {
    float dx, dy;
    debugBox.GetScreenPos(dx, dy);
-   floor = Math.Min(floor, ws.DPIUnscale(dy) - 10);
+   if (ws.DPIUnscale(dy) > top) floor = Math.Min(floor, ws.DPIUnscale(dy) - 10);
   }
-  m_ACR_SquadsList.Place(110, top);
   m_ACR_SquadsList.SetFar(m_ACR_Panel.DeclIntelCollapsed());
   int now = System.GetTickCount();
   if (now - m_iACR_SquadsListAt < SQUADS_LIST_MS) return;

@@ -1391,6 +1391,12 @@ class ACR_Manager : Managed
   m_WasMovementActive = movementActive;
   m_WasMapOpen = mapOpen;
   pc.ACR_UpdateMap();
+  if (input.GetActionTriggered("ACR_KeyHints"))
+  {
+   ACR_KeyHints.Toggle();
+   pc.ACR_RefreshKeyHintsButton();
+  }
+  ACR_KeyHints.Update(pc.ACR_IsCommanderForHints(), mapOpen, localBody);
   // Gunner drives: WASD in a turret steers the AI driver (Arma 3 style).
   ChimeraCharacter driveDriver;
   IEntity driveVehicle;

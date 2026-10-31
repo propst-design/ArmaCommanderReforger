@@ -202,6 +202,8 @@ recrew|-acrRecrewTest 1|120
 mortargiveup|-acrMortarGiveUpTest 1|100
 roadhops|-acrRoadHopsTest 1|500
 roadhopsoff|-acrRoadHopsOffTest 1|500
+keyhints|-acrKeyHintsTest 1|60|Worlds/ACR_Everon.ent
+panelshots|-acrPanelShotsTest 1|420
 genmapchernarus|-acrGenerateMapTest 1|150|Worlds/ACR_ChernarusMinus.ent
 genmapgulfcoast|-acrGenerateMapTest 1|150|Worlds/ACR_GulfcoastIslands.ent
 genmapkunar|-acrGenerateMapTest 1|150|Worlds/ACR_KunarProvince.ent

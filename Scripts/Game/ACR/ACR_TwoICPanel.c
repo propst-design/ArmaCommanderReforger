@@ -57,6 +57,9 @@ class ACR_TwoICPanel : Managed
   FrameSlot.SetPos(m_Root, 0, 20);
   FrameSlot.SetSizeToContent(m_Root, true);
   m_Root.SetZOrder(1100);
+  // Held by the header, all but its Close (ACR_PanelMover): the panel's body is its lists and buttons.
+  ACR_PanelMover.Add(ACR_UiPrefs.TWOIC_PANEL, m_Root, 0.5, 0.5, 0, 20);
+  ACR_PanelMover.TitleBar(ACR_UiPrefs.TWOIC_PANEL, m_Root, 86, 90);
 
   // The header: the dot, "2IC", what it runs; Close.
   Widget header = ACR_TwoICStyle.Row(column);
@@ -170,6 +173,7 @@ class ACR_TwoICPanel : Managed
 
  void Destroy()
  {
+  ACR_PanelMover.Remove(ACR_UiPrefs.TWOIC_PANEL);
   if (m_Root) m_Root.RemoveFromHierarchy();
   m_Root = null;
   m_SquadButtons.Clear();

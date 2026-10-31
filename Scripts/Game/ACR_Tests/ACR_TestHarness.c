@@ -107,6 +107,7 @@ class ACR_TestHarness : Managed
  static const int MODE_TWOICDECLUTTER = 131; // the 2IC declutter (117, 120, 125: own branches)
  static const int MODE_RIDELAV = 70; // 69: the playtest branches
  static const int MODE_MAPDECLUTTER = 133; // the calm command map's rules (90-97, 117, 120, 125 taken elsewhere)
+ static const int MODE_PANELSHOTS = 248; // the movable panels and key strip in a game client (screenshots)
  static const int MODE_MAPDECLUTTERSHOTS = 132; // the calm command map in a game client (screenshots)
  static const int MODE_RBLANE = 125; // 117: map-polygon-guard
  static const int MODE_QRF = 57; // 52 / 53 / 55 / 56: Fortify / roadblocks / patrol / ambush
@@ -192,6 +193,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrMineSitingTest", flag)) mode = MODE_MINESITING;
   if (System.GetCLIParam("acrMapDeclutterTest", flag)) mode = MODE_MAPDECLUTTER;
   if (System.GetCLIParam("acrMapDeclutterShotsTest", flag)) mode = MODE_MAPDECLUTTERSHOTS;
+  if (System.GetCLIParam("acrPanelShotsTest", flag)) mode = MODE_PANELSHOTS;
   if (System.GetCLIParam("acrGroundTiltTest", flag)) mode = MODE_GROUNDTILT;
   if (System.GetCLIParam("acrStructureLayoutTest", flag)) mode = MODE_STRUCTLAYOUT;
   if (System.GetCLIParam("acrPositionSitingTest", flag)) mode = MODE_POSSITING;
@@ -356,6 +358,7 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_MINESITING) { ACR_TestMineSiting.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_MAPDECLUTTER) { ACR_TestMapDeclutter.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_MAPDECLUTTERSHOTS) { ACR_TestMapDeclutterShots.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_PANELSHOTS) { ACR_TestPanelShots.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_GROUNDTILT) { ACR_TestGroundTilt.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_STRUCTLAYOUT) { ACR_TestStructureLayout.RunLayout(this, m_Ticks); return; }
   if (m_Mode == MODE_POSSITING) { ACR_TestPositionSiting.Run(this, m_Ticks); return; }

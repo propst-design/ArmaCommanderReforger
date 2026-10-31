@@ -67,7 +67,8 @@ class ACR_MapLayers
  }
 }
 
-// The row of switches, bottom right above the legend.
+// The row of switches, bottom right above the legend until the player moves them (held by the
+// "Show" word and the edges between the switches; ACR_PanelMover), the legend going with them.
 class ACR_MapLayerBar : Managed
 {
  static const float PILL_WIDTH = 86;
@@ -106,6 +107,8 @@ class ACR_MapLayerBar : Managed
    m_Buttons.Insert(button, i);
    m_Order.Insert(button);
   }
+  ACR_PanelMover.Add(ACR_UiPrefs.LAYERS, m_Root, 1, 1, -24, -24);
+  ACR_PanelMover.Body(ACR_UiPrefs.LAYERS, m_Root);
   Refresh();
  }
 
@@ -145,7 +148,7 @@ class ACR_MapLayerBar : Managed
  // bottom, right: how far from the screen's bottom and right edges (unscaled px).
  void Place(float bottom, float right)
  {
-  if (m_Root) FrameSlot.SetPos(m_Root, -right, -bottom);
+  ACR_PanelMover.Natural(ACR_UiPrefs.LAYERS, -right, -bottom);
  }
 
  void SetVisible(bool visible)
@@ -165,6 +168,7 @@ class ACR_MapLayerBar : Managed
 
  void Destroy()
  {
+  ACR_PanelMover.Remove(ACR_UiPrefs.LAYERS);
   if (m_Root) m_Root.RemoveFromHierarchy();
   m_Root = null;
  }

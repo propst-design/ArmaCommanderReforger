@@ -63,5 +63,6 @@ class ACR_Hud
   s_Widgets.Clear();
   s_Root = null;
   ACR_PingDisplay.Forget();
+  ACR_KeyHints.Forget();
  }
 }
