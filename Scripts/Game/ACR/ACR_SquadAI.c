@@ -86,6 +86,7 @@ class ACR_SquadAI
  // after it (pn11, 27 Oct: a LAV's turret crewman got out at a gate on the player's move; BBB
  // keeps crews aboard only for orders below the player's priority level).
  protected static ref map<ACR_Squad, int> s_ModeBefore = new map<ACR_Squad, int>();
+ static void Reset() { s_ModeBefore.Clear(); }
 
  static void Hand(ACR_Squad squad, bool keepTask = false)
  {

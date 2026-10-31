@@ -167,6 +167,11 @@ class ACR_QuickStart
   if (mode == "off") return;
   string westKey = ACR_FactionSelection.West();
   string eastKey = ACR_FactionSelection.East();
+  // Before any side's data is built (the uneven start doubles RP below): this runs ahead of the
+  // manager's first tick, and a faction mod's side was built with no settings at all (50 RP,
+  // default supports and pricing) and never rebuilt (audit 31 Oct).
+  ACR_FactionSettings.EnsureFor(westKey, "US");
+  ACR_FactionSettings.EnsureFor(eastKey, "USSR");
   int size = ACR_Skirmish.SizeOption();
   if (ACR_Skirmish.s_Active) size = ACR_Skirmish.s_Active.m_eSize;
   array<ACR_Base> bases = {};

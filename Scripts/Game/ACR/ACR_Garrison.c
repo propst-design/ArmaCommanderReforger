@@ -250,6 +250,18 @@ class ACR_Garrison
  protected static ref map<SCR_AIGroup, int> s_Replans = new map<SCR_AIGroup, int>();
  protected static ref map<SCR_AIGroup, float> s_Tight = new map<SCR_AIGroup, float>();
  protected static ref array<vector> s_aBad = {};
+
+ // Per match (ACR_Manager.Stop): a restart on the same map inherited the blacklisted post spots.
+ static void Reset()
+ {
+  s_Posts.Clear();
+  s_Survey.Clear();
+  s_Stuck.Clear();
+  s_LastPos.Clear();
+  s_Replans.Clear();
+  s_Tight.Clear();
+  s_aBad.Clear();
+ }
  static int s_iDropped; // tests
 
  protected static bool IsBad(vector at)

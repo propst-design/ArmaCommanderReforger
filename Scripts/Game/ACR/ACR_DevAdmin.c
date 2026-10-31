@@ -64,9 +64,18 @@ modded class SCR_PlayerController
   Rpc(ACR_DevLoginServer, attempt);
  }
 
+ // One try every 3 s per player, so the password can't be guessed by a script (audit 31 Oct).
+ protected float m_fACRNextLogin;
  [RplRpc(RplChannel.Reliable, RplRcver.Server)]
  protected void ACR_DevLoginServer(string attempt)
  {
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (now < m_fACRNextLogin)
+  {
+   Rpc(ACR_DevLoginOwner, "Wait a moment before trying again");
+   return;
+  }
+  m_fACRNextLogin = now + 3000;
   Rpc(ACR_DevLoginOwner, ACR_DevAdmin.Login(GetPlayerId(), attempt));
  }
 

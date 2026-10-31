@@ -40,6 +40,13 @@ class ACR_Roadblock : Managed
 class ACR_Roadblocks : Managed
 {
 	static ref array<ref ACR_Roadblock> s_aRoadblocks = {};
+	static const float WORKS_CLEARANCE = 25; // m from a Fortify position (and half that past a minefield's size)
+
+	// Per match (ACR_Manager.Stop): the last mission's roadblocks fed the next one's siting and AI.
+	static void Reset()
+	{
+		s_aRoadblocks.Clear();
+	}
 
 	static const ResourceName PREFAB_US = "{55D508179EF5E64A}Prefabs/Compositions/Slotted/SlotRoadMedium/Checkpoint_M_US_01.et";
 	static const ResourceName PREFAB_USSR = "{7C85836D444E3797}Prefabs/Compositions/Slotted/SlotRoadMedium/Checkpoint_M_USSR_01.et";
@@ -425,6 +432,25 @@ class ACR_Roadblocks : Managed
 			if (vector.DistanceXZ(outRoadPos, rb.m_vPos) < MIN_ROADBLOCK_DIST)
 			{
 				refusal = "too close to existing roadblock";
+				return false;
+			}
+		}
+
+		// Nor on top of a dug-in position or through a minefield (audit 31 Oct): the checkpoint
+		// clipped through the position's sandbags, or put mines in its own lane.
+		foreach (ACR_Fortification fort : ACR_Fortify.s_Positions)
+		{
+			if (fort && vector.DistanceXZ(outRoadPos, fort.m_vPos) < WORKS_CLEARANCE)
+			{
+				refusal = "too close to a dug-in position";
+				return false;
+			}
+		}
+		foreach (ACR_Minefield field : ACR_Minefields.s_Fields)
+		{
+			if (field && vector.DistanceXZ(outRoadPos, field.m_vPos) < ACR_Minefields.SIZE + WORKS_CLEARANCE * 0.5)
+			{
+				refusal = "a minefield is there";
 				return false;
 			}
 		}

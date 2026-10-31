@@ -63,6 +63,7 @@ class ACR_Transport
  static const float HONK_COOLDOWN_MS = 5000.0;   // silence cooldown after an AI honk (ms)
  protected static ref map<IEntity, float> s_mHonkStart = new map<IEntity, float>();
  protected static ref map<IEntity, float> s_mHonkCooldown = new map<IEntity, float>();
+ static void ResetHorns() { s_mHonkStart.Clear(); s_mHonkCooldown.Clear(); }
  protected static ref array<IEntity> s_aHornScanVehicles = new array<IEntity>();
 
  // Mutes the vehicle horn input context and resets the vehicle's replicated HornState audio signal.

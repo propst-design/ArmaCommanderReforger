@@ -344,11 +344,21 @@ class ACR_Squad : Managed
    m_Group.GetWaypoints(current);
    if (current.IsEmpty())
    {
-    RestoreOrder(m_Aside);
+    // A standing plan (QRF, ambush, a held position) is set up again, not just its waypoint
+    // and label: FollowCommander's NewOrder ended it, and "QRF: standing by" with no QRF
+    // behind it never sortied (audit 31 Oct).
+    bool replanned;
+    if (m_bAsideQrf) replanned = Qrf(m_vAsidePost);
+    else if (m_bAsideAmbush) replanned = Ambush(m_vAsidePost, m_vAsideKillZone, m_bAsideAmbushDefend);
+    else if (m_AsideFort) replanned = ManFortification(m_AsideFort);
+    if (!replanned) RestoreOrder(m_Aside);
     PrintFormat("[ACR] %1: resumes its map order (%2)", m_Name, m_Order);
    }
   }
   m_Aside = null;
+  m_bAsideQrf = false;
+  m_bAsideAmbush = false;
+  m_AsideFort = null;
   PrintFormat("[ACR] %1: native command released player=%2", m_Name, m_Commander);
   m_Commander = 0;
   m_PreviousGroup = -1;
@@ -492,6 +502,17 @@ class ACR_Squad : Managed
   // could possess the leader, let go, and get the FOB or roadblock for free, again and again).
   bool paidJob = HasJob() || m_fReservedLoads > 0 || OrderState() == ACR_EOrderState.BUILD_FOB;
   if (!paidJob && m_Waypoint != null && !m_sOrderPrefab.IsEmpty() && OrderState() != ACR_EOrderState.RIDE) m_Aside = SnapshotOrder();
+  m_bAsideQrf = m_Aside != null && m_Qrf != null;
+  if (m_bAsideQrf) m_vAsidePost = m_Qrf.m_vPost;
+  m_bAsideAmbush = m_Aside != null && m_Ambush != null && m_Ambush.m_sSprung.IsEmpty();
+  if (m_bAsideAmbush)
+  {
+   m_vAsidePost = m_Ambush.m_vSite;
+   m_vAsideKillZone = m_Ambush.m_vKillZone;
+   m_bAsideAmbushDefend = m_Ambush.m_bDefend;
+  }
+  m_AsideFort = null;
+  if (m_Aside) m_AsideFort = m_Fortification;
   FollowCommander();
   PrintFormat("[ACR] %1: native command granted player=%2 group=%3 linked=%4", m_Name, leaderPlayer, component.GetGroupID(), m_CommandGroup.GetSlave() == m_Group);
  }
@@ -663,6 +684,13 @@ class ACR_Squad : Managed
  ref ACR_FortifyPlan m_FortifyPlan;  // the Fortify order at work
  ACR_Fortification m_Fortification;  // the position it holds (its gunners stay on the guns)
  ref ACR_QrfPlan m_Qrf;        // the QRF standing order (ACR_Qrf)
+ // The standing plan set aside while a player leads the squad (set up again on release).
+ protected bool m_bAsideQrf;
+ protected bool m_bAsideAmbush;
+ protected bool m_bAsideAmbushDefend;
+ protected vector m_vAsidePost;
+ protected vector m_vAsideKillZone;
+ protected ACR_Fortification m_AsideFort;
  protected bool m_bQrfOrder;   // one of the QRF's own orders (they don't end it)
 
  static string ModeName(ACR_EMoveMode mode)
@@ -798,6 +826,8 @@ class ACR_Squad : Managed
   {
    m_fNextRegroup = m_fOrderedAt + REGROUP_FAILED_COOLDOWN_MS;
    PrintFormat("[ACR] TACTICS %1: regroup cut short by a new order", m_Name);
+   // ...and over: Halt and the rest left the flag set, so Cohesion put the old order back.
+   m_bRegrouping = false;
   }
  }
 
@@ -2558,9 +2588,11 @@ class ACR_Squad : Managed
   StartRoute(legs, prefab, radius, order, kind);
  }
 
+ // m_Route outlives its route (NextLeg restores the final order from it), so it only counts while
+ // legs remain: after a later plain MoveTo it named an old route's end (audit 31 Oct).
  vector RouteDestination()
  {
-  if (m_Route && m_Route.m_Target != vector.Zero) return m_Route.m_Target;
+  if (!m_aRoute.IsEmpty() && m_Route && m_Route.m_Target != vector.Zero) return m_Route.m_Target;
   if (!m_aRoute.IsEmpty()) return m_aRoute[m_aRoute.Count() - 1];
   return m_MoveTarget;
  }
@@ -3916,6 +3948,9 @@ class ACR_Squad : Managed
   m_bResumeOnFoot = !prefab.IsEmpty();
   m_Resume = ACR_OrderSnapshot.Make(prefab, target, radius, order, StateOfLabel(order), kind);
  }
+
+ // Whoever set a resume order restored it another way (an air lift does it itself).
+ void ForgetResume() { m_bResumeOnFoot = false; }
  protected ref ACR_OrderSnapshot m_Resume; // carried on on foot after a dismount
 
  // ---------------------------------------------------------------- transport
@@ -3931,6 +3966,7 @@ class ACR_Squad : Managed
   m_bHasLZ = false;
   Halt("Dismounting", ACR_EOrderState.DISMOUNT);
   m_iDismountSweeps = 0;
+  m_iDismountSerial = m_iOrderSerial;
   // One follow-up per squad: a second dismount (bail-out during a ride, F6 twice)
   // used to leave two queued, and the later one replaced the resumed order with
   // "Holding position".
@@ -4049,6 +4085,7 @@ class ACR_Squad : Managed
  }
 
  protected int m_iDismountSweeps;
+ protected int m_iDismountSerial; // the order DismountNow left; a later order cancels the hold
 
  // Once out, take positions where they landed (sweeping out any late boarder first).
  // Members still aboard after a dismount: out again, placed out from the second sweep (6 s: the
@@ -4144,6 +4181,13 @@ class ACR_Squad : Managed
 
  void HoldAfterDismount()
  {
+  // An order given since the dismount wins: a move right after F6 was replaced by "Holding
+  // position" up to ~21 s later (audit 31 Oct).
+  if (m_iDismountSerial != m_iOrderSerial)
+  {
+   m_bResumeOnFoot = false;
+   return;
+  }
   // Seven sweeps: the fourth and fifth clear the action queue of a man no exit gets out, the
   // sixth moves him to another seat, the seventh gets him out from there.
   if (IsMounted() && m_iDismountSweeps < 7)
@@ -4304,11 +4348,14 @@ class ACR_Squad : Managed
 
  bool GetOut()
  {
-  NewOrder();
-  ClearPlans();
+  // Refused before anything is dropped: a foot squad in a box selection lost its paid job, QRF,
+  // ambush and fort to a Get out meant for the others (audit 31 Oct).
   array<IEntity> vehicles = {};
   GetVehicles(vehicles);
   if (vehicles.IsEmpty()) return false;
+  NewOrder();
+  ClearPlans();
+  m_bRegrouping = false;
   if (!IssueWaypoint(WP_GET_OUT, vehicles[0].GetOrigin(), -1, true)) return false;
   SetOrder("Getting out", ACR_EOrderState.GET_OUT);
   m_OrderKind = ACR_EOrderKind.GET_OUT;

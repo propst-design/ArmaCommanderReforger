@@ -100,6 +100,17 @@ class ACR_Base : GenericEntity
  {
   if (!GetGame().InPlayMode()) return;
   if (m_sName.IsEmpty()) m_sName = string.Format("Base %1", s_All.Count() + 1);
+  // An authored radius of 0 or less could never be captured; a negative value drained income.
+  if (m_fRadius <= 0)
+  {
+   PrintFormat("[ACR] BASE %1: capture radius %2 m is not positive, using 50 m", m_sName, m_fRadius);
+   m_fRadius = 50;
+  }
+  if (m_iValue < 0)
+  {
+   PrintFormat("[ACR] BASE %1: value %2 is negative, using 0", m_sName, m_iValue);
+   m_iValue = 0;
+  }
   m_iGarrisonLeft = m_iGarrison;
   if (m_sOwner.IsEmpty()) m_fScore = 0;
   s_All.Insert(this);

@@ -31,7 +31,7 @@ for fname, names in classes.items():
 # Host options (test flags excluded).
 flags = set()
 for f in acr.glob('*.c'):
-    flags |= set(re.findall(r'(?:GetCLIParam|IsCLIParam|ACR_Options\.Get|ACR_Options\.Flag)\("(acr\w+)"', f.read_text(encoding='utf-8-sig')))
+    flags |= set(re.findall(r'(?:GetCLIParam|IsCLIParam|ACR_Options\.Get|ACR_Options\.Flag|\bChoice|\bNumber)\("(acr\w+)"', f.read_text(encoding='utf-8-sig')))
 for flag in sorted(flags):
     if flag.endswith('Test'): continue
     if f'`-{flag}' not in doc: missing.append(f'host option -{flag}')

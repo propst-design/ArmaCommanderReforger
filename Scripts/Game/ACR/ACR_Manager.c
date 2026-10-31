@@ -239,6 +239,15 @@ class ACR_Manager : Managed
   ACR_FobSiting.Reset();
   ACR_RoadblockSiting.Reset();
   ACR_MapFeed.Reset();
+  // Lists and caches of the last match's entities (audit 31 Oct).
+  ACR_Roadblocks.Reset();
+  ACR_Garrison.Reset();
+  ACR_FireMissions.Reset();
+  ACR_Structures.Reset();
+  ACR_SquadAI.Reset();
+  ACR_BBBHooks.ResetIntents();
+  ACR_Transport.ResetHorns();
+  ACR_FactionCatalog.ForgetResolved();
   // Setup screen choices are per match (Jacob, 31 Oct), and a rotation reads its own header.
   ACR_Options.ClearSet();
   ACR_Options.ForgetHeader();
@@ -1109,7 +1118,14 @@ class ACR_Manager : Managed
    for (int i = list.Count() - 1; i >= 0; i--)
    {
     Faction faction = SCR_FactionManager.SGetPlayerFaction(list[i]);
-    if (!players.Contains(list[i]) || !faction || faction.GetFactionKey() != key) list.RemoveOrdered(i);
+    if (players.Contains(list[i]) && faction && faction.GetFactionKey() == key) continue;
+    // Gone or on another side: his command state goes too, as for LeaveCommand (his last order
+    // showed on the other side's strip after a side move; audit 31 Oct).
+    string gone = Command().TagOf(list[i]);
+    if (gone.IsEmpty()) gone = GetGame().GetPlayerManager().GetPlayerName(list[i]);
+    if (gone.IsEmpty()) gone = "The commander";
+    Command().OnLeft(list[i], key, gone);
+    list.RemoveOrdered(i);
    }
   }
   for (int i = m_LeftCommand.Count() - 1; i >= 0; i--)

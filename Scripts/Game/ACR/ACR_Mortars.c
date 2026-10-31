@@ -43,6 +43,7 @@ class ACR_MortarTeam : Managed
  int m_iLoadingDismounts; // observed native aiming -> on-foot loading transitions
  int m_iReserveRounds; // paid mission rounds not yet issued to a gunner
  int m_iDryMissions;   // missions in a row that timed out with nothing fired (reset when the tube goes up again)
+ int m_iPaid;          // RP this mission cost its side (given back if it fires nothing)
  bool m_bNoSpotLogged;
  ref map<IEntity, ResourceName> m_Backpacks = new map<IEntity, ResourceName>(); // carriers' own packs while they carry parts
  bool m_bPartsChecked;
@@ -56,6 +57,7 @@ class ACR_MortarTeam : Managed
 
 class ACR_Mortars : Managed
 {
+ ACR_MortarTeam m_LastStarted; // the team the last Fire gave its mission to (Supports notes what it paid)
  static float DEPLOY_SECONDS = 30;
  static float PACK_SECONDS = 20;
  static float DEPLOY_WAIT = 3;          // holding still this long before setting up
@@ -827,6 +829,8 @@ class ACR_Mortars : Managed
   squad.SetOrder("Firing", ACR_EOrderState.HOLD);
   squad.m_OrderKind = ACR_EOrderKind.HUNT;
   team.m_bFiring = true;
+  team.m_iPaid = 0;
+  m_LastStarted = team;
   team.m_iRounds = total;
   team.m_fMissionEnd = GetGame().GetWorld().GetWorldTime() / 1000 + MISSION_TIMEOUT;
   team.m_sMission = typename.EnumToString(ACR_ESupportType, type);
@@ -927,6 +931,14 @@ class ACR_Mortars : Managed
   s_iLastFired = team.m_iFired;
   if (team.m_iFired > 0) team.m_iDryMissions = 0;
   else if (why == "timed out") team.m_iDryMissions++;
+  // Not a round left the tube: the side gets the mission's RP back.
+  if (team.m_iFired == 0 && team.m_iPaid > 0)
+  {
+   ACR_Manager owner = ACR_Manager.GetInstance();
+   if (owner && owner.m_Bases) owner.m_Bases.Refund(team.m_sFaction, team.m_iPaid);
+   PrintFormat("[ACR] MORTAR %1 fired nothing: %2 RP refunded to %3", team.m_sName, team.m_iPaid, team.m_sFaction);
+  }
+  team.m_iPaid = 0;
   PrintFormat("[ACR] MORTAR %1 fire mission %2 %3: %4 of %5 rounds fired", team.m_sName, team.m_sMission, why, s_iLastFired, team.m_iRounds);
   ACR_Squad squad = team.m_Squad;
   if (squad && team.m_eState == ACR_EMortarState.DEPLOYED && why != "packing up")

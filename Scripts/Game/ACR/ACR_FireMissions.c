@@ -35,6 +35,7 @@ class ACR_FireMissions : Managed
  protected ref map<string, float> m_NextCall = new map<string, float>();
  protected ref map<ACR_MortarTeam, float> m_NextFree = new map<ACR_MortarTeam, float>();
  static ref array<SCR_AIGroup> s_ObserverGroups = {}; // bought FO teams (their squads start with fire at will)
+ static void Reset() { s_ObserverGroups.Clear(); }
  static int s_iCalls;      // tests
  static int s_iFreeFires;  // tests
 

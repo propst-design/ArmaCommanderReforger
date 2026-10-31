@@ -249,6 +249,7 @@ class ACR_BBBHooks : BBB_Hooks
   return intent;
  }
  protected static ref map<SCR_AIGroup, string> s_mIntentSeen = new map<SCR_AIGroup, string>();
+ static void ResetIntents() { s_mIntentSeen.Clear(); }
 
  protected BBB_EIntent IntentOf(ACR_Squad squad, out vector centre, out float radius, out string why)
  {
@@ -275,8 +276,17 @@ class ACR_BBBHooks : BBB_Hooks
   int task = squad.m_iAITask;
   bool waiting = state == ACR_EOrderState.NONE && (task == ACR_EAITask.FREE || task == ACR_EAITask.POSTED || task == ACR_EAITask.DEFEND);
   if (state != ACR_EOrderState.DEFEND && state != ACR_EOrderState.HOLD && state != ACR_EOrderState.SUPPRESS && !waiting) return BBB_EIntent.TRANSIT;
-  // Around its base when it has one, else where it stands now.
+  // Around its base when it has one, else where it stands now. The AI commander leaves the last
+  // target set when it frees or posts a squad, so an old base only counts while the squad defends
+  // it or still stands there: a squad posted at X after attacking Y was leashed to Y (audit 31 Oct).
+  bool atTarget = false;
   if (squad.m_AITarget)
+  {
+   atTarget = task == ACR_EAITask.DEFEND;
+   IEntity here = squad.GetAnchor();
+   if (!atTarget && here) atTarget = vector.DistanceXZ(here.GetOrigin(), squad.m_AITarget.GetOrigin()) <= squad.m_AITarget.m_fRadius + 150;
+  }
+  if (atTarget)
   {
    centre = squad.m_AITarget.GetOrigin();
    radius = Math.Max(squad.m_AITarget.m_fRadius, BBB_OrderLeash.DEFEND_RADIUS);

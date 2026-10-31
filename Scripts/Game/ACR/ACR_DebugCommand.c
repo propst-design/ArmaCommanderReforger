@@ -57,8 +57,11 @@ class ACR_DebugCommand : Managed
 		// Unbound RTS Camera
 		if (cmd == "unbound" || cmd == "cam" || cmd == "camera")
 		{
-			ACR_RTSCameraManager.s_bAdminUnbound = !ACR_RTSCameraManager.s_bAdminUnbound;
-			return "RTS camera unbound leash: " + ACR_RTSCameraManager.s_bAdminUnbound;
+			// The camera is the caller's, on his machine: toggled there, not on the server (a remote
+			// admin's stayed leashed and a listen host's came loose instead; audit 31 Oct).
+			pc.m_ACR_AdminUnbound = !pc.m_ACR_AdminUnbound;
+			pc.ACR_SendUnbound(pc.m_ACR_AdminUnbound);
+			return "RTS camera unbound leash: " + pc.m_ACR_AdminUnbound;
 		}
 
 		// 1. RP <amount> [side]
