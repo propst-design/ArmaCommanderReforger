@@ -23,6 +23,12 @@ class ACR_TestStuckMen
   if (!squad) return;
   if (second == 14) Order(squad);
   if (second <= 14) return;
+  // A regroup only waits for men already out of touch: it holds until all the frozen men are.
+  if (!s_bSawRegroup && FrozenInTouch(squad))
+  {
+   squad.HoldRegroupForTest(GetGame().GetWorld().GetWorldTime() + 3000);
+   return;
+  }
   if (squad.RegroupingForTest())
   {
    if (s_bEnded) s_bStoppedAgain = true;
@@ -38,6 +44,15 @@ class ACR_TestStuckMen
   }
   if (s_bEnded && second == s_iEnded + 30) After(squad);
   if (!s_bEnded && second == 150) ACR_TestRegress.Abort("stuckmen", "no regroup in 135 s");
+ }
+
+ protected static bool FrozenInTouch(ACR_Squad squad)
+ {
+  IEntity leader = squad.GetConsciousLeader();
+  if (!leader) return false;
+  foreach (IEntity body : s_aFrozen)
+   if (body && vector.DistanceXZ(body.GetOrigin(), leader.GetOrigin()) <= ACR_Squad.STRAGGLER_DISTANCE + 2) return true;
+  return false;
  }
 
  protected static ACR_Squad Find(ACR_Manager manager)
