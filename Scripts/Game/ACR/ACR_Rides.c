@@ -240,10 +240,12 @@ class ACR_Rides : Managed
   string faction = FactionOf(rider);
   if (!anchor || faction.IsEmpty()) { why = "not ready"; return null; }
   if (rider.IsMounted()) { why = "already mounted"; return null; }
-  CancelFor(rider);
   vector from = anchor.GetOrigin();
   float trip = vector.DistanceXZ(from, destination);
   if (trip < MIN_TRIP) { why = string.Format("too close to need a ride (under %1 m)", (int)MIN_TRIP); return null; }
+  // After the trip check: a refused short hop kept sending the squad's waiting truck home. Its own
+  // taxi has to be free again before FindTransport, so the rest still cancels first.
+  CancelFor(rider);
   int seats = rider.CountAlive();
   float fetch;
   ACR_Squad taxi = FindTransport(faction, from, trip, seats, fetch, wideFetch, null, carriersToo);

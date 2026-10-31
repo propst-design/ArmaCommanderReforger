@@ -45,6 +45,15 @@ class ACR_BaseSystem : Managed
   if (ACR_Manager.StartRPOption() > 0) data.m_iRP = ACR_Manager.StartRPOption();
   ACR_FactionCatalog.BuildRequisitions(factionKey, settings, data.m_aRequisitions);
   ACR_FactionCatalog.BuildGarrisonPool(factionKey, settings, data.m_aGarrison);
+  // Only prefabs that load: an empty row, a typo or a mod that isn't loaded spawned nothing, and
+  // the next tick counted the missing men as lost for good (audit 31 Oct).
+  for (int g = data.m_aGarrison.Count() - 1; g >= 0; g--)
+  {
+   ResourceName soldier = data.m_aGarrison[g];
+   if (!soldier.IsEmpty() && Resource.Load(soldier).IsValid()) continue;
+   PrintFormat("[ACR] Garrison soldier prefab for %1 doesn't load, skipped: '%2'", factionKey, soldier);
+   data.m_aGarrison.Remove(g);
+  }
   if (!settings || settings.m_bSupports)
   {
    if (settings && settings.m_aSupports && !settings.m_aSupports.IsEmpty())
@@ -83,11 +92,12 @@ class ACR_BaseSystem : Managed
   return true;
  }
 
+ // Gives back what Spend took, in full: the cap limits income, not a refund.
  void Refund(string factionKey, int amount)
  {
   ACR_FactionData data = GetFaction(factionKey);
   if (!data) return;
-  data.m_iRP = Math.Min(data.m_iRP + amount, POINTS_CAP);
+  data.m_iRP += amount;
   ACR_Report.OnRefund(factionKey, amount);
  }
 
@@ -131,7 +141,8 @@ class ACR_BaseSystem : Managed
    int added = Math.Round(GetIncome(key) * ACR_Manager.IncomeOption());
    ACR_FactionData data = GetFaction(key);
    int before = data.m_iRP;
-   data.m_iRP = Math.Min(data.m_iRP + added, POINTS_CAP);
+   // Income stops at the cap but never cuts a side above it (starting RP over 1000).
+   if (data.m_iRP < POINTS_CAP) data.m_iRP = Math.Min(data.m_iRP + added, POINTS_CAP);
    ACR_Report.OnIncome(key, data.m_iRP - before);
   }
   PrintFormat("[ACR] Income paid");

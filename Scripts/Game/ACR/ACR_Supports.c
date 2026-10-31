@@ -1458,7 +1458,21 @@ class ACR_HeliRun : ACR_SupportRun
    compartments.GetCompartments(slots);
    foreach (BaseCompartmentSlot slot : slots) if (slot.GetOccupant()) crew.Insert(slot.GetOccupant());
   }
-  foreach (IEntity member : crew) SCR_EntityHelper.DeleteEntityAndChildren(member);
+  // Only AI goes with it: a player aboard (he climbed into a lift in the air or a seat nobody
+  // emptied) is put out rather than deleted with his loadout.
+  foreach (IEntity member : crew)
+  {
+   if (EntityUtils.IsPlayer(member))
+   {
+    ChimeraCharacter player = ChimeraCharacter.Cast(member);
+    CompartmentAccessComponent access;
+    if (player) access = player.GetCompartmentAccessComponent();
+    if (access) access.GetOutVehicle(EGetOutType.TELEPORT, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
+    PrintFormat("[ACR] SUPPORT helicopter left the area with a player aboard: put out");
+    continue;
+   }
+   SCR_EntityHelper.DeleteEntityAndChildren(member);
+  }
   SCR_EntityHelper.DeleteEntityAndChildren(m_Vehicle);
   Print("[ACR] SUPPORT helicopter left the area");
  }
@@ -1841,7 +1855,7 @@ class ACR_Supports : Managed
    case ACR_ESupportType.BOMB_RUN:
     if (!StartBombRun(entry, target, dir, delay, callerPlayerId))
     {
-     data.m_iRP += entry.m_iCost;
+     m_Manager.m_Bases.Refund(factionKey, entry.m_iCost);
      entry.m_fReadyAt = now;
      return "Bomb-run prefab could not be spawned";
     }
@@ -1866,7 +1880,7 @@ class ACR_Supports : Managed
     if (!started)
     {
      // Nothing flew: give the RP and the cooldown back.
-     data.m_iRP += entry.m_iCost;
+     m_Manager.m_Bases.Refund(factionKey, entry.m_iCost);
      entry.m_fReadyAt = now;
      return "No helicopter available";
     }
@@ -1996,6 +2010,8 @@ class ACR_Supports : Managed
    return team;
   }
   m_Manager.m_Bases.Spend(factionKey, entry.m_iCost);
+  ACR_MortarTeam started = m_Manager.Mortars().m_LastStarted;
+  if (started && started.m_bFiring) started.m_iPaid = entry.m_iCost;
   float now = GetGame().GetWorld().GetWorldTime();
   entry.m_fReadyAt = now + entry.m_iCooldown * 1000;
   PrintFormat("[ACR] SUPPORT %1 %2 at %3 by %4 (ETA %5 s)", factionKey, entry.m_sName, target, team, eta);
@@ -2463,6 +2479,18 @@ modded class SCR_BaseGameMode
 
  protected override void OnPlayerDisconnected(int playerId, KickCauseCode cause, int timeout)
  {
+  // Possessing a squad soldier: hand him back first. Vanilla deletes the player's controlled
+  // entity, which was that soldier, and left his command unit standing with nobody in it
+  // (audit 31 Oct; as ACR_Requests.ReturnToCommandUnit).
+  SCR_PlayerController possessor = SCR_PlayerController.Cast(GetGame().GetPlayerManager().GetPlayerController(playerId));
+  if (Replication.IsServer() && possessor && possessor.IsPossessing())
+  {
+   ACR_Manager owner = ACR_Manager.GetInstance();
+   ACR_MapHandoff.Release(possessor, possessor.GetControlledEntity());
+   if (owner) owner.ReleaseAuthority(possessor);
+   possessor.SetPossessedEntity(null);
+   PrintFormat("[ACR] RETURN player=%1 (disconnected while possessing)", playerId);
+  }
   super.OnPlayerDisconnected(playerId, cause, timeout);
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (manager && Replication.IsServer()) manager.PlayerDisconnected(playerId);

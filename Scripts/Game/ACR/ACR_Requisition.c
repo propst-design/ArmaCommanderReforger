@@ -397,8 +397,7 @@ class ACR_Requisition : Managed
  // price step (later purchases keep theirs; names are never reused).
  void Refund(ACR_PendingPurchase purchase, string why)
  {
-  ACR_FactionData data = m_Manager.m_Bases.GetFaction(purchase.m_sFaction);
-  if (data) data.m_iRP += purchase.m_iPaid;
+  m_Manager.m_Bases.Refund(purchase.m_sFaction, purchase.m_iPaid);
   ACR_RequisitionEntry entry = purchase.m_Entry;
   if (entry)
   {
@@ -547,6 +546,8 @@ class ACR_Requisition : Managed
   ACR_MortarTeam mortar = m_Manager.Mortars().TeamOf(squad);
   bool newTube = mortar && mortar.m_bLost;
   if (newTube && depot && !ACR_LogisticsRules.CanDeploy(depot)) return "A replacement mortar needs a military base, HQ or FOB";
+  // A full team gets its new tube where reinforcements could deploy, as a team missing men does.
+  if (missing.IsEmpty() && newTube && !depot) return "A replacement mortar needs a military base, HQ or FOB: bring the team in";
   if (missing.IsEmpty() && newTube)
   {
    if (!m_Manager.m_Bases.Spend(key, ACR_Mortars.TUBE_COST)) return string.Format("Not enough RP for a new mortar (%1 needed)", ACR_Mortars.TUBE_COST);
@@ -652,8 +653,11 @@ class ACR_Requisition : Managed
    float empty = 1 - magazine.GetAmmoCount() / (float)max;
    cost += empty * AmmoWorth(magazine);
   }
-  float health = ACR_Logistics.Health(vehicle);
-  if (health < 0.99) cost += (1 - health) * REPAIR_COST_FULL;
+  // Engine, rotor and wheel damage is repaired too (ServiceVehicles), so it is priced too.
+  float worn = 1 - ACR_Logistics.Health(vehicle);
+  SCR_DamageManagerComponent damage = SCR_DamageManagerComponent.Cast(vehicle.FindComponent(SCR_DamageManagerComponent));
+  if (damage) worn = Math.Max(worn, damage.GetMovementDamage());
+  if (worn > 0.01) cost += worn * REPAIR_COST_FULL;
   return Math.Ceil(cost);
  }
 

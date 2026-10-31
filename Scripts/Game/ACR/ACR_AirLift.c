@@ -234,6 +234,24 @@ class ACR_LiftHeli : ACR_HeliRun
 
  bool Spooled() { return m_bSpooled; }
 
+ protected void EmptyCargo()
+ {
+  if (!m_Vehicle) return;
+  SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(m_Vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
+  if (!compartments) return;
+  array<BaseCompartmentSlot> seats = {};
+  compartments.GetCompartmentsOfType(seats, ECompartmentType.CARGO);
+  foreach (BaseCompartmentSlot seat : seats)
+  {
+   ChimeraCharacter passenger = ChimeraCharacter.Cast(seat.GetOccupant());
+   if (!passenger || !ACR_Respawn.IsAlive(passenger)) continue;
+   CompartmentAccessComponent access = passenger.GetCompartmentAccessComponent();
+   if (!access) continue;
+   bool ok = access.GetOutVehicle(EGetOutType.TELEPORT, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
+   PrintFormat("[ACR] AIRLIFT leaving: put out %1 still in cargo -> %2", passenger.GetName(), ok);
+  }
+ }
+
  // Off-map lift helicopters spawn at transit height: fly in with the rotors spooling
  // instead of hanging still in the air for ~20 s first (aca-airlift-wave).
  void SkipSpoolWait() { m_bSpooled = true; }
@@ -303,9 +321,12 @@ class ACR_LiftHeli : ACR_HeliRun
   return true;
  }
 
- // Off the ground, then on to the next spot (or away).
+ // Off the ground, then on to the next spot (or away). Heading home from the ground, whoever is
+ // still in a cargo seat gets out first: Finish deletes the helicopter off the map, and a player or
+ // another squad's soldier who climbed in at a landing went with it (audit 31 Oct).
  void TakeOff(vector next, bool leaving)
  {
+  if (leaving && m_bDown) EmptyCargo();
   m_bDown = false;
   m_bLeaving = leaving;
   m_Spot = next;
@@ -455,23 +476,26 @@ class ACR_AirLift : ACR_SupportRun
 
  // Strategic multi-squad air assault wave (aca-airlift-wave): allow up to 3 squads to launch
  // in the same wave within 15 seconds of the wave's first squad before triggering cooldown.
- static float s_fWaveUntil;
- static string s_sWaveFaction;
- static int s_iWaveCount;
+ // Kept per side: one shared wave let the other side's call (often its AI) end ours mid-wave.
+ static ref map<string, float> s_mWaveUntil = new map<string, float>();
+ static ref map<string, int> s_mWaveCount = new map<string, int>();
  static const int MAX_WAVE_SQUADS = 3;
 
  static void Reset()
  {
   s_Active.Clear();
-  s_fWaveUntil = 0;
-  s_sWaveFaction = "";
-  s_iWaveCount = 0;
+  s_mWaveUntil.Clear();
+  s_mWaveCount.Clear();
  }
  static const float WAVE_WINDOW_MS = 15000;
 
  static bool WaveSlotAvailable(string factionKey, float now)
  {
-  return s_sWaveFaction == factionKey && now <= s_fWaveUntil && s_iWaveCount < MAX_WAVE_SQUADS;
+  float until;
+  int count;
+  if (!s_mWaveUntil.Find(factionKey, until)) return false;
+  s_mWaveCount.Find(factionKey, count);
+  return now <= until && count < MAX_WAVE_SQUADS;
  }
 
  ACR_Squad m_Squad;
@@ -548,15 +572,19 @@ class ACR_AirLift : ACR_SupportRun
   if (!supports.m_Manager.m_Bases.Spend(factionKey, cost)) return string.Format("Not enough RP for %1 (%2 needed)", entry.m_sName, cost);
   float now = GetGame().GetWorld().GetWorldTime();
   bool inWave = WaveSlotAvailable(factionKey, now);
+  float waveUntilBefore;
+  int waveCountBefore;
+  s_mWaveUntil.Find(factionKey, waveUntilBefore);
+  s_mWaveCount.Find(factionKey, waveCountBefore);
+  float readyBefore = entry.m_fReadyAt;
   if (!inWave)
   {
-   s_sWaveFaction = factionKey;
-   s_fWaveUntil = now + WAVE_WINDOW_MS;
-   s_iWaveCount = 1;
+   s_mWaveUntil.Set(factionKey, now + WAVE_WINDOW_MS);
+   s_mWaveCount.Set(factionKey, 1);
   }
   else
   {
-   s_iWaveCount++;
+   s_mWaveCount.Set(factionKey, waveCountBefore + 1);
   }
   entry.m_fReadyAt = now + entry.m_iCooldown * 1000;
   ACR_AirLift lift = new ACR_AirLift();
@@ -573,9 +601,11 @@ class ACR_AirLift : ACR_SupportRun
   lift.m_Drops.Copy(drops);
   if (!lift.Begin(supports, now))
   {
-   supports.m_Manager.m_Bases.GetFaction(factionKey).m_iRP += cost;
-   if (inWave) s_iWaveCount--;
-   else { s_fWaveUntil = 0; entry.m_fReadyAt = now; }
+   // Nothing flew: RP, wave slot and cooldown as they were before this call.
+   supports.m_Manager.m_Bases.Refund(factionKey, cost);
+   s_mWaveUntil.Set(factionKey, waveUntilBefore);
+   s_mWaveCount.Set(factionKey, waveCountBefore);
+   entry.m_fReadyAt = readyBefore;
    return "No helicopter available";
   }
   supports.AddRun(lift);
@@ -752,6 +782,9 @@ class ACR_AirLift : ACR_SupportRun
     // Out (or left 5 s to get clear of a forced exit): hold the landing zone, then go.
     if (m_Squad && m_Squad.m_Group && Alive(m_Squad) > 0)
     {
+     // The resume ContinueAfterDismount set at touchdown is done here: left set, a later plain
+     // unload marched the squad back to this objective.
+     m_Squad.ForgetResume();
      if (!m_sFinalPrefab.IsEmpty())
      {
       vector finalDest = m_FinalTarget;
@@ -1173,6 +1206,7 @@ class ACR_AirLift : ACR_SupportRun
    Stage(UNLOADING, now);
    if (m_Squad && m_Squad.m_Group && Alive(m_Squad) > 0)
    {
+    m_Squad.ForgetResume();
     if (!m_sFinalPrefab.IsEmpty())
     {
      vector finalDest = m_FinalTarget;
