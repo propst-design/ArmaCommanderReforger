@@ -417,7 +417,10 @@ class ACR_TwoIC
   return string.Format("%1 m from %2", rounded, best.m_sName);
  }
 
- static void ResetForTest()
+ static void ResetForTest() { Reset(); }
+
+ // Everything per match (ACR_Manager.Stop at the end of a mission).
+ static void Reset()
  {
   ACR_TwoICRequests.ResetForTest();
   ACR_TwoICSuggest.ResetForTest();

@@ -78,8 +78,12 @@ class ACR_Generator
  protected static int s_iMovesSize;
  static int s_iMovesVersion;
 
+ static bool s_bRandomSeed; // Seed() picked it: forgotten at Reset, so the next match rolls a new one
+
  static void Reset()
  {
+  if (s_bRandomSeed) ACR_Options.Unset("acrSeed");
+  s_bRandomSeed = false;
   s_bBuilt = false;
   s_iSeed = 0;
   s_Sites.Clear();
@@ -125,6 +129,7 @@ class ACR_Generator
    if (seed < 0) seed = -seed;
    if (seed == 0) seed = 1;
    ACR_Options.Set("acrSeed", seed.ToString());
+   s_bRandomSeed = true;
   }
   return seed;
  }

@@ -28,6 +28,7 @@ class ACR_LandingZone
  // forest took up to 4.7 s and the AI commander repeated it for every long move).
  static ref map<string, float> s_Failed = new map<string, float>();
  static const float FAILED_MEMORY_MS = 120000;
+ static void Reset() { s_Failed.Clear(); }
 
  static const int SEARCH_BUDGET_MS = 120; // a search gives up after this (it runs inside one server tick)
 
@@ -458,6 +459,14 @@ class ACR_AirLift : ACR_SupportRun
  static string s_sWaveFaction;
  static int s_iWaveCount;
  static const int MAX_WAVE_SQUADS = 3;
+
+ static void Reset()
+ {
+  s_Active.Clear();
+  s_fWaveUntil = 0;
+  s_sWaveFaction = "";
+  s_iWaveCount = 0;
+ }
  static const float WAVE_WINDOW_MS = 15000;
 
  static bool WaveSlotAvailable(string factionKey, float now)
