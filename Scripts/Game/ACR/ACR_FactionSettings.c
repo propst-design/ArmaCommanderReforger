@@ -127,6 +127,15 @@ class ACR_FactionSettings : GenericEntity
   if (m_eAIDoctrine == ACR_EAIDoctrineChoice.RAIDER) return "raider";
   return "";
  }
+ // Skill and reaction of this side's soldiers (ACR_AISkill).
+ [Attribute("0", UIWidgets.ComboBox, "AI skill of this side's soldiers (NONE = the mode's)", "", ParamEnumArray.FromEnum(EAISkill))]
+ int m_iAISkill;
+ [Attribute("1", UIWidgets.EditBox, "AI reaction scale: multiplies the mode's reaction speed for this side, e.g. 0.8 spots 20% slower")]
+ float m_fAIReactionScale;
+ [Attribute("0", UIWidgets.EditBox, "Percent of this side's soldiers one skill level higher (0-100)")]
+ int m_iAIStrongerShare;
+ [Attribute(desc: "Skill for particular units (e.g. Delta among Rangers). A soldier gets the first entry whose prefab he is, else the first whose prefab his group is; unset values fall back to the side's.")]
+ ref array<ref ACR_AISkillProfile> m_aAISkillProfiles;
  [Attribute("0", UIWidgets.ComboBox, "Stepped prices: infantry, cars and trucks can be bought without limit but each purchase raises that unit's price (threat level sets the step); aircraft, armour, mortar teams and support helicopters keep their stock. Fixed stock: every unit has a stock per match, scaled by threat level, at a fixed price.", "", ParamEnumArray.FromEnum(ACR_EPricing))]
  ACR_EPricing m_ePricing;
  [Attribute("1", UIWidgets.CheckBox, "Add every group and vehicle from the faction's Game Master catalog with automatic prices. Entries below override or add to it.")]
@@ -206,8 +215,12 @@ class ACR_FactionSettings : GenericEntity
   made.m_ePricing = ACR_EPricing.STEPPED;
   made.m_bAutoFill = true;
   made.m_bSupports = true;
+  made.m_fAIReactionScale = 1;
   if (template)
   {
+   made.m_iAISkill = template.m_iAISkill;
+   made.m_fAIReactionScale = template.m_fAIReactionScale;
+   made.m_iAIStrongerShare = template.m_iAIStrongerShare;
    made.m_iStartingRP = template.m_iStartingRP;
    made.m_bAICommander = template.m_bAICommander;
    made.m_iAIUnitCap = template.m_iAIUnitCap;

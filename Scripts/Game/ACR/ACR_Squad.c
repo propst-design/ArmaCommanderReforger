@@ -2286,16 +2286,15 @@ class ACR_Squad : Managed
   if (!m_Group || m_Commander != 0) return;
   array<AIAgent> agents = {};
   GetAgents(agents);
+  // Skill and reaction (faster target identification: less standing and staring at a player
+  // while deciding whether he's an enemy): the mode's, or his side's or unit's (ACR_AISkill).
+  ACR_Manager manager = ACR_Manager.GetInstance();
   foreach (AIAgent agent : agents)
   {
    IEntity body = agent.GetControlledEntity();
-   if (!body) continue;
+   if (!body || !manager) continue;
    SCR_AICombatComponent combat = SCR_AICombatComponent.Cast(body.FindComponent(SCR_AICombatComponent));
-   if (combat && combat.GetAISkill() != skill) combat.SetAISkill(skill);
-   // Faster target identification: less standing and staring at a player
-   // while deciding whether he's an enemy.
-   ACR_Manager manager = ACR_Manager.GetInstance();
-   if (combat && manager && combat.GetPerceptionFactor() != manager.m_fAIPerception) combat.SetPerceptionFactor(manager.m_fAIPerception);
+   ACR_AISkill.Apply(combat, m_Group, skill, manager.m_fAIPerception);
   }
   // A player is leading (or riding with) this squad: they give the orders, e.g.
   // with the command wheel. Re-issuing our last map order would wipe theirs.

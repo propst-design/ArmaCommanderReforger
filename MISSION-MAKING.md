@@ -285,6 +285,10 @@ AI commander is turned off.
 | `m_iAIUnitCap` | 8 | Maximum number of squads the AI commander keeps in the field |
 | `m_iAIAttacks` | 1 | How many base attacks the AI commander can run at once |
 | `m_eAIDoctrine` | `RANDOM` | How the AI commander fights when no company is picked for its side: `RANDOM` (leaves it to the company: Balanced for a Rifle Company), `BALANCED`, `BLITZ`, `FIREPOWER`, `FORTRESS` or `RAIDER` (see AI commander doctrines). A company picked on the setup screen, the setup screen's doctrine row or `-acrDoctrineWest`/`-acrDoctrineEast` override it |
+| `m_iAISkill` | `NONE` | AI skill of this side's soldiers. `NONE` uses the mode's skill (see AI skill per side and unit) |
+| `m_fAIReactionScale` | 1 | Multiplies the mode's reaction speed for this side: 0.8 spots 20% slower, 1.2 20% faster |
+| `m_iAIStrongerShare` | 0 | Percent of this side's soldiers one skill level higher, rolled once per soldier |
+| `m_aAISkillProfiles` | empty | Skill and reaction for particular groups or soldiers, such as an elite unit on the same side |
 | `m_ePricing` | `STEPPED` | How the buy list limits purchases: `STEPPED` or `FIXED_STOCK` (see Prices below) |
 | `m_bAutoFill` | on | Add the faction's eligible Game Master catalog units to the buy list at automatic prices |
 | `m_aRequisitions` | empty | Units you add to the buy list yourself. An entry replaces the matching automatic item |
@@ -301,6 +305,34 @@ AI commander is turned off.
 AC: Actual uses faction keys to tell sides apart. For default support assets, `RHS_AFRF` and keys
 starting with `USSR` count as eastern; otherwise keys containing `US`, or exactly `NATO` or
 `BLUFOR`, count as western. Other keys use eastern defaults unless prefab mappings replace them.
+
+#### AI skill per side and unit
+
+AC: Actual sets every soldier in its squads to the mode's skill (`m_iAISkill`, `-acrSkill`) and
+reaction speed (`m_fAIPerception`, `-acrReaction`) every second, so a value a script sets once at
+spawn doesn't last. Set skill per side and per unit here instead. A soldier gets, first to last:
+
+1. values a mission script pinned on him with `ACR_AISkill.Pin(soldier, EAISkill.EXPERT, 1.2)`
+   (kept until `ACR_AISkill.Unpin(soldier)`; this also works on base garrison soldiers);
+2. the first `m_aAISkillProfiles` row whose prefab he is (or inherits from), else the first whose
+   prefab his group is;
+3. his side's `m_iAISkill`, `m_fAIReactionScale` and `m_iAIStrongerShare`;
+4. the mode's skill and reaction.
+
+A profile row (`ACR_AISkillProfile`) has `m_sName` (for your own reference), `m_aPrefabs` (group or
+soldier prefabs), `m_iSkill` (`NONE` = the side's), `m_fReactionScale` (0 = the side's) and
+`m_iStrongerShare` (-1 = the side's). Reaction is always a multiple of the mode's reaction speed
+(1.6 by default, not the game's 1), so 1 means "as fast as everyone else".
+
+Skill only takes the game's named levels: Novice 10, Rookie 20, Regular 50, Veteran 70, Expert 80
+and Perfect 100. In vanilla it sets how far a soldier's aim strays (each level about halves it;
+Perfect never misses). Other values snap down to a named level. A stronger soldier goes up one
+level. Reaction sets how quickly a soldier spots and identifies targets, not how far he can see.
+
+Example: militia side Rookie, reaction 0.8, 15% stronger; Rangers side Veteran, reaction 1; a
+profile for the Delta group prefabs on the Rangers' side with Expert and reaction 1.2. Health and
+damage aren't touched, and none of this changes orders or soldier takeover. Squads a player is
+leading keep whatever values they have until he hands them back.
 
 #### AI commander doctrines
 
