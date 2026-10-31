@@ -280,7 +280,7 @@ AI commander is turned off.
 | Setting | Default | What it does |
 |---|---|---|
 | `m_sFaction` | `US` | Which side these settings are for. It must match a side in the faction manager, such as `US` or `USSR` |
-| `m_iStartingRP` | 100 | Requisition points at the start |
+| `m_iStartingRP` | 100 | Requisition points at the start. Income stops at 1000 RP; a side that starts above that keeps its RP but earns nothing until it spends below 1000 |
 | `m_bAICommander` | on | An AI commander leads this side whenever no player is in command |
 | `m_iAIUnitCap` | 8 | Maximum number of squads the AI commander keeps in the field |
 | `m_iAIAttacks` | 1 | How many base attacks the AI commander can run at once |
@@ -856,6 +856,7 @@ mission makers, automated tests and server operators; players choose match setti
 | `-acrStartRP N` | Positive starting RP for every side (overrides `m_iStartingRP`; 0 does not override) |
 | `-acrIncome X` | Income multiplier (default 1) |
 | `-acrSkill N` | AI skill (overrides `m_iAISkill`) |
+| `-acrGroundTilt 0` | Built pieces that lie on the ground (sandbag positions, wire, barricades) spawn dead level instead of following a slope; default 1 tilts them up to 12 degrees |
 | `-acrReaction X` | AI spotting speed (overrides `m_fAIPerception`) |
 | `-acrSoldierCap N` | Soft living-AI threshold per side before purchases/reinforcements stop (default 100 before threat scaling). A purchase begun below it can take the side over. The active-AI limit is raised to at least 2 x the resolved cap + 64 to avoid the vanilla 128-agent ceiling |
 | `-acrCapScale 1` | Bigger maps get bigger armies: every side's AI squad cap and the soldier cap are multiplied by the map's bases / 12 or the spread of its bases / 5 km, whichever is more, between x1 and x2 (the soldier cap stops at 250; a higher one set by the host stays). Applied once the match starts, after the threat level; the active-AI limit follows, and the log line `[ACR] CAP SCALE` shows the result. Off by default; the setup screen's **Squad caps scale with map** row turns it on |
