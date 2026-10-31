@@ -31,6 +31,7 @@ class ACR_UnitMarker : SCR_MapMarkerBase
   // Always update: units move into view without the map being panned.
   m_bTestVisibleFrame = false;
   m_sStyled = "-";
+  m_wPip = null; // it went with the old root
   super.OnCreateMarker(true);
   if (!m_wRoot) return;
   m_Click = new ACR_MarkerClick();
@@ -74,7 +75,8 @@ class ACR_UnitMarker : SCR_MapMarkerBase
   if (m_fAlpha < 1) color = new Color(color.R(), color.G(), color.B(), color.A() * m_fAlpha);
   m_MarkerWidgetComp.SetColor(color);
   if (m_GroupSymbol) m_MarkerWidgetComp.UpdateMilitarySymbol(m_GroupSymbol);
-  if (m_bContact && m_wRoot && !m_wPip)
+  // A spotted enemy's reticle; not our empty vehicles (state 4), which use m_bContact for click-through
+  if (m_bContact && m_State != 4 && m_wRoot && !m_wPip)
   {
    WorkspaceWidget ws = GetGame().GetWorkspace();
    if (ws)
@@ -298,7 +300,7 @@ modded class SCR_PlayerController
   m_bDeathTransitionActive = false;
   if (m_DeathBlackoutRoot)
   {
-   m_DeathBlackoutRoot.RemoveFromHierarchy();
+   ACR_Hud.Remove(m_DeathBlackoutRoot); // created through ACR_Hud.CreateLayer: untrack it too
    m_DeathBlackoutRoot = null;
    m_DeathBlackoutImage = null;
    m_DeathBlackoutText = null;
@@ -309,7 +311,7 @@ modded class SCR_PlayerController
  protected void ACR_EnsureDeathOverlay()
  {
   if (m_DeathBlackoutRoot && m_DeathBlackoutImage && m_DeathBlackoutText) return;
-  if (m_DeathBlackoutRoot) m_DeathBlackoutRoot.RemoveFromHierarchy();
+  if (m_DeathBlackoutRoot) ACR_Hud.Remove(m_DeathBlackoutRoot);
   m_DeathBlackoutRoot = null;
   m_DeathBlackoutImage = null;
   m_DeathBlackoutText = null;
@@ -1414,6 +1416,7 @@ modded class SCR_PlayerController
  protected void ACR_ClosePanel()
  {
   SCR_MapEntity.GetOnSelection().Remove(ACR_OnMapClick);
+  m_ACR_AimHeld = false; // closed with the button held: the release listener is gone with the map
   if (m_ACR_Panel) m_ACR_Panel.Destroy();
   m_ACR_Panel = null;
   if (m_ACR_Display.GetCanvas()) m_ACR_Display.GetCanvas().RemoveFromHierarchy();
@@ -2155,6 +2158,7 @@ modded class SCR_PlayerController
    {
     ACR_UnitMarker marker = new ACR_UnitMarker();
     marker.m_bContact = true; // clicks go through: right-click next to it for Get in
+    marker.m_State = 4; // before it is inserted: creating its widget styles it (no contact pip)
     marker.SetType(SCR_EMapMarkerType.SIMPLE);
     marker.SetMarkerConfigID(1);
     marker.SetCanBeRemovedByOwner(false);
