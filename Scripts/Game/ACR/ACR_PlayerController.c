@@ -195,7 +195,9 @@ modded class SCR_PlayerController
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager) return;
-  // Flood guard: up to 24 orders a second (one click can order a dozen squads).
+  // Flood guard: up to 96 orders a second. One click sends one per selected squad and a box
+  // selection has no cap: at 24, ordering 30 squads silently left 6 behind (audit 31 Oct). A
+  // dropped order is said, once a window.
   float now = GetGame().GetWorld().GetWorldTime();
   if (now - m_ACR_CommandWindow > 1000)
   {
@@ -203,7 +205,11 @@ modded class SCR_PlayerController
    m_ACR_CommandsInWindow = 0;
   }
   m_ACR_CommandsInWindow++;
-  if (m_ACR_CommandsInWindow > 24) return;
+  if (m_ACR_CommandsInWindow > 96)
+  {
+   if (m_ACR_CommandsInWindow == 97) manager.Notify(GetPlayerId(), "Too many orders at once: some were not given, order again");
+   return;
+  }
   if (m_ACR_SameClick.Drop(command, targetId, now))
   {
    PrintFormat("[ACR] ORDER dropped: a move right after an order that takes a facing for the same squad (the same click), player %1", GetPlayerId());
@@ -487,10 +493,12 @@ modded class SCR_PlayerController
  }
  void ACR_RequestDebug(int action)
  {
-  Rpc(ACR_DebugServer, action, m_ACR_SelectedBase);
+  Rpc(ACR_DebugServer, action, m_ACR_SelectedBase, m_ACR_SelectedGroup);
  }
+ // group: the squad selected on the caller's map. The server's copy of the controller never has
+ // the selection, so a remote admin's Heal/Kill Squad hit the wrong squad or none (audit 31 Oct).
  [RplRpc(RplChannel.Reliable, RplRcver.Server)]
- protected void ACR_DebugServer(int action, string baseName)
+ protected void ACR_DebugServer(int action, string baseName, RplId group)
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager) return;
@@ -511,7 +519,7 @@ modded class SCR_PlayerController
   if (action == ACR_EDebug.HEAL_SQUAD)
   {
    ACR_Squad target = null;
-   if (m_ACR_SelectedGroup.IsValid()) target = manager.FindSquadByGroup(SCR_AIGroup.Cast(SCR_EntityHelper.RplIdToEntity(m_ACR_SelectedGroup)));
+   if (group.IsValid()) target = manager.FindSquadByGroup(SCR_AIGroup.Cast(SCR_EntityHelper.RplIdToEntity(group)));
    if (!target) manager.m_LastSquad.Find(GetPlayerId(), target);
    if (target)
    {
@@ -532,7 +540,7 @@ modded class SCR_PlayerController
   if (action == ACR_EDebug.KILL_SQUAD)
   {
    ACR_Squad target = null;
-   if (m_ACR_SelectedGroup.IsValid()) target = manager.FindSquadByGroup(SCR_AIGroup.Cast(SCR_EntityHelper.RplIdToEntity(m_ACR_SelectedGroup)));
+   if (group.IsValid()) target = manager.FindSquadByGroup(SCR_AIGroup.Cast(SCR_EntityHelper.RplIdToEntity(group)));
    if (target)
    {
     ACR_DebugCommand.KillSquad(target);
@@ -565,6 +573,18 @@ modded class SCR_PlayerController
  {
   string result = ACR_DebugCommand.Execute(this, cmd, baseName, groupId, cursorPos);
   Rpc(ACR_DebugCommandOwner, result);
+ }
+
+ bool m_ACR_AdminUnbound; // server: this admin's RTS camera has no leash (/acr unbound)
+ void ACR_SendUnbound(bool unbound)
+ {
+  if (GetPlayerId() == SCR_PlayerController.GetLocalPlayerId()) ACR_RTSCameraManager.s_bAdminUnbound = unbound;
+  else Rpc(ACR_UnboundOwner, unbound);
+ }
+ [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
+ protected void ACR_UnboundOwner(bool unbound)
+ {
+  ACR_RTSCameraManager.s_bAdminUnbound = unbound;
  }
 
  [RplRpc(RplChannel.Reliable, RplRcver.Owner)]

@@ -63,6 +63,7 @@ class ACR_TwoICRequests
  static const float RETRY_MS = 20000;
  static const float DROP_MS = 120000;   // a "can't yet" nobody keeps queued is dropped
  protected static ref array<ref ACR_TwoICRequest> s_Live = {};
+ protected static ref map<int, float> s_mLastAsk = new map<int, float>();
 
  // ---------------------------------------------------------------- asking
  // A player's request (server).
@@ -72,6 +73,14 @@ class ACR_TwoICRequests
   if (!Replication.IsServer() || !manager || !pc) return "Server unavailable";
   Faction faction = SCR_FactionManager.SGetPlayerFaction(pc.GetPlayerId());
   if (!faction) return "You have no faction";
+  // What a client sends is checked here (audit 31 Oct): a known kind, a point on the map, and
+  // one ask every 2 s per player (asking and cancelling in a loop flooded the side's channel).
+  if (kind < ACR_ETwoICAsk.SUPPORT || kind > ACR_ETwoICAsk.TAKE) return "Unknown request";
+  if (!ACR_Manager.OnMap(pos)) return "That point is off the map";
+  float now = GetGame().GetWorld().GetWorldTime();
+  float last;
+  if (s_mLastAsk.Find(pc.GetPlayerId(), last) && now - last < 2000) return "One request at a time: wait a moment";
+  s_mLastAsk.Set(pc.GetPlayerId(), now);
   return AskFor(manager, faction.GetFactionKey(), pc.GetPlayerId(), GetGame().GetPlayerManager().GetPlayerName(pc.GetPlayerId()), kind, pos);
  }
 
@@ -335,5 +344,6 @@ class ACR_TwoICRequests
  static void ResetForTest()
  {
   s_Live.Clear();
+  s_mLastAsk.Clear();
  }
 }

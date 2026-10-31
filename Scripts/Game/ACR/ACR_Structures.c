@@ -152,6 +152,14 @@ class ACR_Structures : Managed
  static const int TICK_MS = 2000;
  protected static int s_iFobs;
 
+ // Per match (ACR_Manager.Stop): the next match's first FOB is FOB 1 again. Registered
+ // compositions stay (the next world's register themselves as they load); only gone ones go.
+ static void Reset()
+ {
+  s_iFobs = 0;
+  for (int i = s_Registered.Count() - 1; i >= 0; i--) if (!s_Registered[i]) s_Registered.Remove(i);
+ }
+
  protected ACR_Manager m_Manager;
  protected ref array<ref ACR_Structure> m_Active = {};
  protected ref array<SCR_CampaignBuildingCompositionComponent> m_Ignored = {}; // sideless: logged once
