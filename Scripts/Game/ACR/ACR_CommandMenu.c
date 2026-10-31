@@ -64,6 +64,7 @@ modded class SCR_PlayerControllerCommandingComponent
  }
 }
 
+[BaseContainerProps(), SCR_BaseGroupCommandTitleField("m_sCommandName")] // config-built: repeat vanilla's line (HANDBOOK Pitfalls)
 modded class SCR_BaseGroupCommand
 {
  override bool CanRoleShow()

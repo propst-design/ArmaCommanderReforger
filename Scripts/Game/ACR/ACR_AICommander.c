@@ -871,6 +871,9 @@ class ACR_AICommander : Managed
  // A reserve riding or regrouping is on its way: re-posting it would cancel that (20 Oct
  // live: a regrouping reserve was re-posted every 15 s for 15 min and never arrived).
  static bool ReserveMoving(ACR_EOrderState state) { return state == ACR_EOrderState.RIDE || state == ACR_EOrderState.REGROUP; }
+ // An attack is called off below its abort share of the strength it started with. Float on the
+ // left: int-first compares in ints (start 10 x 0.35 read as 3, so 3 men of 10 kept attacking).
+ static bool AttackBroken(int strength, int startStrength, float abortRatio) { return startStrength > 0 && startStrength * abortRatio > strength; }
  static const float REINFORCE_ATTACK_DISTANCE = 1400;
  // How far a squad can get to an attack (#27, long attacks stalled: squads 2-3 km off were sent
  // on foot because an air lift was ready or rides existed, and the attack went in before they
@@ -3466,7 +3469,7 @@ class ACR_AICommander : Managed
    foreach (ACR_Squad member : attack.m_Squads) strength += member.Strength();
    bool fusePrimed = attack.m_SapperDemo && attack.m_SapperDemo.InProgress();
    NoteBBBFight(attack);
-   bool broken = !fusePrimed && attack.m_iStartStrength > 0 && strength < attack.m_iStartStrength * m_Doctrine.m_fAbortRatio;
+   bool broken = !fusePrimed && AttackBroken(strength, attack.m_iStartStrength, m_Doctrine.m_fAbortRatio);
    bool stalled = !fusePrimed && !won && target && Stalled(attack);
    // Nobody left who can walk in (the infantry died or fell back): vehicles and support teams
    // alone never take it, so stop now instead of waiting out the time limit.
