@@ -322,7 +322,7 @@ class ACR_TwoICView : Managed
   float x, y, w, h;
   widget.GetScreenPos(x, y);
   widget.GetScreenSize(w, h);
-  return w > 0 && h > 0 && mx >= x && mx <= x + w && my >= y && my <= y + h;
+  return w > 0 && h > 0 && x <= mx && mx <= x + w && y <= my && my <= y + h; // float first (int-left compares in ints)
  }
 
  // ---------------------------------------------------------------- the channel
