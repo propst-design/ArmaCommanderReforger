@@ -35,6 +35,7 @@ class ACR_DangerRoad : Managed
  ACR_Squad m_Sweeper;   // sent to clear it (ACR_AICommander.ManageDangerRoads)
  float m_fQuietSince;   // the sweeper there with no contact since (0: not yet)
  int m_iSweeps;         // sweepers sent
+ float m_fSweepSince;   // when the current sweeper was sent (ACR_AICommander.SWEEP_MAX_MS)
  ACR_DefenderPost m_Hideout; // a found FIA hideout to clear, not a road (no time limit)
 }
 

@@ -473,7 +473,7 @@ class ACR_Intel : Managed
  protected void BuildContacts(float now)
  {
   m_Contacts.Clear();
-  array<IEntity> covered = {};
+  set<IEntity> covered = new set<IEntity>(); // a set: Contains per seen body each second was O(n^2)
   foreach (ACR_Squad squad : m_Manager.m_Squads)
   {
    if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() == m_sFaction) continue;
