@@ -430,6 +430,18 @@ class ACR_SapperDemo : Managed
   m_SapperSquad.Assault(hqPos);
  }
 
+ // A plant nobody can finish. While planting or wiring the attack counts as primed and none of
+ // its ways of ending apply (UpdateAttacks), so it held its attack slot, and the defenders their
+ // DEFEND squads, for the rest of the match.
+ protected void DropPlanting(string why)
+ {
+  if (m_State != ACR_ESapperDemoState.PLANTING && m_State != ACR_ESapperDemoState.WIRING) return;
+  PrintFormat("[ACR] SAPPER: planting at %1 dropped (%2)", m_Attack.m_Target.m_sName, why);
+  m_State = ACR_ESapperDemoState.NONE;
+  m_iStep = 0;
+  m_Planter = null;
+ }
+
  // ---------------------------------------------------------------- tick
 
  void Tick(float now)
@@ -453,6 +465,7 @@ class ACR_SapperDemo : Managed
   if (m_Commander && m_Attack.m_Target.m_sOwner == m_Commander.Faction()) return;
   // No HQ (already destroyed): the raid becomes an ordinary capture.
   IEntity hq = TargetHqEntity();
+  if (!hq) DropPlanting("the HQ is gone");
   if (!hq || now < m_fRetryAt) return;
   vector hqPos = hq.GetOrigin();
   string owner = m_Attack.m_Target.m_sOwner;
@@ -460,7 +473,11 @@ class ACR_SapperDemo : Managed
   if (!m_SapperSquad || m_SapperSquad.CountAlive() <= 0)
   {
    m_SapperSquad = FindSapperSquad();
-   if (!m_SapperSquad) return;
+   if (!m_SapperSquad)
+   {
+    DropPlanting("no sappers left");
+    return;
+   }
   }
 
   int defenders = SoldiersNear(hqPos, owner, CLEAR_RADIUS);
@@ -1877,7 +1894,9 @@ class ACR_AICommander : Managed
     else
      Say(string.Format("[ACR] AI %1: %2 defends %3 (threat %4)", m_sFaction, squad.GetName(), base.m_sName, threat));
    }
-   if (needed > 0 && m_ReserveSquad && !m_ReserveSquad.HasPlayer() && m_ReserveSquad.CountAlive() > 0 && m_ReserveSquad.KnownEnemies(250) == 0)
+   // Only a reserve still posted: one sent into an attack (or a sweep, a resupply) meanwhile kept
+   // m_ReserveSquad, and was then also committed here and pulled between the two jobs.
+   if (needed > 0 && m_ReserveSquad && m_ReserveSquad.m_iAITask == ACR_EAITask.POSTED && !m_ReserveSquad.HasPlayer() && m_ReserveSquad.CountAlive() > 0 && m_ReserveSquad.KnownEnemies(250) == 0)
    {
     ACR_Squad qrf = m_ReserveSquad;
     m_ReserveSquad = null;
@@ -3431,7 +3450,13 @@ class ACR_AICommander : Managed
    for (int s = attack.m_Squads.Count() - 1; s >= 0; s--)
    {
     ACR_Squad squad = attack.m_Squads[s];
-    if (!squad || !m_Manager.m_Squads.Contains(squad) || squad.HasPlayer()) { attack.Remove(s); continue; }
+    if (!squad || !m_Manager.m_Squads.Contains(squad) || squad.HasPlayer())
+    {
+     // A player took it: free it, or it stayed tasked ATTACK and the AI never used it again.
+     if (squad && squad.m_iAITask == ACR_EAITask.ATTACK) squad.m_iAITask = ACR_EAITask.FREE;
+     attack.Remove(s);
+     continue;
+    }
     // Lost its gunner (or down to one man): no use in an attack.
     if (!squad.IsCombatUnit())
     {
