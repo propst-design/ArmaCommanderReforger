@@ -6,11 +6,8 @@
 # log lines. It can only run these presets. It never touches a game you started
 # yourself: if Reforger is already running, the request is refused.
 #
-# Besides test presets it accepts one other request, 'publish': it runs
-# tools\Publish-Release.ps1 exactly like double-clicking Publish-Release.cmd
-# (uploads the already-built dist\ACActual-Arland.zip with your GitHub login).
-# And 'push': runs 'git push origin main' for this repo (backup of committed
-# work to the private GitHub repo, with your GitHub login). Nothing else.
+# It runs test presets only. 'publish' and 'push' requests are refused: releases go through the
+# release console (Mod-Release-Console.cmd) and pushes are Jacob's call, not a queued request.
 #
 # A request of the form 'srv:<preset>' runs the test on a hidden dedicated
 # server instead (no game window, no focus stolen, you can keep using the PC
@@ -58,6 +55,8 @@ Set-Content -LiteralPath (Join-Path $RequestDir 'watcher-started.txt') -Value (G
 $pruneBefore = (Get-Date).AddDays(-14)
 try {
     Get-ChildItem -LiteralPath $RequestDir -File | Where-Object { ($_.Name -like '*.result.txt' -or $_.Name -like '*.build.txt') -and $_.LastWriteTime -lt $pruneBefore } | Remove-Item -Force -ErrorAction SilentlyContinue
+    # Leftovers nothing reads: old queue markers and pid files (audit 31 Oct).
+    Get-ChildItem -LiteralPath $RequestDir -File | Where-Object { ($_.Name -like '*.queued' -or $_.Name -like '*.pid') -and $_.LastWriteTime -lt (Get-Date).AddDays(-2) } | Remove-Item -Force -ErrorAction SilentlyContinue
     foreach ($logDir in @((Join-Path $ProjectRoot '.local-game\logs'), (Join-Path $ProjectRoot '.local-testserver\logs'), (Join-Path $ProjectRoot '.local-server\logs'))) {
         if (Test-Path -LiteralPath $logDir) {
             Get-ChildItem -LiteralPath $logDir -Directory | Where-Object { $_.LastWriteTime -lt $pruneBefore } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
@@ -114,39 +113,6 @@ function Invoke-Inspect($id) {
     $exports = @(Get-ChildItem -LiteralPath (Join-Path $inspectProfile 'profile') -Filter 'export_*.txt' -ErrorAction SilentlyContinue).Count
     Write-Result $id @("status=$outcome", 'preset=inspect', "seconds=$([int]((Get-Date) - $started).TotalSeconds)", "exports=$exports")
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] 'inspect' finished: $outcome, $exports files" -ForegroundColor Green
-}
-
-# Runs the release script unattended and reports its outcome and log.
-function Invoke-Publish($id) {
-    $script = Join-Path $PSScriptRoot 'Publish-Release.ps1'
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Publishing the current package to GitHub..." -ForegroundColor Cyan
-    $started = Get-Date
-    $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "' + $script + '"') -WindowStyle Hidden -PassThru
-    $outcome = 'completed'
-    if (!$proc.WaitForExit(300000)) { Stop-Process -Id $proc.Id -ErrorAction SilentlyContinue; $outcome = 'timeout' }
-    elseif ($proc.ExitCode -ne 0) { $outcome = 'failed' }
-    $result = @("status=$outcome", 'preset=publish', "seconds=$([int]((Get-Date) - $started).TotalSeconds)", '---')
-    $logFile = Join-Path $ProjectRoot 'dist\publish-log.txt'
-    if (Test-Path -LiteralPath $logFile) { $result += Get-Content -LiteralPath $logFile | Select-Object -Last 25 }
-    Write-Result $id $result
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Publish finished: $outcome" -ForegroundColor Green
-}
-
-# Pushes committed work on main to the private GitHub repo (fixed command, no arguments taken).
-function Invoke-Push($id) {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Pushing main to GitHub..." -ForegroundColor Cyan
-    $started = Get-Date
-    $out = Join-Path $env:TEMP 'acr-push-out.txt'
-    $err = Join-Path $env:TEMP 'acr-push-err.txt'
-    $proc = Start-Process -FilePath 'git' -ArgumentList 'push origin main' -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
-    $null = $proc.Handle  # cache the handle, or ExitCode comes back empty and a good push reads as failed
-    $outcome = 'completed'
-    if (!$proc.WaitForExit(120000)) { Stop-Process -Id $proc.Id -ErrorAction SilentlyContinue; $outcome = 'timeout' }
-    elseif ($proc.ExitCode -ne 0) { $outcome = 'failed' }
-    $result = @("status=$outcome", 'preset=push', "seconds=$([int]((Get-Date) - $started).TotalSeconds)", '---')
-    foreach ($f in @($out, $err)) { if (Test-Path -LiteralPath $f) { $result += Get-Content -LiteralPath $f | Select-Object -Last 15 } }
-    Write-Result $id $result
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Push finished: $outcome" -ForegroundColor Green
 }
 
 # Scenario id for a world: Worlds/X.ent -> "{GUID}Missions/X.conf" from its .meta.
@@ -384,8 +350,11 @@ function Invoke-Request($file) {
             $Presets[$parts[0].Trim().ToLower()] = @{ Flags = $parts[1]; TimeoutSec = [int]$parts[2]; DoneWhen = '\[ACR\] TEST COMPLETE'; World = $world }
         }
     }
-    if ($preset -eq 'publish') { Invoke-Publish $id; return }
-    if ($preset -eq 'push') { Invoke-Push $id; return }
+    if ($preset -eq 'publish' -or $preset -eq 'push') {
+        Write-Host "[$time] Refused '$preset': use the release console (releases) or ask Jacob (pushes)" -ForegroundColor Yellow
+        Write-Result $id @("status=refused", "reason='$preset' is no longer a watcher request: releases go through Mod-Release-Console.cmd, pushes are Jacob's")
+        return
+    }
     if (!$Presets.ContainsKey($preset)) {
         Write-Host "[$time] Refused unknown preset '$preset'" -ForegroundColor Yellow
         Write-Result $id @("status=refused", "reason=unknown preset '$preset'")

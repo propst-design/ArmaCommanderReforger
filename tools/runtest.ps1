@@ -19,9 +19,18 @@ $buildFile = Join-Path $req "$Id.build.txt"
 if (-not $VerdictOnly) {
     if (-not $Preset) { throw 'Preset required (e.g. srv:compile)' }
     if (Test-Path -LiteralPath $result) { throw "Result for '$Id' already exists: use a new id" }
+    if (Test-Path -LiteralPath (Join-Path $req "$Id.request")) { throw "Request '$Id' is already queued: use a new id" }
+    # The commit, +dirty for uncommitted game files, and the sibling BBB checkout srv: runs load.
     $sha = (& git -C $root log -1 --format=%h).Trim()
-    & git -C $root diff --quiet HEAD -- Scripts
+    & git -C $root diff --quiet HEAD -- Scripts Prefabs Configs Worlds Missions
     if ($LASTEXITCODE -ne 0) { $sha += '+dirty' }
+    $bbbRoot = Join-Path (Split-Path -Parent $root) 'BetterBattleBuddies'
+    if (Test-Path -LiteralPath (Join-Path $bbbRoot '.git')) {
+        $bbb = (& git -C $bbbRoot log -1 --format=%h).Trim()
+        & git -C $bbbRoot diff --quiet HEAD -- Scripts
+        if ($LASTEXITCODE -ne 0) { $bbb += '+dirty' }
+        $sha += " bbb $bbb"
+    }
     [IO.File]::WriteAllText($buildFile, $sha)
     [IO.File]::WriteAllText((Join-Path $req "$Id.request"), "$Preset`n")
     for ($i = 0; $i -lt $Polls; $i++) {
