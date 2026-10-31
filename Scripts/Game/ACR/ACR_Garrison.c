@@ -81,6 +81,12 @@ class ACR_Garrison
   array<IEntity> posts = s_Posts.Get(group);
   if (!posts) return;
   s_Posts.Remove(group);
+  if (s_Posts.IsEmpty())
+  {
+   // nobody garrisons now: forget the men watched on the way in (dead or deleted ones included)
+   s_StragglerAt.Clear();
+   s_StragglerFor.Clear();
+  }
   group.ReleaseSmartActions();
   foreach (IEntity post : posts)
   {
@@ -378,7 +384,8 @@ class ACR_Garrison
  // jammed on the way (a fence, a doorway) kept the whole squad milling about outside with no posts
  // (srv:garrisonoffice, 30 Oct: one man 25 m out for 40 s, 3 of 9 on posts). A man outside it who
  // hasn't moved for STRAGGLER_LIMIT s is taken in by widening the radius to him; WatchPosts
- // tightens it again once the defend activity runs.
+ // tightens it again once the defend activity runs. Counted in calls: Sweep runs WatchPosts
+ // once a second (from the manager).
  static const int STRAGGLER_LIMIT = 8;
  static const float STRAGGLER_REACH = 60;
  protected static ref map<IEntity, vector> s_StragglerAt = new map<IEntity, vector>();
