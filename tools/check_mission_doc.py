@@ -13,6 +13,7 @@ classes = {
     'ACR_Skirmish.c': ['ACR_Skirmish'],
     'ACR_Supports.c': ['ACR_SupportEntry'],
     'ACR_Options.c': ['ACR_MissionHeader'],
+    'ACR_AISkill.c': ['ACR_AISkillProfile'],
 }
 missing = []
 for fname, names in classes.items():

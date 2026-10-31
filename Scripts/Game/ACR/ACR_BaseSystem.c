@@ -487,6 +487,10 @@ class ACR_BaseSystem : Managed
   }
   FactionAffiliationComponent affiliation = FactionAffiliationComponent.Cast(soldier.FindComponent(FactionAffiliationComponent));
   if (affiliation) affiliation.SetAffiliatedFactionByKey(base.m_sOwner);
+  // Garrisons get their side's and profiles' skill too (no tactics tick sets it again).
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  SCR_AICombatComponent combat = SCR_AICombatComponent.Cast(soldier.FindComponent(SCR_AICombatComponent));
+  if (manager && combat) ACR_AISkill.Apply(combat, group, manager.m_iAISkill, manager.m_fAIPerception, base.m_sOwner);
  }
 
  protected void UpdateGarrison(ACR_Manager manager, ACR_Base base, bool enemyNear, bool enemyInRange)

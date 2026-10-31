@@ -156,7 +156,7 @@ class ACR_TestRegress
  }
 
  // Checks a full run makes (Skip counts as made). Raise it with every new check.
- static const int EXPECTED = 136; // includes one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach and one attack-takers check
+ static const int EXPECTED = 141; // includes five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach and one attack-takers check
  static SCR_AIGroup s_RecoveryGroup;
  static SCR_AIGroup s_BoardingGroup;
  static SCR_AIGroup s_CancelBoardingGroup;
@@ -746,6 +746,9 @@ class ACR_TestRegress
 
   // #73: garrison soldiers spawn clear of walls (squads are out by now, for the navmesh).
   if (tick == 6) ACR_TestGarrisonSpawn.Check();
+  // AI skill per side and unit for mission makers (ACR_AISkill).
+  if (tick == 5) ACR_TestAISkill.Setup(bravo);
+  if (tick == 8) ACR_TestAISkill.Check(bravo);
   // #87: spawn spots and squads step off sand and gravel piles.
   if (tick == 6) ACR_TestSpawnHeap.Place(harness.Ground("1250 0 2760"), harness.Ground("1235 0 2780"), harness.Ground("1180 0 2720"));
   if (tick == 7) ACR_TestSpawnHeap.CheckSpots();
