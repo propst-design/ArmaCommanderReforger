@@ -239,7 +239,9 @@ class ACR_Manager : Managed
   ACR_FobSiting.Reset();
   ACR_RoadblockSiting.Reset();
   ACR_MapFeed.Reset();
-  ACR_Options.ForgetHeader(); // a rotation to another scenario reads its own header
+  // Setup screen choices are per match (Jacob, 31 Oct), and a rotation reads its own header.
+  ACR_Options.ClearSet();
+  ACR_Options.ForgetHeader();
   if (!s_Instance) return;
   if (GetGame()) GetGame().GetCallqueue().Remove(s_Instance.Tick);
   BBB.Stop();
