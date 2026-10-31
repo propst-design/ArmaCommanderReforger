@@ -550,7 +550,7 @@ class ACR_Setup
   if (key == "fiaallegiance" && value == "hostile") return "nobody: hostile to both";
   if (key == "fiaallegiance" && value == "west") return "the Blue side";
   if (key == "fiaallegiance" && value == "east") return "the Red side";
-  if (key == "fialeaning" && value == "1") return "on: FIA treats each side by how it treats FIA";
+  if (key == "fialeaning" && value == "1") return "on: FIA treats sides by their conduct";
   if (key == "fialeaning" && value == "0") return "off: as FIA sides with";
   if (key == "deployment" && value == "military") return "military bases / HQs / FOBs";
   if (key == "deployment" && value == "hq") return "HQs / FOBs only";
