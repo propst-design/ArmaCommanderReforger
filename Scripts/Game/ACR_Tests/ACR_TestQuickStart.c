@@ -155,6 +155,10 @@ class ACR_TestQuickStart
   int westForts = ACR_Fortify.CountPositions(west);
   int eastForts = ACR_Fortify.CountPositions(east);
   ACR_TestRegress.Check("quickstart: dug-in positions at the front for both sides", westForts >= 1 && eastForts >= 1, string.Format("%1 %2 (quick start %3), %4 %5 (quick start %6)", west, westForts, ACR_QuickStart.s_mPositions.Get(west), east, eastForts, ACR_QuickStart.s_mPositions.Get(east)));
+  int westTowns, eastTowns;
+  ACR_QuickStart.s_mTowns.Find(west, westTowns);
+  ACR_QuickStart.s_mTowns.Find(east, eastTowns);
+  ACR_TestRegress.Check("quickstart: a town at the front fortified for both sides", westTowns >= 1 && eastTowns >= 1, string.Format("%1 %2, %3 %4", west, westTowns, east, eastTowns));
   int westFields, eastFields;
   bool apart = true;
   string apartText = "";
@@ -173,6 +177,6 @@ class ACR_TestQuickStart
   }
   ACR_TestRegress.Check("quickstart: a minefield laid at the front for both sides", westFields >= 1 && eastFields >= 1, string.Format("%1 %2, %3 %4", west, westFields, east, eastFields));
   ACR_TestRegress.Check(string.Format("quickstart: the fields keep %1 m from the side's own positions and roadblocks", ACR_AICommander.DEFENCE_STANDOFF), apart && westFields + eastFields > 0, apartText);
-  ACR_TestRegress.Complete("quickstart", 13);
+  ACR_TestRegress.Complete("quickstart", 14);
  }
 }

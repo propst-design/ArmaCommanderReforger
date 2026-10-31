@@ -330,7 +330,8 @@ class ACR_Roadblocks : Managed
 		return best;
 	}
 
-	static bool ValidateSite(vector pos, out vector outRoadPos, out float outYaw, out string refusal, string faction = "", vector facing = vector.Zero)
+	// ownBase: a base whose own works these are (ACR_BaseLines): it may stand inside that one's distance.
+	static bool ValidateSite(vector pos, out vector outRoadPos, out float outYaw, out string refusal, string faction = "", vector facing = vector.Zero, ACR_Base ownBase = null)
 	{
 		ChimeraAIWorld aiWorld = ChimeraAIWorld.Cast(GetGame().GetAIWorld());
 		if (!aiWorld || !aiWorld.GetRoadNetworkManager())
@@ -411,7 +412,7 @@ class ACR_Roadblocks : Managed
 		// Distance check to bases
 		foreach (ACR_Base base : ACR_Base.s_All)
 		{
-			if (vector.DistanceXZ(outRoadPos, base.GetOrigin()) < MIN_BASE_DIST)
+			if (base != ownBase && vector.DistanceXZ(outRoadPos, base.GetOrigin()) < MIN_BASE_DIST)
 			{
 				refusal = "too close to base perimeter";
 				return false;

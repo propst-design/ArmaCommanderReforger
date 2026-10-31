@@ -21,6 +21,10 @@ class ACR_DefenderPost : Managed
  ref array<IEntity> m_aCrewGuns = {};
  SCR_AIGroup m_GunCrew; // on its guns now
  float m_fSpawnRange = 400;       // an enemy this close deploys them (ACR_Defenders.SPAWN_RANGE)
+ float m_fGarrisonArea;           // > 0: they go into the buildings this close (ACR_Garrison)
+ ACR_BaseWork m_Work;             // a whole base's works: its men go behind their bags (ACR_BaseWorks.ManLine)
+ int m_iMannedLine = -1;
+ float m_fMannedAt;
  ref ACR_GuerrillaCell m_Cell;    // an FIA guerrilla cell (ACR_Guerrillas): its own spring and pull-back
 }
 
@@ -59,13 +63,18 @@ class ACR_Defenders
   {
    ACR_DefenderPost post = s_Posts[i];
    TickGunCrew(manager, post);
+   if (post.m_Work && !ACR_BaseWorks.s_bNoLineMenForTest) ACR_Squad.FightLikeSquad(post.m_GunCrew);
    if (post.m_Group)
    {
     ACR_Squad.KeepSimulated(post.m_Group);
     bool stay;
     if (post.m_Cell) stay = ACR_Guerrillas.StayOut(manager, post);
     else stay = EnemyWithin(manager, post.m_sFaction, post.m_vPos, post.m_fSpawnRange + DESPAWN_RANGE - SPAWN_RANGE);
-    if (manager.m_Bases.GuardsAlive(post.m_Group) > 0 && stay) continue;
+    if (manager.m_Bases.GuardsAlive(post.m_Group) > 0 && stay)
+    {
+     ACR_BaseWorks.KeepManned(post);
+     continue;
+    }
     int back = manager.m_Bases.PackUpGuards(post.m_Group);
     post.m_Group = null;
     if (!post.m_bGone) post.m_iReserve += back;
@@ -87,6 +96,8 @@ class ACR_Defenders
    post.m_Group = manager.m_Bases.SpawnGuards(post.m_sFaction, post.m_vPos, post.m_iReserve, post.m_sName + " defenders", post.m_fRadius);
    if (!post.m_Group) continue;
    PrintFormat("[ACR] DEFENDERS %1 deployed: %2 soldiers", post.m_sName, post.m_iReserve);
+   if (ACR_BaseWorks.ManLine(post, post.m_iReserve)) {}
+   else if (post.m_fGarrisonArea > 0 && ACR_Garrison.AssignArea(post.m_Group, post.m_Group.GetLeaderAgent(), post.m_vPos, post.m_fGarrisonArea, post.m_iReserve) > 0) ACR_Guerrillas.Order(post.m_Group, ACR_Squad.WP_GARRISON, post.m_vPos, post.m_fGarrisonArea, true);
    post.m_iReserve = 0;
    if (post.m_Cell) ACR_Guerrillas.Deployed(manager, post);
   }

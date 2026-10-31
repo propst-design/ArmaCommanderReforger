@@ -48,6 +48,7 @@ class ACR_QuickStart
   s_mPositions.Clear();
   s_mFields.Clear();
   if (GetGame()) GetGame().GetCallqueue().Remove(FrontWorks);
+  s_mTowns.Clear();
  }
 
  // What a base is worth to hold: its RP if it pays, a little if not.
@@ -425,9 +426,38 @@ class ACR_QuickStart
    if (ACR_DoctrineKits.CompanyOf(side) == "engineers") mines++;
    int fields = LayFields(side, mines);
    PrintFormat("[ACR] QUICKSTART %1: %2 dug-in positions and %3 minefields at the front", side, positions, fields);
+   FortifyTown(side, 1 + extra);
    s_mPositions.Set(side, positions);
    s_mFields.Set(side, fields);
   }
+ }
+
+ // The side's biggest towns at the front start with their first tier of works (ACR_BaseWorks, #105):
+ // picked among the near-best, so it isn't always the same town.
+ static ref map<string, int> s_mTowns = new map<string, int>(); // tests: towns fortified per side
+ protected static void FortifyTown(string side, int wanted)
+ {
+  array<ACR_Base> towns = {};
+  array<float> scores = {};
+  foreach (ACR_Base base : s_Front)
+  {
+   if (base.m_sOwner != side || base.m_bBuilt) continue;
+   array<IEntity> buildings = {};
+   ACR_BaseDefences.Buildings(base.GetOrigin(), ACR_BaseDefences.SearchRadius(base), buildings);
+   towns.Insert(base);
+   scores.Insert(buildings.Count());
+  }
+  int done;
+  while (done < wanted && !towns.IsEmpty())
+  {
+   int picked = ACR_Variety.Pick(scores, string.Format("quick start town %1 %2", side, done));
+   int built = ACR_BaseWorks.BuildNow(towns[picked], side);
+   PrintFormat("[ACR] QUICKSTART %1: %2 fortified, %3 sites", side, towns[picked].m_sName, built);
+   if (built > 0) done++;
+   towns.Remove(picked);
+   scores.Remove(picked);
+  }
+  s_mTowns.Set(side, done);
  }
 
  // Quick start's front works besides the roadblocks (user, pn13 playtest 29 Oct: "with the quick

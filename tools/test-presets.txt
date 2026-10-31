@@ -207,6 +207,16 @@ genmapgulfcoast|-acrGenerateMapTest 1|150|Worlds/ACR_GulfcoastIslands.ent
 genmapkunar|-acrGenerateMapTest 1|150|Worlds/ACR_KunarProvince.ent
 genmapwestzagoria|-acrGenerateMapTest 1|150|Worlds/ACR_WestZagoria.ent
 genmapzimnitrita|-acrGenerateMapTest 1|150|Worlds/ACR_Zimnitrita.ent
+baseworks|-acrBaseWorksTest 1|900|Worlds/ACR_Everon.ent
+baseworksarland|-acrBaseWorksTest 1|900|Worlds/ACR_Arland.ent
+baseworksai|-acrBaseWorksAITest 1|620|Worlds/ACR_Everon.ent
+baseworksplan|-acrBaseWorksPlanTest 1|120|Worlds/ACR_Everon.ent
+baseworksplanarland|-acrBaseWorksPlanTest 1|120|Worlds/ACR_Arland.ent
+baseworksplankolguyev|-acrBaseWorksPlanTest 1|120|Worlds/ACR_Kolguyev.ent
+worksfight|-acrWorksFightTest 1|480|Worlds/ACR_Everon.ent
+worksfightold|-acrWorksFightOldTest 1|480|Worlds/ACR_Everon.ent
+worksaisoak|-acrWorksAISoakTest 1|1320|Worlds/ACR_Everon.ent
+worksshots|-acrWorksShotsTest 1|600|Worlds/ACR_Kolguyev.ent
 contentpack|-acrContentPackTest 1|120
 contentpackwinter|-acrContentPackWinterTest 1|120
 quickstartfia|-acrQuickStartFIATest 1|90|Worlds/ACR_Everon.ent

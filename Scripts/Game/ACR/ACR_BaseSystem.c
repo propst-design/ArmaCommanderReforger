@@ -111,6 +111,8 @@ class ACR_BaseSystem : Managed
   return income;
  }
 
+ static bool s_bNoIncomeForTest;
+
  int SecondsToIncome()
  {
   if (m_fNextIncome < 0) return m_iIncomeInterval;
@@ -123,6 +125,7 @@ class ACR_BaseSystem : Managed
   if (m_fNextIncome < 0) m_fNextIncome = now + m_iIncomeInterval * 1000;
   if (now < m_fNextIncome) return;
   m_fNextIncome = now + m_iIncomeInterval * 1000;
+  if (s_bNoIncomeForTest) return;
   array<Faction> factions = {};
   GetGame().GetFactionManager().GetFactionsList(factions);
   foreach (Faction faction : factions)

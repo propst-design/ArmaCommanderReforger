@@ -895,7 +895,7 @@ class ACR_Guerrillas
  }
 
  // The group's waypoints replaced by one.
- protected static void Order(SCR_AIGroup group, ResourceName prefab, vector at, float radius, bool fastInit)
+ static void Order(SCR_AIGroup group, ResourceName prefab, vector at, float radius, bool fastInit)
  {
   array<AIWaypoint> old = {};
   group.GetWaypoints(old);

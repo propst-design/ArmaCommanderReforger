@@ -319,6 +319,15 @@ class ACR_Requests : Managed
    if (squad.GetFaction()) fortifyFaction = squad.GetFaction().GetFactionKey();
    bool upgrade = ACR_Fortify.NearestOwn(fortifyFaction, point, ACR_Fortify.UPGRADE_RADIUS) != null;
    vector fortifyAim = AimFor(point);
+   // On the middle of a base of ours: the whole town (ACR_BaseWorks).
+   ACR_Base worksBase;
+   if (!upgrade) worksBase = ACR_BaseWorks.BaseAt(point, fortifyFaction);
+   if (worksBase)
+   {
+    if (!ACR_BaseWorks.Order(squad, worksBase, fortifyWhy)) return outcome.Refuse(name + ": " + fortifyWhy);
+    PrintFormat("[ACR] BASEWORKS order player=%1 squad=%2 at %3", pc.GetPlayerId(), name, worksBase.m_sName);
+    return outcome.Accept(name + ": " + ACR_BaseWorks.Accepted(worksBase));
+   }
    if (!ACR_Fortify.Order(squad, point, fortifyWhy, fortifyAim)) return outcome.Refuse(name + ": " + fortifyWhy);
    PrintFormat("[ACR] FORTIFY order player=%1 squad=%2 at %3 aim %4", pc.GetPlayerId(), name, point, fortifyAim);
    if (upgrade && fortifyAim != vector.Zero) return outcome.Accept(name + ": " + OrderWords(command) + " (an upgrade keeps the position's facing)");

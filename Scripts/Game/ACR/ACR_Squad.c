@@ -374,6 +374,26 @@ class ACR_Squad : Managed
  // Grant or revoke native command authority to match who controls the leader.
  // Reforger disables AI far from every player ("max LOD"). Arma Commander
  // battles happen anywhere on the map, so commanded squads stay fully simulated.
+ // A group that isn't a squad (a reserve): the skill and perception a squad's men get each tick (Tactics),
+ // which ACR_Base's garrisons and ACR_Defenders' men never had. Works' reserves lost every fight to the same
+ // number of squad men without a kill (srv:worksfight).
+ static void FightLikeSquad(AIGroup group)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!group || !manager) return;
+  array<AIAgent> agents = {};
+  group.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (!body) continue;
+   SCR_AICombatComponent combat = SCR_AICombatComponent.Cast(body.FindComponent(SCR_AICombatComponent));
+   if (!combat) continue;
+   if (combat.GetAISkill() != manager.m_iAISkill) combat.SetAISkill(manager.m_iAISkill);
+   if (combat.GetPerceptionFactor() != manager.m_fAIPerception) combat.SetPerceptionFactor(manager.m_fAIPerception);
+  }
+ }
+
  static void KeepSimulated(AIGroup group)
  {
   if (!group) return;
@@ -560,6 +580,12 @@ class ACR_Squad : Managed
  }
  protected void RestoreOrderAt(ACR_OrderSnapshot snapshot, ResourceName prefab, vector target, float radius)
  {
+  // A Fortify order called off while it was set aside (its base fell): nothing to go back to.
+  if (snapshot.m_eState == ACR_EOrderState.FORTIFY && !m_FortifyPlan)
+  {
+   SetOrder("Holding position", ACR_EOrderState.HOLD);
+   return;
+  }
   // A garrison put back (after a dismount, a set-aside...) needs its posts again.
   if (prefab == WP_GARRISON && m_Group && !ACR_Garrison.HasPosts(m_Group))
   {
@@ -1802,7 +1828,9 @@ class ACR_Squad : Managed
  // "Fortifying: dug in (40% - contact)"
  protected string FortifyLabel(string status = "")
  {
-  string label = string.Format("Fortifying: %1 (%2%%", ACR_Fortify.TierWords(m_FortifyPlan.m_iTier), (int)(m_FortifyPlan.m_fProgress / m_FortifyPlan.m_fDuration * 100));
+  string what = ACR_Fortify.TierWords(m_FortifyPlan.m_iTier);
+  if (m_FortifyPlan.m_Work) what = ACR_BaseWorks.Words(m_FortifyPlan);
+  string label = string.Format("Fortifying: %1 (%2%%", what, (int)(m_FortifyPlan.m_fProgress / m_FortifyPlan.m_fDuration * 100));
   if (status != "") label += " - " + status;
   return label + ")";
  }
@@ -1841,6 +1869,7 @@ class ACR_Squad : Managed
    // neither the walk's limit nor the give-up timer.
    plan.m_fDeadline += (dt - 1.0) * 1000;
    plan.m_fLastProgress += (dt - 1.0) * 1000;
+   plan.m_fWalkAt += (dt - 1.0) * 1000;
    dt = 1.0;
   }
   if (CountAlive() <= 0)
@@ -1866,12 +1895,14 @@ class ACR_Squad : Managed
   }
   if (!plan.m_bArrived && now > plan.m_fDeadline)
   {
+   if (SkipWorksSite(plan)) return;
    CancelFortify("abandoned: the squad could not reach the site");
    return;
   }
   if (plan.m_bArrived && now - plan.m_fLastProgress >= FOB_GIVE_UP_MS)
   {
    PrintFormat("[ACR] SQUAD %1: fortifying at %2 abandoned after 3 minutes without progress", m_Name, plan.m_vSite);
+   if (SkipWorksSite(plan)) return;
    CancelFortify("abandoned");
    return;
   }
@@ -1885,6 +1916,7 @@ class ACR_Squad : Managed
   if (!present)
   {
    if (m_Group && !m_Group.GetCurrentWaypoint() && !HasPlayer()) IssueWaypoint(WP_MOVE, plan.m_vStage, 4.0);
+   else if (!HasPlayer()) KeepWalking(plan, now);
    SetOrder(FortifyLabel("moving to the site"), ACR_EOrderState.FORTIFY);
    return;
   }
@@ -1910,6 +1942,62 @@ class ACR_Squad : Managed
   CompleteFortify();
  }
 
+ // Base works go on to the next site, unless it's a fight that stopped the work: that stops the order.
+ // A squad can stop dead on the way with its waypoint still there, so the move's own recovery never
+ // sees it: the game's group tree logs "Failed move from ... to waypoint ..." once and the men stand
+ // (srv:baseworks seed 46199, Montignac: the leader 87 m off for the whole of the walk's limit, 9 men
+ // alive, no enemy; 31 Oct, Saint-Philippe: a man 1.7 m off the navmesh, and this got them going).
+ // Stopped for a while: onto the navmesh and the same order again. A leader can also be stuck for good
+ // (31 Oct, Montignac: 5 minutes at <4813,167,7046> beside a house door, nine new orders,
+ // walking nowhere in either direction): from the third try he is stepped ahead to walkable ground,
+ // further each time. The walk's limit still ends it.
+ static const float WALK_STOPPED_MS = 20000;
+ static const float WALK_MOVED_M = 2.0;
+ static const float WALK_STEP_M = 6.0;
+ static const float WALK_STEP_MOST_M = 24.0;
+ void KeepWalking(ACR_FortifyPlan plan, float now)
+ {
+  IEntity anchor = GetAnchor();
+  if (!anchor) return;
+  vector at = anchor.GetOrigin();
+  if ((plan.m_vWalkFrom[0] == 0 && plan.m_vWalkFrom[2] == 0) || vector.DistanceXZ(at, plan.m_vWalkFrom) > WALK_MOVED_M)
+  {
+   plan.m_vWalkFrom = at;
+   plan.m_fWalkAt = now;
+   return;
+  }
+  if (now - plan.m_fWalkAt < WALK_STOPPED_MS) return;
+  plan.m_fWalkAt = now;
+  plan.m_iWalkRetries++;
+  StepOntoNavmesh(0);
+  string how = "same spot";
+  if (plan.m_iWalkRetries > 2 && !IsMounted() && !EntityUtils.IsPlayer(anchor))
+  {
+   vector ahead = plan.m_vStage - at;
+   ahead[1] = 0;
+   float left = ahead.Length();
+   float step = Math.Min(WALK_STEP_M * (plan.m_iWalkRetries - 2), WALK_STEP_MOST_M);
+   vector spot;
+   if (left > 1 && ReachableNear(at + ahead * (Math.Min(step, left) / left), WALK_STEP_M, spot))
+   {
+    anchor.SetOrigin(spot);
+    how = string.Format("leader stepped %1 m ahead", (int)vector.DistanceXZ(at, spot));
+   }
+  }
+  IssueWaypoint(WP_MOVE, plan.m_vStage, 4.0);
+  PrintFormat("[ACR] SQUAD %1: stopped at %2, %3 m from the site at %4; on again, try %5 (%6)", m_Name, at, (int)vector.DistanceXZ(at, plan.m_vSite), plan.m_vSite, plan.m_iWalkRetries, how);
+ }
+
+ protected bool SkipWorksSite(ACR_FortifyPlan plan)
+ {
+  if (!plan.m_Work || ACR_FobBuild.IsContested(plan.m_vSite, plan.m_sFaction) || KnownEnemies(60, true) > 0) return false;
+  m_FortifyPlan = null;
+  EquipShovels(false);
+  ClearOrders();
+  ACR_BaseWorks.SiteSkipped(this, plan);
+  return true;
+ }
+
  protected void CompleteFortify()
  {
   ACR_FortifyPlan plan = m_FortifyPlan;
@@ -1917,6 +2005,11 @@ class ACR_Squad : Managed
   EquipShovels(false);
   // Stop the walk first: the pieces and their navmesh rebuild land round the builders.
   ClearOrders();
+  if (plan.m_Work)
+  {
+   ACR_BaseWorks.SiteDone(this, plan);
+   return;
+  }
   string why;
   ACR_Fortification fort = ACR_Fortify.Build(plan, why);
   ACR_Manager manager = ACR_Manager.GetInstance();
@@ -1944,6 +2037,18 @@ class ACR_Squad : Managed
   SetOrder("Holding position", ACR_EOrderState.DEFEND);
   m_OrderKind = ACR_EOrderKind.DEFEND;
   IssueWaypoint(WP_DEFEND, ACR_Fortify.HoldCentre(fort), ACR_Fortify.HOLDER_RADIUS);
+ }
+
+ // The base works' squad with nothing left to do there: it holds the base.
+ void HoldBaseWorks(ACR_BaseWork work)
+ {
+  if (m_iAITask == ACR_EAITask.FORTIFY) m_iAITask = ACR_EAITask.FREE;
+  SetOrder("Holding position", ACR_EOrderState.DEFEND);
+  m_OrderKind = ACR_EOrderKind.DEFEND;
+  vector at;
+  float radius;
+  if (work && ACR_BaseWorks.HoldSpot(work, at, radius)) IssueWaypoint(WP_DEFEND, at, radius);
+  else if (work && work.m_Base) IssueWaypoint(WP_DEFEND, work.m_Base.GetOrigin(), 60);
  }
 
  // Back to a position of ours that stands empty (ACR_AICommander.ManPositions): hold it as its
@@ -3022,7 +3127,7 @@ class ACR_Squad : Managed
  }
 
  // The nearest point on the soldiers' navmesh or road within radius of 'at'.
- protected bool ReachableNear(vector at, float radius, out vector result)
+ bool ReachableNear(vector at, float radius, out vector result)
  {
   if (IsMounted())
   {
