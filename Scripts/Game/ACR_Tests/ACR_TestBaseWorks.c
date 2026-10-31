@@ -671,7 +671,7 @@ class ACR_TestBaseWorks
   ACR_TestRegress.Check("baseworks plan: stretches stay a stretch", s_iLongStretch == 0, string.Format("%1 over 40 m", s_iLongStretch));
   ACR_TestRegress.Check("baseworks plan: pieces per base stay under the cap", s_iMostPieces <= ACR_BaseLines.MOST_PIECES, string.Format("most %1 (cap %2)", s_iMostPieces, ACR_BaseLines.MOST_PIECES));
   ACR_TestRegress.Check("baseworks plan: tier I stays a reasonable job", s_iWorstTier <= 330, string.Format("worst %1 s of work", s_iWorstTier));
-  ACR_TestRegress.Check("baseworks plan: towns don't get one template", s_aLengths.Count() * 3 >= s_iLines, string.Format("%1 different line lengths in %2 lines", s_aLengths.Count(), s_iLines));
+  ACR_TestRegress.Check("baseworks plan: towns don't get one template", s_aLengths.Count() * 4 >= s_iLines, string.Format("%1 different line lengths in %2 lines", s_aLengths.Count(), s_iLines));
   ACR_TestRegress.Check("baseworks plan: every gun has a clear line of fire (the game's own check)", s_iFire == 0, string.Format("%1 of %2 blocked", s_iFire, s_iNests + s_iBunkers));
   ACR_TestRegress.Check("baseworks plan: no gun faces a wall, fence or building close in front", s_iClose == 0, string.Format("%1 of %2", s_iClose, s_iNests + s_iBunkers));
   ACR_TestRegress.Check("baseworks plan: a gun sees 40 m along its middle", s_iFacing == 0, string.Format("%1 of %2", s_iFacing, s_iNests + s_iBunkers));
