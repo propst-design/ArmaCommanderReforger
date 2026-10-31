@@ -615,6 +615,8 @@ class ACR_Intel : Managed
   string name = "";
   if (vehicle.GetPrefabData()) name = vehicle.GetPrefabData().GetPrefabName();
   name.ToUpper();
+  // By its simulation first: mod helicopters (RHS Mi-24, UH-60...) read as armour or armed by name.
+  if (vehicle.FindComponent(VehicleHelicopterSimulation) || vehicle.FindComponent(VehicleFixedWingSimulation)) return KIND_AIR;
   if (name.Contains("HELICOPTER") || name.Contains("MI8") || name.Contains("UH1")) return KIND_AIR;
   if (name.Contains("BTR") || name.Contains("BMP") || name.Contains("BRDM") || name.Contains("LAV") || name.Contains("T72") || name.Contains("M1A") || name.Contains("M2A") || name.Contains("TRACKED")) return KIND_ARMOUR;
   if (ACR_Squad.HasTurret(vehicle)) return KIND_ARMED;
