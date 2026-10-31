@@ -181,7 +181,10 @@ function Update-TestPack($name, $source) {
     $tmp = "$out.new"
     # A pack nested in the old one (the swap below failed, 27 Oct) means the old one is stale.
     $nested = Join-Path $out "$name.new"
-    if ((Test-Path -LiteralPath (Join-Path $out 'data.pak')) -and !(Test-Path -LiteralPath $nested) -and (Test-Path -LiteralPath $stampFile) -and (Get-Content -LiteralPath $stampFile -Raw).Trim() -eq $stamp) { return $null }
+    # Download manifests in the pack mean the backend replaced it with the Workshop release (30 Oct:
+    # Workshop 0.5.8 > local, so every pak: run tested the published build, without the test harness).
+    $downloaded = @(Get-ChildItem -LiteralPath $out -Filter '*_manifest.json' -ErrorAction SilentlyContinue).Count -gt 0
+    if ((Test-Path -LiteralPath (Join-Path $out 'data.pak')) -and !(Test-Path -LiteralPath $nested) -and !$downloaded -and (Test-Path -LiteralPath $stampFile) -and (Get-Content -LiteralPath $stampFile -Raw).Trim() -eq $stamp) { return $null }
     # No stamp until the new pack is in place: any failure below repacks on the next run.
     Remove-Item -LiteralPath $stampFile -Force -ErrorAction SilentlyContinue
     $wb = Find-Workbench
@@ -207,6 +210,18 @@ function Update-TestPack($name, $source) {
     if (!(Test-Path -LiteralPath (Join-Path $out 'data.pak')) -or (Test-Path -LiteralPath $nested)) { return "the new $name pack isn't in place in $out" }
     Set-Content -LiteralPath $stampFile -Value $stamp -Encoding ASCII
     return $null
+}
+
+# The version of a mod the pak: server's backend already has (its first run downloads the Workshop
+# copies into the profile). A config asking for "latest" made it "update" our packs to a newer
+# Workshop release (30 Oct, 0.5.7 -> 0.5.8: every pak: run tested the published build, no test
+# harness); asking for the version it has keeps it from downloading, and our packs are mounted.
+function Get-CachedModVersion($modId) {
+    $dir = Get-ChildItem -LiteralPath (Join-Path $PackServerProfile 'addons') -Directory -Filter "*_$modId" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (!$dir) { return $null }
+    $file = Join-Path $dir.FullName 'ServerData.json'
+    if (!(Test-Path -LiteralPath $file)) { return $null }
+    try { return [string]((Get-Content -LiteralPath $file -Raw | ConvertFrom-Json).revision.version) } catch { return $null }
 }
 
 function Test-UdpPortBusy($port) {
@@ -265,6 +280,14 @@ function Invoke-ServerTest($id, $preset, $config, $packed) {
     $cfgPath = Join-Path $profileDir 'testserver.json'
     if ($template -match '\{config\}' -and (Test-Path -LiteralPath $cfgTemplate)) {
         $json = (Get-Content -LiteralPath $cfgTemplate -Raw).Replace('{mission}', $mission)
+        if ($packed) {
+            $cfg = $json | ConvertFrom-Json
+            foreach ($mod in @($cfg.game.mods)) {
+                $have = Get-CachedModVersion $mod.modId
+                if ($have) { $mod | Add-Member -NotePropertyName version -NotePropertyValue $have -Force }
+            }
+            $json = $cfg | ConvertTo-Json -Depth 10
+        }
         Set-Content -LiteralPath $cfgPath -Value $json -Encoding ASCII
     }
     $serverArgs = $template.Replace('{world}', $world).Replace('{mission}', [string]$mission).Replace('{profile}', $profileDir).Replace('{addonsDir}', $serverAddons).Replace('{config}', $cfgPath) + ' ' + $config.Flags

@@ -13,6 +13,6 @@
         "visible": false,
         "crossPlatform": false,
         "gameProperties": { "battlEye": false },
-        "mods": [ { "modId": "AC230926A0010001", "name": "ArmaCommanderReforger" } ]
+        "mods": [ { "modId": "AC230926A0010001", "name": "ArmaCommanderReforger" }, { "modId": "BBB0261015000001", "name": "BetterBattleBuddies" } ]
     }
 }
