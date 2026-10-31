@@ -932,6 +932,7 @@ class ACR_TestRegress
   if (tick == 24)
   {
    float savedStart = manager.m_fAIHoldStart;
+   manager.EndJoinHoldsForTest(); // a client run's own player joined seconds ago
    manager.m_fAIHoldStart = GetGame().GetWorld().GetWorldTime();
    ACR_Perf.s_bChecks = false;
    bool held = manager.HoldAIFor("US");
@@ -1114,6 +1115,8 @@ class ACR_TestRegress
    Check("debug: pause and resume the enemy AI", paused && !dbg.IsPaused("US"), dbg.Status(manager, "USSR"));
    string attack = dbg.Run(manager, ACR_EDebug.ATTACK_NOW, "USSR", "");
    if (attack.Contains("no free squads")) Skip("debug: forced AI attack", attack);
+   // a client run's own player commands that side, so its AI commander is rightly off
+   else if (attack.Contains("isn't in command") && GetGame().GetPlayerManager().GetPlayerCount() > 0) Skip("debug: forced AI attack", attack);
    else Check("debug: forced AI attack", attack.Contains("attacking"), attack);
    dbg.Run(manager, ACR_EDebug.REVEAL, "US", "");
   }

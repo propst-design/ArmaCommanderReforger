@@ -955,6 +955,15 @@ class ACR_Manager : Managed
  static const float AI_JOIN_HOLD_MS = 60000;
  float m_fAIHoldStart = -1; // (regress test resets it)
  protected ref map<int, float> m_PlayerSeenAt = new map<int, float>();
+ // Tests: players already here count as joined long ago (a client run's own player has only
+ // just joined, so the join hold held his side's AI through the regress checks).
+ void EndJoinHoldsForTest()
+ {
+  float past = GetGame().GetWorld().GetWorldTime() - AI_JOIN_HOLD_MS;
+  array<int> players = {};
+  GetGame().GetPlayerManager().GetPlayers(players);
+  foreach (int playerId : players) m_PlayerSeenAt.Set(playerId, past);
+ }
  protected ref array<string> m_AIHeld = {};
  bool HoldAIFor(string factionKey)
  {
