@@ -1639,7 +1639,11 @@ class ACR_AICommander : Managed
   if (FriendliesNear(point, ACR_Supports.ZoneRadius(type) + 40)) return false;
   string result = m_Manager.m_Supports.Call(m_sFaction, SupportIndex(type), point, true);
   Say(string.Format("[ACR] AI %1 support (%2): %3", m_sFaction, why, result));
-  return true;
+  // Call refuses some missions after SupportReady passed (no bomb-run prefab, no helicopter,
+  // a pad's refusal) without spending or starting the cooldown. Reporting those as fired
+  // stopped every fallback chain on the broken entry (no prep fire, no defensive fire).
+  ACR_SupportEntry entry = m_Manager.m_Bases.GetFaction(m_sFaction).m_aSupports[SupportIndex(type)];
+  return entry.m_iCooldown <= 0 || entry.m_fReadyAt > GetGame().GetWorld().GetWorldTime();
  }
 
  // ---------------------------------------------------------------- 0. intelligence
