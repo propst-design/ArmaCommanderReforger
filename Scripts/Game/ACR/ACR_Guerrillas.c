@@ -894,6 +894,11 @@ class ACR_Guerrillas
   if (utility && utility.GetCombatModeExternal() != mode) utility.SetCombatMode(mode);
  }
 
+ protected static void DeleteWaypointLater(AIWaypoint waypoint)
+ {
+  if (waypoint) SCR_EntityHelper.DeleteEntityAndChildren(waypoint);
+ }
+
  // The group's waypoints replaced by one.
  protected static void Order(SCR_AIGroup group, ResourceName prefab, vector at, float radius, bool fastInit)
  {
@@ -902,7 +907,9 @@ class ACR_Guerrillas
   foreach (AIWaypoint waypoint : old)
   {
    group.RemoveWaypoint(waypoint);
-   SCR_EntityHelper.DeleteEntityAndChildren(waypoint);
+   // A moment later, as ACR_Squad.DeleteWaypointSoon: a running Defend still reads it this frame
+   // ("Defend Waypoint not provided to the node!").
+   GetGame().GetCallqueue().CallLater(DeleteWaypointLater, ACR_Squad.WAYPOINT_DELETE_DELAY_MS, false, waypoint);
   }
   EntitySpawnParams params = new EntitySpawnParams();
   params.TransformMode = ETransformMode.WORLD;
