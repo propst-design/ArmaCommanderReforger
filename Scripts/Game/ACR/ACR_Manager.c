@@ -231,6 +231,17 @@ class ACR_Manager : Managed
   ACR_Minefields.Reset();
   ACR_Fortify.Reset();
   ACR_SpawnPoints.Reset();
+  // Caches keyed by world time: on the next mission the clock starts near 0 again, so their
+  // "too recent" checks held for as long as the last match ran.
+  ACR_TwoIC.Reset();
+  ACR_LandingZone.Reset();
+  ACR_AirLift.Reset();
+  ACR_FobSiting.Reset();
+  ACR_RoadblockSiting.Reset();
+  ACR_MapFeed.Reset();
+  // Setup screen choices are per match (Jacob, 31 Oct), and a rotation reads its own header.
+  ACR_Options.ClearSet();
+  ACR_Options.ForgetHeader();
   if (!s_Instance) return;
   if (GetGame()) GetGame().GetCallqueue().Remove(s_Instance.Tick);
   BBB.Stop();

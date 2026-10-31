@@ -48,6 +48,7 @@ class ACR_Options
  static void Set(string name, string value) { s_Set.Set(name, value); }
  static void Unset(string name) { s_Set.Remove(name); }
  static void ClearSet() { s_Set.Clear(); }
+ static void ForgetHeader() { s_Header = null; }
 
  protected static map<string, string> Header()
  {
