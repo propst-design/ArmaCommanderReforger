@@ -11,6 +11,7 @@ class ACR_TestGuerrillas
  protected static ACR_DefenderPost s_Ambush;
  protected static ACR_DefenderPost s_House;
  protected static vector s_vOldSite;
+ protected static IEntity s_Heap;
 
  static void Run(int second)
  {
@@ -19,6 +20,8 @@ class ACR_TestGuerrillas
   foreach (ACR_FactionSettings settings : ACR_FactionSettings.s_All) settings.m_bAICommander = false;
   if (second == 10) Placement(manager);
   if (!s_Ambush) return;
+  // A heap on the hide site: terrain height alone would stand the men inside it (playtest pn20: a bunker's mound).
+  if (second == 11) s_Heap = ACR_Manager.SpawnPrefab(ACR_TestSpawnHeap.GRAVEL, ACR_Manager.Ground(s_Ambush.m_vPos));
   if (second == 12) Approach(manager, "Guerrilla Bait", s_Ambush.m_Cell.m_vKillZone, 400);
   // The bait holds its fire: the ambush must spring on the kill zone, not on a firefight.
   if (second == 16) HoldFire(manager, "Guerrilla Bait");
@@ -87,7 +90,7 @@ class ACR_TestGuerrillas
  protected static void Deployed(ACR_Manager manager)
  {
   SCR_AIGroup group = s_Ambush.m_Group;
-  int men, offRoad;
+  int men, offRoad, buried;
   if (group)
   {
    array<AIAgent> agents = {};
@@ -98,9 +101,11 @@ class ACR_TestGuerrillas
     if (!man) continue;
     men++;
     if (ACR_Minefields.RoadClearance(man.GetOrigin()) >= 8) offRoad++;
+    if (ACR_BaseSystem.Buried(man.GetOrigin())) buried++;
    }
   }
   Check("guerrillas: the ambush deploys when enemies come up the road", group != null && men > 0, string.Format("%1 men", men));
+  Check("guerrillas: nobody lies inside what stands on the hide site", s_Heap && men > 0 && buried == 0, string.Format("%1 of %2 buried, heap %3", buried, men, s_Heap != null));
   Check("guerrillas: they lie in wait off the road, holding their fire", men > 0 && offRoad == men && CombatMode(group) == EAIGroupCombatMode.HOLD_FIRE && !s_Ambush.m_Cell.m_bSprung, string.Format("%1 of %2 off the road, combat mode %3", offRoad, men, typename.EnumToString(EAIGroupCombatMode, CombatMode(group))));
   // An FIA barricade blocks the road: no lane cut through it for anyone (#85's lane is for a side's own roadblocks).
   ACR_Roadblock block = s_Ambush.m_Cell.m_Block;
@@ -207,7 +212,7 @@ class ACR_TestGuerrillas
 
  protected static void Finish()
  {
-  ACR_TestRegress.Complete("guerrillas", 13);
+  ACR_TestRegress.Complete("guerrillas", 14);
  }
 
  protected static EAIGroupCombatMode CombatMode(SCR_AIGroup group)
