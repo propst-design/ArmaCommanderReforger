@@ -20,7 +20,9 @@ PRIVATE = re.compile(
 )
 CONTENT = re.compile(
     r"(?i)[A-Z]:[\\/](?:Users|Documents and Settings)[\\/]|/" r"Users/|"
-    r"claude\.ai/(?:chat|project|public)/|"
+    r"claude\.ai/(?:chat|project|public|artifact|code)/|"
+    r"discord(?:app)?\.com/api/webhooks/\d{17,20}/[\w-]{40,}|"
+    r"[\w.+-]+@(?:gmail|googlemail|outlook|hotmail|live|yahoo|icloud|proton|protonmail)\.[a-z.]+|"
     r"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|"
     r"AKIA[0-9A-Z]{16}|-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----"
 )
