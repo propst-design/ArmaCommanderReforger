@@ -4562,6 +4562,7 @@ class ACR_Squad : Managed
   GetGame().GetCallqueue().Remove(EnsureGetOut);
   GetGame().GetCallqueue().Remove(EnsureBoardVehicle);
   GetGame().GetCallqueue().Remove(WakeCrew);
+  GetGame().GetCallqueue().Remove(SweepOutForJob);
   // Detach orders before deleting them, including queued artillery/boarding orders.
   // A surviving native group must never keep following a deleted owned waypoint.
   ClearOrders();
@@ -4580,5 +4581,6 @@ class ACR_Squad : Managed
   GetGame().GetCallqueue().Remove(EnsureGetOut);
   GetGame().GetCallqueue().Remove(EnsureBoardVehicle);
   GetGame().GetCallqueue().Remove(WakeCrew);
+  GetGame().GetCallqueue().Remove(SweepOutForJob);
  }
 }
