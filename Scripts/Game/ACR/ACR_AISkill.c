@@ -79,11 +79,12 @@ class ACR_AISkill
   return combat && combat.m_bACRSkillPinned;
  }
 
- // Every second from ACR_Squad.Tactics, with the mode's skill and reaction.
- static void Apply(SCR_AICombatComponent combat, SCR_AIGroup group, int skill, float reaction)
+ // Every second from ACR_Squad.Tactics, with the mode's skill and reaction; once at spawn for
+ // base garrisons, whose group takes its faction from its men (factionKey names it then).
+ static void Apply(SCR_AICombatComponent combat, SCR_AIGroup group, int skill, float reaction, string factionKey = "")
  {
   if (!combat) return;
-  if (!combat.m_bACRSkillResolved) Resolve(combat, group);
+  if (!combat.m_bACRSkillResolved) Resolve(combat, group, factionKey);
   if (combat.m_iACRSkill > 0) skill = combat.m_iACRSkill;
   skill = Level(skill);
   if (combat.m_bACRStronger) skill = StepUp(skill);
@@ -92,14 +93,15 @@ class ACR_AISkill
   if (combat.GetPerceptionFactor() != reaction) combat.SetPerceptionFactor(reaction);
  }
 
- protected static void Resolve(SCR_AICombatComponent combat, SCR_AIGroup group)
+ protected static void Resolve(SCR_AICombatComponent combat, SCR_AIGroup group, string factionKey = "")
  {
   combat.m_bACRSkillResolved = true;
   combat.m_iACRSkill = 0;
   combat.m_fACRReactionScale = 1;
   combat.m_bACRStronger = false;
   ACR_FactionSettings settings = null;
-  if (group && group.GetFaction()) settings = ACR_FactionSettings.Find(group.GetFaction().GetFactionKey());
+  if (factionKey.IsEmpty() && group && group.GetFaction()) factionKey = group.GetFaction().GetFactionKey();
+  if (!factionKey.IsEmpty()) settings = ACR_FactionSettings.Find(factionKey);
   if (!settings) return;
   int share = settings.m_iAIStrongerShare;
   combat.m_iACRSkill = settings.m_iAISkill;
@@ -136,13 +138,15 @@ class ACR_AISkill
   return EAISkill.NOOB;
  }
 
+ // One level up, capped at Expert: Perfect never misses, so a share of stronger soldiers on an
+ // Expert side must not turn into aimbots. A side or profile set to Perfect keeps it.
  static int StepUp(int skill)
  {
+  if (skill >= EAISkill.CYLON) return EAISkill.CYLON;
   if (skill < EAISkill.ROOKIE) return EAISkill.ROOKIE;
   if (skill < EAISkill.REGULAR) return EAISkill.REGULAR;
   if (skill < EAISkill.VETERAN) return EAISkill.VETERAN;
-  if (skill < EAISkill.EXPERT) return EAISkill.EXPERT;
-  return EAISkill.CYLON;
+  return EAISkill.EXPERT;
  }
 
  protected static SCR_AICombatComponent Combat(IEntity soldier)

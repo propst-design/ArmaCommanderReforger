@@ -16,7 +16,7 @@ class ACR_TestAISkill
 
  static void Setup(ACR_Squad bravo)
  {
-  ACR_TestRegress.Check("ai skill: only named levels (60 aims as Regular, not perfectly)", ACR_AISkill.Level(60) == EAISkill.REGULAR && ACR_AISkill.Level(5) == EAISkill.NOOB && ACR_AISkill.Level(100) == EAISkill.CYLON && ACR_AISkill.StepUp(EAISkill.VETERAN) == EAISkill.EXPERT && ACR_AISkill.StepUp(EAISkill.CYLON) == EAISkill.CYLON, "Level 60/5/100, StepUp 70/100");
+  ACR_TestRegress.Check("ai skill: only named levels (60 aims as Regular, not perfectly)", ACR_AISkill.Level(60) == EAISkill.REGULAR && ACR_AISkill.Level(5) == EAISkill.NOOB && ACR_AISkill.Level(100) == EAISkill.CYLON && ACR_AISkill.StepUp(EAISkill.VETERAN) == EAISkill.EXPERT && ACR_AISkill.StepUp(EAISkill.CYLON) == EAISkill.CYLON && ACR_AISkill.StepUp(EAISkill.EXPERT) == EAISkill.EXPERT, "Level 60/5/100, StepUp 70/80/100");
   array<IEntity> soldiers = Soldiers(bravo);
   if (!bravo || !bravo.GetFaction() || soldiers.Count() < 2) return;
   s_Settings = ACR_FactionSettings.Find(bravo.GetFaction().GetFactionKey());

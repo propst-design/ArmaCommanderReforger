@@ -267,7 +267,7 @@ One per world. Place it anywhere.
 |---|---|---|
 | `m_bHostGameMaster` | on | The host and server admins also get Game Master |
 | `m_bSharedCommand` | on | Every player of a side may command all its squads. Off: one commander per side |
-| `m_iAISkill` | 70 (Veteran) | Skill of all AI soldiers in the mode |
+| `m_iAISkill` | 70 (Veteran) | Skill of AI soldiers in AC: Actual's squads and base garrisons, unless a side or unit sets its own |
 | `m_fAIPerception` | 1.6 | How fast AI spot and identify targets (game default 1) |
 | `m_iRespawnSeconds` | 15 | Delay before a player whose command unit was killed can redeploy |
 
@@ -310,7 +310,8 @@ starting with `USSR` count as eastern; otherwise keys containing `US`, or exactl
 
 AC: Actual sets every soldier in its squads to the mode's skill (`m_iAISkill`, `-acrSkill`) and
 reaction speed (`m_fAIPerception`, `-acrReaction`) every second, so a value a script sets once at
-spawn doesn't last. Set skill per side and per unit here instead. A soldier gets, first to last:
+spawn doesn't last. Base garrison soldiers get the same values once, when they spawn. Set skill per
+side and per unit here instead. A soldier gets, first to last:
 
 1. values a mission script pinned on him with `ACR_AISkill.Pin(soldier, EAISkill.EXPERT, 1.2)`
    (kept until `ACR_AISkill.Unpin(soldier)`; this also works on base garrison soldiers);
@@ -327,7 +328,10 @@ soldier prefabs), `m_iSkill` (`NONE` = the side's), `m_fReactionScale` (0 = the 
 Skill only takes the game's named levels: Novice 10, Rookie 20, Regular 50, Veteran 70, Expert 80
 and Perfect 100. In vanilla it sets how far a soldier's aim strays (each level about halves it;
 Perfect never misses). Other values snap down to a named level. A stronger soldier goes up one
-level. Reaction sets how quickly a soldier spots and identifies targets, not how far he can see.
+level, up to Expert (only a side or profile set to Perfect fields Perfect soldiers). Reaction sets
+how quickly a soldier spots and identifies targets, not how far he can see. A side without its own
+`ACR_FactionSettings` (a faction mod) copies the side's skill, reaction and stronger share from the
+authored side it replaces, but not its profiles, which name that side's prefabs.
 
 Example: militia side Rookie, reaction 0.8, 15% stronger; Rangers side Veteran, reaction 1; a
 profile for the Delta group prefabs on the Rangers' side with Expert and reaction 1.2. Health and
