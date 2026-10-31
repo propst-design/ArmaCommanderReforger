@@ -96,6 +96,15 @@ class ACR_MapFeed
  protected static ref map<int, ref map<string, string>> s_Sent = new map<int, ref map<string, string>>();
  protected static ref map<int, float> s_LastFull = new map<int, float>();
 
+ // Per mission (ACR_Manager.Stop): player ids start again and the world clock restarts near 0,
+ // so the old signatures held back unchanged-looking sections (an empty buy list for the host)
+ // and the full resend waited as long as the last match ran.
+ static void Reset()
+ {
+  s_Sent.Clear();
+  s_LastFull.Clear();
+ }
+
  static void PublishAll(ACR_Manager manager)
  {
   array<int> players = {};
@@ -120,7 +129,7 @@ class ACR_MapFeed
     frame = Build(manager, faction);
     frames.Insert(key, frame);
    }
-   bool full = now - s_LastFull.Get(id) >= FULL_EVERY_MS;
+   bool full = now - s_LastFull.Get(id) >= FULL_EVERY_MS || now < s_LastFull.Get(id);
    if (full) s_LastFull.Set(id, now);
    SendFrame(manager, pc, id, frame, full);
   }
