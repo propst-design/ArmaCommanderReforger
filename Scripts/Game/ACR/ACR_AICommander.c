@@ -4789,6 +4789,9 @@ class ACR_AICommander : Managed
  static const float SERVICE_REACH = 2000;     // farthest a service vehicle is sent or sought
  protected int m_iNeeds;                      // services wanted this tick (for requisition)
  protected ref map<ACR_Squad, ACR_Squad> m_ServiceJobs = new map<ACR_Squad, ACR_Squad>(); // service crew -> squad it is serving
+ // A squad sent back to a service truck, and when it gives up: a truck destroyed, emptied or
+ // gone home left a squad that still needed the service tasked RESUPPLY (out of every pool) for good.
+ protected ref map<ACR_Squad, float> m_ResupplyGiveUp = new map<ACR_Squad, float>();
 
  protected ACR_Squad CrewOf(IEntity vehicle)
  {
@@ -4829,6 +4832,17 @@ class ACR_AICommander : Managed
   foreach (ACR_Squad jobCrew, ACR_Squad jobClient : m_ServiceJobs)
    if (!jobCrew || !jobClient || !m_Manager.m_Squads.Contains(jobCrew) || !m_Manager.m_Squads.Contains(jobClient) || NeedsOf(jobClient) == 0 || jobCrew.OrderState() == ACR_EOrderState.HOLD) done.Insert(jobCrew);
   foreach (ACR_Squad finished : done) m_ServiceJobs.Remove(finished);
+  float nowMs = GetGame().GetWorld().GetWorldTime();
+  array<ACR_Squad> walkers = {};
+  foreach (ACR_Squad walker, float giveUp : m_ResupplyGiveUp) walkers.Insert(walker);
+  foreach (ACR_Squad walker : walkers)
+  {
+   if (!walker || !m_Manager.m_Squads.Contains(walker) || walker.m_iAITask != ACR_EAITask.RESUPPLY) { m_ResupplyGiveUp.Remove(walker); continue; }
+   if (nowMs < m_ResupplyGiveUp.Get(walker)) continue;
+   m_ResupplyGiveUp.Remove(walker);
+   walker.m_iAITask = ACR_EAITask.FREE;
+   Say(string.Format("[ACR] AI %1: %2 never reached a service truck, back to duty", m_sFaction, walker.GetName()));
+  }
   array<ACR_Squad> mine = {};
   MySquads(mine, false);
   foreach (ACR_Squad squad : mine)
@@ -4872,6 +4886,7 @@ class ACR_AICommander : Managed
     {
      // Go back to the truck.
      squad.m_iAITask = ACR_EAITask.RESUPPLY;
+     m_ResupplyGiveUp.Set(squad, nowMs + REFIT_GIVE_UP_MS);
      squad.SetMode(ACR_EMoveMode.FAST);
      Travel(squad, ACR_Manager.Ground(station.GetOrigin()), false, 0);
      Say(string.Format("[ACR] AI %1: %2 falls back to the %3 truck", m_sFaction, squad.GetName(), what));
@@ -5385,6 +5400,11 @@ class ACR_AICommander : Managed
   foreach (ACR_Squad squad : mine)
   {
    if (!squad || squad.CountAlive() <= 0 || squad.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
+   // Not one busy elsewhere: an attacker stayed counted in its attack, a builder's paid job
+   // was cancelled by the move, a player's squad is his.
+   int task = squad.m_iAITask;
+   if (task != ACR_EAITask.FREE && task != ACR_EAITask.POSTED && task != ACR_EAITask.DEFEND) continue;
+   if (squad.HasJob() || squad.HasPlayer()) continue;
    float d = vector.DistanceXZ(PositionOf(squad), chargePos);
    if (d < bestDist)
    {
@@ -5401,6 +5421,7 @@ class ACR_AICommander : Managed
    float dist = vector.DistanceXZ(base.GetOrigin(), chargePos);
    if (dist < nearestBaseDist) { nearestBaseDist = dist; nearestBase = base; }
   }
+  if (m_ReserveSquad == best) m_ReserveSquad = null;
   best.m_iAITask = ACR_EAITask.DEFEND;
   best.m_AITarget = nearestBase;
   best.SetMode(ACR_EMoveMode.FAST);
