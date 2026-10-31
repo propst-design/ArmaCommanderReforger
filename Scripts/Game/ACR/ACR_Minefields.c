@@ -287,6 +287,13 @@ class ACR_Minefields
    refusal = "there is already a minefield of ours there";
    return false;
   }
+  // Not through a roadblock's lane (our own drivers slow through it; ACR_RoadblockLane).
+  foreach (ACR_Roadblock rb : ACR_Roadblocks.s_aRoadblocks)
+  {
+   if (!rb || !rb.m_Entity || vector.DistanceXZ(rb.m_vPos, plan.m_vSite) >= SIZE + ACR_Roadblocks.WORKS_CLEARANCE * 0.5) continue;
+   refusal = "a roadblock is there";
+   return false;
+  }
   if (CountMines(plan.m_sFaction) >= MAX_MINES)
   {
    refusal = string.Format("our side already has %1 mines down", MAX_MINES);
