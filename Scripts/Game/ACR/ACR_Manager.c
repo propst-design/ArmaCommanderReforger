@@ -1282,7 +1282,7 @@ class ACR_Manager : Managed
   if (m_Respawn) m_Respawn.Frame(timeSlice);
   ACR_Perf.Lap("frames", t);
   CheckLandingZones();
-  ACR_Transport.UpdateHorns();
+  // Horns: ACR_Mode.EOnPostFrame runs the governor once a frame, after the AI's inputs.
   BBB.Frame(); // backing stuck vehicles out (inputs every frame)
   if (m_Drives.IsEmpty()) return;
   float now = GetGame().GetWorld().GetWorldTime();
