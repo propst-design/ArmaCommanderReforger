@@ -189,7 +189,7 @@ class ACR_Requisition : Managed
   }
   if (entry.m_iSupportHeli > 0)
   {
-   if (!m_Manager.m_Supports.Station().Station(key, entry.m_iSupportHeli == 1, base, name))
+   if (!m_Manager.m_Supports.Station().Station(key, entry.m_iSupportHeli != 2, base, name, entry.m_iSupportHeli == 3))
    {
     Refund(purchase, "no helipad");
     return name + " could not be placed on a helipad";

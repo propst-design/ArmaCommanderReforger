@@ -156,7 +156,7 @@ class ACR_TestRegress
  }
 
  // Checks a full run makes (Skip counts as made). Raise it with every new check.
- static const int EXPECTED = 141; // includes five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach and one attack-takers check
+ static const int EXPECTED = 142; // includes one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach and one attack-takers check
  static SCR_AIGroup s_RecoveryGroup;
  static SCR_AIGroup s_BoardingGroup;
  static SCR_AIGroup s_CancelBoardingGroup;
@@ -915,6 +915,12 @@ class ACR_TestRegress
    int aiLimit = GetGame().GetAIWorld().GetLimitOfActiveAIs();
    Check("active AI limit fits both soldier caps", aiLimit >= 2 * manager.m_iSoldierCap, string.Format("limit %1, cap %2", aiLimit, manager.m_iSoldierCap));
    Check("US gets the UH-1H", manager.m_Supports.HelicopterFor("US") == ACR_Supports.HELI_WEST, manager.m_Supports.HelicopterFor("US"));
+   // Attack helicopters come only from a content pack: vanilla lists stay as they were.
+   int attackRows;
+   foreach (ACR_SupportEntry supportRow : manager.m_Bases.GetFaction("US").m_aSupports) if (supportRow.m_eType == ACR_ESupportType.ATTACK_HELI) attackRows++;
+   foreach (ACR_SupportEntry supportRowEast : manager.m_Bases.GetFaction("USSR").m_aSupports) if (supportRowEast.m_eType == ACR_ESupportType.ATTACK_HELI) attackRows++;
+   bool packed = ACR_ContentSocket.Get().Plugged();
+   Check("no attack-helicopter support without a content pack", packed || (attackRows == 0 && !ACR_HeliStation.MakeAttackEntry("US")), string.Format("%1 rows, pack %2", attackRows, ACR_ContentSocket.Get().Name()));
    ACR_FactionSettings soviets = ACR_FactionSettings.Find("USSR");
    string saved = soviets.m_sSupportHelicopter;
    soviets.m_sSupportHelicopter = "{0000000000000000}Prefabs/ACR/NoSuchHelicopter.et";

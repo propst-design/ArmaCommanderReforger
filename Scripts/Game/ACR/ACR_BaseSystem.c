@@ -56,12 +56,14 @@ class ACR_BaseSystem : Managed
   }
   if (!settings || settings.m_bSupports)
   {
+   bool listsAttack = false;
    if (settings && settings.m_aSupports && !settings.m_aSupports.IsEmpty())
    {
     bool listsAirLift = false;
     foreach (ACR_SupportEntry configured : settings.m_aSupports)
     {
      if (configured && configured.m_eType == ACR_ESupportType.AIR_LIFT) listsAirLift = true;
+     if (configured && configured.m_eType == ACR_ESupportType.ATTACK_HELI) listsAttack = true;
      if (!configured || !configured.m_bEnabled) continue;
      data.m_aSupports.Insert(configured.Copy());
     }
@@ -78,6 +80,8 @@ class ACR_BaseSystem : Managed
     }
    }
    else ACR_Supports.BuildDefaults(data.m_aSupports);
+   // A content pack's attack helicopter for the side adds its support.
+   ACR_Supports.FitAttackHelicopter(factionKey, data.m_aSupports, listsAttack);
   }
   m_Factions.Insert(factionKey, data);
   return data;

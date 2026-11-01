@@ -24,6 +24,7 @@
 ### Mod support
 
 - Content packs (#108): an optional add-on can now bring vehicle and kit mods into the buy lists cleanly. Vehicle mods add every variant they ship to the game's vehicle lists (test vehicles, fictional upgrades, copies crewed by the other side), and ACA used to offer them all. A plugged-in pack decides which of those stay, adds its own vetted entries with a price and role, and names the crews: a bought vehicle from the pack is crewed by the buying side's own crewmen, with a driver even where the mod left the seat empty. A pack can also swap the soldiers a side spawns (squads, riders, garrisons and the insurgent cells drawn from them) and its command unit, so era kit reaches the whole army. Without a pack nothing changes. The first pack, the Cold War pack, is a separate add-on.
+- Content packs bring attack helicopters to the support menu. A side whose pack has one (Cold War: AH-1S Cobra for the US, Mi-24V Hind for the Soviets; Modern: AH-64D Apache and Mi-24V Hind for the RHS sides) gets a new call-in named after it: the helicopter flies in with the side's own pilots, works the target for two minutes with its guns in attack passes and 24 rockets, and leaves (55 RP, 5 min cooldown). On maps with helipads it is bought for a pad like the gunship ("Support attack helicopter", 100 RP, 2 per match) and flies from there. The AI commander calls it for its assaults and to defend a base it is losing, and on helipad maps keeps an attack helicopter instead of a gunship when it can buy one. Without a pack the supports are unchanged.
 
 ### Fixes
 

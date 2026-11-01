@@ -26,7 +26,7 @@ class ACR_RequisitionEntry
  bool m_bMortarTeam;  // the built-in mortar team (ACR_Mortars), added to every faction's list
  bool m_bObserverTeam; // the built-in forward observer team (ACR_FireMissions)
  bool m_bRare;        // set automatically: aircraft, armour, mortar team, support helicopters keep a fixed stock
- int m_iSupportHeli;  // support helicopter for a helipad (ACR_HeliStation): 1 gunship, 2 door gunners
+ int m_iSupportHeli;  // support helicopter for a helipad (ACR_HeliStation): 1 gunship, 2 door gunners, 3 a pack's attack helicopter
 
  ACR_EFormation m_eFormation; // independent of display names
  ref array<ResourceName> m_aSoldiers; // native templates retained for reinforcement
@@ -502,6 +502,9 @@ class ACR_FactionCatalog
    if (ApplySupportUnit(supportEntry, settings, ACR_ESupportUnitRole.GUNSHIP)) result.Insert(supportEntry);
    supportEntry = ACR_HeliStation.MakeEntry(false, settings);
    if (ApplySupportUnit(supportEntry, settings, ACR_ESupportUnitRole.DOOR_GUN_HELI)) result.Insert(supportEntry);
+   // A content pack's attack helicopter for the side (ACR_ContentSocket.AttackHelicopter).
+   supportEntry = ACR_HeliStation.MakeAttackEntry(factionKey);
+   if (supportEntry) result.Insert(supportEntry);
   }
   bool stepped = ACR_Pricing.Stepped(settings);
   foreach (ACR_RequisitionEntry entry : result)

@@ -3,10 +3,14 @@
 // ACAColdWar and its dependencies). Checks the buy lists keep only the vanilla catalog vehicles
 // plus the pack's own, that every listed prefab loads, that garrisons keep vanilla soldiers, that
 // the pack's infantry spawns as its 8-man formations, and that the pack's vehicles bought by
-// either side come with that side's crewmen and a driver.
+// either side come with that side's crewmen and a driver. The pack's attack helicopters: each side's
+// support list and buy list offer them, a US call flies the Cobra off-map with US pilots and it gets
+// on station, and a Hind stationed on a USSR helipad is its own kind with Soviet pilots.
 class ACR_TestContentPack
 {
  static ref array<ref ACR_PendingPurchase> s_Bought = {};
+ static ref ACR_HeliRun s_Attack;
+ static ref ACR_StationedHeli s_AttackPad;
  static ref array<string> s_Sides = {};
  static ref array<ref ACR_PendingPurchase> s_Squads = {};
  static int s_iExpected;
@@ -23,7 +27,134 @@ class ACR_TestContentPack
    if (east) east.m_bAICommander = false;
   }
   if (tick == 8) Lists(manager);
+  if (tick == 10) AttackSupport(manager);
+  if (tick == 14) StationAttack(manager);
+  if (tick == 30) AttackCrews();
   if (tick == 40) Crews();
+  if (tick == 75) AttackFlight();
+ }
+
+ protected static int SupportIndexOf(ACR_Manager manager, string side, ACR_ESupportType type)
+ {
+  foreach (int i, ACR_SupportEntry entry : manager.m_Bases.GetFaction(side).m_aSupports)
+   if (entry.m_eType == type) return i;
+  return -1;
+ }
+
+ protected static ACR_Base HomeOf(string side)
+ {
+  foreach (ACR_Base candidate : ACR_Base.s_All)
+   if (candidate.m_sOwner == side) return candidate;
+  return null;
+ }
+
+ protected static void AttackSupport(ACR_Manager manager)
+ {
+  if (!manager.m_Supports) manager.m_Supports = new ACR_Supports(manager);
+  array<string> sides = {"US", "USSR"};
+  foreach (string side : sides)
+  {
+   ACR_SocketAttackHeli heli = ACR_Supports.AttackHelicopterFor(side);
+   int index = SupportIndexOf(manager, side, ACR_ESupportType.ATTACK_HELI);
+   string listed = "none";
+   if (index >= 0) listed = manager.m_Bases.GetFaction(side).m_aSupports[index].m_sName;
+   ACR_TestRegress.Check("content: " + side + " gets the pack's attack-helicopter support", heli && index >= 0 && listed.Contains(heli.m_sName), listed);
+   ACR_RequisitionEntry buy = ACR_HeliStation.MakeAttackEntry(side);
+   string offered = "none";
+   if (buy) offered = buy.m_sName;
+   ACR_TestRegress.Check("content: " + side + " can buy a support attack helicopter for a pad", heli && buy && buy.m_iSupportHeli == 3 && offered.Contains(heli.m_sName), offered);
+   s_iExpected += 2;
+  }
+  ACR_TestRegress.Check("content: a side the pack gives none gets no attack-helicopter support", !ACR_Supports.AttackHelicopterFor("FIA") && SupportIndexOf(manager, "FIA", ACR_ESupportType.ATTACK_HELI) < 0, "");
+  s_iExpected++;
+  // The US calls it: an off-map Cobra (no helipad yet).
+  ACR_Base home = HomeOf("US");
+  int usIndex = SupportIndexOf(manager, "US", ACR_ESupportType.ATTACK_HELI);
+  if (!home || usIndex < 0) return;
+  manager.m_Bases.GetFaction("US").m_iRP = 500;
+  vector target = manager.ClearSpotNear(home, 450, 650, 6);
+  string result = manager.m_Supports.Call("US", usIndex, target, true);
+  array<ACR_HeliRun> flying = {};
+  manager.m_Supports.Helicopters(flying);
+  foreach (ACR_HeliRun run : flying) if (run.m_bAttack && run.m_sFaction == "US") s_Attack = run;
+  string airframe = "none";
+  if (s_Attack && s_Attack.m_Vehicle) airframe = Leaf(s_Attack.m_Vehicle);
+  PrintFormat("[ACR] CONTENTTEST attack helicopter call: %1 (%2, pads in the world %3)", result, airframe, ACR_Helipad.s_All.Count());
+  ACR_TestRegress.Check("content: the US attack-helicopter call flies the Cobra and costs RP", airframe.Contains("AH1S") && manager.m_Bases.GetRP("US") < 500, result + " " + airframe);
+  s_iExpected++;
+ }
+
+ // A USSR helipad and a Hind stationed on it as a support attack helicopter.
+ protected static void StationAttack(ACR_Manager manager)
+ {
+  ACR_Base base = HomeOf("USSR");
+  if (!base) return;
+  vector spot = manager.ClearSpotNear(base, 20, 35, 9);
+  EntitySpawnParams parameters = new EntitySpawnParams();
+  parameters.TransformMode = ETransformMode.WORLD;
+  parameters.Transform[3] = spot;
+  ACR_Helipad pad = ACR_Helipad.Cast(GetGame().SpawnEntity(ACR_Helipad, GetGame().GetWorld(), parameters));
+  ACR_HeliStation station = manager.m_Supports.Station();
+  s_AttackPad = station.Station("USSR", true, base, "Support attack helicopter test", true);
+  string airframe = "none";
+  if (s_AttackPad && s_AttackPad.m_Vehicle) airframe = Leaf(s_AttackPad.m_Vehicle);
+  bool ready = s_AttackPad && station.ReadyFor("USSR", true, spot, true) == s_AttackPad;
+  bool apart = station.ReadyFor("USSR", true, spot) == null && station.CountOf("USSR", true) == 0 && station.CountOf("USSR", true, true) == 1;
+  PrintFormat("[ACR] CONTENTTEST attack helicopter on the pad: %1, %2, status %3 / gunship %4", airframe, pad != null, station.StatusFor("USSR", true, true), station.StatusFor("USSR", true));
+  ACR_TestRegress.Check("content: a Hind stationed on a USSR pad is ready for attack-helicopter calls only", airframe.Contains("Mi24") && ready && apart, airframe);
+  s_iExpected++;
+ }
+
+ // Pilot and gun seats of a helicopter: how many seated, how many the side's own pilots.
+ protected static string HeliCrew(IEntity vehicle, string side, out int seated, out int own)
+ {
+  string report;
+  SCR_BaseCompartmentManagerComponent compartments;
+  if (vehicle) compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
+  if (!compartments) return report;
+  array<BaseCompartmentSlot> seats = {};
+  compartments.GetCompartments(seats);
+  foreach (BaseCompartmentSlot seat : seats)
+  {
+   if (seat.GetType() != ECompartmentType.PILOT && seat.GetType() != ECompartmentType.TURRET) continue;
+   IEntity man = seat.GetOccupant();
+   if (!man) continue;
+   seated++;
+   string prefab = man.GetPrefabData().GetPrefabName();
+   string faction = ACR_Intel.FactionKeyOf(man);
+   if (faction == side && prefab.Contains("HeliPilot")) own++;
+   report += string.Format(" %1:%2", FilePath.StripExtension(FilePath.StripPath(prefab)), faction);
+  }
+  return report;
+ }
+
+ protected static void AttackCrews()
+ {
+  int seated, own;
+  IEntity cobra;
+  if (s_Attack) cobra = s_Attack.m_Vehicle;
+  string report = HeliCrew(cobra, "US", seated, own);
+  PrintFormat("[ACR] CONTENTTEST attack helicopter crew (Cobra): %1/%2%3", own, seated, report);
+  ACR_TestRegress.Check("content: the called Cobra is crewed by US pilots", seated >= 2 && own == seated, string.Format("%1/%2%3", own, seated, report));
+  int padSeated, padOwn;
+  IEntity hind;
+  if (s_AttackPad) hind = s_AttackPad.m_Vehicle;
+  string padReport = HeliCrew(hind, "USSR", padSeated, padOwn);
+  PrintFormat("[ACR] CONTENTTEST attack helicopter crew (Hind on the pad): %1/%2%3", padOwn, padSeated, padReport);
+  ACR_TestRegress.Check("content: the stationed Hind is crewed by Soviet pilots", padSeated >= 2 && padOwn == padSeated, string.Format("%1/%2%3", padOwn, padSeated, padReport));
+  s_iExpected += 2;
+ }
+
+ // A minute after the call the Cobra is on station: its guns measured, its attack pattern chosen.
+ protected static void AttackFlight()
+ {
+  bool onStation = s_Attack && s_Attack.m_Vehicle && !s_Attack.m_bDestroyed && s_Attack.m_bAnalyzed;
+  string state = "no run";
+  if (s_Attack) state = string.Format("phase %1, guns %2, passes %3, rockets left %4, destroyed %5", s_Attack.m_iPhase, s_Attack.m_Guns.Count(), s_Attack.m_bPasses, s_Attack.m_iRockets, s_Attack.m_bDestroyed);
+  PrintFormat("[ACR] CONTENTTEST attack helicopter flight: %1", state);
+  ACR_TestRegress.Check("content: the Cobra reaches the target and works it with its guns", onStation && s_Attack.m_Guns.Count() > 0, state);
+  s_iExpected++;
+  ACR_TestRegress.Complete("contentpack", s_iExpected);
  }
 
  protected static void Lists(ACR_Manager manager)
@@ -437,6 +568,5 @@ class ACR_TestContentPack
    ACR_TestRegress.Check("content: " + purchase.m_sName + " has a driver and only " + side + " crewmen", vehicle && driver && seated >= 2 && own == seated, string.Format("%1/%2%3", own, seated, report));
    s_iExpected++;
   }
-  ACR_TestRegress.Complete("contentpack", s_iExpected);
  }
 }

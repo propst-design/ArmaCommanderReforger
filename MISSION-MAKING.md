@@ -485,6 +485,12 @@ Each entry is one action in the commander's support menu, such as a mortar strik
 | `HELI_DOOR_GUNS` | Helicopter: door gunners (120 s) | 20 | 150 |
 | `ARTILLERY_BATTERY` | Artillery: howitzer battery | 60 | 300 |
 | `AIR_LIFT` | Helicopter: air lift | 40 (AI commander 20) | 240 |
+| `ATTACK_HELI` | Helicopter: *airframe* (120 s) | 55 | 300 |
+
+`ATTACK_HELI` exists only when a content pack names an attack helicopter for the side (the Cold War
+pack: AH-1S Cobra for US, Mi-24V Hind for USSR; the Modern pack: AH-64D Apache for the RHS US side,
+Mi-24V Hind for the RHS Russian side). The side's list gets it automatically, named after the airframe;
+a row for it in a side's list (on or off) decides instead. Without such a pack the row is ignored.
 
 Set the bomb-run style in each side's support row. `VIRTUAL` uses AC: Actual's existing explosions and
 does not show a plane. `FLYOVER` sends the chosen aircraft or model over the target, then uses AC: Actual's
@@ -556,8 +562,10 @@ at a free pad with its crew. After a call, it starts up (about 20 seconds), flie
 the pad, and is repaired and rearmed (60 seconds). Buy another one if it is destroyed. If no ready
 helicopter is parked at a pad at a base the side still owns, the call is declined without a charge. The
 support list says whether one is ready, being serviced, or needs to be bought. Gunships handle rocket
-runs and gunship calls; door-gunner helicopters handle door-gunner calls. The AI commander keeps one
-gunship if a pad is free. Without a helipad, helicopters arrive from off the map and do not need to be
+runs and gunship calls; door-gunner helicopters handle door-gunner calls. With a content pack that has
+an attack helicopter for the side, the buy list also offers two "Support attack helicopter" (100 RP each)
+for its attack-helicopter calls. The AI commander keeps one support helicopter if a pad is free: the
+attack helicopter when it can buy one, else a gunship. Without a helipad, helicopters arrive from off the map and do not need to be
 bought.
 
 ### ACR_Helipad

@@ -5,6 +5,8 @@
 //    gunners)") for a free pad at the base it buys at. It waits there with its crew, flies each
 //    mission from the pad (ACR_HeliRun with m_Home), comes back, lands and is serviced (rearmed,
 //    repaired, crew replaced) before it can fly again. Destroyed = gone: buy another.
+//  - With a content pack that names an attack helicopter for the side (ACR_ContentSocket), a third
+//    kind: "Support attack helicopter (<airframe>)", flying that side's attack-helicopter support.
 //  - A world with no ACR_Helipad keeps the old off-map helicopters.
 class ACR_HelipadClass : GenericEntityClass {}
 class ACR_Helipad : GenericEntity
@@ -139,6 +141,7 @@ class ACR_StationedHeli : Managed
  string m_sFaction;
  string m_sName;
  bool m_bGunship;      // else the door-gunner transport
+ bool m_bAttack;       // a content pack's attack helicopter (m_bGunship too)
  IEntity m_Vehicle;
  ACR_Helipad m_Pad;
  ACR_EHeliState m_eState;
@@ -147,6 +150,7 @@ class ACR_StationedHeli : Managed
 
  string Kind()
  {
+  if (m_bAttack) return "attack helicopter";
   if (m_bGunship) return "gunship";
   return "door-gunner helicopter";
  }
@@ -160,6 +164,9 @@ class ACR_HeliStation : Managed
  static const int STOCK = 4;
  static const string GUNSHIP_ENTRY = "Support gunship";
  static const string TRANSPORT_ENTRY = "Support helicopter (door gunners)";
+ static const int ATTACK_COST = 100;
+ static const int ATTACK_STOCK = 2;
+ static const string ATTACK_ENTRY = "Support attack helicopter";
 
  protected ACR_Supports m_Supports;
  ref array<ref ACR_StationedHeli> m_Helis = {};
@@ -178,7 +185,13 @@ class ACR_HeliStation : Managed
 
  static bool IsHeliType(ACR_ESupportType type)
  {
-  return type == ACR_ESupportType.HELI_GUN_RUN || type == ACR_ESupportType.HELI_LOITER || type == ACR_ESupportType.HELI_DOOR_GUNS;
+  return type == ACR_ESupportType.HELI_GUN_RUN || type == ACR_ESupportType.HELI_LOITER || type == ACR_ESupportType.HELI_DOOR_GUNS || type == ACR_ESupportType.ATTACK_HELI;
+ }
+
+ // Flown by a content pack's attack helicopter (ACR_SocketAttackHeli), not the gunship.
+ static bool IsAttack(ACR_ESupportType type)
+ {
+  return type == ACR_ESupportType.ATTACK_HELI;
  }
 
  static bool NeedsGunship(ACR_ESupportType type)
@@ -207,6 +220,21 @@ class ACR_HeliStation : Managed
     if (unit.m_iStock >= 0) entry.m_iStock = unit.m_iStock;
    }
   }
+  return entry;
+ }
+
+ // The buy-list entry for the side's attack helicopter (m_iSupportHeli 3), or null: the content
+ // pack names none for the side.
+ static ACR_RequisitionEntry MakeAttackEntry(string factionKey)
+ {
+  ACR_SocketAttackHeli heli = ACR_Supports.AttackHelicopterFor(factionKey);
+  if (!heli) return null;
+  int cost = ATTACK_COST;
+  if (heli.m_iStationCost >= 0) cost = heli.m_iStationCost;
+  ACR_RequisitionEntry entry = new ACR_RequisitionEntry();
+  entry.Set(string.Format("%1 (%2)", ATTACK_ENTRY, heli.m_sName), "", "", cost, ATTACK_STOCK);
+  entry.m_iSupportHeli = 3;
+  entry.m_bAircraft = true; // the AI's normal buying skips it (BuyHelicopter buys it)
   return entry;
  }
 
@@ -255,12 +283,19 @@ class ACR_HeliStation : Managed
  }
 
  // Spawns the helicopter and its crew on a free pad at the base.
- ACR_StationedHeli Station(string factionKey, bool gunship, ACR_Base base, string name)
+ ACR_StationedHeli Station(string factionKey, bool gunship, ACR_Base base, string name, bool attack = false)
  {
   ACR_Helipad pad = FreePad(factionKey, base);
   if (!pad) return null;
   ResourceName prefab = m_Supports.TransportHelicopterFor(factionKey);
   if (gunship) prefab = m_Supports.HelicopterFor(factionKey);
+  if (attack)
+  {
+   ACR_SocketAttackHeli packed = ACR_Supports.AttackHelicopterFor(factionKey);
+   if (!packed) return null;
+   prefab = packed.m_sPrefab;
+   gunship = true;
+  }
   Resource resource = Resource.Load(prefab);
   if (!resource.IsValid()) return null;
   EntitySpawnParams parameters = new EntitySpawnParams();
@@ -272,7 +307,9 @@ class ACR_HeliStation : Managed
   // Registered before the crew exists, so the squad scan never takes them for a squad.
   m_Supports.m_Vehicles.Insert(vehicle);
   ACR_Vehicles.SetOwner(vehicle, factionKey);
-  ResourceName selectedCrew = m_Supports.ConfiguredCrewPrefab(factionKey, gunship);
+  // (A pack's airframe gets its crew from the pack: ACR_ContentSocket.Crewman.)
+  ResourceName selectedCrew;
+  if (!attack) selectedCrew = m_Supports.ConfiguredCrewPrefab(factionKey, gunship);
   if (!selectedCrew.IsEmpty()) ACR_Vehicles.SetCrewPrefab(vehicle, selectedCrew);
   SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
   array<ECompartmentType> seats = {ECompartmentType.PILOT, ECompartmentType.TURRET};
@@ -282,6 +319,7 @@ class ACR_HeliStation : Managed
   heli.m_sFaction = factionKey;
   heli.m_sName = name;
   heli.m_bGunship = gunship;
+  heli.m_bAttack = attack;
   heli.m_Vehicle = vehicle;
   heli.m_Pad = pad;
   heli.m_eState = ACR_EHeliState.READY;
@@ -302,13 +340,13 @@ class ACR_HeliStation : Managed
  }
 
  // The ready helicopter of the right kind nearest the target.
- ACR_StationedHeli ReadyFor(string factionKey, bool gunship, vector target)
+ ACR_StationedHeli ReadyFor(string factionKey, bool gunship, vector target, bool attack = false)
  {
   ACR_StationedHeli best;
   float bestDistance = float.MAX;
   foreach (ACR_StationedHeli heli : m_Helis)
   {
-   if (heli.m_sFaction != factionKey || heli.m_bGunship != gunship || !Usable(heli)) continue;
+   if (heli.m_sFaction != factionKey || heli.m_bGunship != gunship || heli.m_bAttack != attack || !Usable(heli)) continue;
    float d = vector.DistanceXZ(heli.m_Vehicle.GetOrigin(), target);
    if (d < bestDistance) { bestDistance = d; best = heli; }
   }
@@ -316,17 +354,18 @@ class ACR_HeliStation : Managed
  }
 
  // Refusal text for a helicopter support with none ready.
- string WhyNot(string factionKey, bool gunship)
+ string WhyNot(string factionKey, bool gunship, bool attack = false)
  {
   string kind = "door-gunner helicopter";
   string entry = TRANSPORT_ENTRY;
   if (gunship) { kind = "gunship"; entry = GUNSHIP_ENTRY; }
+  if (attack) { kind = "attack helicopter"; entry = ATTACK_ENTRY; }
   float now = GetGame().GetWorld().GetWorldTime();
   int soonest = -1;
   bool flying;
   foreach (ACR_StationedHeli heli : m_Helis)
   {
-   if (heli.m_sFaction != factionKey || heli.m_bGunship != gunship || !heli.m_Vehicle) continue;
+   if (heli.m_sFaction != factionKey || heli.m_bGunship != gunship || heli.m_bAttack != attack || !heli.m_Vehicle) continue;
    if (heli.m_eState == ACR_EHeliState.FLYING) flying = true;
    if (heli.m_eState == ACR_EHeliState.SERVICING)
    {
@@ -340,14 +379,14 @@ class ACR_HeliStation : Managed
  }
 
  // Short status for the support list: "[1 ready]", "[servicing]", "[none: buy one]".
- string StatusFor(string factionKey, bool gunship)
+ string StatusFor(string factionKey, bool gunship, bool attack = false)
  {
   int ready, flying, servicing;
   float now = GetGame().GetWorld().GetWorldTime();
   int soonest = -1;
   foreach (ACR_StationedHeli heli : m_Helis)
   {
-   if (heli.m_sFaction != factionKey || heli.m_bGunship != gunship || !heli.m_Vehicle) continue;
+   if (heli.m_sFaction != factionKey || heli.m_bGunship != gunship || heli.m_bAttack != attack || !heli.m_Vehicle) continue;
    if (Usable(heli)) ready++;
    else if (heli.m_eState == ACR_EHeliState.FLYING) flying++;
    else if (heli.m_eState == ACR_EHeliState.SERVICING)
@@ -363,10 +402,10 @@ class ACR_HeliStation : Managed
   return "none: buy one";
  }
 
- int CountOf(string factionKey, bool gunship)
+ int CountOf(string factionKey, bool gunship, bool attack = false)
  {
   int count;
-  foreach (ACR_StationedHeli heli : m_Helis) if (heli.m_sFaction == factionKey && heli.m_bGunship == gunship && heli.m_Vehicle) count++;
+  foreach (ACR_StationedHeli heli : m_Helis) if (heli.m_sFaction == factionKey && heli.m_bGunship == gunship && heli.m_bAttack == attack && heli.m_Vehicle) count++;
   return count;
  }
 
@@ -390,14 +429,14 @@ class ACR_HeliStation : Managed
  {
   array<IEntity> vehicles = {heli.m_Vehicle};
   m_Supports.m_Manager.m_Requisition.ServiceVehicles(vehicles);
-  ReplaceCrew(heli.m_Vehicle, heli.m_sFaction, heli.m_bGunship);
+  ReplaceCrew(heli.m_Vehicle, heli.m_sFaction, heli.m_bGunship, heli.m_bAttack);
  }
 
  // Empty pilot and gun seats get a new crewman (the dead are thrown out first, the wounded
  // patched up). Crewmen who got out (a helicopter shot up on its pad: the crew bails) are
  // replaced too: 4 Oct live, a repaired helicopter came back short of crew, and the crew on
  // foot was taken for a squad.
- void ReplaceCrew(IEntity vehicle, string factionKey, bool gunship = true)
+ void ReplaceCrew(IEntity vehicle, string factionKey, bool gunship = true, bool attack = false)
  {
   SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
   if (!compartments) return;
@@ -435,7 +474,7 @@ class ACR_HeliStation : Managed
    if (!crewGroup && stragglers < agents.Count()) crewGroup = known;
   }
   if (stragglers > 0) PrintFormat("[ACR] HELIPAD %1 crewmen who got out replaced", stragglers);
-  GetGame().GetCallqueue().CallLater(SeatCrew, 300, false, vehicle, factionKey, gunship, crewGroup);
+  GetGame().GetCallqueue().CallLater(SeatCrew, 300, false, vehicle, factionKey, gunship, crewGroup, attack);
  }
 
  static bool Aboard(IEntity man, IEntity vehicle)
@@ -446,7 +485,7 @@ class ACR_HeliStation : Managed
   return slot && slot.GetVehicle() == vehicle;
  }
 
- protected void SeatCrew(IEntity vehicle, string factionKey, bool gunship, AIGroup crewGroup)
+ protected void SeatCrew(IEntity vehicle, string factionKey, bool gunship, AIGroup crewGroup, bool attack)
  {
   if (!vehicle || Destroyed(vehicle)) return;
   SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
@@ -459,7 +498,14 @@ class ACR_HeliStation : Managed
   {
    if (slot.GetOccupant()) continue;
    if (slot.GetType() != ECompartmentType.PILOT && slot.GetType() != ECompartmentType.TURRET) continue;
-   IEntity man = slot.SpawnCharacterInCompartment(crewman, crewGroup);
+   // A pack's airframe: the pack's pilot or gunner for that seat.
+   ResourceName seatCrew = crewman;
+   if (attack)
+   {
+    ResourceName packed = ACR_ContentSocket.Get().Crewman(factionKey, vehicle, slot.GetType());
+    if (!packed.IsEmpty()) seatCrew = packed;
+   }
+   IEntity man = slot.SpawnCharacterInCompartment(seatCrew, crewGroup);
    if (man) seated++;
   }
   if (seated > 0) PrintFormat("[ACR] HELIPAD %1 new crewmen seated", seated);

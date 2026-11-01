@@ -10,6 +10,8 @@
 //    flies along a path (the AI cannot fly). Its door gunners fight on their own; it
 //    fires rocket salvos itself. It can be shot down. The door-gunner support is the
 //    transport version (no rockets) orbiting longer for less.
+//  - Attack helicopter: only with a content pack that names one for the side
+//    (ACR_ContentSocket.AttackHelicopter): its airframe on a longer loiter with more rockets.
 enum ACR_ESupportType
 {
  MORTAR_HE_SMALL,
@@ -23,7 +25,8 @@ enum ACR_ESupportType
  HELI_LOITER,
  HELI_DOOR_GUNS, // transport helicopter, door gunners only, orbiting
  ARTILLERY_BATTERY, // battalion howitzers: no range limit, three heavy salvos over a wide area
- AIR_LIFT          // off-map transport helicopter flies a squad to a landing zone (ACR_AirLift)
+ AIR_LIFT,         // off-map transport helicopter flies a squad to a landing zone (ACR_AirLift)
+ ATTACK_HELI       // a content pack's attack helicopter (ACR_ContentSocket.AttackHelicopter) on station
 }
 
 enum ACR_EBombRunDelivery
@@ -648,6 +651,9 @@ class ACR_HeliRun : ACR_SupportRun
  }
  bool m_bLoiter;
  bool m_bDoorGuns;   // transport version: no rockets
+ bool m_bAttack;     // a content pack's attack helicopter: longer on station, more rockets
+ static const float ATTACK_LOITER_MS = 120000;
+ static const int ATTACK_ROCKETS = 24;
  static const float DOOR_SIDE_SWAP_MS = 30000;
  float m_fNextSideSwap;
  float m_fLoiterMs = LOITER_TIME_MS;
@@ -714,10 +720,13 @@ class ACR_HeliRun : ACR_SupportRun
   supports.m_Vehicles.Insert(m_Vehicle);
   Physics physics = m_Vehicle.GetPhysics();
   if (physics) physics.EnableGravity(false);
+  // A pack's airframe seats the side's own pilots and gunners (ACR_ContentSocket.Crewman reads the owner).
+  if (m_bAttack) ACR_Vehicles.SetOwner(m_Vehicle, m_sFaction);
   SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(m_Vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
   array<ECompartmentType> seats = {ECompartmentType.PILOT, ECompartmentType.TURRET};
   if (compartments) compartments.SpawnDefaultOccupants(seats);
-  ResourceName selectedCrew = supports.ConfiguredCrewPrefab(m_sFaction, !m_bDoorGuns);
+  ResourceName selectedCrew;
+  if (!m_bAttack) selectedCrew = supports.ConfiguredCrewPrefab(m_sFaction, !m_bDoorGuns);
   if (!selectedCrew.IsEmpty()) supports.Station().ApplyCrewPrefab(m_Vehicle, selectedCrew);
   BaseVehicleControllerComponent controller = BaseVehicleControllerComponent.Cast(m_Vehicle.FindComponent(BaseVehicleControllerComponent));
   if (controller) controller.ForceStartEngine();
@@ -727,6 +736,7 @@ class ACR_HeliRun : ACR_SupportRun
   PrintFormat("[ACR] SUPPORT helicopter %1 inbound from %2 (%3 m out, clear of bases that aren't ours: %4)", prefab, m_Pos, (int)vector.DistanceXZ(m_Pos, m_Target), ClearOfEnemies(m_Pos));
   m_iRockets = 14;
   if (m_bLoiter) m_iRockets = 16;
+  if (m_bAttack) m_iRockets = ATTACK_ROCKETS;
   if (m_bDoorGuns) m_iRockets = 0;
   return true;
  }
@@ -747,13 +757,14 @@ class ACR_HeliRun : ACR_SupportRun
   m_bLifting = true;
   Physics physics = m_Vehicle.GetPhysics();
   if (physics) { physics.EnableGravity(false); physics.SetVelocity(vector.Zero); }
-  supports.Station().ReplaceCrew(m_Vehicle, m_sFaction, m_Home.m_bGunship);
+  supports.Station().ReplaceCrew(m_Vehicle, m_sFaction, m_Home.m_bGunship, m_Home.m_bAttack);
   BaseVehicleControllerComponent controller = BaseVehicleControllerComponent.Cast(m_Vehicle.FindComponent(BaseVehicleControllerComponent));
   if (controller) controller.ForceStartEngine();
   Spool();
   m_fStarted = now;
   m_iRockets = 14;
   if (m_bLoiter) m_iRockets = 16;
+  if (m_bAttack) m_iRockets = ATTACK_ROCKETS;
   if (m_bDoorGuns) m_iRockets = 0;
   PrintFormat("[ACR] SUPPORT %1 taking off from its helipad at %2, %3 m from the target", home.m_sName, m_Pos, (int)vector.DistanceXZ(m_Pos, m_Target));
   return true;
@@ -1077,8 +1088,14 @@ class ACR_HeliRun : ACR_SupportRun
   foreach (BaseCompartmentSlot empty : slots)
   {
    if (empty.GetOccupant() || empty.GetType() != ECompartmentType.TURRET) continue;
-   IEntity seatedCrew = empty.SpawnCharacterInCompartment(crewman, crewGroup);
-   PrintFormat("[ACR] SUPPORT seated %1 in %2: %3", crewman, empty.GetCompartmentName(), seatedCrew != null);
+   ResourceName gunner = crewman;
+   if (m_bAttack)
+   {
+    ResourceName packed = ACR_ContentSocket.Get().Crewman(m_sFaction, m_Vehicle, ECompartmentType.TURRET);
+    if (!packed.IsEmpty()) gunner = packed;
+   }
+   IEntity seatedCrew = empty.SpawnCharacterInCompartment(gunner, crewGroup);
+   PrintFormat("[ACR] SUPPORT seated %1 in %2: %3", gunner, empty.GetCompartmentName(), seatedCrew != null);
   }
   foreach (BaseCompartmentSlot slot : slots)
   {
@@ -1446,6 +1463,7 @@ class ACR_HeliRun : ACR_SupportRun
  string StationName()
  {
   if (m_bDoorGuns) return "Door gunners";
+  if (m_bAttack) return "Attack helicopter";
   return "Gunship";
  }
 
@@ -1613,6 +1631,7 @@ class ACR_Supports : Managed
    case ACR_ESupportType.HELI_GUN_RUN: return 40;
    case ACR_ESupportType.HELI_LOITER: return ACR_HeliRun.LOITER_RADIUS;
    case ACR_ESupportType.HELI_DOOR_GUNS: return ACR_HeliRun.LOITER_RADIUS;
+   case ACR_ESupportType.ATTACK_HELI: return ACR_HeliRun.LOITER_RADIUS;
    case ACR_ESupportType.ARTILLERY_BATTERY: return BATTERY_RADIUS + 30;
   }
   return 50;
@@ -1625,6 +1644,7 @@ class ACR_Supports : Managed
    case ACR_ESupportType.MORTAR_SMOKE: return 60;
    case ACR_ESupportType.HELI_LOITER: return 100;
    case ACR_ESupportType.HELI_DOOR_GUNS: return 130;
+   case ACR_ESupportType.ATTACK_HELI: return 130;
    case ACR_ESupportType.MORTAR_CREEPING: return 50;
    case ACR_ESupportType.ARTILLERY_BATTERY: return BATTERY_SALVOS * BATTERY_SALVO_SECONDS + 10;
    case ACR_ESupportType.MORTAR_HE_LARGE: return 40;
@@ -1651,6 +1671,7 @@ class ACR_Supports : Managed
    case ACR_ESupportType.HELI_DOOR_GUNS: return "Helicopter: door gunners (120 s)";
    case ACR_ESupportType.ARTILLERY_BATTERY: return "Artillery: howitzer battery";
    case ACR_ESupportType.AIR_LIFT: return "Helicopter: air lift";
+   case ACR_ESupportType.ATTACK_HELI: return "Helicopter: attack helicopter (120 s)";
   }
   return "Support";
  }
@@ -1668,6 +1689,7 @@ class ACR_Supports : Managed
    case ACR_ESupportType.HELI_GUN_RUN: return 30;
    case ACR_ESupportType.HELI_LOITER: return 45;
    case ACR_ESupportType.HELI_DOOR_GUNS: return 20;
+   case ACR_ESupportType.ATTACK_HELI: return 55;
    case ACR_ESupportType.ARTILLERY_BATTERY: return 60;
    case ACR_ESupportType.AIR_LIFT: return 40;
   }
@@ -1687,6 +1709,7 @@ class ACR_Supports : Managed
    case ACR_ESupportType.HELI_GUN_RUN: return 180;
    case ACR_ESupportType.HELI_LOITER: return 300;
    case ACR_ESupportType.HELI_DOOR_GUNS: return 150;
+   case ACR_ESupportType.ATTACK_HELI: return 300;
    case ACR_ESupportType.ARTILLERY_BATTERY: return 300;
    case ACR_ESupportType.AIR_LIFT: return 240;
   }
@@ -1714,6 +1737,7 @@ class ACR_Supports : Managed
  // Every support type, used when a faction's settings list none.
  static void BuildDefaults(array<ref ACR_SupportEntry> entries)
  {
+  // (ATTACK_HELI only comes with a content pack: FitAttackHelicopter.)
   for (int type = ACR_ESupportType.MORTAR_HE_SMALL; type <= ACR_ESupportType.AIR_LIFT; type++)
   {
    ACR_SupportEntry entry = new ACR_SupportEntry();
@@ -1730,6 +1754,46 @@ class ACR_Supports : Managed
    }
    entries.Insert(entry);
   }
+ }
+
+ // The side's attack helicopter from a content pack (ACR_ContentSocket.AttackHelicopter), or null:
+ // none named, or its prefab doesn't load.
+ static ACR_SocketAttackHeli AttackHelicopterFor(string factionKey)
+ {
+  ACR_SocketAttackHeli heli = ACR_ContentSocket.Get().AttackHelicopter(factionKey);
+  if (!heli || heli.m_sPrefab.IsEmpty() || !HasPrefab(heli.m_sPrefab)) return null;
+  if (heli.m_sName.IsEmpty()) heli.m_sName = "attack helicopter";
+  return heli;
+ }
+
+ // A side's support list and the pack's attack helicopter: with one, the list gets its support
+ // (unless a configured row for it, on or off, decides: listed) named after the airframe; without
+ // one, configured rows for it are dropped (nothing could fly them).
+ static void FitAttackHelicopter(string factionKey, array<ref ACR_SupportEntry> entries, bool listed)
+ {
+  ACR_SocketAttackHeli heli = AttackHelicopterFor(factionKey);
+  if (!heli)
+  {
+   for (int i = entries.Count() - 1; i >= 0; i--)
+    if (entries[i].m_eType == ACR_ESupportType.ATTACK_HELI) entries.RemoveOrdered(i);
+   return;
+  }
+  if (!listed)
+  {
+   ACR_SupportEntry added = new ACR_SupportEntry();
+   added.m_eType = ACR_ESupportType.ATTACK_HELI;
+   added.m_iCost = heli.m_iCost;
+   added.m_iAICost = -1;
+   added.m_iCooldown = -1;
+   added.Resolve();
+   entries.Insert(added);
+  }
+  foreach (ACR_SupportEntry entry : entries)
+  {
+   if (entry.m_eType != ACR_ESupportType.ATTACK_HELI || entry.m_sName != DefaultName(ACR_ESupportType.ATTACK_HELI)) continue;
+   entry.m_sName = string.Format("Helicopter: %1 (120 s)", heli.m_sName);
+  }
+  PrintFormat("[ACR] SUPPORT %1 attack helicopter from the content pack: %2 (%3)", factionKey, heli.m_sName, heli.m_sPrefab);
  }
 
  static const ResourceName FA18_FLYOVER = "{76571A125EF9ECD7}Prefabs/Vehicles/Airplanes/FA18A/FA18A_Mesh.et";
@@ -1814,6 +1878,13 @@ class ACR_Supports : Managed
   // Mortar supports are fired by a real mortar team (ACR_Mortars): nothing is spent unless one can.
   if (ACR_Mortars.IsMortarType(entry.m_eType)) return CallMortars(factionKey, entry, target, byAI);
   if (entry.m_eType == ACR_ESupportType.AIR_LIFT) return ACR_AirLift.Call(this, factionKey, entry, target, byAI, squad, finalPrefab, finalTarget, finalRadius, finalOrder, finalKind);
+  // The pack's attack helicopter (FitAttackHelicopter drops the row without one; this is a guard).
+  ACR_SocketAttackHeli attack;
+  if (entry.m_eType == ACR_ESupportType.ATTACK_HELI)
+  {
+   attack = AttackHelicopterFor(factionKey);
+   if (!attack) return "No attack helicopter in this mission";
+  }
   if (entry.m_eType == ACR_ESupportType.BOMB_RUN && entry.m_eBombRunDelivery != ACR_EBombRunDelivery.VIRTUAL)
   {
    if (entry.m_sBombRunPrefab.IsEmpty()) return "Choose a bomb-run prefab in this faction's support settings";
@@ -1824,10 +1895,10 @@ class ACR_Supports : Managed
   ACR_StationedHeli home;
   if (ACR_HeliStation.IsHeliType(entry.m_eType) && ACR_HeliStation.UsesPads(factionKey))
   {
-   home = Station().ReadyFor(factionKey, ACR_HeliStation.NeedsGunship(entry.m_eType), target);
+   home = Station().ReadyFor(factionKey, ACR_HeliStation.NeedsGunship(entry.m_eType), target, ACR_HeliStation.IsAttack(entry.m_eType));
    if (!home)
    {
-    string why = Station().WhyNot(factionKey, ACR_HeliStation.NeedsGunship(entry.m_eType));
+    string why = Station().WhyNot(factionKey, ACR_HeliStation.NeedsGunship(entry.m_eType), ACR_HeliStation.IsAttack(entry.m_eType));
     PrintFormat("[ACR] SUPPORT %1 %2 refused: %3", factionKey, entry.m_sName, why);
     return why;
    }
@@ -1882,17 +1953,22 @@ class ACR_Supports : Managed
    case ACR_ESupportType.HELI_GUN_RUN:
    case ACR_ESupportType.HELI_LOITER:
    case ACR_ESupportType.HELI_DOOR_GUNS:
+   case ACR_ESupportType.ATTACK_HELI:
    {
     ACR_HeliRun heli = new ACR_HeliRun();
     heli.m_sFaction = factionKey;
     heli.m_bDoorGuns = entry.m_eType == ACR_ESupportType.HELI_DOOR_GUNS;
-    heli.m_bLoiter = entry.m_eType == ACR_ESupportType.HELI_LOITER || heli.m_bDoorGuns;
+    heli.m_bAttack = attack != null;
+    heli.m_bLoiter = entry.m_eType == ACR_ESupportType.HELI_LOITER || heli.m_bDoorGuns || heli.m_bAttack;
     if (heli.m_bDoorGuns) heli.m_fLoiterMs = 120000;
+    if (heli.m_bAttack) heli.m_fLoiterMs = ACR_HeliRun.ATTACK_LOITER_MS;
     heli.m_Target = target;
     heli.m_Dir = dir;
     heli.m_Rocket = RocketFor(factionKey);
+    if (attack && !attack.m_sRocket.IsEmpty()) heli.m_Rocket = attack.m_sRocket;
     ResourceName helicopter = HelicopterFor(factionKey);
     if (heli.m_bDoorGuns) helicopter = TransportHelicopterFor(factionKey);
+    if (attack) helicopter = attack.m_sPrefab;
     bool started;
     if (home) started = heli.StartFromPad(this, home, now);
     else started = heli.Start(this, helicopter, now);

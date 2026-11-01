@@ -16,6 +16,19 @@ enum ACR_ESocketVehicle
  RARE = 32          // fixed stock (armour, aircraft)
 }
 
+// A pack's attack helicopter for one side (AttackHelicopter): that side's commander gets an
+// attack-helicopter support beside the gunship and door gunners, flown by script like them
+// (ACR_HeliRun: nose guns fly attack passes, rocket salvos), and in worlds with helipads a support
+// attack helicopter to buy for a pad. Its crew comes from Crewman.
+class ACR_SocketAttackHeli : Managed
+{
+ string m_sName;           // the airframe in the panel and buy list ("AH-1S Cobra")
+ ResourceName m_sPrefab;
+ int m_iCost = -1;         // RP for each call (-1 = ACA's default)
+ int m_iStationCost = -1;  // RP to buy one for a helipad (-1 = ACA's default)
+ ResourceName m_sRocket;   // rocket it fires ("" = the side's usual)
+}
+
 class ACR_ContentSocket : Managed
 {
  protected static ref ACR_ContentSocket s_Instance;
@@ -52,6 +65,10 @@ class ACR_ContentSocket : Managed
  // The soldier to spawn in place of one of the side's soldiers: members of bought and starting
  // squads, riders, garrisons (and so FIA cells). May vary per call; the prefab itself keeps it.
  ResourceName Soldier(string factionKey, ResourceName prefab) { return prefab; }
+
+ // The side's attack helicopter for the attack-helicopter support, or null (no such support).
+ // Use MakeAttackHelicopter; chain to super for the sides the pack leaves alone.
+ ACR_SocketAttackHeli AttackHelicopter(string factionKey) { return null; }
 
  // The side's command-unit (player officer) prefab. Must give the same answer on every machine:
  // loadouts replicate as list indexes.
@@ -118,6 +135,17 @@ class ACR_ContentSocket : Managed
   item.m_bRare = (flags & ACR_ESocketVehicle.RARE) != 0 || item.m_bAircraft;
   result.Insert(item);
   return item;
+ }
+
+ // An attack helicopter for AttackHelicopter.
+ static ACR_SocketAttackHeli MakeAttackHelicopter(string name, ResourceName prefab, int cost = -1, int stationCost = -1)
+ {
+  ACR_SocketAttackHeli heli = new ACR_SocketAttackHeli();
+  heli.m_sName = name;
+  heli.m_sPrefab = prefab;
+  heli.m_iCost = cost;
+  heli.m_iStationCost = stationCost;
+  return heli;
  }
 
  // A buyable infantry formation: these soldiers, in this order, spawned into the side's base

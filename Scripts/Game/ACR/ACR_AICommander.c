@@ -1669,7 +1669,7 @@ class ACR_AICommander : Managed
   if (m_bHandedOnly) return false;
   if (!SupportReady(type)) return false;
   if (ACR_Mortars.IsMortarType(type) && !m_Manager.Mortars().CanFire(m_sFaction, type, point)) return false;
-  if (ACR_HeliStation.IsHeliType(type) && ACR_HeliStation.UsesPads(m_sFaction) && (!m_Manager.m_Supports || !m_Manager.m_Supports.Station().ReadyFor(m_sFaction, ACR_HeliStation.NeedsGunship(type), point))) return false;
+  if (ACR_HeliStation.IsHeliType(type) && ACR_HeliStation.UsesPads(m_sFaction) && (!m_Manager.m_Supports || !m_Manager.m_Supports.Station().ReadyFor(m_sFaction, ACR_HeliStation.NeedsGunship(type), point, ACR_HeliStation.IsAttack(type)))) return false;
   if (FriendliesNear(point, ACR_Supports.ZoneRadius(type) + 40)) return false;
   string result = m_Manager.m_Supports.Call(m_sFaction, SupportIndex(type), point, true);
   Say(string.Format("[ACR] AI %1 support (%2): %3", m_sFaction, why, result));
@@ -1975,6 +1975,7 @@ class ACR_AICommander : Managed
    if (!attacker) continue;
    int airThreat = Lowered(m_Doctrine.m_iDefensiveAirThreat, fireFactor);
    if (ThreatTo(held) >= airThreat && CallSupport(ACR_ESupportType.HELI_GUN_RUN, seenAt, "gun run at " + held.m_sName)) break;
+   if (ThreatTo(held) >= airThreat && CallSupport(ACR_ESupportType.ATTACK_HELI, seenAt, "attack helicopter at " + held.m_sName)) break;
    if (ThreatTo(held) >= airThreat && CallSupport(ACR_ESupportType.ROCKET_STRIKE, seenAt, "rocket strike at " + held.m_sName)) break;
    if (CallSupport(ACR_ESupportType.MORTAR_HE_LARGE, seenAt, "defensive fire at " + held.m_sName)) break;
    if (CallSupport(ACR_ESupportType.MORTAR_HE_SMALL, seenAt, "defensive fire at " + held.m_sName)) break;
@@ -3798,8 +3799,10 @@ class ACR_AICommander : Managed
     CallSupport(ACR_ESupportType.MORTAR_SMOKE, screen, "smoke screen for " + target.m_sName);
     // Reserve gunship support for an assault, not only the rare counterattack.
     // CallSupport still checks cooldown, range/pad readiness and friendly distance.
-    if (!CallSupport(ACR_ESupportType.HELI_LOITER, target.GetOrigin(), "gunship for the assault on " + target.m_sName))
-     CallSupport(ACR_ESupportType.HELI_DOOR_GUNS, target.GetOrigin(), "door-gunner heli for the assault on " + target.m_sName);
+    // A content pack's attack helicopter (ACR_ContentSocket) goes first when the side has one.
+    if (!CallSupport(ACR_ESupportType.ATTACK_HELI, target.GetOrigin(), "attack helicopter for the assault on " + target.m_sName))
+     if (!CallSupport(ACR_ESupportType.HELI_LOITER, target.GetOrigin(), "gunship for the assault on " + target.m_sName))
+      CallSupport(ACR_ESupportType.HELI_DOOR_GUNS, target.GetOrigin(), "door-gunner heli for the assault on " + target.m_sName);
     foreach (ACR_Squad squad : attack.m_Squads)
     {
      squad.SetMode(ACR_EMoveMode.COMBAT);
@@ -4312,24 +4315,29 @@ class ACR_AICommander : Managed
   return false;
  }
 
- // One support gunship on a helipad (worlds with pads), bought again when lost.
+ // One support gunship on a helipad (worlds with pads), bought again when lost. With a content
+ // pack's attack helicopter on the buy list, that one instead (still one helicopter).
  protected bool BuyHelicopter(ACR_FactionData data)
  {
   if (!ACR_HeliStation.UsesPads(m_sFaction) || !m_Manager.m_Supports) return false;
   ACR_HeliStation station = m_Manager.m_Supports.Station();
-  if (station.CountOf(m_sFaction, true) > 0) return false;
+  if (station.CountOf(m_sFaction, true) > 0 || station.CountOf(m_sFaction, true, true) > 0) return false;
   ACR_Helipad pad = station.FreePad(m_sFaction, null);
   if (!pad) return false;
   ACR_Base base = pad.Base();
   if (!ACR_LogisticsRules.CanDeploy(base) || base.m_bContested) return false;
+  int pick = -1;
   foreach (int i, ACR_RequisitionEntry entry : data.m_aRequisitions)
   {
-   if (entry.m_iSupportHeli != 1 || entry.m_iRemaining <= 0) continue;
-   if (data.m_iRP < entry.m_iCost + SUPPORT_RESERVE) return false;
-   Say(string.Format("[ACR] AI %1 requisition (support gunship): %2", m_sFaction, m_Manager.PurchaseAt(m_sFaction, i, base)));
-   return true;
+   if (entry.m_iRemaining <= 0) continue;
+   if (entry.m_iSupportHeli == 3) { pick = i; break; }
+   if (entry.m_iSupportHeli == 1 && pick < 0) pick = i;
   }
-  return false;
+  if (pick < 0 || data.m_iRP < data.m_aRequisitions[pick].m_iCost + SUPPORT_RESERVE) return false;
+  string kind = "support gunship";
+  if (data.m_aRequisitions[pick].m_iSupportHeli == 3) kind = "attack helicopter";
+  Say(string.Format("[ACR] AI %1 requisition (%2): %3", m_sFaction, kind, m_Manager.PurchaseAt(m_sFaction, pick, base)));
+  return true;
  }
 
  // What a mortar is there to cover: a base it knows the enemy (or a pocket) holds, or one this
