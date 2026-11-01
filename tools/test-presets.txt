@@ -151,6 +151,7 @@ ridelavgetout|-acrRideLavGetOutTest 1|400
 lavgetout|-acrLavGetOutTest 1|240
 lavgetoutold|-acrLavGetOutOldTest 1|240
 ridecarry|-acrRideCarryTest 1|420
+ridecommit|-acrRideCommitTest 1|480
 ridetruck|-acrRideTruckTest 1|400
 patrol|-acrPatrolTest 1|600
 holdreturn|-acrHoldReturnTest 1|90

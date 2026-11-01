@@ -237,9 +237,9 @@ class ACR_TestRoadblockPlanner : ACR_AICommander
   m_Defence.Set(target, 0);
   AssignDefenders();
  }
- override protected void MySquads(array<ACR_Squad> result, bool freeOnly)
+ override protected void MySquads(array<ACR_Squad> result, bool freeOnly, bool committedToo = false)
  {
-  super.MySquads(result, freeOnly);
+  super.MySquads(result, freeOnly, committedToo);
   for (int i = result.Count() - 1; i >= 0; i--)
    if (result[i] != m_OnlySquad) result.RemoveOrdered(i);
  }

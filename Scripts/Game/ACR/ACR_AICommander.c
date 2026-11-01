@@ -868,6 +868,22 @@ class ACR_PendingBuild
  bool m_bWorks;      // FORTIFY: a whole base's works (ACR_BaseWorks), not a position
 }
 
+// A trip Travel sent a squad on (ACR_AICommander.NoteTrip): where to and what for, and the order it
+// carries out there, so a ride can still be caught on the way (CatchRides).
+class ACR_AITrip
+{
+ vector m_vTo;
+ ACR_Base m_Base;      // the own base it is going to, if any (lost: the trip is off)
+ ResourceName m_sPrefab;
+ float m_fRadius;
+ string m_sOrder;
+ int m_iKind;
+ float m_fDropShort;
+ float m_fUntil;       // world ms: past this the trip no longer holds the squad
+ float m_fNextRide;    // world ms: next look for a ride on the way
+ int m_iRideAsks;      // refused asks so far (each doubles the wait for the next)
+}
+
 class ACR_AICommander : Managed
 {
  static const int TICK_SECONDS = 15;          // STRATEGY_TICK
@@ -1121,6 +1137,7 @@ class ACR_AICommander : Managed
   AssignAttacks();
   t = ACR_Perf.Lap("ai.plan", t);
   PostIdle();
+  CatchRides();
   PositionMortars();
   Recrew();
   t = ACR_Perf.Lap("ai.post", t);
@@ -1382,7 +1399,8 @@ class ACR_AICommander : Managed
   return true;
  }
 
- protected void MySquads(array<ACR_Squad> result, bool freeOnly)
+ // committedToo: with the posted squads still on their way somewhere (Committed), for a base under threat.
+ protected void MySquads(array<ACR_Squad> result, bool freeOnly, bool committedToo = false)
  {
   result.Clear();
   foreach (ACR_Squad squad : m_Manager.m_Squads)
@@ -1396,6 +1414,7 @@ class ACR_AICommander : Managed
    if (freeOnly && squad.m_iAITask != ACR_EAITask.FREE && squad.m_iAITask != ACR_EAITask.POSTED) continue;
    if (freeOnly && !squad.IsCombatUnit()) continue; // lone drivers, unarmed crews: kept out of the fighting
    if (freeOnly && IsRetreating(squad)) continue; // just broke contact: let it fall back instead of re-tasking at once
+   if (freeOnly && !committedToo && Committed(squad)) continue; // on its way to a posting: see the trips note
    result.Insert(squad);
   }
  }
@@ -1873,7 +1892,7 @@ class ACR_AICommander : Managed
     FallBack(squad, "out of ammo", held);
   }
   array<ACR_Squad> free = {};
-  MySquads(free, true);
+  MySquads(free, true, true); // a threatened base calls squads on their way to a posting too
   if (m_ReserveSquad) free.RemoveItem(m_ReserveSquad);
   foreach (ACR_Base base : ACR_Base.s_All)
   {
@@ -2298,7 +2317,8 @@ class ACR_AICommander : Managed
   if (all.Count() >= minAllForReserve && free.Count() >= 2 && Pressure() >= 0.9)
   {
    ACR_Base home = ReserveBase();
-   if (home)
+   // A reserve still on its way there stays the reserve (committed, it isn't in 'free' meanwhile).
+   if (home && !CommittedTo(m_ReserveSquad, home.GetOrigin(), home.m_fRadius + 150))
    {
     SortByDistance(free, home.GetOrigin());
     ACR_Squad reserve;
@@ -2717,7 +2737,7 @@ class ACR_AICommander : Managed
   if (!m_bActive) return string.Format("%1 AI commander isn't in command (a player commands it, or it's held or off)", m_sFaction);
   m_RetreatingUntil.Clear();
   array<ACR_Squad> free = {};
-  MySquads(free, true);
+  MySquads(free, true, true);
   if (free.IsEmpty()) return string.Format("%1 AI has no free squads to attack with", m_sFaction);
   vector from = PositionOf(free[0]);
   if (!target)
@@ -2999,6 +3019,141 @@ class ACR_AICommander : Managed
   return true;
  }
 
+ // ---------------------------------------------------------------- trips
+ // A posted squad on its way somewhere is committed to that trip (Jacob 1 Nov, Chernarus: squads
+ // posted across the map were pulled out of their trucks into attacks, FOB escorts and new
+ // postings, and walked for half an hour). Travel notes every trip; while one holds, a POSTED
+ // squad isn't free for other plans (MySquads), as an air-lifted one isn't. It stops holding when
+ // the squad gets there, stops, meets the enemy, is given something else to do, runs well over
+ // the time the walk would take, or the reason goes: the base it was posted to is lost. A
+ // threatened base still calls committed squads (AssignDefenders), and the admin's attack order
+ // takes them too. Squads still on foot on a trip keep looking for a ride (CatchRides).
+ static const float TRIP_COMMIT_MIN = 500;   // m: a shorter move commits nobody
+ static const float TRIP_ARRIVED = 200;      // m from the destination
+ static const float TRIP_SAME_GOAL = 150;    // m: the squad's order still ends this near the trip's end
+ static const float TRIP_PACE = 1.0;         // m/s: the walk the trip is given time for...
+ static const float TRIP_SLACK_S = 300;      // ...plus this
+ static const float RIDE_RETRY_MS = 45000;   // a trip on foot asks for a ride again after this, doubling
+ static const float RIDE_RETRY_MAX_MS = 360000; // ...up to this (a road that goes far round is refused every time)
+ protected ref map<ACR_Squad, ref ACR_AITrip> m_Trips = new map<ACR_Squad, ref ACR_AITrip>();
+
+ protected void NoteTrip(ACR_Squad squad, vector to, ResourceName prefab, float radius, string order, int kind, float dropShort)
+ {
+  float distance = vector.DistanceXZ(PositionOf(squad), to);
+  if (distance < TRIP_COMMIT_MIN)
+  {
+   m_Trips.Remove(squad);
+   return;
+  }
+  ACR_AITrip trip = new ACR_AITrip();
+  trip.m_vTo = to;
+  trip.m_sPrefab = prefab;
+  trip.m_fRadius = radius;
+  trip.m_sOrder = order;
+  trip.m_iKind = kind;
+  trip.m_fDropShort = dropShort;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (base.m_sOwner == m_sFaction && vector.DistanceXZ(base.GetOrigin(), to) <= base.m_fRadius + 150) { trip.m_Base = base; break; }
+  }
+  float now = GetGame().GetWorld().GetWorldTime();
+  trip.m_fUntil = now + (distance / TRIP_PACE + TRIP_SLACK_S) * 1000;
+  trip.m_fNextRide = now + RIDE_RETRY_MS;
+  m_Trips.Set(squad, trip);
+ }
+
+ // "" while the trip still holds the squad, else why not.
+ protected string TripOver(ACR_Squad squad, ACR_AITrip trip, float now)
+ {
+  if (now > trip.m_fUntil) return "out of time";
+  if (trip.m_Base && trip.m_Base.m_sOwner != m_sFaction) return "base lost";
+  if (vector.DistanceXZ(PositionOf(squad), trip.m_vTo) <= TRIP_ARRIVED) return "arrived";
+  if (squad.HasPlayer()) return "a player leads it";
+  if (squad.KnownEnemies(300) > 0) return "contact";
+  if (ACR_AirLift.Busy(squad)) return "";
+  ACR_Ride ride;
+  if (m_Manager.m_Rides) ride = m_Manager.m_Rides.RideOf(squad);
+  if (ride && ride.m_Rider == squad)
+  {
+   if (vector.DistanceXZ(ride.m_Final, trip.m_vTo) <= TRIP_SAME_GOAL) return "";
+   return "rides elsewhere";
+  }
+  // Pauses on the way (regrouping, getting out of a vehicle) keep the trip.
+  ACR_EOrderState state = squad.OrderState();
+  if (state == ACR_EOrderState.REGROUP || state == ACR_EOrderState.DISMOUNT || state == ACR_EOrderState.GET_OUT) return "";
+  if (vector.DistanceXZ(squad.Heading(), trip.m_vTo) > TRIP_SAME_GOAL) return "given another order";
+  if (!squad.m_Group || !squad.m_Group.GetCurrentWaypoint()) return "stopped";
+  return "";
+ }
+
+ // True while a posted squad's trip still holds it (it isn't free for other plans).
+ bool Committed(ACR_Squad squad)
+ {
+  if (!squad || squad.m_iAITask != ACR_EAITask.POSTED) return false;
+  ACR_AITrip trip = m_Trips.Get(squad);
+  if (!trip) return false;
+  string over = TripOver(squad, trip, GetGame().GetWorld().GetWorldTime());
+  if (over.IsEmpty()) return true;
+  m_Trips.Remove(squad);
+  PrintFormat("[ACR] TRIP %1 to %2: over (%3)", squad.GetName(), ACR_Manager.Grid(trip.m_vTo), over);
+  return false;
+ }
+
+ // A squad's trip still holding and ending within 'reach' of 'point'.
+ protected bool CommittedTo(ACR_Squad squad, vector point, float reach)
+ {
+  if (!Committed(squad)) return false;
+  return vector.DistanceXZ(m_Trips.Get(squad).m_vTo, point) <= reach;
+ }
+
+ // Squads still on foot on a long trip (any task) look for a ride on the way: a truck freed or
+ // bought since they set off (1 Nov live: one refused ask at the start meant a 30-minute walk;
+ // the ask also tells Requisition the side is short of transport). One ask a tick, the farthest
+ // from its end first; a refused trip waits RIDE_RETRY_MS, doubling each time, before asking again.
+ protected void CatchRides()
+ {
+  if (!m_Manager.m_Rides) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  array<ACR_Squad> over = {};
+  ACR_Squad pick;
+  float pickLeft;
+  foreach (ACR_Squad squad, ACR_AITrip trip : m_Trips)
+  {
+   if (!squad || !m_Manager.m_Squads.Contains(squad) || !TripOver(squad, trip, now).IsEmpty())
+   {
+    over.Insert(squad);
+    continue;
+   }
+   if (now < trip.m_fNextRide || squad.IsMounted() || ACR_Transport.CrewedVehicle(squad) || squad.m_bMortar || squad.Aircraft()) continue;
+   if (m_Manager.m_Rides.RideOf(squad) || ACR_AirLift.Busy(squad)) continue;
+   float left = vector.DistanceXZ(PositionOf(squad), trip.m_vTo);
+   if (left <= m_Doctrine.m_fRideDistance || left <= pickLeft) continue;
+   pick = squad;
+   pickLeft = left;
+  }
+  foreach (ACR_Squad done : over) m_Trips.Remove(done);
+  if (!pick || PlanBudgetSpent()) return;
+  ACR_AITrip go = m_Trips.Get(pick);
+  string why;
+  if (!m_Manager.m_Rides.Request(pick, go.m_vTo, go.m_fDropShort, go.m_sPrefab, go.m_fRadius, go.m_sOrder, go.m_iKind, why, true))
+  {
+   go.m_iRideAsks++;
+   go.m_fNextRide = now + Math.Min(RIDE_RETRY_MAX_MS, RIDE_RETRY_MS * Math.Pow(2, go.m_iRideAsks - 1));
+   return;
+  }
+  Say(string.Format("[ACR] AI %1: %2 catches a ride on the way to %3 (%4 m to go)", m_sFaction, pick.GetName(), ACR_Manager.Grid(go.m_vTo), (int)pickLeft));
+ }
+
+ int CountTripsForTest() { return m_Trips.Count(); }
+ void CatchRidesForTest()
+ {
+  foreach (ACR_Squad squad, ACR_AITrip trip : m_Trips) trip.m_fNextRide = 0;
+  m_iTickStarted = System.GetTickCount();
+  CatchRides();
+ }
+ void TravelForTest(ACR_Squad squad, vector destination, bool defend) { Travel(squad, destination, defend, 0); }
+ void FreeSquadsForTest(array<ACR_Squad> result) { MySquads(result, true); }
+
  // 'approach': the enemy base this is a staging move for, to walk a covered way there on foot.
  protected void Travel(ACR_Squad squad, vector destination, bool defend, float dropShort, ACR_Base approach = null)
  {
@@ -3028,13 +3183,19 @@ class ACR_AICommander : Managed
    prefab = ACR_Squad.WP_GARRISON;
    order = "Garrisoning";
   }
+  NoteTrip(squad, destination, prefab, radius, order, kind, dropShort);
+  // Riders given somewhere else to go on the way: the same ride takes them there.
+  if (m_Manager.m_Rides && m_Manager.m_Rides.Redirect(squad, destination, dropShort, prefab, radius, order, kind)) return;
   if (!squad.IsMounted())
   {
    if (TryAirLift(squad, destination, prefab, radius, order, kind, dropShort)) return;
-   if (m_Manager.m_Rides && vector.DistanceXZ(PositionOf(squad), destination) > m_Doctrine.m_fRideDistance)
+   float distance = vector.DistanceXZ(PositionOf(squad), destination);
+   if (m_Manager.m_Rides && distance > m_Doctrine.m_fRideDistance)
    {
     string why;
     if (m_Manager.m_Rides.Request(squad, destination, dropShort, prefab, radius, order, kind, why, true)) return;
+    // (CatchRides keeps looking for one on the way.)
+    Say(string.Format("[ACR] AI %1: %2 sets off on foot for %3 m to %4: %5", m_sFaction, squad.GetName(), (int)distance, ACR_Manager.Grid(destination), why));
    }
   }
   if (approach && !defend && !squad.IsMounted() && !ACR_Transport.CrewedVehicle(squad) && CoveredApproach(squad, approach, destination)) return;
@@ -4121,9 +4282,10 @@ class ACR_AICommander : Managed
  {
   int count;
   array<ACR_Squad> mine = {};
-  MySquads(mine, true);
+  MySquads(mine, true, true);
+  // (and those on their way there: postings spread out as they are made, not once squads arrive)
   foreach (ACR_Squad squad : mine)
-   if (squad.m_iAITask == ACR_EAITask.POSTED && vector.DistanceXZ(PositionOf(squad), base.GetOrigin()) < base.m_fRadius + 150) count++;
+   if (squad.m_iAITask == ACR_EAITask.POSTED && (vector.DistanceXZ(PositionOf(squad), base.GetOrigin()) < base.m_fRadius + 150 || CommittedTo(squad, base.GetOrigin(), base.m_fRadius + 150))) count++;
   return count;
  }
 
@@ -5277,6 +5439,8 @@ class ACR_AICommander : Managed
   {
    if (!squad || squad.HasPlayer() || squad.CountAlive() <= 0 || squad == m_FobEscort) continue;
    if (squad.m_iAITask == ACR_EAITask.ATTACK || squad.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
+   // Not a squad giving or taking a ride (1 Nov live: a Humvee carrying medics was sent to build).
+   if (m_Manager.m_Rides && m_Manager.m_Rides.RideOf(squad)) continue;
    IEntity truck = squad.ConstructionTruck();
    if (!truck || ACR_Logistics.Health(truck) <= 0) continue;
    if (m_Manager.m_Logistics && m_Manager.m_Logistics.StockOf(truck) >= ACR_FobBuild.LOADS_RESERVED)
@@ -5398,7 +5562,8 @@ class ACR_AICommander : Managed
    escort.m_iAITask = ACR_EAITask.DEFEND;
    escort.m_AITarget = null; // it guards the site, not an old base (freed by HasActiveFobProject)
    escort.SetMode(ACR_EMoveMode.FAST);
-   escort.RouteTo(site, ACR_Squad.WP_DEFEND, -1, "Escorting FOB construction", 0);
+   // (Travel: a far escort rides out rather than walking behind the truck.)
+   Travel(escort, site, true, 0);
    Say(string.Format("[ACR] AI %1: %2 assigned as escort for FOB build at %3", m_sFaction, escort.GetName(), site));
   }
 
@@ -6732,6 +6897,7 @@ class ACR_AICommander : Managed
    AssignDefenders();
    AssignAttacks();
    PostIdle();
+   CatchRides();
    int beforeBuild = m_Manager.m_Bases.GetRP(m_sFaction);
    ManageRoadblocks();
    SpendBuildBudget(beforeBuild - m_Manager.m_Bases.GetRP(m_sFaction));
@@ -7197,6 +7363,7 @@ class ACR_AICommander : Managed
   m_ReinforceRetryAt.Remove(squad);
   m_Refitting.Remove(squad);
   m_ForwardAt.Remove(squad);
+  m_Trips.Remove(squad);
   if (m_ReserveSquad == squad) m_ReserveSquad = null;
   if (m_FobBuilder == squad) m_FobBuilder = null;
   if (m_FobEscort == squad) m_FobEscort = null;
@@ -7217,6 +7384,7 @@ class ACR_AICommander : Managed
   m_RetreatingUntil.Clear();
   m_ReinforceRetryAt.Clear();
   m_Refitting.Clear();
+  m_Trips.Clear();
   m_ReserveSquad = null;
   m_iSaveForEntry = -1;
   m_iLastSavedLog = -1;
