@@ -119,6 +119,8 @@ class ACR_TestContentPack
   BuyInfantry(manager, "US", "Reserve Rifle Squad");
   BuyInfantry(manager, "USSR", "Reservist Squad");
   BuyInfantry(manager, "US", "Night Scout Team", 4);
+  BuyInfantry(manager, "US", "Dragon AT Team", 3);
+  BuyInfantry(manager, "USSR", "Metis ATGM Team", 3);
   // -acrContentPackWinterTest 1 (preset contentpackwinter): a cold map, Soviet soldiers in the heavy coat.
   if (System.IsCLIParam("acrContentPackWinterTest"))
   {
@@ -280,6 +282,43 @@ class ACR_TestContentPack
   return report;
  }
 
+ // Each man's launcher (and whether it holds a round) and what he wears on his back.
+ protected static string Launchers(SCR_AIGroup group)
+ {
+  string report;
+  if (!group) return report;
+  array<AIAgent> agents = {};
+  group.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (!body) continue;
+   BaseWeaponManagerComponent weapons = BaseWeaponManagerComponent.Cast(body.FindComponent(BaseWeaponManagerComponent));
+   EquipedLoadoutStorageComponent loadout = EquipedLoadoutStorageComponent.Cast(body.FindComponent(EquipedLoadoutStorageComponent));
+   string tube = "-";
+   if (weapons)
+   {
+    array<WeaponSlotComponent> slots = {};
+    weapons.GetWeaponsSlots(slots);
+    foreach (WeaponSlotComponent slot : slots)
+    {
+     IEntity weaponEntity = slot.GetWeaponEntity();
+     BaseWeaponComponent weapon;
+     if (weaponEntity) weapon = BaseWeaponComponent.Cast(weaponEntity.FindComponent(BaseWeaponComponent));
+     if (!weapon || weapon.GetWeaponType() != EWeaponType.WT_ROCKETLAUNCHER) continue;
+     tube = Leaf(weaponEntity);
+     BaseMuzzleComponent muzzle = weapon.GetCurrentMuzzle();
+     if (muzzle && muzzle.GetAmmoCount() > 0) tube += "(loaded)";
+     else tube += "(EMPTY)";
+    }
+   }
+   string back = "-";
+   if (loadout) back = Leaf(loadout.GetClothFromArea(LoadoutBackpackArea));
+   report += string.Format(" %1/%2", tube, back);
+  }
+  return report;
+ }
+
  static string Leaf(IEntity entity)
  {
   if (!entity || !entity.GetPrefabData()) return "none";
@@ -313,6 +352,21 @@ class ACR_TestContentPack
    if (squad.m_sName == "Night Scout Team")
    {
     ACR_TestRegress.Check("content: night scouts carry the M16A2 with the AN/PVS-4", men == 4 && armed.Contains("PVS4") && !armed.Contains("NOOPTIC"), armed);
+    s_iExpected++;
+    continue;
+   }
+   if (squad.m_sName == "Dragon AT Team" || squad.m_sName == "Metis ATGM Team")
+   {
+    string tubes = Launchers(squad.m_Group);
+    PrintFormat("[ACR] CONTENTTEST launchers %1:%2", squad.m_sName, tubes);
+    string kind = "M47";
+    if (squad.m_sName == "Metis ATGM Team") kind = "Metis";
+    array<string> men3 = {};
+    tubes.Split(" ", men3, true);
+    int missiles;
+    foreach (string man3 : men3)
+     if (man3.Contains("/Ammo_Missile_" + kind)) missiles++;
+    ACR_TestRegress.Check("content: the " + squad.m_sName + " gunner holds a loaded " + kind + ", two spare missiles on backs", men == 3 && tubes.Contains("Launcher_" + kind + "(loaded)") && missiles == 2, tubes);
     s_iExpected++;
     continue;
    }
