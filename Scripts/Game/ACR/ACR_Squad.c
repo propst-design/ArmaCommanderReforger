@@ -2622,6 +2622,15 @@ class ACR_Squad : Managed
  protected ref array<vector> m_aRoute = {};
  protected ref ACR_OrderSnapshot m_Route; // the order at the end of the route (target unused)
 
+ // Where the current order ends up: the last leg of a route, the order carried on after a
+ // dismount, else the order's own point (ACR_AICommander's trips).
+ vector Heading()
+ {
+  if (!m_aRoute.IsEmpty()) return m_aRoute[m_aRoute.Count() - 1];
+  if (m_bResumeOnFoot && m_Resume) return m_Resume.m_Target;
+  return m_MoveTarget;
+ }
+
  // #86 (29 Oct): one waypoint per vehicle trip is the default, as vanilla's own scenarios drive
  // (each road hop was a waypoint end and a fresh engine path: brake, plan again); -acrNoRoadHops 0
  // brings the road hops back. The hops are the fallback: a failed move (OnGroupMoveFailed) and a

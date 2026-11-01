@@ -4,6 +4,10 @@
 // Used by the AI commander for long trips and by players with the "Ride" order.
 // A transport is only fetched from nearby: never more than MAX_PICKUP metres
 // away, and never farther than half the trip itself.
+// Convoys (Jacob 1 Nov: "a squad can use 2 or 3 jeeps or HMMWVs"): when no single transport has
+// the seats, up to CONVOY_MAX free ones near the squad carry it together. The first (m_Taxi)
+// leads: its arrival starts boarding and ends the drive; the others (m_aExtraTaxis) come along,
+// and one that drops out (crew lost, given other orders) just leaves the convoy.
 enum ACR_ERideState
 {
  TO_PICKUP,
@@ -37,6 +41,12 @@ class ACR_Ride
  bool m_bLedByPlayer;           // a player took over their leader: they follow him, the ride goes on
  bool m_bPlayerAboard;          // a player rider has been in the transport this leg
  float m_fUnloadSince = -1;     // dropped off with riders still aboard: the transport waits for them
+ float m_fPickupBudgetMs = 240000; // how long the transport has to reach the squad (longer for a far fetch)
+ // Convoy: the other transports and their order serials (index for index).
+ ref array<ACR_Squad> m_aExtraTaxis = {};
+ ref array<Vehicle> m_aExtraVehicles = {};
+ ref array<int> m_aExtraSerials = {};
+ float m_fLeadAt = -1;          // convoy: when the lead reached the pickup (TO_PICKUP) or the drop (TO_DROP)
 }
 
 class ACR_Rides : Managed
@@ -62,6 +72,15 @@ class ACR_Rides : Managed
  static const float ESCORT_STOPPED_MS = 15000;
  static const float PLAYER_UNLOAD_MS = 60000;  // dropped off: the transport waits this long for a player to get out
  static const float RIDERS_UNLOAD_MS = 20000;  // ...and this long for AI riders (the dismount's sweeps take 9 s)
+ // A far fetch gets longer than PICKUP_TIMEOUT_MS: this pace door to door plus a start (1 Nov live:
+ // trucks fetched from 900-1400 m on Chernarus "never arrived" within 240 s, and the squads walked).
+ static const float PICKUP_PACE = 2.5;         // m/s
+ static const float PICKUP_START_S = 120;
+ static const int CONVOY_MAX = 3;              // transports one squad may take together
+ static const int CONVOY_MIN_SEATS = 2;        // a vehicle with fewer free seats doesn't join a convoy
+ static const float CONVOY_GATHER_MS = 60000;  // the lead waits this long at the pickup for the others
+ static const float CONVOY_DROP_WAIT_MS = 30000; // ...and at the drop for the others to close up
+ static const float CONVOY_CLOSE = 150;        // m: a convoy vehicle this near the lead's stop has caught up
 
  protected ACR_Manager m_Manager;
  ref array<ref ACR_Ride> m_Rides = {};
@@ -110,15 +129,35 @@ class ACR_Rides : Managed
  ACR_Ride RideOf(ACR_Squad squad)
  {
   foreach (ACR_Ride ride : m_Rides)
-   if (ride.m_Rider == squad || ride.m_Taxi == squad) return ride;
+   if (ride.m_Rider == squad || ride.m_Taxi == squad || ride.m_aExtraTaxis.Contains(squad)) return ride;
   return null;
  }
 
  bool Unloading(ACR_Squad taxi)
  {
   foreach (ACR_Ride ride : m_Unloading)
-   if (ride.m_Taxi == taxi) return true;
+   if (ride.m_Taxi == taxi || ride.m_aExtraTaxis.Contains(taxi)) return true;
   return false;
+ }
+
+ // One of the ride's vehicles (the lead's or a convoy's).
+ static bool IsRideVehicle(ACR_Ride ride, IEntity vehicle)
+ {
+  if (!vehicle) return false;
+  if (vehicle == ride.m_Vehicle) return true;
+  foreach (Vehicle extra : ride.m_aExtraVehicles)
+   if (extra == vehicle) return true;
+  return false;
+ }
+
+ // "Truck 1", or "Jeep 1 + Jeep 2 + Jeep 3" for a convoy.
+ static string TaxiNames(ACR_Ride ride)
+ {
+  string names = "?";
+  if (ride.m_Taxi) names = ride.m_Taxi.GetName();
+  foreach (ACR_Squad extra : ride.m_aExtraTaxis)
+   if (extra) names += " + " + extra.GetName();
+  return names;
  }
 
  // A squad that can serve as a taxi: crews a drivable ground vehicle with no
@@ -209,6 +248,51 @@ class ACR_Rides : Managed
   return best;
  }
 
+ // No single transport with the seats: up to CONVOY_MAX free ones within the same fetch limits that
+ // seat everyone together, nearest first. Returns the lead (the nearest); 'extras' gets the rest and
+ // 'distance' the farthest fetch (boarding waits for the last one). null: none.
+ ACR_Squad FindConvoy(string faction, vector pickup, float trip, int seatsNeeded, out float distance, notnull array<ACR_Squad> extras, bool wideFetch = false, bool carriersToo = false)
+ {
+  extras.Clear();
+  distance = 0;
+  float maxFetch = MAX_PICKUP;
+  float shareFetch = PICKUP_SHARE;
+  if (wideFetch)
+  {
+   maxFetch = MAX_PICKUP_AI;
+   shareFetch = PICKUP_SHARE_AI;
+  }
+  float limit = Math.Min(maxFetch, trip * shareFetch);
+  array<ACR_Squad> near = {};
+  array<float> nearDist = {};
+  foreach (ACR_Squad squad : m_Manager.m_Squads)
+  {
+   if (!IsFreeTransport(squad, faction, carriersToo)) continue;
+   IEntity vehicle = ACR_Transport.CrewedVehicle(squad);
+   float d = vector.DistanceXZ(vehicle.GetOrigin(), pickup);
+   if (d > limit || FreeSeats(vehicle) < CONVOY_MIN_SEATS) continue;
+   int at = 0;
+   while (at < nearDist.Count() && nearDist[at] <= d) at++;
+   near.InsertAt(squad, at);
+   nearDist.InsertAt(d, at);
+  }
+  int seats = 0;
+  ACR_Squad lead;
+  for (int i = 0; i < near.Count() && i < CONVOY_MAX && seats < seatsNeeded; i++)
+  {
+   if (!lead) lead = near[i];
+   else extras.Insert(near[i]);
+   seats += FreeSeats(ACR_Transport.CrewedVehicle(near[i]));
+   distance = nearDist[i];
+  }
+  if (!lead || extras.IsEmpty() || seats < seatsNeeded)
+  {
+   extras.Clear();
+   return null;
+  }
+  return lead;
+ }
+
  // Recently needed a transport and found none (the AI commander buys one).
  bool ShortOfTransport(string faction)
  {
@@ -249,6 +333,8 @@ class ACR_Rides : Managed
   int seats = rider.CountAlive();
   float fetch;
   ACR_Squad taxi = FindTransport(faction, from, trip, seats, fetch, wideFetch, null, carriersToo);
+  array<ACR_Squad> convoy = {};
+  if (!taxi) taxi = FindConvoy(faction, from, trip, seats, fetch, convoy, wideFetch, carriersToo);
   if (!taxi)
   {
    m_NoTransportAt.Set(faction, GetGame().GetWorld().GetWorldTime());
@@ -279,7 +365,7 @@ class ACR_Rides : Managed
     return null;
    }
   }
-  return StartRide(rider, taxi, from, trip, fetch, destination, dropShort, finalPrefab, finalRadius, finalOrder, finalKind, false);
+  return StartRide(rider, taxi, from, trip, fetch, destination, dropShort, finalPrefab, finalRadius, finalOrder, finalKind, false, convoy);
  }
 
  // AI motorized assault (5 Oct; Jacob: APCs carrying infantry into attacks): a ride in a given
@@ -315,7 +401,7 @@ class ACR_Rides : Managed
   return StartRide(rider, carrier, from, trip, fetch, destination, 0, finalPrefab, finalRadius, finalOrder, finalKind, true);
  }
 
- protected ACR_Ride StartRide(ACR_Squad rider, ACR_Squad taxi, vector from, float trip, float fetch, vector destination, float dropShort, ResourceName finalPrefab, float finalRadius, string finalOrder, int finalKind, bool escort)
+ protected ACR_Ride StartRide(ACR_Squad rider, ACR_Squad taxi, vector from, float trip, float fetch, vector destination, float dropShort, ResourceName finalPrefab, float finalRadius, string finalOrder, int finalKind, bool escort, array<ACR_Squad> convoy = null)
  {
   string faction = FactionOf(rider);
   ACR_Ride ride = new ACR_Ride();
@@ -344,15 +430,124 @@ class ACR_Rides : Managed
   ride.m_sFinalOrder = finalOrder;
   ride.m_iFinalKind = finalKind;
   ride.m_fDriveBudgetMs = (trip / 4 + 150) * 1000; // generous: 4 m/s average plus slack
+  ride.m_fPickupBudgetMs = Math.Max(PICKUP_TIMEOUT_MS, (fetch / PICKUP_PACE + PICKUP_START_S) * 1000);
   RiderOrder(ride);
   taxi.SetMode(ACR_EMoveMode.FAST);
   taxi.RouteTo(pickup, ACR_Squad.WP_MOVE, -1, "Picking up " + rider.GetName(), 0);
   ride.m_iRiderSerial = rider.m_iOrderSerial;
   ride.m_iTaxiSerial = taxi.m_iOrderSerial;
+  if (convoy)
+  {
+   foreach (ACR_Squad extra : convoy)
+   {
+    Vehicle extraVehicle = Vehicle.Cast(ACR_Transport.CrewedVehicle(extra));
+    if (!extraVehicle) continue;
+    extra.SetMode(ACR_EMoveMode.FAST);
+    extra.RouteTo(pickup, ACR_Squad.WP_MOVE, -1, "Picking up " + rider.GetName(), 0);
+    ride.m_aExtraTaxis.Insert(extra);
+    ride.m_aExtraVehicles.Insert(extraVehicle);
+    ride.m_aExtraSerials.Insert(extra.m_iOrderSerial);
+   }
+  }
   SetState(ride, ACR_ERideState.TO_PICKUP);
   m_Rides.Insert(ride);
-  PrintFormat("[ACR] RIDE %1 -> %2: %3 fetched from %4 m, trip %5 m, pickup %6 drop %7", rider.GetName(), ACR_Manager.Grid(destination), taxi.GetName(), (int)fetch, (int)trip, pickup, ride.m_Drop);
+  PrintFormat("[ACR] RIDE %1 -> %2: %3 fetched from %4 m, trip %5 m, pickup %6 drop %7", rider.GetName(), ACR_Manager.Grid(destination), TaxiNames(ride), (int)fetch, (int)trip, pickup, ride.m_Drop);
   return ride;
+ }
+
+ // The AI commander re-tasks riders whose ride is under way (their posting's reason went, an
+ // attack was called off): the same ride takes them to the new place instead of putting them
+ // out to walk (1 Nov live: riders put out mid-way walked 5-8 km). False when there is no such
+ // ride, a player leads them, or the new place is too close to need one (then the new order
+ // ends the ride as before).
+ bool Redirect(ACR_Squad rider, vector destination, float dropShort, ResourceName finalPrefab, float finalRadius, string finalOrder, int finalKind)
+ {
+  ACR_Ride ride = RideOf(rider);
+  if (!ride || ride.m_Rider != rider || ride.m_bEscort || ride.m_bLedByPlayer || !ride.m_Vehicle || !ride.m_Taxi) return false;
+  vector from = ride.m_Vehicle.GetOrigin();
+  if (ride.m_State != ACR_ERideState.TO_DROP && rider.GetAnchor()) from = rider.GetAnchor().GetOrigin();
+  float trip = vector.DistanceXZ(from, destination);
+  if (trip < MIN_TRIP) return false;
+  vector dir = destination - from;
+  dir[1] = 0;
+  dir.Normalize();
+  ride.m_Drop = ACR_Manager.Ground(destination - dir * Math.Min(dropShort, trip * 0.5));
+  vector road;
+  if (BBB_Terrain.RoadPointNear(ride.m_Drop, 350, road)) ride.m_Drop = road;
+  ride.m_Final = destination;
+  ride.m_sFinalPrefab = finalPrefab;
+  ride.m_fFinalRadius = finalRadius;
+  ride.m_sFinalOrder = finalOrder;
+  ride.m_iFinalKind = finalKind;
+  ride.m_fDriveBudgetMs = (trip / 4 + 150) * 1000;
+  if (ride.m_State == ACR_ERideState.TO_DROP)
+  {
+   ride.m_fStateSince = GetGame().GetWorld().GetWorldTime();
+   ride.m_fLeadAt = -1;
+   DriveToDrop(ride);
+  }
+  Log(ride, string.Format("redirected to %1 (%2 m)", ACR_Manager.Grid(destination), (int)trip));
+  return true;
+ }
+
+ // Every vehicle of the ride on its way to the drop-off.
+ protected void DriveToDrop(ACR_Ride ride)
+ {
+  ride.m_Taxi.RouteTo(ride.m_Drop, ACR_Squad.WP_MOVE, -1, "Driving " + ride.m_Rider.GetName(), 0);
+  ride.m_iTaxiSerial = ride.m_Taxi.m_iOrderSerial;
+  foreach (int i, ACR_Squad extra : ride.m_aExtraTaxis)
+  {
+   if (!extra) continue;
+   extra.RouteTo(ride.m_Drop, ACR_Squad.WP_MOVE, -1, "Driving " + ride.m_Rider.GetName(), 0);
+   ride.m_aExtraSerials[i] = extra.m_iOrderSerial;
+  }
+ }
+
+ // Convoy upkeep: a vehicle whose crew is lost, taken by a player or given other orders leaves the
+ // convoy (sent home if it is still ours to send); the ride goes on with the rest.
+ protected void KeepConvoy(ACR_Ride ride)
+ {
+  for (int i = ride.m_aExtraTaxis.Count() - 1; i >= 0; i--)
+  {
+   ACR_Squad extra = ride.m_aExtraTaxis[i];
+   Vehicle vehicle = ride.m_aExtraVehicles[i];
+   bool ours = extra != null && m_Manager.m_Squads.Contains(extra) && extra.m_iOrderSerial == ride.m_aExtraSerials[i];
+   ChimeraCharacter driver;
+   if (vehicle) driver = ACR_Squad.DriverOf(vehicle);
+   bool crewed = ours && vehicle != null && ACR_Transport.CrewedVehicle(extra) == vehicle;
+   if (crewed && driver != null && ACR_Respawn.IsAlive(driver) && !extra.HasPlayer()) continue;
+   string name = "?";
+   if (extra) name = extra.GetName();
+   Log(ride, string.Format("convoy: %1 drops out", name));
+   ride.m_aExtraTaxis.RemoveOrdered(i);
+   ride.m_aExtraVehicles.RemoveOrdered(i);
+   ride.m_aExtraSerials.RemoveOrdered(i);
+   if (crewed && !extra.HasPlayer()) SendTaxiHome(extra, vehicle, ride.m_sFaction);
+   else if (ours && !extra.HasPlayer()) extra.Halt("Holding");
+  }
+ }
+
+ // Convoy: every other vehicle within CONVOY_CLOSE of 'point'.
+ protected bool ConvoyAt(ACR_Ride ride, vector point)
+ {
+  foreach (Vehicle vehicle : ride.m_aExtraVehicles)
+   if (vehicle && vector.DistanceXZ(vehicle.GetOrigin(), point) > CONVOY_CLOSE) return false;
+  return true;
+ }
+
+ // Convoy vehicles that reached the pickup stop there and wait (the lead's stop is its own).
+ protected void HoldConvoyAtPickup(ACR_Ride ride)
+ {
+  IEntity anchor = ride.m_Rider.GetAnchor();
+  if (!anchor) return;
+  foreach (int i, ACR_Squad extra : ride.m_aExtraTaxis)
+  {
+   Vehicle vehicle = ride.m_aExtraVehicles[i];
+   if (!extra || !vehicle || extra.OrderState() == ACR_EOrderState.HOLD) continue;
+   if (vector.DistanceXZ(vehicle.GetOrigin(), anchor.GetOrigin()) >= PICKUP_REACHED + 15) continue;
+   extra.Halt("Loading " + ride.m_Rider.GetName());
+   ride.m_aExtraSerials[i] = extra.m_iOrderSerial;
+  }
  }
 
  // A new order for either squad ends its ride (riders already aboard get out).
@@ -361,9 +556,19 @@ class ACR_Rides : Managed
   for (int i = m_Rides.Count() - 1; i >= 0; i--)
   {
    ACR_Ride ride = m_Rides[i];
+   // A convoy vehicle taken for something else only leaves the convoy.
+   int extra = ride.m_aExtraTaxis.Find(squad);
+   if (extra >= 0)
+   {
+    ride.m_aExtraTaxis.RemoveOrdered(extra);
+    ride.m_aExtraVehicles.RemoveOrdered(extra);
+    ride.m_aExtraSerials.RemoveOrdered(extra);
+    continue;
+   }
    if (ride.m_Rider != squad && ride.m_Taxi != squad) continue;
    m_Rides.RemoveOrdered(i);
    if (ride.m_Taxi && ride.m_Taxi != squad) SendHome(ride);
+   else ReleaseConvoy(ride);
   }
  }
 
@@ -414,7 +619,7 @@ class ACR_Rides : Managed
   {
    IEntity body = agent.GetControlledEntity();
    if (!ACR_Respawn.IsAlive(body) || ACR_Squad.FindController(body) == 0) continue;
-   if (ride.m_Vehicle && ACR_Transport.VehicleOf(body) == ride.m_Vehicle) inside++;
+   if (IsRideVehicle(ride, ACR_Transport.VehicleOf(body))) inside++;
    else outside++;
   }
   return inside;
@@ -426,8 +631,12 @@ class ACR_Rides : Managed
  protected bool WaitForRidersOut(ACR_Ride ride)
  {
   ACR_Squad taxi = ride.m_Taxi;
-  if (!taxi || !ride.m_Vehicle || !m_Manager.m_Squads.Contains(taxi) || taxi.m_iOrderSerial != ride.m_iTaxiSerial) return false;
-  bool riders = ride.m_Rider != null && m_Manager.m_Squads.Contains(ride.m_Rider);
+  if (!taxi || !ride.m_Vehicle || !m_Manager.m_Squads.Contains(taxi) || taxi.m_iOrderSerial != ride.m_iTaxiSerial)
+  {
+   ReleaseConvoy(ride);
+   return false;
+  }
+  bool riders =ride.m_Rider != null && m_Manager.m_Squads.Contains(ride.m_Rider);
   int outside, alive;
   bool player = riders && PlayersAboard(ride, outside) > 0;
   int aboard = 0;
@@ -459,7 +668,7 @@ class ACR_Rides : Managed
    IEntity body = agent.GetControlledEntity();
    if (!ACR_Respawn.IsAlive(body)) continue;
    alive++;
-   if (ride.m_Vehicle && ACR_Transport.VehicleOf(body) == ride.m_Vehicle) aboard++;
+   if (IsRideVehicle(ride, ACR_Transport.VehicleOf(body))) aboard++;
   }
   return aboard;
  }
@@ -474,8 +683,10 @@ class ACR_Rides : Managed
   foreach (AIAgent agent : agents)
   {
    IEntity body = agent.GetControlledEntity();
-   if (!ACR_Respawn.IsAlive(body) || ACR_Transport.VehicleOf(body) == ride.m_Vehicle) continue;
+   if (!ACR_Respawn.IsAlive(body) || IsRideVehicle(ride, ACR_Transport.VehicleOf(body))) continue;
    if (vector.DistanceXZ(body.GetOrigin(), ride.m_Vehicle.GetOrigin()) <= STRAGGLER_DISTANCE) return -1;
+   foreach (Vehicle extra : ride.m_aExtraVehicles)
+    if (extra && vector.DistanceXZ(body.GetOrigin(), extra.GetOrigin()) <= STRAGGLER_DISTANCE) return -1;
    distant++;
   }
   return distant;
@@ -495,6 +706,7 @@ class ACR_Rides : Managed
    ReleaseTaxi(ride);
    return false;
   }
+  KeepConvoy(ride);
   int alive;
   int aboard = Aboard(ride, alive);
   if (taxiOk) ride.m_fTaxiLostSince = -1;
@@ -539,6 +751,7 @@ class ACR_Rides : Managed
    if (riderReordered) Log(ride, "cancelled: the riders got a new order");
    else Log(ride, "cancelled: the transport crew was given other orders or bailed out");
    if (ride.m_Taxi.m_iOrderSerial == ride.m_iTaxiSerial) SendHome(ride);
+   else ReleaseConvoy(ride);
    // Riders thrown out on the way (the transport got stuck or hit) still go on to their objective.
    ACR_Squad rider = ride.m_Rider;
    if (ride.m_State == ACR_ERideState.TO_DROP && rider.OrderState() == ACR_EOrderState.DISMOUNT)
@@ -562,19 +775,42 @@ class ACR_Rides : Managed
   {
    case ACR_ERideState.TO_PICKUP:
    {
+    HoldConvoyAtPickup(ride);
     if (riderAnchor && vector.DistanceXZ(ride.m_Vehicle.GetOrigin(), riderAnchor.GetOrigin()) < PICKUP_REACHED)
     {
-     ride.m_Taxi.Halt("Loading " + ride.m_Rider.GetName());
-     ride.m_iTaxiSerial = ride.m_Taxi.m_iOrderSerial;
+     if (ride.m_fLeadAt < 0)
+     {
+      ride.m_Taxi.Halt("Loading " + ride.m_Rider.GetName());
+      ride.m_iTaxiSerial = ride.m_Taxi.m_iOrderSerial;
+      ride.m_fLeadAt = now;
+     }
+     // A convoy boards once all of it is there; one still on the way after CONVOY_GATHER_MS is
+     // left out (the riders who don't fit walk on: the straggler rules below).
+     if (!ConvoyAt(ride, riderAnchor.GetOrigin()))
+     {
+      if (now - ride.m_fLeadAt < CONVOY_GATHER_MS) return true;
+      for (int late = ride.m_aExtraTaxis.Count() - 1; late >= 0; late--)
+      {
+       Vehicle lateVehicle = ride.m_aExtraVehicles[late];
+       if (lateVehicle && vector.DistanceXZ(lateVehicle.GetOrigin(), riderAnchor.GetOrigin()) <= CONVOY_CLOSE) continue;
+       ACR_Squad lateTaxi = ride.m_aExtraTaxis[late];
+       Log(ride, string.Format("convoy: %1 too late, leaving without it", lateTaxi.GetName()));
+       ride.m_aExtraTaxis.RemoveOrdered(late);
+       ride.m_aExtraVehicles.RemoveOrdered(late);
+       ride.m_aExtraSerials.RemoveOrdered(late);
+       if (lateVehicle) SendTaxiHome(lateTaxi, lateVehicle, ride.m_sFaction);
+      }
+     }
+     ride.m_fLeadAt = -1;
      SetState(ride, ACR_ERideState.BOARDING);
      // (A player leading them brings them over himself; seats are filled within 40 m.)
      if (!ride.m_bLedByPlayer) RiderOrder(ride);
      Log(ride, "transport arrived, boarding");
      return true;
     }
-    if (inState > PICKUP_TIMEOUT_MS)
+    if (ride.m_fLeadAt < 0 && inState > ride.m_fPickupBudgetMs)
     {
-     Log(ride, "transport never arrived, walking");
+     Log(ride, string.Format("transport never arrived in %1 s, walking", (int)(inState / 1000)));
      SendHome(ride);
      Finish(ride, false);
      return false;
@@ -583,8 +819,13 @@ class ACR_Rides : Managed
    }
    case ACR_ERideState.BOARDING:
    {
+    // (A convoy fills the lead first, then the others: BoardCargo seats whoever isn't in yet.)
     if (alive > 0 && aboard < alive)
+    {
      ride.m_Rider.BoardCargo(ride.m_Vehicle, 40, inState > 8000, inState > STUCK_BOARDING_MS);
+     foreach (Vehicle convoyVehicle : ride.m_aExtraVehicles)
+      if (convoyVehicle) ride.m_Rider.BoardCargo(convoyVehicle, 40, inState > 8000, inState > STUCK_BOARDING_MS);
+    }
     int leftBehind = 0;
     if (alive > 0 && aboard > 0 && aboard < alive && inState > STRAGGLER_WAIT_MS) leftBehind = Stragglers(ride);
     bool mostly = alive > 0 && aboard < alive && inState > MOSTLY_ABOARD_WAIT_MS && MostlyAboard(aboard, alive);
@@ -601,8 +842,7 @@ class ACR_Rides : Managed
       ride.m_Rider.Halt("Riding", ACR_EOrderState.RIDE);
       ride.m_iRiderSerial = ride.m_Rider.m_iOrderSerial;
      }
-     ride.m_Taxi.RouteTo(ride.m_Drop, ACR_Squad.WP_MOVE, -1, "Driving " + ride.m_Rider.GetName(), 0);
-     ride.m_iTaxiSerial = ride.m_Taxi.m_iOrderSerial;
+     DriveToDrop(ride);
      SetState(ride, ACR_ERideState.TO_DROP);
      Log(ride, "aboard, on the way");
      return true;
@@ -650,6 +890,17 @@ class ACR_Rides : Managed
      }
      else ride.m_fStoppedSince = -1;
     }
+    // A convoy's lead waits at the drop a while for the others to close up.
+    if (arrived && !ride.m_aExtraVehicles.IsEmpty() && !ConvoyAt(ride, ride.m_Vehicle.GetOrigin()))
+    {
+     if (ride.m_fLeadAt < 0)
+     {
+      ride.m_fLeadAt = now;
+      ride.m_Taxi.Halt("Waiting for the convoy");
+      ride.m_iTaxiSerial = ride.m_Taxi.m_iOrderSerial;
+     }
+     if (now - ride.m_fLeadAt < CONVOY_DROP_WAIT_MS) return true;
+    }
     if (arrived || inState > ride.m_fDriveBudgetMs)
     {
      if (arrived) Log(ride, "dropped off");
@@ -660,6 +911,12 @@ class ACR_Rides : Managed
      {
       ride.m_Taxi.Halt("Unloading");
       ride.m_iTaxiSerial = ride.m_Taxi.m_iOrderSerial;
+      foreach (int u, ACR_Squad unloading : ride.m_aExtraTaxis)
+      {
+       if (!unloading) continue;
+       unloading.Halt("Unloading");
+       ride.m_aExtraSerials[u] = unloading.m_iOrderSerial;
+      }
       ride.m_fUnloadSince = now;
       m_Unloading.Insert(ride);
       return false;
@@ -707,15 +964,32 @@ class ACR_Rides : Managed
  // home (or hold, when its crew is out of the vehicle).
  protected void ReleaseTaxi(ACR_Ride ride)
  {
+  ReleaseConvoy(ride);
   ACR_Squad taxi = ride.m_Taxi;
   if (!taxi || !m_Manager.m_Squads.Contains(taxi) || taxi.m_iOrderSerial != ride.m_iTaxiSerial) return;
   if (ride.m_Vehicle && ACR_Transport.CrewedVehicle(taxi) == ride.m_Vehicle) SendHome(ride);
   else taxi.Halt("Holding");
  }
 
- // Empty transport back to the nearest safe base of its side (or where it is).
+ // Ride over: the convoy's other vehicles still on this ride's orders go home too.
+ protected void ReleaseConvoy(ACR_Ride ride)
+ {
+  foreach (int i, ACR_Squad extra : ride.m_aExtraTaxis)
+  {
+   if (!extra || !m_Manager.m_Squads.Contains(extra) || extra.m_iOrderSerial != ride.m_aExtraSerials[i] || extra.HasPlayer()) continue;
+   Vehicle vehicle = ride.m_aExtraVehicles[i];
+   if (vehicle && ACR_Transport.CrewedVehicle(extra) == vehicle) SendTaxiHome(extra, vehicle, ride.m_sFaction);
+   else extra.Halt("Holding");
+  }
+  ride.m_aExtraTaxis.Clear();
+  ride.m_aExtraVehicles.Clear();
+  ride.m_aExtraSerials.Clear();
+ }
+
+ // Empty transport back to the nearest safe base of its side (or where it is); a convoy's others too.
  protected void SendHome(ACR_Ride ride)
  {
+  ReleaseConvoy(ride);
   ACR_Squad taxi = ride.m_Taxi;
   if (!taxi || !ride.m_Vehicle || !m_Manager.m_Squads.Contains(taxi)) return;
   // An assault carrier stays with its riders; the AI commander gives it its next order.
@@ -724,19 +998,25 @@ class ACR_Rides : Managed
    taxi.Halt("Holding");
    return;
   }
-  vector here = ride.m_Vehicle.GetOrigin();
+  SendTaxiHome(taxi, ride.m_Vehicle, ride.m_sFaction);
+ }
+
+ protected void SendTaxiHome(ACR_Squad taxi, Vehicle vehicle, string faction)
+ {
+  if (!taxi || !vehicle || !m_Manager.m_Squads.Contains(taxi)) return;
+  vector here = vehicle.GetOrigin();
   ACR_Base home;
   float best = float.MAX;
   float bestScore = float.MAX;
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (base.m_sOwner != ride.m_sFaction || base.m_bContested) continue;
+   if (base.m_sOwner != faction || base.m_bContested) continue;
    float d = vector.DistanceXZ(base.GetOrigin(), here);
    float score = d;
    if (ACR_LogisticsRules.CanDeploy(base)) score -= 250;
    foreach (ACR_Squad foot : m_Manager.m_Squads)
    {
-    if (FactionOf(foot) != ride.m_sFaction || foot.IsMounted() || ACR_Transport.CrewedVehicle(foot) || foot.m_bMortar || foot.Aircraft()) continue;
+    if (FactionOf(foot) != faction || foot.IsMounted() || ACR_Transport.CrewedVehicle(foot) || foot.m_bMortar || foot.Aircraft()) continue;
     IEntity footAnchor = foot.GetAnchor();
     if (footAnchor && vector.DistanceXZ(footAnchor.GetOrigin(), base.GetOrigin()) <= base.m_fRadius + 150)
     {

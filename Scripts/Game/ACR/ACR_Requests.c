@@ -535,8 +535,10 @@ class ACR_Requests : Managed
   going = true;
   ACR_Ride ride = m_Manager.m_Rides.RideOf(squad);
   string taxi = "a transport";
-  if (ride) taxi = ride.m_Taxi.GetName();
-  return string.Format("%1: %2 is on its way to pick them up", squad.GetName(), taxi);
+  if (ride) taxi = ACR_Rides.TaxiNames(ride);
+  string coming = "is on its way";
+  if (ride && !ride.m_aExtraTaxis.IsEmpty()) coming = "are on their way";
+  return string.Format("%1: %2 %3 to pick them up", squad.GetName(), taxi, coming);
  }
 
  // Queue an unload: the passengers get out by themselves when their vehicle
