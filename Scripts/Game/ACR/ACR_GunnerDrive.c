@@ -99,26 +99,27 @@ class ACR_GunnerDrive
   return text;
  }
 
+ // Read from each soldier's own seat, not the vehicle's compartment list: modded vehicles
+ // (Cold War pack, RHS...) often put the turret on a child entity with its own compartment
+ // manager, which the root's list doesn't include. A gun with ammunition beats a sight turret.
  static ChimeraCharacter SquadGunner(ACR_Squad squad)
  {
   if (!squad) return null;
-  array<IEntity> vehicles = {};
-  squad.GetVehicles(vehicles);
-  foreach (IEntity vehicle : vehicles)
+  ChimeraCharacter fallback;
+  array<AIAgent> agents = {};
+  squad.GetAgents(agents);
+  foreach (AIAgent agent : agents)
   {
-   SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
-   if (!compartments) continue;
-   array<BaseCompartmentSlot> turrets = {};
-   compartments.GetCompartmentsOfType(turrets, ECompartmentType.TURRET);
-   foreach (BaseCompartmentSlot turret : turrets)
-   {
-    ChimeraCharacter gunner = ChimeraCharacter.Cast(turret.GetOccupant());
-    if (!gunner || !gunner.GetCharacterController() || gunner.GetCharacterController().IsDead()) continue;
-    if (ACR_Squad.FindController(gunner)) continue;
-    return gunner;
-   }
+   ChimeraCharacter gunner = ChimeraCharacter.Cast(agent.GetControlledEntity());
+   if (!gunner || !gunner.IsInVehicle() || !gunner.GetCharacterController() || gunner.GetCharacterController().IsDead()) continue;
+   if (!gunner.GetCompartmentAccessComponent()) continue;
+   BaseCompartmentSlot turret = gunner.GetCompartmentAccessComponent().GetCompartment();
+   if (!turret || turret.GetType() != ECompartmentType.TURRET || turret.GetOccupant() != gunner) continue;
+   if (ACR_Squad.FindController(gunner)) continue;
+   if (BBB_VehicleHelpers.TurretHasAmmo(turret)) return gunner;
+   if (!fallback) fallback = gunner;
   }
-  return null;
+  return fallback;
  }
 
  // Vehicle whose turret the body sits in (null if none).
