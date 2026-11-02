@@ -5,6 +5,7 @@ class ACR_FobProviderComponent : SCR_CampaignBuildingProviderComponent
 {
  [RplProp(onRplName: "ACR_LinkStore")]
  protected RplId m_ACRCommandPost = RplId.Invalid();
+ protected int m_iACRLinkRetryMs;   // current wait between tries to link the CP store (0: linked or not trying)
 
  IEntity CommandPost()
  {
@@ -28,11 +29,16 @@ class ACR_FobProviderComponent : SCR_CampaignBuildingProviderComponent
   SCR_ResourceComponent resource = GetResourceComponent();
   SCR_ResourceConsumer consumer;
   if (resource) consumer = resource.GetConsumer(EResourceGeneratorID.DEFAULT, EResourceType.SUPPLIES);
+  // One retry chain at a time (the replicated id, post-init and binding each start one), backing
+  // off to one try every 10 s: a client that joins after the HQ is gone kept polling 4 times a second.
+  GetGame().GetCallqueue().Remove(ACR_LinkStore);
   if (!store || !consumer)
   {
-   GetGame().GetCallqueue().CallLater(ACR_LinkStore, 250, false);
+   m_iACRLinkRetryMs = Math.ClampInt(m_iACRLinkRetryMs * 2, 250, 10000);
+   GetGame().GetCallqueue().CallLater(ACR_LinkStore, m_iACRLinkRetryMs, false);
    return;
   }
+  m_iACRLinkRetryMs = 0;
   consumer.RegisterContainerForced(store);
  }
 
