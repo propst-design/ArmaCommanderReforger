@@ -82,8 +82,13 @@ class ACR_TestDefenders
    if (!s_Post.m_Group && waited < 15) return;
    int alive = manager.m_Bases.GuardsAlive(s_Post.m_Group);
    bool notSquad = s_Post.m_Group && !manager.FindSquadByGroup(s_Post.m_Group) && manager.m_Bases.IsGarrison(s_Post.m_Group);
-   bool defending = s_Post.m_Group && s_Post.m_Group.GetCurrentWaypoint() && vector.DistanceXZ(s_Post.m_Group.GetCurrentWaypoint().GetOrigin(), s_Fort.m_vPos) < 1;
-   ACR_TestRegress.Check("defenders: an enemy 300 m out deploys them, defending the position (not a squad)", alive == 4 && s_Post.m_iReserve == 0 && notSquad && defending, string.Format("out %1 after %2 s, %3 alive, reserve %4, not a squad %5, defending %6", s_Post.m_Group != null, waited, alive, s_Post.m_iReserve, notSquad, defending));
+   // #155: they hold behind the line, each on a post behind a sandbag position's wall.
+   bool defending = s_Post.m_Group && s_Post.m_Group.GetCurrentWaypoint() && vector.DistanceXZ(s_Post.m_Group.GetCurrentWaypoint().GetOrigin(), ACR_Fortify.HoldCentre(s_Fort)) < 1;
+   array<IEntity> posts = {};
+   ACR_Garrison.PostEntities(s_Post.m_Group, posts);
+   int behind;
+   foreach (IEntity post : posts) if (post && ACR_TestFortify.BagZ(s_Fort, post.GetOrigin()) < ACR_TestFortify.WALL_Z) behind++;
+   ACR_TestRegress.Check("defenders: an enemy 300 m out deploys them, defending the position from posts behind its bags (not a squad)", alive == 4 && s_Post.m_iReserve == 0 && notSquad && defending && posts.Count() == 4 && behind == 4, string.Format("out %1 after %2 s, %3 alive, reserve %4, not a squad %5, defending %6, %7 of %8 posts behind the bags", s_Post.m_Group != null, waited, alive, s_Post.m_iReserve, notSquad, defending, behind, posts.Count()));
    // One is killed; then every enemy is dead.
    array<AIAgent> agents = {};
    if (s_Post.m_Group) s_Post.m_Group.GetAgents(agents);

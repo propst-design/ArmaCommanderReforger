@@ -767,6 +767,10 @@ class ACR_Squad : Managed
   // keeps WP_DEFEND as its kind (m_sOrderPrefab) and its "Defending" label.
   ResourceName spawned = prefab;
   if (prefab == WP_DEFEND && !s_bGameDefend && !m_ActiveRoadblock && ACR_Transport.CrewedVehicle(this)) spawned = WP_MOVE;
+  // Holding a fortified position: every man on its guns or a post behind its bags (#155). The order
+  // stays a Defend for its bookkeeping (snapshots, regroups, held guns).
+  bool fortHold = spawned == WP_DEFEND && ACR_Fortify.IsHold(m_Fortification, prefab, position);
+  if (fortHold) spawned = ACR_Fortify.WP_HOLD;
   Resource resource = Resource.Load(spawned);
   if (!resource.IsValid()) return null;
   EntitySpawnParams params = new EntitySpawnParams();
@@ -790,7 +794,9 @@ class ACR_Squad : Managed
     return null;
    }
   }
-  return AdoptWaypoint(waypoint, prefab, position, completionRadius, forced);
+  AIWaypoint adopted = AdoptWaypoint(waypoint, prefab, position, completionRadius, forced);
+  if (adopted && fortHold) ACR_Fortify.PostMen(m_Fortification, m_Group, CountAlive());
+  return adopted;
  }
 
  // Replace every queued order with a waypoint the caller spawned (and configured) itself.
@@ -2100,8 +2106,12 @@ class ACR_Squad : Managed
   NewOrder();
   ClearPlans();
   m_bRegrouping = false;
-  if (!IssueWaypoint(WP_DEFEND, ACR_Fortify.HoldCentre(fort), ACR_Fortify.HOLDER_RADIUS)) return false;
-  m_Fortification = fort;
+  m_Fortification = fort; // first: its hold's waypoint posts the men behind its bags (IssueWaypoint)
+  if (!IssueWaypoint(WP_DEFEND, ACR_Fortify.HoldCentre(fort), ACR_Fortify.HOLDER_RADIUS))
+  {
+   m_Fortification = null;
+   return false;
+  }
   // Its reserve's gun crew, if any, steps back (ACR_Defenders).
   if (fort.m_Defenders) ACR_Defenders.StandDownCrew(fort.m_Defenders);
   SetOrder("Holding position", ACR_EOrderState.DEFEND);

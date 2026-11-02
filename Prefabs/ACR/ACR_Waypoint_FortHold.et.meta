@@ -1,0 +1,9 @@
+MetaFileClass {
+ Name "{AC230926A00100A3}Prefabs/ACR/ACR_Waypoint_FortHold.et"
+ Configurations {
+  ETResourceClass PC {
+  }
+  ETResourceClass HEADLESS : PC {
+  }
+ }
+}

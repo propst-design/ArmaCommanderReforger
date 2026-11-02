@@ -339,6 +339,89 @@ class ACR_Fortify
   return centre;
  }
 
+ // #155 (playtest): holders still stood in front of the sandbags. Native Defend gives posts to only
+ // part of a group (60%) and sends the rest to sectors round its ring, the front one 8 m past the
+ // line. So the hold (and the reserve) is a Defend with every man on a post (WP_HOLD: guns first,
+ // then posts) and a post per man behind the bags of each sandbag position: a row standing at the
+ // wall to fire over it (its wall is 1.4-2.2 m in front of the piece's origin), crouched rows behind.
+ static const ResourceName WP_HOLD = "{AC230926A00100A3}Prefabs/ACR/ACR_Waypoint_FortHold.et";
+ static const float POST_SPACING = 1.8;
+
+ // A post per man behind the bags, the standing row first, the middle position first; none past the
+ // hold's ring (BBB's leash) or by another group's post (the squad's and its reserve's).
+ static void PostSpots(ACR_Fortification fort, SCR_AIGroup group, int men, notnull array<ref ACR_GarrisonSpot> spots)
+ {
+  spots.Clear();
+  array<float> rows = {0.7, -1.6, -3.9};
+  array<float> across = {0, -2.3, 2.0}; // clear of the chair and crate at its right end
+  array<int> order = {2, 0, 1};
+  vector hold = HoldCentre(fort);
+  foreach (int row, float z : rows)
+  {
+   foreach (int spot : order)
+   {
+    if (spot >= fort.m_aPieces.Count()) continue;
+    IEntity piece = fort.m_aPieces[spot];
+    if (!IsSandbagPosition(piece)) continue;
+    vector angles = piece.GetYawPitchRoll();
+    float rad = angles[0] * Math.DEG2RAD;
+    foreach (float x : across)
+    {
+     if (spots.Count() >= men) return;
+     vector at = ToWorld(piece.GetOrigin(), angles[0], Vector(x, 0, z));
+     if (vector.DistanceXZ(at, hold) > HOLDER_RADIUS - 1 || BBB_Terrain.IsWaterAt(at)) continue;
+     if (ACR_Garrison.PostNear(at, POST_SPACING, group)) continue;
+     ACR_GarrisonSpot post = new ACR_GarrisonSpot();
+     post.m_Pos = at;
+     post.m_Look = Vector(Math.Sin(rad), 0, Math.Cos(rad));
+     post.m_bStand = row == 0;
+     spots.Insert(post);
+    }
+   }
+  }
+ }
+
+ static bool IsSandbagPosition(IEntity piece)
+ {
+  if (!piece || !piece.GetPrefabData()) return false;
+  ResourceName prefab = piece.GetPrefabData().GetPrefabName();
+  return prefab == ACR_FobDefences.SANDBAGS_US || prefab == ACR_FobDefences.SANDBAGS_USSR || prefab == ACR_FobDefences.SANDBAGS_FIA;
+ }
+
+ // The group's posts behind the bags (after its hold waypoint went out: a new waypoint drops them).
+ static int PostMen(ACR_Fortification fort, SCR_AIGroup group, int men)
+ {
+  if (!fort || !group || men <= 0) return 0;
+  array<ref ACR_GarrisonSpot> spots = {};
+  PostSpots(fort, group, men, spots);
+  if (spots.IsEmpty()) return 0;
+  float radius;
+  int placed = ACR_Garrison.PostsAt(group, spots, HoldCentre(fort), radius);
+  PrintFormat("[ACR] FORTIFY %1 position %2: %3 posts behind the bags for %4 men", fort.m_sFaction, fort.m_iId, placed, men);
+  return placed;
+ }
+
+ // A Defend the squad holding 'fort' is given at its hold (ACR_Squad.IssueWaypoint, every time it
+ // goes out: the hold itself, a regroup or set-aside put back): WP_HOLD with posts behind the bags.
+ static bool IsHold(ACR_Fortification fort, ResourceName prefab, vector position)
+ {
+  return fort != null && prefab == ACR_Squad.WP_DEFEND && vector.DistanceXZ(position, HoldCentre(fort)) < 1;
+ }
+
+ // Its reserve out (ACR_Defenders): behind the bags too, not round the position's centre.
+ static bool ManReserve(ACR_DefenderPost post, int men)
+ {
+  if (!post || !post.m_Group) return false;
+  foreach (ACR_Fortification fort : s_Positions)
+  {
+   if (fort.m_Defenders != post) continue;
+   if (PostMen(fort, post.m_Group, men) <= 0) return false;
+   ACR_Guerrillas.Order(post.m_Group, WP_HOLD, HoldCentre(fort), HOLDER_RADIUS, true);
+   return true;
+  }
+  return false;
+ }
+
  // Where a spot's piece goes: where its current piece stands, else the spot itself or the first
  // clear point beside it, off asphalt and concrete if any will do. The position's own pieces
  // never block it. 'wide': an upgrade's piece also tries the wider ring (WideOffsets).

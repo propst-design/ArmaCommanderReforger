@@ -1,0 +1,22 @@
+SCR_DefendWaypoint : "{49CED34BBCD060F0}Prefabs/AI/Waypoints/AIWaypoint_Base.et" {
+ ID "5AC2309260A00A03"
+ Type "Defend"
+ Title "Fortify hold waypoint"
+ AIBehaviorTree "{53C0853FB44E73E9}AI/BehaviorTrees/Waypoints/WP_Defend.bt"
+ AIBehaviorTreeMoveTo "{A3755C1F88DED8D6}AI/BehaviorTrees/Waypoints/WP_Move.bt"
+ CompletionRadius 16
+ Autocomplete 0
+ m_TimedWaypointParameters SCR_AITimedWaypointParameters "{5AC2309260A00A15}" {
+  m_holdingTime -1
+ }
+ m_aDefendPresets {
+  SCR_DefendWaypointPreset "{5AC2309260A00A16}" {
+   m_sName "Fortify hold"
+   m_bUseTurrets 1
+   m_fFractionOfSA 1
+   m_aTagsForSearch {
+    "ACRGarrison"
+   }
+  }
+ }
+}

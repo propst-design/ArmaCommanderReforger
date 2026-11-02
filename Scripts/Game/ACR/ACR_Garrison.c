@@ -65,6 +65,19 @@ class ACR_Garrison
   }
  }
 
+ // Another group's post this close (a Fortify position's squad and its reserve, ACR_Fortify.PostSpots).
+ static bool PostNear(vector at, float spacing, SCR_AIGroup except)
+ {
+  foreach (SCR_AIGroup group, array<IEntity> posts : s_Posts)
+  {
+   if (group == except) continue;
+   array<vector> taken = {};
+   foreach (IEntity post : posts) if (post) taken.Insert(post.GetOrigin());
+   if (TooClose(at, taken, spacing)) return true;
+  }
+  return false;
+ }
+
  static void PostEntities(SCR_AIGroup group, notnull array<IEntity> result)
  {
   result.Clear();

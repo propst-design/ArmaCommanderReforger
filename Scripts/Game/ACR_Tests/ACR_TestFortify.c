@@ -14,7 +14,7 @@
 // set aside don't abandon it.
 class ACR_TestFortify
 {
- static const int CHECKS = 41;
+ static const int CHECKS = 42;
 
  // How far towards the threat of a position's line a point is (negative: behind it).
  static float LocalZ(ACR_Fortification fort, vector pos)
@@ -175,7 +175,9 @@ class ACR_TestFortify
   if (s_iStep == 4)
   {
    bool manned = Manned(s_Fort);
-   if (!manned && waited < 60) return;
+   string behindDetail;
+   bool allBehind = HoldersBehindBags(alpha, s_Fort, behindDetail);
+   if ((!manned || !allBehind) && waited < 60) return;
    ACR_TestRegress.Check("fortify: a gunner mans the position's MG", manned, string.Format("after %1 s", waited));
    // #93: the holders hold a circle behind the line that stops short of the wire, and BBB's own
    // moves are leashed to it; nobody on foot stands out past the sandbags.
@@ -199,6 +201,15 @@ class ACR_TestFortify
     if (z > 6) forward++;
    }
    ACR_TestRegress.Check("fortify: no holder on foot out past the sandbags (wire at 6-14 m)", forward == 0, string.Format("men at %1m from the line", spread));
+   // #155: the hold puts every man on a gun or a post behind a sandbag position's wall, and they
+   // get there (they stood in front of the bags, sent round the Defend's ring).
+   array<IEntity> posts = {};
+   ACR_Garrison.PostEntities(alpha.m_Group, posts);
+   int postsBehind;
+   foreach (IEntity post : posts) if (post && BagZ(s_Fort, post.GetOrigin()) < WALL_Z) postsBehind++;
+   AIWaypoint holdWaypoint = alpha.m_Group.GetCurrentWaypoint();
+   bool holdPrefab = holdWaypoint != null && holdWaypoint.GetPrefabData() != null && holdWaypoint.GetPrefabData().GetPrefabName() == ACR_Fortify.WP_HOLD;
+   ACR_TestRegress.Check("fortify: every holder on foot takes a post behind the sandbags (#155)", holdPrefab && !posts.IsEmpty() && postsBehind == posts.Count() && allBehind, string.Format("hold waypoint %1, %2 of %3 posts behind the bags; %4", holdPrefab, postsBehind, posts.Count(), behindDetail));
    // A third order called off before the pieces go in: all of it back, guns left.
    s_iRP = us.m_iRP;
    bool ordered = ACR_Fortify.Order(alpha, s_vSite, why);
@@ -492,6 +503,46 @@ class ACR_TestFortify
   float gap = Math.AbsFloat(a - b);
   while (gap > 180) gap = Math.AbsFloat(gap - 360);
   return gap;
+ }
+
+ // A sandbag position's wall runs 1.4-2.2 m in front of its origin (its own frame).
+ static const float WALL_Z = 1.4;
+
+ // How far forward of the nearest sandbag position's origin a point is, in that piece's frame.
+ static float BagZ(ACR_Fortification fort, vector pos)
+ {
+  IEntity nearest;
+  foreach (IEntity piece : fort.m_aPieces)
+  {
+   if (!ACR_Fortify.IsSandbagPosition(piece)) continue;
+   if (!nearest || vector.DistanceXZ(piece.GetOrigin(), pos) < vector.DistanceXZ(nearest.GetOrigin(), pos)) nearest = piece;
+  }
+  if (!nearest) return 0;
+  vector angles = nearest.GetYawPitchRoll();
+  float rad = angles[0] * Math.DEG2RAD;
+  vector offset = pos - nearest.GetOrigin();
+  return offset[0] * Math.Sin(rad) + offset[2] * Math.Cos(rad);
+ }
+
+ // Every holder on foot behind the bags of the sandbag position nearest him (gunners are on guns).
+ protected static bool HoldersBehindBags(ACR_Squad squad, ACR_Fortification fort, out string detail)
+ {
+  int men;
+  int behind;
+  string spread = "";
+  array<AIAgent> agents = {};
+  squad.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (!ACR_Respawn.IsAlive(body) || ACR_Transport.VehicleOf(body)) continue;
+   men++;
+   float z = BagZ(fort, body.GetOrigin());
+   if (z < WALL_Z) behind++;
+   spread += string.Format("%1 ", Math.Round(z * 10) / 10);
+  }
+  detail = string.Format("%1 of %2 men behind the bags (z %3)", behind, men, spread);
+  return men > 0 && behind == men;
  }
 
  // Every standing piece is the US one for its spot and turned the position's way.
