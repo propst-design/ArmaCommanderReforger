@@ -770,7 +770,8 @@ class ACR_Squad : Managed
   // Holding a fortified position: every man on its guns or a post behind its bags (#155). The order
   // stays a Defend for its bookkeeping (snapshots, regroups, held guns).
   bool fortHold = spawned == WP_DEFEND && ACR_Fortify.IsHold(m_Fortification, prefab, position);
-  if (fortHold) spawned = ACR_Fortify.WP_HOLD;
+  if (fortHold && Resource.Load(ACR_Fortify.WP_HOLD).IsValid()) spawned = ACR_Fortify.WP_HOLD;
+  else fortHold = false;
   Resource resource = Resource.Load(spawned);
   if (!resource.IsValid()) return null;
   EntitySpawnParams params = new EntitySpawnParams();
