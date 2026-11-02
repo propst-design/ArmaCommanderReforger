@@ -3066,7 +3066,8 @@ class ACR_AICommander : Managed
  protected string TripOver(ACR_Squad squad, ACR_AITrip trip, float now)
  {
   if (now > trip.m_fUntil) return "out of time";
-  if (trip.m_Base && trip.m_Base.m_sOwner != m_sFaction) return "base lost";
+  // (A retired FOB keeps its owner: its HQ is gone, so it is lost all the same.)
+  if (trip.m_Base && (trip.m_Base.m_bRetired || trip.m_Base.m_sOwner != m_sFaction)) return "base lost";
   if (vector.DistanceXZ(PositionOf(squad), trip.m_vTo) <= TRIP_ARRIVED) return "arrived";
   if (squad.HasPlayer()) return "a player leads it";
   if (squad.KnownEnemies(300) > 0) return "contact";
@@ -3145,6 +3146,14 @@ class ACR_AICommander : Managed
  }
 
  int CountTripsForTest() { return m_Trips.Count(); }
+ string TripOverForTest(ACR_Squad squad, ACR_Base base)
+ {
+  ACR_AITrip trip = new ACR_AITrip();
+  trip.m_Base = base;
+  trip.m_vTo = base.GetOrigin();
+  trip.m_fUntil = GetGame().GetWorld().GetWorldTime() + 600000;
+  return TripOver(squad, trip, GetGame().GetWorld().GetWorldTime());
+ }
  void CatchRidesForTest()
  {
   foreach (ACR_Squad squad, ACR_AITrip trip : m_Trips) trip.m_fNextRide = 0;

@@ -492,7 +492,20 @@ class ACR_TestStructures
    ACR_TestRegress.Check("housing: capacity loss recalls excess real defenders", GuardCount() == 11 && s_GuardBase.m_iGarrison == 11, GuardCount().ToString());
    manager.m_Bases.ACR_TestPackGuards(s_GuardBase);
    ACR_TestRegress.Check("housing: packing preserves surviving defenders", !s_GuardBase.m_GarrisonGroup && s_GuardBase.m_iGarrisonLeft == 11, "");
-   s_GuardBase.Retire("fixture complete");
+   // A posted squad's trip to a FOB ends when the FOB is retired (it keeps its owner).
+   ACR_AICommander tripAI = new ACR_AICommander(manager, "US");
+   string beforeRetire = "-";
+   string afterRetire = "-";
+   if (h.m_Range && manager.FindSquadByGroup(h.m_Range.m_Group))
+   {
+    ACR_Squad walker = manager.FindSquadByGroup(h.m_Range.m_Group);
+    beforeRetire = tripAI.TripOverForTest(walker, s_GuardBase);
+    s_GuardBase.Retire("fixture complete");
+    afterRetire = tripAI.TripOverForTest(walker, s_GuardBase);
+   }
+   else s_GuardBase.Retire("fixture complete");
+   ACR_TestRegress.Check("trips: a posted squad's trip to a FOB is over once the FOB is retired", beforeRetire != "base lost" && afterRetire == "base lost" && s_GuardBase.m_sOwner == "US",
+    string.Format("before '%1', after '%2', owner %3", beforeRetire, afterRetire, s_GuardBase.m_sOwner));
    SCR_EntityHelper.DeleteEntityAndChildren(s_GuardBase);
   }
   if (tick == 18)
@@ -624,7 +637,7 @@ class ACR_TestStructures
    ACR_TestRegress.Check("structures: pad gone with its helipad", last.Faction() == "", last.Faction());
    ACR_TestRegress.Check("FOB: supply provider removed with command post", s_Fob && !s_Fob.m_FobSupply && s_Fob.m_iSupplyDelivery == 0, "");
    ACR_TestSapperLive.Final();
-   ACR_TestRegress.Complete("structures", 85 + ACR_TestLogisticsRules.CHECKS + ACR_TestFobRelay.CHECKS + ACR_TestFobBuild.CHECKS + ACR_TestFobSlots.CHECKS + ACR_TestFobUpgrades.CHECKS + ACR_TestFobDefences.CHECKS + ACR_TestFobIntel.CHECKS + ACR_TestFobPatrol.CHECKS + ACR_TestSapperDemo.CHECKS + ACR_TestFobDesign.CHECKS + ACR_TestFobBuiltRace.CHECKS + ACR_TestSapperLive.CHECKS);
+   ACR_TestRegress.Complete("structures", 86 + ACR_TestLogisticsRules.CHECKS + ACR_TestFobRelay.CHECKS + ACR_TestFobBuild.CHECKS + ACR_TestFobSlots.CHECKS + ACR_TestFobUpgrades.CHECKS + ACR_TestFobDefences.CHECKS + ACR_TestFobIntel.CHECKS + ACR_TestFobPatrol.CHECKS + ACR_TestSapperDemo.CHECKS + ACR_TestFobDesign.CHECKS + ACR_TestFobBuiltRace.CHECKS + ACR_TestSapperLive.CHECKS);
   }
  }
 
