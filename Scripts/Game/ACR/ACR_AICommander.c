@@ -2153,7 +2153,7 @@ class ACR_AICommander : Managed
    return REACH_WALK;
   }
   float fetch;
-  ACR_Squad taxi = m_Manager.m_Rides.FindTransport(m_sFaction, PositionOf(squad), dist, squad.CountAlive(), fetch, true, taxis);
+  ACR_Squad taxi = m_Manager.m_Rides.FindTransport(m_sFaction, PositionOf(squad), dist, squad.CountAlive(), fetch, true, taxis, false, m_bHandedOnly);
   if (taxi)
   {
    taxis.Insert(taxi);
@@ -3135,7 +3135,7 @@ class ACR_AICommander : Managed
   if (!pick || PlanBudgetSpent()) return;
   ACR_AITrip go = m_Trips.Get(pick);
   string why;
-  if (!m_Manager.m_Rides.Request(pick, go.m_vTo, go.m_fDropShort, go.m_sPrefab, go.m_fRadius, go.m_sOrder, go.m_iKind, why, true))
+  if (!m_Manager.m_Rides.Request(pick, go.m_vTo, go.m_fDropShort, go.m_sPrefab, go.m_fRadius, go.m_sOrder, go.m_iKind, why, true, false, m_bHandedOnly))
   {
    go.m_iRideAsks++;
    go.m_fNextRide = now + Math.Min(RIDE_RETRY_MAX_MS, RIDE_RETRY_MS * Math.Pow(2, go.m_iRideAsks - 1));
@@ -3193,7 +3193,7 @@ class ACR_AICommander : Managed
    if (m_Manager.m_Rides && distance > m_Doctrine.m_fRideDistance)
    {
     string why;
-    if (m_Manager.m_Rides.Request(squad, destination, dropShort, prefab, radius, order, kind, why, true)) return;
+    if (m_Manager.m_Rides.Request(squad, destination, dropShort, prefab, radius, order, kind, why, true, false, m_bHandedOnly)) return;
     // (CatchRides keeps looking for one on the way.)
     Say(string.Format("[ACR] AI %1: %2 sets off on foot for %3 m to %4: %5", m_sFaction, squad.GetName(), (int)distance, ACR_Manager.Grid(destination), why));
    }
@@ -6081,7 +6081,7 @@ class ACR_AICommander : Managed
   float distance = vector.DistanceXZ(PositionOf(squad), site);
   if (distance <= m_Doctrine.m_fRideDistance) return false;
   string why;
-  if (!m_Manager.m_Rides.Request(squad, site, 0, ACR_Squad.WP_MOVE, -1, "Riding out to build", 0, why, true))
+  if (!m_Manager.m_Rides.Request(squad, site, 0, ACR_Squad.WP_MOVE, -1, "Riding out to build", 0, why, true, false, m_bHandedOnly))
   {
    NoteBuild("ride " + squad.GetName(), string.Format("[ACR] AI %1: no ride for %2 to build at %3, %4 m out (%5): it walks", m_sFaction, squad.GetName(), base.m_sName, (int)distance, why));
    return false;

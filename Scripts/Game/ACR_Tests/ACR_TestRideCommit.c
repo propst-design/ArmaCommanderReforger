@@ -7,9 +7,10 @@
 //   too big for one;
 // - posted somewhere else while aboard, the same ride takes it there (no getting out to walk);
 // - it is dropped off there, and once it has arrived it is free again.
+// Also: with a player commanding the side (handed-only), his own trucks are never taken as taxis.
 class ACR_TestRideCommit
 {
- static const int CHECKS = 5;
+ static const int CHECKS = 6;
  static const ResourceName HUMVEE = "{4A71F755A4513227}Prefabs/Vehicles/Wheeled/M998/M1025.et";
  static ref ACR_AICommander s_AI;
  static ref array<ACR_Squad> s_aJeeps = {};
@@ -103,6 +104,15 @@ class ACR_TestRideCommit
     if (manager.m_Rides.IsFreeTransport(jeep, "US")) freeTaxis++;
    s_sDetail = string.Format("%1 jeeps, %2 free taxis", s_aJeeps.Count(), freeTaxis);
    if (freeTaxis < 3 && waited < 40) return;
+   // Handed-only (a player commands the side): the player's own trucks aren't taxis; handed ones are.
+   float fetchFar;
+   float trip = vector.DistanceXZ(at, s_Far);
+   ACR_Squad playerTaxi = manager.m_Rides.FindTransport("US", at, trip, 1, fetchFar, true, null, false, true);
+   foreach (ACR_Squad handed : s_aJeeps) handed.m_bAICommanded = true;
+   ACR_Squad handedTaxi = manager.m_Rides.FindTransport("US", at, trip, 1, fetchFar, true, null, false, true);
+   foreach (ACR_Squad unhanded : s_aJeeps) unhanded.m_bAICommanded = false;
+   ACR_TestRegress.Check("ridecommit: with a player commanding the side, the AI takes only handed trucks as taxis, never his own", !playerTaxi && handedTaxi != null,
+    string.Format("%1; player's truck taken %2, handed truck found %3", s_sDetail, playerTaxi != null, handedTaxi != null));
    s_AI.CatchRidesForTest();
    ride = manager.m_Rides.RideOf(alpha);
    int seats = 0;
