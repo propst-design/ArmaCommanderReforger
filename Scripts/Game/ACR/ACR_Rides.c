@@ -58,6 +58,7 @@ class ACR_Rides : Managed
  static const float PICKUP_SHARE_AI = 0.75;
  static const float MIN_TRIP = 400;            // m: shorter than this, just walk
  static const float PICKUP_REACHED = 35;       // m from the squad to stop and let them board
+ static const float PICKUP_SLACK = 15;         // m the riders may then drift before the lead drives on to them
  static const float DROP_REACHED = 60;         // m from the drop-off point
  static const float PICKUP_TIMEOUT_MS = 240000;
  static const float BOARDING_TIMEOUT_MS = 75000;
@@ -77,6 +78,7 @@ class ACR_Rides : Managed
  static const float PICKUP_PACE = 2.5;         // m/s
  static const float PICKUP_START_S = 120;
  static const int CONVOY_MAX = 3;              // transports one squad may take together
+ int m_iRefetches;                            // the lead drove on to riders who moved off the pickup (tests read it)
  static const int CONVOY_MIN_SEATS = 2;        // a vehicle with fewer free seats doesn't join a convoy
  static const float CONVOY_GATHER_MS = 60000;  // the lead waits this long at the pickup for the others
  static const float CONVOY_DROP_WAIT_MS = 30000; // ...and at the drop for the others to close up
@@ -535,6 +537,23 @@ class ACR_Rides : Managed
   return true;
  }
 
+ // The lead (and any convoy vehicle already stopped for them) drives on to where the riders are now.
+ protected void FetchAgain(ACR_Ride ride, IEntity riderAnchor)
+ {
+  vector at = ride.m_Pickup;
+  if (riderAnchor) at = riderAnchor.GetOrigin();
+  ride.m_Taxi.RouteTo(at, ACR_Squad.WP_MOVE, -1, "Picking up " + ride.m_Rider.GetName(), 0);
+  ride.m_iTaxiSerial = ride.m_Taxi.m_iOrderSerial;
+  foreach (int i, ACR_Squad extra : ride.m_aExtraTaxis)
+  {
+   if (!extra || extra.OrderState() != ACR_EOrderState.HOLD) continue;
+   extra.RouteTo(at, ACR_Squad.WP_MOVE, -1, "Picking up " + ride.m_Rider.GetName(), 0);
+   ride.m_aExtraSerials[i] = extra.m_iOrderSerial;
+  }
+  m_iRefetches++;
+  Log(ride, string.Format("riders moved off the pickup, driving on to them (%1 m)", (int)vector.DistanceXZ(ride.m_Vehicle.GetOrigin(), at)));
+ }
+
  // Convoy vehicles that reached the pickup stop there and wait (the lead's stop is its own).
  protected void HoldConvoyAtPickup(ACR_Ride ride)
  {
@@ -776,7 +795,21 @@ class ACR_Rides : Managed
    case ACR_ERideState.TO_PICKUP:
    {
     HoldConvoyAtPickup(ride);
-    if (riderAnchor && vector.DistanceXZ(ride.m_Vehicle.GetOrigin(), riderAnchor.GetOrigin()) < PICKUP_REACHED)
+    // Once the lead has stopped for them, the riders may drift a little (PICKUP_SLACK) before it counts as lost.
+    float reach = PICKUP_REACHED;
+    if (ride.m_fLeadAt >= 0) reach = PICKUP_REACHED + PICKUP_SLACK;
+    float toRiders = -1;
+    if (riderAnchor) toRiders = vector.DistanceXZ(ride.m_Vehicle.GetOrigin(), riderAnchor.GetOrigin());
+    // The lead stopped for the riders, then they moved off (still walking to a far pickup, their
+    // leader killed, moving under fire): drive on to where they are now, or the halted convoy would
+    // wait there for good (the pickup budget below only runs while the lead is on its way).
+    if (ride.m_fLeadAt >= 0 && toRiders >= reach)
+    {
+     ride.m_fLeadAt = -1;
+     FetchAgain(ride, riderAnchor);
+     return true;
+    }
+    if (riderAnchor && toRiders < reach)
     {
      if (ride.m_fLeadAt < 0)
      {
