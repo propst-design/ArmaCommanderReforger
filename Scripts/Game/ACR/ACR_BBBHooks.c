@@ -190,7 +190,9 @@ class ACR_BBBHooks : BBB_Hooks
  }
 
  // Gunners stay on the static guns at the spot a squad holds (ACR_GunHold; BBB_HeldGuns keeps
- // them there and mans an empty one again).
+ // them there and mans an empty one again). A gun out of ammo isn't held: BBB's Winchester gets
+ // its gunner off to fight on foot (every ACA static gun, no hook: ACA wants it everywhere, mortars
+ // excepted by BBB), and ACR_GunHold.Restock gives held guns a reserve of boxes first (#154).
  override void GetHeldGuns(SCR_AIGroup group, notnull array<IEntity> guns)
  {
   guns.Clear();

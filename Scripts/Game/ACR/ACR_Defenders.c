@@ -144,6 +144,7 @@ class ACR_Defenders
    if (post.m_bCrewWanted && !post.m_bGone && manager.m_Bases.GuardsAlive(post.m_GunCrew) > 0)
    {
     SeatCrew(post);
+    foreach (IEntity crewGun : post.m_aCrewGuns) ACR_GunHold.Restock(crewGun);
     return;
    }
    int back = manager.m_Bases.PackUpGuards(post.m_GunCrew);
@@ -170,7 +171,8 @@ class ACR_Defenders
   PrintFormat("[ACR] DEFENDERS %1: %2 from the reserve man its guns while its squad is away (%3 seated, %4 left in reserve)", post.m_sName, count, seated, post.m_iReserve);
  }
 
- // A gun's empty gunner seat (null: none, or the gun is gone).
+ // A gun's empty gunner seat (null: none, the gun is gone, or it is out of ammo: BBB gets a
+ // gunner off a dry gun, #154, so nobody is put back on it until it has ammo again).
  static BaseCompartmentSlot FreeTurret(IEntity gun)
  {
   if (!gun || ACR_Logistics.Health(gun) <= 0) return null;
@@ -178,7 +180,7 @@ class ACR_Defenders
   if (!seats) return null;
   array<BaseCompartmentSlot> turrets = {};
   seats.GetCompartmentsOfType(turrets, ECompartmentType.TURRET);
-  foreach (BaseCompartmentSlot slot : turrets) if (slot && !slot.GetOccupant()) return slot;
+  foreach (BaseCompartmentSlot slot : turrets) if (slot && !slot.GetOccupant() && BBB_VehicleHelpers.TurretHasAmmo(slot)) return slot;
   return null;
  }
 

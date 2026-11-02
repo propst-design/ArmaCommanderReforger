@@ -7,9 +7,24 @@
 // gun and the static guns its men sat in there, within its hold radius plus HOLD_REACH:
 // checkpoint guns, Fortify nests, FOB defence guns. In a playtest (25 Oct) a roadblock MG left
 // its gun every 3 minutes, often with no enemy near. Vehicles keep vanilla's (and BBB's) rules.
+// Winchester (#154): BBB gets a gunner off a gun that is out of ammo and doesn't hold or re-man it
+// (BBB_HeldGuns, -bbbGunWinchester), so a held gun lasts only as long as its ammo. A held gun (a
+// squad's or a reserve crew's) carries RESERVE_BOXES boxes beyond its own: its storage holds only
+// the stock spares (an M2 tripod: three 100-round boxes, 15 l), so the reserve tops the spares back
+// up as the gunner loads them (Restock), and the gun goes dry once the reserve is spent too.
+class ACR_GunStock : Managed
+{
+ ResourceName m_sBox;   // the gun's own box
+ int m_iSpares;         // spares it stows when full (stock count, at first sight)
+ int m_iReserve;        // boxes left to top them up with
+}
+
 class ACR_GunHold
 {
  static const float HOLD_REACH = 25;   // a gun this far past the order's radius still counts
+ static const int RESERVE_BOXES = 6;   // M2: 4 boxes stock (400 rounds), 10 held (1000)
+ protected static ref map<IEntity, ref ACR_GunStock> s_mStock = new map<IEntity, ref ACR_GunStock>();
+ static int s_iRestocked; // boxes added (tests)
 
  static bool Enabled() { return ACR_LogisticsRules.Choice("acrHoldGuns", "1") != "0"; }
 
@@ -94,5 +109,74 @@ class ACR_GunHold
    if (!gun || squad.m_aHeldGuns.Contains(gun) || !IsHeld(squad, gun)) continue;
    squad.m_aHeldGuns.Insert(gun);
   }
+  foreach (IEntity heldGun : squad.m_aHeldGuns) Restock(heldGun);
+  if (squad.m_ActiveRoadblock && IsHeld(squad, squad.m_ActiveRoadblock.m_Turret)) Restock(squad.m_ActiveRoadblock.m_Turret);
+ }
+
+ // A held gun's spares topped back up from its reserve (see the header). Once a second per
+ // holding squad or crew; the first call gives the gun its reserve.
+ static void Restock(IEntity gun)
+ {
+  if (!gun || !Enabled() || ACR_Logistics.Health(gun) <= 0) return;
+  TurretControllerComponent controller = BBB_VehicleHelpers.TurretControllerOf(BBB_HeldGuns.GunSeat(gun));
+  if (!controller || !controller.GetWeaponManager()) return;
+  BaseWeaponComponent weapon = controller.GetWeaponManager().GetCurrentWeapon();
+  InventoryStorageManagerComponent inventory = InventoryStorageManagerComponent.Cast(controller.GetOwner().FindComponent(InventoryStorageManagerComponent));
+  if (!weapon || !inventory) return;
+  int spares = inventory.GetMagazineCountByWeapon(weapon);
+  ACR_GunStock stock = s_mStock.Get(gun);
+  if (!stock)
+  {
+   PruneStock();
+   stock = new ACR_GunStock();
+   stock.m_sBox = BoxOf(weapon, inventory);
+   stock.m_iSpares = Math.Max(spares, 1);
+   stock.m_iReserve = RESERVE_BOXES;
+   s_mStock.Set(gun, stock);
+  }
+  if (stock.m_iReserve <= 0 || stock.m_sBox.IsEmpty() || spares >= stock.m_iSpares) return;
+  if (!inventory.TrySpawnPrefabToStorage(stock.m_sBox)) return;
+  stock.m_iReserve--;
+  s_iRestocked++;
+  PrintFormat("[ACR] GUNHOLD %1: a box from the held gun's reserve (%2 left)", ACR_Vehicles.NameOf(gun), stock.m_iReserve);
+ }
+
+ // Boxes left in this gun's reserve (-1: it has none yet).
+ static int Reserve(IEntity gun)
+ {
+  ACR_GunStock stock = s_mStock.Get(gun);
+  if (!stock) return -1;
+  return stock.m_iReserve;
+ }
+
+ static void SetReserveForTest(IEntity gun, int boxes)
+ {
+  ACR_GunStock stock = s_mStock.Get(gun);
+  if (stock) stock.m_iReserve = boxes;
+ }
+
+ // The box the gun is loaded with, or one it stows.
+ protected static ResourceName BoxOf(BaseWeaponComponent weapon, InventoryStorageManagerComponent inventory)
+ {
+  BaseMagazineComponent loaded = weapon.GetCurrentMagazine();
+  if (loaded && loaded.GetOwner() && loaded.GetOwner().GetPrefabData()) return loaded.GetOwner().GetPrefabData().GetPrefabName();
+  array<IEntity> items = {};
+  inventory.GetItems(items);
+  foreach (IEntity item : items)
+   if (item.FindComponent(BaseMagazineComponent) && item.GetPrefabData()) return item.GetPrefabData().GetPrefabName();
+  return ResourceName.Empty;
+ }
+
+ // Deleted guns leave null keys behind (pruned by index).
+ protected static void PruneStock()
+ {
+  for (int i = s_mStock.Count() - 1; i >= 0; i--)
+   if (!s_mStock.GetKey(i)) s_mStock.RemoveElement(i);
+ }
+
+ static void Reset()
+ {
+  s_mStock.Clear();
+  s_iRestocked = 0;
  }
 }

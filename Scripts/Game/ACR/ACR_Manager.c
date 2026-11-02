@@ -242,6 +242,7 @@ class ACR_Manager : Managed
   ACR_MapFeed.Reset();
   // Lists and caches of the last match's entities (audit 31 Oct).
   ACR_Roadblocks.Reset();
+  ACR_GunHold.Reset();
   ACR_Garrison.Reset();
   ACR_FireMissions.Reset();
   ACR_Structures.Reset();
