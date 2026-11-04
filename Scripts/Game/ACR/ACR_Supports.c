@@ -130,14 +130,16 @@ class ACR_SupportRun : Managed
 // ACA's own jets (Prefabs/Vehicles/Aircraft) carry a SoundComponent with two engine loops
 // (tools/audio/synth_jets.py): ENGINE_EVENT, the roar within ~2.5 km, and ENGINE_FAR_EVENT, a
 // dull rumble out to 6 km, crossfaded by distance. Jacob, 4 Nov: the FA-18 is too loud, cuts in
-// abruptly and out too soon. So both start at SOUND_START_M, where the far curve is near
-// silent, with a 6 s fade-in on top, and the plane is kept until the listener is SOUND_KEEP_M
+// abruptly and out too soon. So each starts as the listener comes into its range (the far one
+// at SOUND_START_M, the near one at NEAR_START_M: a layer started out of its range is
+// dropped as inaudible), where its curve is near silent, with a 6 s fade-in on top, and the plane is kept until the listener is SOUND_KEEP_M
 // away, where it reaches silence. The component follows the moving plane (dynamic simulation).
 class ACR_LocalFlyover : Managed
 {
 	static const string ENGINE_EVENT = "SOUND_ACR_JET_LP";
 	static const string ENGINE_FAR_EVENT = "SOUND_ACR_JET_FAR_LP";
 	static const float SOUND_START_M = 5800; // the acp's far curve is silent at 6000 m
+	static const float NEAR_START_M = 2400;  // ...and its near curve at 2500 m
 	static const float SOUND_KEEP_M = 6000;
 	static const float FA18_KEEP_M = 1800;   // RHS's loop is heard to 1.5 km
 	static const float MAX_TAIL_S = 60;      // past the route's end, whoever is listening
@@ -158,6 +160,8 @@ class ACR_LocalFlyover : Managed
 	vector m_vAxes[3];
 	SoundComponent m_Sound;
 	bool m_bSounding;
+	bool m_bSoundingNear;
+	bool m_bDemoOverhead; // tests
 	AudioHandle m_hEngine = AudioHandle.Invalid; // tests
 	AudioHandle m_hEngineFar = AudioHandle.Invalid;
 
@@ -216,20 +220,20 @@ class ACR_LocalFlyover : Managed
 			m_vAxes[i] = rightWorld * rightModel[i] + upWorld * upModel[i] + noseWorld * noseModel[i];
 	}
 
-	// Where this machine hears from: the camera (also in the commander's map and RTS views),
-	// else the controlled character. False when there is neither.
+	// Where this machine's player is: the controlled character, else the camera (a commander
+	// with no body). False when there is neither.
 	static bool Listener(out vector at)
 	{
-		CameraManager cameras = GetGame().GetCameraManager();
-		if (cameras && cameras.CurrentCamera())
-		{
-			at = cameras.CurrentCamera().GetOrigin();
-			return true;
-		}
 		PlayerController controller = GetGame().GetPlayerController();
 		if (controller && controller.GetControlledEntity())
 		{
 			at = controller.GetControlledEntity().GetOrigin();
+			return true;
+		}
+		CameraManager cameras = GetGame().GetCameraManager();
+		if (cameras && cameras.CurrentCamera())
+		{
+			at = cameras.CurrentCamera().GetOrigin();
 			return true;
 		}
 		return false;
@@ -270,9 +274,13 @@ class ACR_LocalFlyover : Managed
 		if (m_Sound && !m_bSounding && (!heard || distance <= SOUND_START_M))
 		{
 			m_Sound.EnableDynamicSimulation(true);
-			m_hEngine = m_Sound.SoundEvent(ENGINE_EVENT);
 			m_hEngineFar = m_Sound.SoundEvent(ENGINE_FAR_EVENT);
 			m_bSounding = true;
+		}
+		if (m_Sound && !m_bSoundingNear && (!heard || distance <= NEAR_START_M))
+		{
+			m_hEngine = m_Sound.SoundEvent(ENGINE_EVENT);
+			m_bSoundingNear = true;
 		}
 		// The configured route ends 2.5 km beyond the target, but listeners farther downrange
 		// can still hear it. Let the plane leave the sound's range locally before deleting it,

@@ -31,6 +31,7 @@ class ACR_TestHarness : Managed
  static const int MODE_RTSOVERLAY = 119; // #66: RTS camera order-line clipping and contact fading
  static const int MODE_INTELMARKS = 146; // intel map markers: NATO symbols, labels, headings
  static const int MODE_RECON = 250; // recon flight and radio intercept (ACR_Recon)
+ static const int MODE_FLYDEMO = 251; // ACA's jets over the player's head, to look and listen (client)
  static const int MODE_RESTART = 147; // a match restarted in the same process starts clean
  static const int MODE_RIDECOMMIT = 158; // posted squads keep their trip, catch rides on it, convoys (148-157 left for open branches)
  static const int MODE_STALLWAIT = 118; // #53: a vehicle waiting for its own crew to board isn't stuck
@@ -163,6 +164,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrRTSOverlayTest", flag)) mode = MODE_RTSOVERLAY;
   if (System.GetCLIParam("acrIntelMarksTest", flag)) mode = MODE_INTELMARKS;
   if (System.GetCLIParam("acrReconTest", flag)) mode = MODE_RECON;
+  if (System.GetCLIParam("acrFlyDemoTest", flag)) mode = MODE_FLYDEMO;
   if (System.GetCLIParam("acrRestartTest", flag)) mode = MODE_RESTART;
   if (System.GetCLIParam("acrRideTest", flag)) mode = MODE_RIDE;
   if (System.GetCLIParam("acrLogisticsTest", flag)) mode = MODE_LOGISTICS;
@@ -333,6 +335,7 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_RTSOVERLAY) { ACR_TestRTSOverlay.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_INTELMARKS) { ACR_TestIntelMarkers.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RECON) { ACR_TestRecon.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_FLYDEMO) { ACR_TestFlyDemo.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RESTART) { ACR_TestRestart.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RIDE) { m_Vehicles.TestRide(); return; }
   if (m_Mode == MODE_LOGISTICS) { m_Logistics.TestLogistics(); return; }
