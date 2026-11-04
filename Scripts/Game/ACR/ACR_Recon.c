@@ -18,7 +18,7 @@
 // flies its own copy of a prefab along the track (ACR_LocalFlyover, as the bomb run); the prefab
 // carries its own engine sound (a looping sound component, as RHS's FA-18 does). ReconPrefab picks
 // it: the support entry's m_sReconPrefab, else RECON_JET_WEST / RECON_JET_EAST (ACA's own jets: the
-// RF-4C and the Su-17M4R, silent blockouts for now), else RHS's FA-18 for a western side. With none
+// RF-4C and the Su-17M4R, blockouts with synthesised engine loops), else RHS's FA-18 for a western side. With none
 // the flight is unseen and unheard but still works.
 //
 // Radio intercept: when a side's soldiers radio a contact report or an observer calls a fire

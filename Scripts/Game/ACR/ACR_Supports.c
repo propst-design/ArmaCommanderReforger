@@ -127,8 +127,18 @@ class ACR_SupportRun : Managed
 // saw it frozen where it spawned). The payload stays AC:A's synchronized virtual blasts.
 // Jacob, 9 Oct: an audible jet over the target, "not too low". RHS's FA-18 model carries
 // its own engine sound (a loop that starts within 4 km of the listener, heard to 1.5 km).
+// ACA's own jets (Prefabs/Vehicles/Aircraft) carry a SoundComponent with an engine loop
+// (ENGINE_EVENT, tools/audio/synth_jets.py) that this starts. Jacob, 4 Nov: the FA-18 is too
+// loud, cuts in abruptly and out too soon. So the loop starts at SOUND_START_M, where its
+// distance curve is near silent, with a 6 s fade-in on top, and the plane is kept until the
+// listener is SOUND_KEEP_M away, where the curve reaches silence.
 class ACR_LocalFlyover : Managed
 {
+	static const string ENGINE_EVENT = "SOUND_ACR_JET_LP";
+	static const float SOUND_START_M = 4800; // the acp's curve is silent at 5000 m
+	static const float SOUND_KEEP_M = 5000;
+	static const float FA18_KEEP_M = 1800;   // RHS's loop is heard to 1.5 km
+	static const float MAX_TAIL_S = 60;      // past the route's end, whoever is listening
 	protected static ref array<ref ACR_LocalFlyover> s_All;
 	// Called by ACR_StaticInit at game start (static initializer budget: HANDBOOK Pitfalls).
 	static void ACR_InitStatics()
@@ -144,6 +154,9 @@ class ACR_LocalFlyover : Managed
 	float m_fStartedAt;
 	float m_fSeconds;
 	vector m_vAxes[3];
+	SoundComponent m_Sound;
+	bool m_bSounding;
+	AudioHandle m_hEngine = AudioHandle.Invalid; // tests
 
 	static void Start(ResourceName prefab, vector start, vector dir, float speed, float altitude, float seconds)
 	{
@@ -161,6 +174,7 @@ class ACR_LocalFlyover : Managed
 		flyover.m_fAltitude = altitude;
 		flyover.m_fSeconds = seconds;
 		flyover.m_fStartedAt = GetGame().GetWorld().GetWorldTime();
+		flyover.m_Sound = SoundComponent.Cast(plane.FindComponent(SoundComponent));
 		flyover.Orient();
 		s_All.Insert(flyover);
 		s_iStarted++;
@@ -199,6 +213,25 @@ class ACR_LocalFlyover : Managed
 			m_vAxes[i] = rightWorld * rightModel[i] + upWorld * upModel[i] + noseWorld * noseModel[i];
 	}
 
+	// Where this machine hears from: the camera (also in the commander's map and RTS views),
+	// else the controlled character. False when there is neither.
+	static bool Listener(out vector at)
+	{
+		CameraManager cameras = GetGame().GetCameraManager();
+		if (cameras && cameras.CurrentCamera())
+		{
+			at = cameras.CurrentCamera().GetOrigin();
+			return true;
+		}
+		PlayerController controller = GetGame().GetPlayerController();
+		if (controller && controller.GetControlledEntity())
+		{
+			at = controller.GetControlledEntity().GetOrigin();
+			return true;
+		}
+		return false;
+	}
+
 	static ACR_LocalFlyover Latest()
 	{
 		if (s_All.IsEmpty()) return null;
@@ -228,14 +261,21 @@ class ACR_LocalFlyover : Managed
 		transform[2] = m_vAxes[2];
 		transform[3] = position;
 		m_Plane.SetTransform(transform);
+		vector listener;
+		bool heard = Listener(listener);
+		float distance = vector.Distance(listener, position);
+		if (m_Sound && !m_bSounding && (!heard || distance <= SOUND_START_M))
+		{
+			m_hEngine = m_Sound.SoundEvent(ENGINE_EVENT);
+			m_bSounding = true;
+		}
 		// The configured route ends 2.5 km beyond the target, but listeners farther downrange
-		// can still be inside RHS's 1.5 km sound range. Let the plane leave that range locally
-		// before deleting it, so entity cleanup does not cut the engine loop off mid-tail.
+		// can still hear it. Let the plane leave the sound's range locally before deleting it,
+		// so entity cleanup does not cut the engine loop off mid-tail.
 		if (elapsed <= m_fSeconds) return;
-		PlayerController controller = GetGame().GetPlayerController();
-		IEntity listener = null;
-		if (controller) listener = controller.GetControlledEntity();
-		if (listener && vector.DistanceXZ(listener.GetOrigin(), position) <= 1800) return;
+		float keep = FA18_KEEP_M;
+		if (m_Sound) keep = SOUND_KEEP_M;
+		if (heard && distance <= keep && elapsed <= m_fSeconds + MAX_TAIL_S) return;
 		GetGame().GetCallqueue().Remove(Step);
 		SCR_EntityHelper.DeleteEntityAndChildren(m_Plane);
 		m_Plane = null;
@@ -1785,7 +1825,7 @@ class ACR_Supports : Managed
    entry.m_iCooldown = -1;
    entry.Resolve();
    // With RHS loaded, both sides' bomb run is an audible FA-18 flyover (Jacob, 9 Oct);
-   // without it, the side's own 1989 jet flies over the blasts (A-10A / Su-25, silent for now).
+   // without it, the side's own 1989 jet flies over the blasts (A-10A / Su-25).
    if (type == ACR_ESupportType.BOMB_RUN)
    {
     ResourceName jet = BOMB_JET_EAST;

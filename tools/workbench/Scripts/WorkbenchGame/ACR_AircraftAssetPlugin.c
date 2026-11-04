@@ -1,9 +1,11 @@
-// Headless Workbench plugin for the aircraft blockouts (tools/blender/build_aircraft.py), run by
-// tools/Build-AircraftAssets.ps1 (not shipped: this is the tools project, not the mod's Scripts). Steps, from
-// $profile:aircraft_job.txt:
+// Headless Workbench plugin for the aircraft blockouts (tools/blender/build_aircraft.py) and their engine sounds
+// (tools/audio/synth_jets.py), run by tools/Build-AircraftAssets.ps1 (not shipped: this is the tools project, not
+// the mod's Scripts). Steps, from $profile:aircraft_run.txt (the runner joins both jobs):
 //  EMAT <path>|<base>|<key>=<value>...: sets up the .png textures it names (vanilla import settings for the
 //  suffix) and registers the material (the runner writes its text with their resource names);
-//  FBX <path>: registers and builds the model (static mesh: no skinning or hierarchy).
+//  FBX <path>: registers and builds the model (static mesh: no skinning or hierarchy);
+//  WAV <path>: registers and builds a sound sample;
+//  ACP <path>: registers a sound project (the runner writes it once its samples have resource names).
 // The prefabs (Prefabs/Vehicles/Aircraft) have hand-written metas, which the game reads but this tools project's
 // resource cache doesn't: srv:aircraft checks them in a game.
 // Outcomes go to $profile:aircraft_result.txt.
@@ -75,6 +77,15 @@ class ACR_AircraftAssetPlugin : WorkbenchPlugin
 		Log("FBX OK " + meta.GetResourceID());
 	}
 
+	void Register(string step, string path, bool build)
+	{
+		MetaFile meta = Meta(path, build);
+		if (meta)
+			Log(step + " OK " + meta.GetResourceID());
+		else
+			Log(step + " FAIL register " + path);
+	}
+
 
 	override void RunCommandline()
 	{
@@ -86,7 +97,7 @@ class ACR_AircraftAssetPlugin : WorkbenchPlugin
 		m_Result = FileIO.OpenFile("$profile:aircraft_result.txt", FileMode.WRITE);
 		array<string> models = {};
 		string line;
-		FileHandle job = FileIO.OpenFile("$profile:aircraft_job.txt", FileMode.READ);
+		FileHandle job = FileIO.OpenFile("$profile:aircraft_run.txt", FileMode.READ);
 		while (job && job.ReadLine(line) >= 0)
 		{
 			int sp = line.IndexOf(" ");
@@ -98,11 +109,15 @@ class ACR_AircraftAssetPlugin : WorkbenchPlugin
 				Emat(arg); // before the models, which link their material by name
 			else if (cmd == "FBX")
 				models.Insert(arg);
+			else if (cmd == "WAV")
+				Register(cmd, arg, true);
+			else if (cmd == "ACP")
+				Register(cmd, arg, false);
 		}
 		if (job)
 			job.Close();
 		else
-			Log("FAIL no $profile:aircraft_job.txt");
+			Log("FAIL no $profile:aircraft_run.txt");
 		foreach (string fbx : models)
 			ImportFbx(fbx);
 		// the rebuilds run in the background (a few seconds each; FileIO can't see the addon's absolute paths)

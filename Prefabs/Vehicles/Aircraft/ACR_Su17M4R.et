@@ -4,5 +4,13 @@ GenericEntity {
   MeshObject "{AC230926E0A00013}" {
    Object "{852D04A8F977D0ED}Assets/Vehicles/Aircraft/ACR_Su17M4R.xob"
   }
+  SignalsManagerComponent "{AC230926E0A00033}" {
+  }
+  SoundComponent "{AC230926E0A00023}" {
+   Filenames {
+    "{838BDBBAE326F105}Sounds/Vehicles/Aircraft/ACR_Su17M4R_Engine.acp"
+   }
+   DistanceManagement 0
+  }
  }
 }

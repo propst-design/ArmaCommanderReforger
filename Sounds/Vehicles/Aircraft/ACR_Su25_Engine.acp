@@ -1,0 +1,174 @@
+AudioClass {
+ sounds {
+  SoundClass {
+   id 3081
+   name "SOUND_ACR_JET_LP"
+   version 5
+   tl -256 0
+   ins {
+    ConnectionsClass connections {
+     id 64
+     links {
+      ConnectionClass connection {
+       id 2066
+       port 65
+      }
+     }
+    }
+   }
+   outState 4107
+   outStatePort 181255
+   noInAudible 0
+  }
+ }
+ mixers {
+  MixerClass {
+   id 4107
+   name "OutputState 4"
+   version 4
+   res "{B764D803219C775E}Sounds/FinalMix.afm"
+   ins {
+    ConnectionsClass connections {
+     id 181255
+     links {
+      ConnectionClass connection {
+       id 3081
+       port 65
+      }
+     }
+    }
+    ConnectionsClass connections {
+     id 197639
+     links {
+      ConnectionClass connection {
+       id 7197
+       port 65
+      }
+     }
+    }
+   }
+   pi {
+    8912896 0
+   }
+   path "{B764D803219C775E}Sounds/FinalMix.afm"
+   inputs {
+    "WPN_Handling" "WPN_Shots" "WPN_Explosions" "WNP_BulletHits" "CHAR" "ENV_AMB_2D" "VEH_Animations" "Impacts" "Dialog" "Music" "ENV_Doors" "VEH_Engine" "VEH_Tires" "VON" "SFX" "SFX_Reverb" "VON_Reverb" "Dialog_Reverb" "Impacts_EXT" "ENV_AMB_3D" "WPN_SonicCracks" "CHAR_Gear" "PA" "SFX_Reverb_Exterior" "UI" "ENV_AMB_3D_Reverb_Exterior" "SFX_Direct" "SFX_Reverb_Small" "SFX_Reverb_Medium" "SFX_Reverb_Large" "WPN_Shots_Player" "Dialog_Reverb_Small" "Dialog_Reverb_Medium" "Dialog_Reverb_Large" "WPN_TravelingProjectile"
+   }
+  }
+ }
+ shaders {
+  ShaderClass {
+   id 2066
+   name "Shader Jet"
+   version 5
+   tl -512 0
+   ins {
+    ConnectionsClass connections {
+     id 0
+     links {
+      ConnectionClass connection {
+       id 6172
+       port 65
+      }
+     }
+    }
+    ConnectionsClass connections {
+     id 1
+     links {
+      ConnectionClass connection {
+       id 5139
+       port 65
+      }
+     }
+    }
+    ConnectionsClass connections {
+     id 64
+     links {
+      ConnectionClass connection {
+       id 1028
+       port 65
+      }
+     }
+    }
+   }
+   pi {
+    3 0
+   }
+  }
+ }
+ amplitudes {
+  AmplitudeClass {
+   id 5139
+   name "Amplitude"
+   version 5
+   tl -512 -80
+   curve Custom
+   AttenuationCurve {
+    CurvePoint "1" {
+     Y 1
+    }
+    CurvePoint "2" {
+     X 400
+     Y 1
+     Shape Reciprocal
+     Modifier 0.5
+    }
+    CurvePoint "3" {
+     X 5000
+    }
+   }
+  }
+ }
+ banks_local {
+  BankLocalClass {
+   id 1028
+   name "Engine"
+   version 7
+   tl -768 0
+   Volume -9
+   "Loop count" 255
+   "Infinite loop" 1
+   "Termination Fade Out" 4000
+   "Fade in time" 6000
+   Samples {
+    AudioBankSampleClass Sample {
+     Filename "{6512E54849C59521}Sounds/Vehicles/Aircraft/Samples/ACR_Su25_Engine_LP.wav"
+    }
+   }
+  }
+ }
+ spatialities {
+  SpatialityClass {
+   id 6172
+   name "Spatiality"
+   version 5
+   tl -512 -160
+   spatialFactor 1
+  }
+ }
+ auxOuts {
+  AuxOutClass {
+   id 7197
+   name "AuxOut EXT Reverb"
+   version 5
+   tl 0 -80
+   ins {
+    ConnectionsClass connections {
+     id 0
+     links {
+      ConnectionClass connection {
+       id 3081
+       port 5
+      }
+     }
+    }
+   }
+   pi {
+    1 0
+   }
+   OSPort 197639
+   Volume -12
+  }
+ }
+ version 1
+}
