@@ -723,11 +723,13 @@ class ACR_Guerrillas
    if (!man) continue;
    float along = (i - (agents.Count() - 1) * 0.5) * ACR_Ambush.SPACING;
    // Out from the road until clear of it (a bend can bring another stretch close) and of what stands
-   // on the ground (playtest pn20: men lay inside a bunker's mound). None clear: he stays where he spawned.
+   // on the ground (playtest pn20: men lay inside a bunker's mound) and with room to stand (a field
+   // wall or fence by the road). None clear: he stays where he spawned.
    for (int step = 0; step < 4; step++)
    {
     vector spot = ACR_Manager.Ground(cell.m_vKillZone + cell.m_vRoadDir * along + across * (off + step * 6));
     if (BBB_Terrain.IsWaterAt(spot) || ACR_Minefields.RoadClearance(spot) < HIDE_CLEAR - 4 || ACR_BaseSystem.Covered(spot)) continue;
+    if (!ACR_BaseSystem.RoomAt(spot, man)) continue;
     man.SetOrigin(spot);
     break;
    }
