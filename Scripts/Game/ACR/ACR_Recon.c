@@ -17,9 +17,9 @@
 // Aircraft model and sound: the flight is server-side and needs neither. Each machine with a player
 // flies its own copy of a prefab along the track (ACR_LocalFlyover, as the bomb run); the prefab
 // carries its own engine sound (a looping sound component, as RHS's FA-18 does). ReconPrefab picks
-// it: the support entry's m_sReconPrefab, else RECON_JET_WEST / RECON_JET_EAST (ACA's own jets,
-// still to be made: empty until then), else RHS's FA-18 for a western side. With none the flight
-// is unseen and unheard but still works.
+// it: the support entry's m_sReconPrefab, else RECON_JET_WEST / RECON_JET_EAST (ACA's own jets: the
+// RF-4C and the Su-17M4R, silent blockouts for now), else RHS's FA-18 for a western side. With none
+// the flight is unseen and unheard but still works.
 //
 // Radio intercept: when a side's soldiers radio a contact report or an observer calls a fire
 // mission, each hostile side may (INTERCEPT_CHANCE) pick up the transmission: a pale ring of
@@ -42,9 +42,9 @@ class ACR_ReconRun : ACR_SupportRun
  static float SEE_COVERED = 0.15;
  static float SEE_FOB = 0.85;
  static const string SPOTTER = "Recon flight";
- // ACA's own recon jets (the blockout models, to come): leave empty until their prefabs exist.
- static const ResourceName RECON_JET_WEST = "";
- static const ResourceName RECON_JET_EAST = "";
+ // ACA's own 1989 recon jets (blockout models, tools/blender/build_aircraft.py): RF-4C and Su-17M4R.
+ static const ResourceName RECON_JET_WEST = "{AC230926A00100E2}Prefabs/Vehicles/Aircraft/ACR_RF4C.et";
+ static const ResourceName RECON_JET_EAST = "{AC230926A00100E3}Prefabs/Vehicles/Aircraft/ACR_Su17M4R.et";
  static int s_iSeen; // tests: sightings made by recon flights
 
  string m_sFaction;

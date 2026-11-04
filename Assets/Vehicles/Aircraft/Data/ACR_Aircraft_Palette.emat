@@ -1,0 +1,5 @@
+MatPBRBasic {
+ MetalnessScale 0
+ EnableFarHiding 0
+ BCRMap "{EFA4BD269E01D9A6}Assets/Vehicles/Aircraft/Data/ACR_Aircraft_Palette_BCR.edds"
+}

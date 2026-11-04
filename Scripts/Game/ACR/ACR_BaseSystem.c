@@ -85,7 +85,7 @@ class ACR_BaseSystem : Managed
     // ...and the recon flight (4 Nov), the same way.
     if (!listsRecon) data.m_aSupports.Insert(ACR_Supports.NewEntry(ACR_ESupportType.RECON_FLIGHT));
    }
-   else ACR_Supports.BuildDefaults(data.m_aSupports);
+   else ACR_Supports.BuildDefaults(data.m_aSupports, factionKey);
    // A content pack's attack helicopter for the side adds its support.
    ACR_Supports.FitAttackHelicopter(factionKey, data.m_aSupports, listsAttack);
   }

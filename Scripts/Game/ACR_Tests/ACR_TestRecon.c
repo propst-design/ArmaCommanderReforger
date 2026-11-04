@@ -3,10 +3,11 @@
 // fuzzed by one offset per group; the Soviets are told a jet went over; a summary line for the US.
 // Radio intercept: a Soviet transmission gives the US a ring that holds the transmitter off its
 // centre, and the same transmitter again moves the ring. The AI commander drops its blind guess at a
-// photographed base and flies its recon over a fresh intercept near its bases first.
+// photographed base and flies its recon over a fresh intercept near its bases first. ACA's own jets
+// (Prefabs/Vehicles/Aircraft) load as models of their size, and each side flies its own.
 class ACR_TestRecon
 {
- static const int CHECKS = 10;
+ static const int CHECKS = 12;
  static const int CALL_TICK = 6;
  static const int CHECK_TICK = 50;
  static ACR_Squad s_Enemy;
@@ -33,13 +34,55 @@ class ACR_TestRecon
    ACR_RadioIntercept.INTERCEPT_CHANCE = 1;
   }
   if (!alpha || !alpha.GetAnchor()) return;
-  if (tick == 4) Pure(manager);
+  if (tick == 4) { Pure(manager); Aircraft(); }
   if (tick == CALL_TICK) Call(h, manager, alpha);
   // Held where they were put (a halted squad still walks back into formation), so the spots the
   // flight reports can be measured against where they really stood.
   if (tick > CALL_TICK && tick < CHECK_TICK && s_Bodies)
    foreach (int i, IEntity body : s_Bodies) if (body) body.SetOrigin(s_TrueAt[i]);
   if (tick == CHECK_TICK) Results(manager);
+ }
+
+ // ACA's blockout jets: each prefab spawns a model as long as the real aircraft (nose along the model's
+ // +X, as ACR_LocalFlyover assumes), and the defaults hand each side its own recon and bomb-run jet.
+ static void Aircraft()
+ {
+  array<ResourceName> jets = {ACR_Supports.BOMB_JET_WEST, ACR_Supports.BOMB_JET_EAST, ACR_ReconRun.RECON_JET_WEST, ACR_ReconRun.RECON_JET_EAST};
+  array<float> lengths = {16.85, 15.4, 19.15, 19.05};
+  int good = 0;
+  string sizes = "";
+  foreach (int i, ResourceName jet : jets)
+  {
+   IEntity plane = ACR_Supports.SpawnLocal(jet, ACR_Manager.Ground(Vector(500 + i * 40, 0, 500)) + "0 300 0", vector.Zero);
+   vector mins, maxs;
+   if (plane) plane.GetBounds(mins, maxs);
+   float length = maxs[0] - mins[0];
+   if (plane && plane.GetVObject() && Math.AbsFloat(length - lengths[i]) < 0.5 && maxs[1] - mins[1] < 5.5) good++;
+   sizes += string.Format(" %1 %2x%3x%4", FilePath.StripPath(jet), length, maxs[1] - mins[1], maxs[2] - mins[2]);
+   if (plane) SCR_EntityHelper.DeleteEntityAndChildren(plane);
+  }
+  ACR_TestRegress.Check("aircraft: ACA's four jets load as models of their real length, nose along +X", good == 4, sizes);
+
+  array<ref ACR_SupportEntry> west = {};
+  array<ref ACR_SupportEntry> east = {};
+  ACR_Supports.BuildDefaults(west, "US");
+  ACR_Supports.BuildDefaults(east, "USSR");
+  ResourceName westBomb = BombJet(west);
+  ResourceName eastBomb = BombJet(east);
+  bool rhs = ACR_Supports.HasPrefab(ACR_Supports.FA18_FLYOVER);
+  bool bombs = westBomb == ACR_Supports.BOMB_JET_WEST && eastBomb == ACR_Supports.BOMB_JET_EAST;
+  if (rhs) bombs = westBomb == ACR_Supports.FA18_FLYOVER && eastBomb == ACR_Supports.FA18_FLYOVER;
+  ResourceName westRecon = ACR_ReconRun.ReconPrefab(null, "US");
+  ResourceName eastRecon = ACR_ReconRun.ReconPrefab(null, "USSR");
+  bool recon = westRecon == ACR_ReconRun.RECON_JET_WEST && eastRecon == ACR_ReconRun.RECON_JET_EAST;
+  ACR_TestRegress.Check("aircraft: each side flies its own recon and bomb-run jet", bombs && recon, string.Format("bomb %1 / %2, recon %3 / %4, rhs %5", FilePath.StripPath(westBomb), FilePath.StripPath(eastBomb), FilePath.StripPath(westRecon), FilePath.StripPath(eastRecon), rhs));
+ }
+
+ static ResourceName BombJet(array<ref ACR_SupportEntry> entries)
+ {
+  foreach (ACR_SupportEntry entry : entries)
+   if (entry.m_eType == ACR_ESupportType.BOMB_RUN && entry.m_eBombRunDelivery == ACR_EBombRunDelivery.FLYOVER) return entry.m_sBombRunPrefab;
+  return "";
  }
 
  // Geometry, names, intercepts and the AI's use of them: no flight needed.

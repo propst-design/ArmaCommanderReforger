@@ -56,3 +56,4 @@ resourceDatabase.rdb
 
 /tools/board_snapshot.py
 /tools/workshop/*.prompt.txt
+*.txo

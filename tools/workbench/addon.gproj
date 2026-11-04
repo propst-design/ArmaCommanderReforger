@@ -1,0 +1,10 @@
+GameProject {
+ ID "ACRTools"
+ GUID "AC230926A00100EE"
+ TITLE "Arma Commander Actual build tools (not shipped)"
+ Dependencies {
+  "58D0FB3206B6F859"
+  "BBB0261015000001"
+  "AC230926A0010001"
+ }
+}

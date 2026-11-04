@@ -1773,7 +1773,7 @@ class ACR_Supports : Managed
  }
 
  // Every support type, used when a faction's settings list none.
- static void BuildDefaults(array<ref ACR_SupportEntry> entries)
+ static void BuildDefaults(array<ref ACR_SupportEntry> entries, string factionKey)
  {
   // (ATTACK_HELI only comes with a content pack: FitAttackHelicopter.)
   for (int type = ACR_ESupportType.MORTAR_HE_SMALL; type <= ACR_ESupportType.AIR_LIFT; type++)
@@ -1784,11 +1784,18 @@ class ACR_Supports : Managed
    entry.m_iAICost = -1;
    entry.m_iCooldown = -1;
    entry.Resolve();
-   // With RHS loaded, both sides' bomb run is an audible FA-18 flyover (Jacob, 9 Oct).
-   if (type == ACR_ESupportType.BOMB_RUN && HasPrefab(FA18_FLYOVER))
+   // With RHS loaded, both sides' bomb run is an audible FA-18 flyover (Jacob, 9 Oct);
+   // without it, the side's own 1989 jet flies over the blasts (A-10A / Su-25, silent for now).
+   if (type == ACR_ESupportType.BOMB_RUN)
    {
-    entry.m_eBombRunDelivery = ACR_EBombRunDelivery.FLYOVER;
-    entry.m_sBombRunPrefab = FA18_FLYOVER;
+    ResourceName jet = BOMB_JET_EAST;
+    if (IsWestern(factionKey)) jet = BOMB_JET_WEST;
+    if (HasPrefab(FA18_FLYOVER)) jet = FA18_FLYOVER;
+    if (HasPrefab(jet))
+    {
+     entry.m_eBombRunDelivery = ACR_EBombRunDelivery.FLYOVER;
+     entry.m_sBombRunPrefab = jet;
+    }
    }
    entries.Insert(entry);
   }
@@ -1848,6 +1855,9 @@ class ACR_Supports : Managed
  }
 
  static const ResourceName FA18_FLYOVER = "{76571A125EF9ECD7}Prefabs/Vehicles/Airplanes/FA18A/FA18A_Mesh.et";
+ // ACA's own bomb-run jets (blockout models, tools/blender/build_aircraft.py).
+ static const ResourceName BOMB_JET_WEST = "{AC230926A00100E0}Prefabs/Vehicles/Aircraft/ACR_A10A.et";
+ static const ResourceName BOMB_JET_EAST = "{AC230926A00100E1}Prefabs/Vehicles/Aircraft/ACR_Su25.et";
 
  static bool HasPrefab(ResourceName prefab)
  {
