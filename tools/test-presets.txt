@@ -48,6 +48,9 @@ getoutold|-acrGetOutOldTest 1|110
 mortar|-acrMortarTest 1|360
 crew|-acrCrewTest 1|120
 skillbbb|-acrSkillBBBTest 1|120
+fieldroutes|-acrFieldRoutesTest 1|230
+fieldbridges|-acrFieldBridgesTest 1|120|Worlds/ACR_Everon.ent
+fieldbridgeswz|-acrFieldBridgesTest 1|150|Worlds/ACR_WestZagoria.ent
 manners|-acrMannersTest 1|540
 mannersgetout|-acrMannersGetOutTest 1|150
 fieldsoffire|-acrFieldsOfFireTest 1|120

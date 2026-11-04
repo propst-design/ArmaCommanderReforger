@@ -2731,57 +2731,186 @@ class ACR_Squad : Managed
  // A foot squad's one waypoint lets the game's path run along any road near the line. Every
  // FIELD_STEP along the line, a point on ground that isn't friendly (nearest held base is not
  // ours or a friend's) and within FIELD_CLEAR of a road is pushed sideways, keeping to one side,
- // until it is that clear; those points become the legs. Friendly ground and the last
+ // until it is that clear; every step's point becomes a leg. Friendly ground and the last
  // FIELD_APPROACH before the destination (a base often sits on a road) are left alone. False:
  // nothing needed moving, walk direct. -acrFieldRoutes 0: off.
- static const float FIELD_STEP = 120;
- static const float FIELD_CLEAR = 30;     // metres from a road's edge a leg must keep
- static const float FIELD_SHIFT = 15;     // sideways search step
- static const float FIELD_SHIFT_MAX = 90; // ...up to this far from the line
+ // Leg spacing (3 Nov 2026): the soldiers' navmesh prices off-road ground at 3x a road (vanilla
+ // SCR_AIFindCover), so between two legs d off a road and L apart the game's path runs out to
+ // the road and along it whenever d < 0.35 L. Legs 120 m apart and 30 m off still walked the
+ // roads; 60 m apart and 45 m off they don't, even counting the 30 m leg handover.
+ // Rivers (3 Nov 2026): where the line crosses water too deep to wade, the squad goes over the
+ // nearest bridge within FIELD_BRIDGE_SEARCH (a leg at each end, no other leg within
+ // FIELD_BRIDGE_KEEP of the crossing), and no leg puts deep water between itself and the one
+ // before (a river beside the road). Deep water with no bridge near: walk direct, as before.
+ static const float FIELD_STEP = 60;
+ static const float FIELD_CLEAR = 45;      // metres from a road's edge a leg must keep
+ static const float FIELD_SHIFT = 15;      // sideways search step
+ static const float FIELD_SHIFT_MAX = 120; // ...up to this far from the line
  static const float FIELD_APPROACH = 150;
+ static const float FIELD_WATER_STEP = 10;     // m between deep-water checks along the line
+ static const float FIELD_BRIDGE_SEARCH = 300; // m round a crossing a bridge is looked for
+ static const float FIELD_BRIDGE_KEEP = 60;    // m either side of a crossing with no leg of its own
+ static bool s_bFieldAnywhere; // tests: no ground counts as friendly
 
- protected bool FieldLegs(vector from, vector to, notnull array<vector> legs)
+ bool FieldLegs(vector from, vector to, notnull array<vector> legs)
  {
   legs.Clear();
   if (ACR_LogisticsRules.Choice("acrFieldRoutes", "1") == "0" || !GetFaction()) return false;
   float length = vector.DistanceXZ(from, to);
-  if (length < FIELD_STEP * 2 + FIELD_APPROACH) return false;
+  if (length < FIELD_STEP * 2 + FIELD_APPROACH || BBB_Terrain.WaterAlong(from, to) > 0) return false;
   int started = System.GetTickCount();
   string side = GetFaction().GetFactionKey();
   vector dir = to - from;
   dir[1] = 0;
   dir.Normalize();
   vector across = Vector(-dir[2], 0, dir[0]);
+  // Deep water the line crosses, and the bridge over each crossing.
+  array<float> crossFrom = {};
+  array<float> crossTo = {};
+  array<vector> bridgeNear = {};
+  array<vector> bridgeFar = {};
+  array<vector> approachNear = {};
+  array<vector> approachFar = {};
+  bool inWater;
+  float wetFrom;
+  for (float wetAt = 0; wetAt <= length; wetAt += FIELD_WATER_STEP)
+  {
+   bool deep = BBB_Terrain.IsDeepWaterAt(from + dir * wetAt);
+   if (deep && !inWater)
+   {
+    inWater = true;
+    wetFrom = wetAt;
+   }
+   else if (!deep && inWater)
+   {
+    inWater = false;
+    vector nearEnd, farEnd, nearApproach, farApproach;
+    if (!BBB_Terrain.BridgeNear(from + dir * ((wetFrom + wetAt) * 0.5), from, FIELD_BRIDGE_SEARCH, nearEnd, farEnd, nearApproach, farApproach))
+    {
+     PrintFormat("[ACR] ROUTE %1: deep water %2 m along and no bridge within %3 m, walking direct", m_Name, Math.Round(wetFrom), FIELD_BRIDGE_SEARCH);
+     ACR_Perf.Lap("route.field", started);
+     return false;
+    }
+    // The same bridge again (a viaduct over two channels, a river bending under it): one crossing.
+    int last = bridgeNear.Count() - 1;
+    if (last >= 0 && (vector.DistanceXZ(bridgeNear[last], nearEnd) < 20 || vector.DistanceXZ(bridgeNear[last], farEnd) < 20))
+    {
+     crossTo[last] = wetAt + FIELD_BRIDGE_KEEP;
+     continue;
+    }
+    crossFrom.Insert(wetFrom - FIELD_BRIDGE_KEEP);
+    crossTo.Insert(wetAt + FIELD_BRIDGE_KEEP);
+    bridgeNear.Insert(nearEnd);
+    bridgeFar.Insert(farEnd);
+    approachNear.Insert(nearApproach);
+    approachFar.Insert(farApproach);
+    PrintFormat("[ACR] ROUTE %1: deep water %2 m along, over the bridge %3 to %4", m_Name, Math.Round(wetFrom), nearEnd, farEnd);
+   }
+  }
+  if (inWater) { ACR_Perf.Lap("route.field", started); return false; } // the destination is in the water
   float lean = 0; // the side the last moved leg went to (0: none yet)
-  bool moved;
+  bool moved = !bridgeNear.IsEmpty();
+  vector previous = from;
+  int next;
+  bool bridged; // crossing 'next' has its bridge legs
+  int fixedLegs; // legs up to the last bridge's way off: never dropped
+  array<int> decks = {}; // legs that start a bridge deck (the step to the next one is over water)
   for (float along = FIELD_STEP; along < length - FIELD_APPROACH; along += FIELD_STEP)
   {
-   vector point = from + dir * along;
-   if (FriendlyGround(point, side) || ACR_Minefields.RoadClearance(point) >= FIELD_CLEAR) continue;
-   vector found;
-   bool ok;
-   for (float shift = FIELD_SHIFT; shift <= FIELD_SHIFT_MAX && !ok; shift += FIELD_SHIFT)
+   bool crossing;
+   while (next < crossFrom.Count() && along >= crossFrom[next])
    {
-    for (int pass = 0; pass < 2 && !ok; pass++)
+    if (!bridged)
     {
-     float sense = 1;
-     if (lean < 0) sense = -1;
-     if (pass == 1) sense = -sense;
-     vector candidate = ACR_Manager.Ground(point + across * (shift * sense));
-     if (BBB_Terrain.IsWaterAt(candidate) || ACR_Minefields.RoadClearance(candidate) < FIELD_CLEAR) continue;
-     found = candidate;
-     lean = sense;
-     ok = true;
+     OntoBridge(legs, from, fixedLegs, decks, approachNear[next], bridgeNear[next], bridgeFar[next], approachFar[next]);
+     fixedLegs = legs.Count();
+     previous = legs[legs.Count() - 1];
+     bridged = true;
+    }
+    if (along <= crossTo[next])
+    {
+     crossing = true;
+     break;
+    }
+    next++;
+    bridged = false;
+   }
+   if (crossing) continue;
+   vector point = ACR_Manager.Ground(from + dir * along);
+   vector leg = point;
+   if ((s_bFieldAnywhere || !FriendlyGround(point, side)) && ACR_Minefields.RoadClearance(point) < FIELD_CLEAR)
+   {
+    bool ok;
+    for (float shift = FIELD_SHIFT; shift <= FIELD_SHIFT_MAX && !ok; shift += FIELD_SHIFT)
+    {
+     for (int pass = 0; pass < 2 && !ok; pass++)
+     {
+      float sense = 1;
+      if (lean < 0) sense = -1;
+      if (pass == 1) sense = -sense;
+      vector candidate = ACR_Manager.Ground(point + across * (shift * sense));
+      if (ACR_Minefields.RoadClearance(candidate) < FIELD_CLEAR || BBB_Terrain.WaterDepthAt(candidate) > 0) continue;
+      if (BBB_Terrain.DeepWaterAlong(previous, candidate) > 0) continue;
+      leg = candidate;
+      lean = sense;
+      moved = true;
+      ok = true;
+     }
     }
    }
-   if (!ok) continue;
-   legs.Insert(found);
-   moved = true;
+   if (BBB_Terrain.IsDeepWaterAt(leg) || BBB_Terrain.DeepWaterAlong(previous, leg) > 0) continue;
+   legs.Insert(leg);
+   previous = leg;
+  }
+  // Crossings past the last leg (in the approach): their bridges still.
+  while (next < crossFrom.Count())
+  {
+   if (!bridged)
+   {
+    OntoBridge(legs, from, fixedLegs, decks, approachNear[next], bridgeNear[next], bridgeFar[next], approachFar[next]);
+    fixedLegs = legs.Count();
+   }
+   bridged = false;
+   next++;
+  }
+  if (!moved) { ACR_Perf.Lap("route.field", started); legs.Clear(); return false; }
+  legs.Insert(to);
+  // The whole route dry-footed, bridge decks apart (a river may bend back across the way between
+  // legs the line never crossed): else walk direct, as before.
+  vector walked = from;
+  foreach (int n, vector step : legs)
+  {
+   if (!decks.Contains(n - 1) && BBB_Terrain.DeepWaterAlong(walked, step) > 0)
+   {
+    PrintFormat("[ACR] ROUTE %1: deep water between field legs %2 and %3, walking direct", m_Name, walked, step);
+    ACR_Perf.Lap("route.field", started);
+    legs.Clear();
+    return false;
+   }
+   walked = step;
   }
   ACR_Perf.Lap("route.field", started);
-  if (!moved || BBB_Terrain.WaterAlong(from, to) > 0) { legs.Clear(); return false; }
-  legs.Insert(to);
   return true;
+ }
+
+ // Over a bridge along its road: a leg or two since the last bridge (fixedLegs) that would leave
+ // deep water between them and the way on is dropped when the leg before reaches it dry (a river
+ // bending round the abutments), then the way on, both ends (recorded in decks) and the way off.
+ protected static void OntoBridge(array<vector> legs, vector from, int fixedLegs, array<int> decks, vector nearApproach, vector nearEnd, vector farEnd, vector farApproach)
+ {
+  for (int drop = 0; drop < 2 && legs.Count() > fixedLegs; drop++)
+  {
+   if (BBB_Terrain.DeepWaterAlong(legs[legs.Count() - 1], nearApproach) <= 0) break;
+   vector before = from;
+   if (legs.Count() >= 2) before = legs[legs.Count() - 2];
+   if (BBB_Terrain.DeepWaterAlong(before, nearApproach) > 0) break;
+   legs.Remove(legs.Count() - 1);
+  }
+  if (vector.DistanceXZ(nearApproach, nearEnd) > 1) legs.Insert(nearApproach);
+  legs.Insert(nearEnd);
+  decks.Insert(legs.Count() - 1);
+  legs.Insert(farEnd);
+  if (vector.DistanceXZ(farApproach, farEnd) > 1) legs.Insert(farApproach);
  }
 
  // Nearest held base is ours or a friend's.
