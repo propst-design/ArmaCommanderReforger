@@ -1,5 +1,5 @@
 MetaFileClass {
- Name "{232E35000196C675}Sounds/Vehicles/Aircraft/Samples/ACR_RF4C_Engine_LP.wav"
+ Name "{F2AC603A663C9646}Sounds/Vehicles/Aircraft/Samples/ACR_Su25_Engine_Far_LP.wav"
  Configurations {
   WAVResourceClass PC : "{F72B05D02F3F135E}Configs/System/ResourceTypes/PC/Sound.conf" {
   }

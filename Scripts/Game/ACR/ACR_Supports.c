@@ -127,16 +127,18 @@ class ACR_SupportRun : Managed
 // saw it frozen where it spawned). The payload stays AC:A's synchronized virtual blasts.
 // Jacob, 9 Oct: an audible jet over the target, "not too low". RHS's FA-18 model carries
 // its own engine sound (a loop that starts within 4 km of the listener, heard to 1.5 km).
-// ACA's own jets (Prefabs/Vehicles/Aircraft) carry a SoundComponent with an engine loop
-// (ENGINE_EVENT, tools/audio/synth_jets.py) that this starts. Jacob, 4 Nov: the FA-18 is too
-// loud, cuts in abruptly and out too soon. So the loop starts at SOUND_START_M, where its
-// distance curve is near silent, with a 6 s fade-in on top, and the plane is kept until the
-// listener is SOUND_KEEP_M away, where the curve reaches silence.
+// ACA's own jets (Prefabs/Vehicles/Aircraft) carry a SoundComponent with two engine loops
+// (tools/audio/synth_jets.py): ENGINE_EVENT, the roar within ~2.5 km, and ENGINE_FAR_EVENT, a
+// dull rumble out to 6 km, crossfaded by distance. Jacob, 4 Nov: the FA-18 is too loud, cuts in
+// abruptly and out too soon. So both start at SOUND_START_M, where the far curve is near
+// silent, with a 6 s fade-in on top, and the plane is kept until the listener is SOUND_KEEP_M
+// away, where it reaches silence. The component follows the moving plane (dynamic simulation).
 class ACR_LocalFlyover : Managed
 {
 	static const string ENGINE_EVENT = "SOUND_ACR_JET_LP";
-	static const float SOUND_START_M = 4800; // the acp's curve is silent at 5000 m
-	static const float SOUND_KEEP_M = 5000;
+	static const string ENGINE_FAR_EVENT = "SOUND_ACR_JET_FAR_LP";
+	static const float SOUND_START_M = 5800; // the acp's far curve is silent at 6000 m
+	static const float SOUND_KEEP_M = 6000;
 	static const float FA18_KEEP_M = 1800;   // RHS's loop is heard to 1.5 km
 	static const float MAX_TAIL_S = 60;      // past the route's end, whoever is listening
 	protected static ref array<ref ACR_LocalFlyover> s_All;
@@ -157,6 +159,7 @@ class ACR_LocalFlyover : Managed
 	SoundComponent m_Sound;
 	bool m_bSounding;
 	AudioHandle m_hEngine = AudioHandle.Invalid; // tests
+	AudioHandle m_hEngineFar = AudioHandle.Invalid;
 
 	static void Start(ResourceName prefab, vector start, vector dir, float speed, float altitude, float seconds)
 	{
@@ -266,7 +269,9 @@ class ACR_LocalFlyover : Managed
 		float distance = vector.Distance(listener, position);
 		if (m_Sound && !m_bSounding && (!heard || distance <= SOUND_START_M))
 		{
+			m_Sound.EnableDynamicSimulation(true);
 			m_hEngine = m_Sound.SoundEvent(ENGINE_EVENT);
+			m_hEngineFar = m_Sound.SoundEvent(ENGINE_FAR_EVENT);
 			m_bSounding = true;
 		}
 		// The configured route ends 2.5 km beyond the target, but listeners farther downrange

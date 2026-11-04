@@ -72,9 +72,9 @@ class ACR_TestRecon
    vector from = listener + "1000 400 0";
    ACR_LocalFlyover.Start(ACR_ReconRun.RECON_JET_EAST, from, "0 0 1", 200, from[1], 2);
    ACR_LocalFlyover flight = ACR_LocalFlyover.Latest();
-   sounding = flight && flight.m_bSounding && flight.m_hEngine != AudioHandle.Invalid;
+   sounding = flight && flight.m_bSounding && flight.m_hEngine != AudioHandle.Invalid && flight.m_hEngineFar != AudioHandle.Invalid;
   }
-  ACR_TestRegress.Check("aircraft: ACA's four jets load as models of their real length, nose along +X, with an engine loop the flyover starts", good == 4 && sounding, sizes + string.Format(", client %1, flyover sounding %2", client, sounding));
+  ACR_TestRegress.Check("aircraft: ACA's four jets load as models of their real length, nose along +X, with near and far engine loops the flyover starts", good == 4 && sounding, sizes + string.Format(", client %1, flyover sounding %2", client, sounding));
 
   array<ref ACR_SupportEntry> west = {};
   array<ref ACR_SupportEntry> east = {};

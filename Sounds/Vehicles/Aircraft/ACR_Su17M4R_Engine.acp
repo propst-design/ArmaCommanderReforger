@@ -20,6 +20,26 @@ AudioClass {
    outStatePort 181255
    noInAudible 0
   }
+  SoundClass {
+   id 10249
+   name "SOUND_ACR_JET_FAR_LP"
+   version 5
+   tl -256 400
+   ins {
+    ConnectionsClass connections {
+     id 64
+     links {
+      ConnectionClass connection {
+       id 9234
+       port 65
+      }
+     }
+    }
+   }
+   outState 4107
+   outStatePort 181255
+   noInAudible 0
+  }
  }
  mixers {
   MixerClass {
@@ -35,6 +55,10 @@ AudioClass {
        id 3081
        port 65
       }
+      ConnectionClass connection {
+       id 10249
+       port 65
+      }
      }
     }
     ConnectionsClass connections {
@@ -42,6 +66,10 @@ AudioClass {
      links {
       ConnectionClass connection {
        id 7197
+       port 65
+      }
+      ConnectionClass connection {
+       id 14365
        port 65
       }
      }
@@ -59,7 +87,7 @@ AudioClass {
  shaders {
   ShaderClass {
    id 2066
-   name "Shader Jet"
+   name "Shader Near"
    version 5
    tl -512 0
    ins {
@@ -95,11 +123,49 @@ AudioClass {
     3 0
    }
   }
+  ShaderClass {
+   id 9234
+   name "Shader Far"
+   version 5
+   tl -512 400
+   ins {
+    ConnectionsClass connections {
+     id 0
+     links {
+      ConnectionClass connection {
+       id 13340
+       port 65
+      }
+     }
+    }
+    ConnectionsClass connections {
+     id 1
+     links {
+      ConnectionClass connection {
+       id 12307
+       port 65
+      }
+     }
+    }
+    ConnectionsClass connections {
+     id 64
+     links {
+      ConnectionClass connection {
+       id 8196
+       port 65
+      }
+     }
+    }
+   }
+   pi {
+    3 0
+   }
+  }
  }
  amplitudes {
   AmplitudeClass {
    id 5139
-   name "Amplitude"
+   name "Amplitude Near"
    version 5
    tl -512 -80
    curve Custom
@@ -108,13 +174,34 @@ AudioClass {
      Y 1
     }
     CurvePoint "2" {
-     X 400
+     X 300
      Y 1
      Shape Reciprocal
      Modifier 0.5
     }
     CurvePoint "3" {
-     X 5000
+     X 2500
+    }
+   }
+  }
+  AmplitudeClass {
+   id 12307
+   name "Amplitude Far"
+   version 5
+   tl -512 320
+   curve Custom
+   AttenuationCurve {
+    CurvePoint "1" {
+     X 300
+    }
+    CurvePoint "2" {
+     X 1200
+     Y 1
+     Shape Reciprocal
+     Modifier 0.5
+    }
+    CurvePoint "3" {
+     X 6000
     }
    }
   }
@@ -122,17 +209,33 @@ AudioClass {
  banks_local {
   BankLocalClass {
    id 1028
-   name "Engine"
+   name "Engine Near"
    version 7
    tl -768 0
-   Volume -9
+   Volume -22
    "Loop count" 255
    "Infinite loop" 1
    "Termination Fade Out" 4000
    "Fade in time" 6000
    Samples {
     AudioBankSampleClass Sample {
-     Filename "{398E02019D4449F7}Sounds/Vehicles/Aircraft/Samples/ACR_Su17M4R_Engine_LP.wav"
+     Filename "{7D184BA0C00E5A3A}Sounds/Vehicles/Aircraft/Samples/ACR_Su17M4R_Engine_Near_LP.wav"
+    }
+   }
+  }
+  BankLocalClass {
+   id 8196
+   name "Engine Far"
+   version 7
+   tl -768 400
+   Volume -20
+   "Loop count" 255
+   "Infinite loop" 1
+   "Termination Fade Out" 4000
+   "Fade in time" 6000
+   Samples {
+    AudioBankSampleClass Sample {
+     Filename "{90B13B2882DC41EF}Sounds/Vehicles/Aircraft/Samples/ACR_Su17M4R_Engine_Far_LP.wav"
     }
    }
   }
@@ -140,16 +243,23 @@ AudioClass {
  spatialities {
   SpatialityClass {
    id 6172
-   name "Spatiality"
+   name "Spatiality Near"
    version 5
    tl -512 -160
+   spatialFactor 1
+  }
+  SpatialityClass {
+   id 13340
+   name "Spatiality Far"
+   version 5
+   tl -512 240
    spatialFactor 1
   }
  }
  auxOuts {
   AuxOutClass {
    id 7197
-   name "AuxOut EXT Reverb"
+   name "AuxOut EXT Reverb Near"
    version 5
    tl 0 -80
    ins {
@@ -158,6 +268,28 @@ AudioClass {
      links {
       ConnectionClass connection {
        id 3081
+       port 5
+      }
+     }
+    }
+   }
+   pi {
+    1 0
+   }
+   OSPort 197639
+   Volume -12
+  }
+  AuxOutClass {
+   id 14365
+   name "AuxOut EXT Reverb Far"
+   version 5
+   tl 0 320
+   ins {
+    ConnectionsClass connections {
+     id 0
+     links {
+      ConnectionClass connection {
+       id 10249
        port 5
       }
      }
