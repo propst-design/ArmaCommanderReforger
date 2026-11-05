@@ -272,15 +272,17 @@ def load_plan():
         if f[0] == 'matrix':
             # matrix|name|server|world|addons (comma GUIDs)|done regex|tier
             matrix[f[1]] = dict(server=f[2], world=f[3], addons=f[4], done=f[5], tier=f[6])
-            tests.append(dict(repo='MATRIX', preset='matrix:' + f[1], tier=f[6], timeout=600))
+            tests.append(dict(repo='MATRIX', preset='matrix:' + f[1], tier=f[6], timeout=600, extra='', label='matrix:' + f[1]))
         else:
-            tests.append(dict(repo=f[0], preset=f[1], tier=f[2], timeout=int(f[3]) if len(f) > 3 and f[3] else 0))
+            extra = f[4] if len(f) > 4 else ''
+            tests.append(dict(repo=f[0], preset=f[1], tier=f[2], timeout=int(f[3]) if len(f) > 3 and f[3] else 0,
+                              extra=extra, label=f'{f[1]} [{extra}]' if extra else f[1]))
     return tests, matrix
 
 
 def in_tier(test_tier, tier):
     if tier == 'weekly':
-        return test_tier in ('nightly', 'weekly', 'track')
+        return test_tier in ('nightly', 'weekly', 'track', 'control')
     return test_tier in ('nightly', 'track')
 
 
@@ -423,12 +425,12 @@ class Watcher:
             subprocess.run(['taskkill', '/PID', str(self.proc.pid), '/T', '/F'], capture_output=True)
 
 
-def run_script(rid, repo, preset, timeout):
+def run_script(rid, repo, preset, timeout, extra=''):
     """BBB, MCC and the weapons add-ons: their runner scripts, stdout captured into our result file."""
     wt = WT / REPOS[repo][0]
     if repo == 'BBB':
         cmd = ['-File', str(wt / 'tools' / 'Test-BBB.ps1'), '-Preset', preset, '-AddonRoot', str(wt),
-               '-WaitForServerSeconds', '900']
+               '-WaitForServerSeconds', '900'] + (['-ExtraArgs', extra] if extra else [])
     else:
         runner = next((wt / 'tools').glob('Run-*-Test.ps1'), None)
         if not runner:
@@ -531,7 +533,7 @@ def cmd_run(args):
             until += dt.timedelta(days=1)
     todo = [t for t in tests if in_tier(t['tier'], args.tier) and (not only or t['repo'] in only)]
     if args.match:   # e.g. --match "regress|compile": a few rows, any tier but skip
-        todo = [t for t in tests if t['tier'] != 'skip' and re.search(args.match, t['preset'])
+        todo = [t for t in tests if t['tier'] != 'skip' and re.search(args.match, t['label'])
                 and (not only or t['repo'] in only)]
     if args.tier == 'nightly' and not args.match:
         # Rotation: after the nightly rows, weekly rows that waited longest since their last sweep
@@ -540,13 +542,13 @@ def cmd_run(args):
         for r in load_history():
             if r['origin'] == 'sweep':
                 last[(r['repo'], r['preset'])] = max(last.get((r['repo'], r['preset']), ''), r['started'])
-        rest = [t for t in tests if t['tier'] == 'weekly' and (not only or t['repo'] in only)]
-        rest.sort(key=lambda t: last.get((t['repo'], t['preset'].split(':', 1)[-1] if t['repo'] != 'MATRIX' else t['preset']), ''))
+        rest = [t for t in tests if t['tier'] in ('weekly', 'control') and (not only or t['repo'] in only)]
+        rest.sort(key=lambda t: last.get((t['repo'], t['label'].split(':', 1)[-1] if t['repo'] != 'MATRIX' else t['label']), ''))
         todo += rest if until else []
     if args.dry_run:
         total = sum(t['timeout'] or 300 for t in todo)
         for t in todo:
-            print(f"{t['repo']:6} {t['preset']:32} {t['tier']}")
+            print(f"{t['repo']:6} {t['label']:32} {t['tier']}")
         print(f'{len(todo)} runs, worst case ~{total / 3600:.1f} h of timeouts')
         return
     DATA.mkdir(parents=True, exist_ok=True)
@@ -606,12 +608,15 @@ def cmd_run(args):
                     name = preset.split(':', 1)[1]
                     res = run_matrix(rid, name, matrix[name], timeout)
                 else:
-                    res = run_script(rid, repo, preset, timeout)
+                    res = run_script(rid, repo, preset, timeout, t.get('extra', ''))
             finally:
                 drop_lock()
             row = parse_result(res, repo='MATRIX' if repo == 'MATRIX' else repo) if res else None
             if row:
                 row['origin'] = 'sweep'
+                if t.get('extra'):   # a control: same preset with a feature switched off
+                    row['preset'] = row['preset'] + f" [{t['extra']}]"
+                    row['note'] = 'control'
                 append_history([row])
                 ran.append(row)
                 line = f"{dt.datetime.now():%H:%M} {repo:6} {preset:30} {row['verdict']:16} {row['seconds']}s err={row['errors']}"
@@ -699,15 +704,18 @@ def cmd_report(args):
     for r in sorted(sweep, key=lambda r: r['started']):
         if r not in tonight:
             prev[(r['repo'], r['preset'])] = r
-    plan_tiers = {(t['repo'], t['preset'].split(':', 1)[-1] if t['repo'] != 'MATRIX' else t['preset']): t['tier'] for t in load_plan()[0]}
+    plan_tiers = {(t['repo'], t['label'].split(':', 1)[-1] if t['repo'] != 'MATRIX' else t['label']): t['tier'] for t in load_plan()[0]}
 
     def key(r):
         return (r['repo'], r['preset'])
 
-    newly, still, fixed, broken_track = [], [], [], []
+    newly, still, fixed, broken_track, controls = [], [], [], [], []
     for r in tonight:
         p = prev.get(key(r))
         tier = plan_tiers.get(key(r), '')
+        if tier == 'control':
+            controls.append(r)
+            continue
         if ok(r['verdict']):
             if p and not ok(p['verdict']):
                 fixed.append((r, p))
@@ -746,13 +754,15 @@ def cmd_report(args):
             if med > 30 and num(r['seconds']) > med * 1.5:
                 drift.append((r, med))
     noverdict = sorted({key(r) for r in tonight if r['verdict'] in ('NOVERDICT', 'PASS-UNDECLARED')})
-    bad_counts = sum(1 for r in tonight if not ok(r['verdict']))
+    bad_counts = sum(1 for r in tonight if not ok(r['verdict']) and r not in controls)
+    blind = sum(1 for r in controls if ok(r['verdict']))
 
     def builds(r):
         return f"{r['build']}" + (f" (BBB {r['bbb']})" if r.get('bbb') else '')
 
     L = [f'# Test sweep report: {tag or last_day}', '',
-         f'{len(tonight)} runs, {len(tonight) - bad_counts} passed, {bad_counts} not passed. '
+         f'{len(tonight) - len(controls)} runs, {len(tonight) - len(controls) - bad_counts} passed, {bad_counts} not passed; '
+         f'{len(controls)} controls, {blind} blind. '
          f'History window for flakiness: {args.days} days ({len(window)} runs from every session on this PC).', '']
     L += ['## Newly failing (passed in the previous sweep)', '']
     L += [f"- **{r['repo']} {r['preset']}**: {r['verdict']} {r['failed'] or ''} at {builds(r)}; "
@@ -765,6 +775,17 @@ def cmd_report(args):
     L += [f"- {r['repo']} {r['preset']} (was {p['verdict']})" for r, p in fixed] or ['- none']
     L += ['', '## Tracked, not counted (e.g. 1.9 Experimental, known-broken)', '']
     L += [f"- {r['repo']} {r['preset']}: {r['verdict']}, {r['errors']} error lines. `{r['file']}`" for r in broken_track] or ['- all passing']
+    L += ['', '## Controls (a feature switched off: its test must fail, or it cannot tell the feature works)', '']
+    for r in controls:
+        if r['verdict'] == 'FAIL':
+            L.append(f"- {r['repo']} {r['preset']}: fails with the feature off, as it should ({r['failed']} checks)")
+        elif ok(r['verdict']):
+            L.append(f"- **{r['repo']} {r['preset']}: PASSES with the feature off.** The test can't tell this feature "
+                     f"works; strengthen it (or the switch isn't honoured). `{r['file']}`")
+        else:
+            L.append(f"- {r['repo']} {r['preset']}: {r['verdict']}, didn't run cleanly. `{r['file']}`")
+    if not controls:
+        L.append('- none ran')
     L += ['', '## Flaky (mixed results at one commit, or 3+ flips in the last 10 runs)', '']
     L += [f"- {k[0]} {k[1]}: {p}/{n} passed" + (f"; mixed at {', '.join(m)}" if m else '') + f", {f} flips"
           for k, n, p, m, f in flaky] or ['- none']
