@@ -23,16 +23,16 @@ class ACR_TestBagHoldSquads
   if (!s_Base || s_bDone) return;
   if (second == 12) Squads(manager);
   if (second == 25) DefendAtBags(manager);
-  // They walk to their posts: a minute and a half, from the middle of a town.
-  if (second == 115) OnPlaces(manager);
-  if (second == 116) SecondSquad(manager);
-  if (second == 118) MoveAway(manager);
-  if (second == 120) House(manager);
-  if (second == 126) Hold(manager);
-  if (second == 128) Commander();
-  if (second == 130) Off(manager);
-  if (second == 132) BagsShotAway(manager);
-  if (second == 136) Finish();
+  // They walk to their posts, 150-195 m from the middle of a town: healthy walks took 85-115 s (4 Nov 2026), so two minutes.
+  if (second == 145) OnPlaces(manager);
+  if (second == 146) SecondSquad(manager);
+  if (second == 148) MoveAway(manager);
+  if (second == 150) House(manager);
+  if (second == 156) Hold(manager);
+  if (second == 158) Commander();
+  if (second == 160) Off(manager);
+  if (second == 162) BagsShotAway(manager);
+  if (second == 166) Finish();
  }
 
  protected static void Setup(ACR_Manager manager)
@@ -108,7 +108,8 @@ class ACR_TestBagHoldSquads
     }
    }
   }
-  ACR_TestRegress.Check("bagholdsquads: the squad walks to its places", on * 2 >= men.Count(), string.Format("%1 of %2 men, %3 places", on, men.Count(), posts.Count()));
+  // Half its places taken: a short line has fewer places than men (5 for 9 by the roadblock, 4 Nov 2026).
+  ACR_TestRegress.Check("bagholdsquads: the squad walks to its places", Math.Min(men.Count(), posts.Count()) <= on * 2, string.Format("%1 of %2 men, %3 places", on, men.Count(), posts.Count()));
  }
 
  protected static void SecondSquad(ACR_Manager manager)
