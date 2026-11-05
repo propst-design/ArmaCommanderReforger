@@ -60,6 +60,46 @@ AudioClass {
    outStatePort 181255
    noInAudible 0
   }
+  SoundClass {
+   id 24585
+   name "SOUND_ACR_JET_FLYBY_NEAR"
+   version 5
+   tl -256 1200
+   ins {
+    ConnectionsClass connections {
+     id 64
+     links {
+      ConnectionClass connection {
+       id 23570
+       port 65
+      }
+     }
+    }
+   }
+   outState 4107
+   outStatePort 181255
+   noInAudible 0
+  }
+  SoundClass {
+   id 31753
+   name "SOUND_ACR_JET_FLYBY_MID"
+   version 5
+   tl -256 1600
+   ins {
+    ConnectionsClass connections {
+     id 64
+     links {
+      ConnectionClass connection {
+       id 30738
+       port 65
+      }
+     }
+    }
+   }
+   outState 4107
+   outStatePort 181255
+   noInAudible 0
+  }
  }
  mixers {
   MixerClass {
@@ -83,6 +123,14 @@ AudioClass {
        id 17417
        port 65
       }
+      ConnectionClass connection {
+       id 24585
+       port 65
+      }
+      ConnectionClass connection {
+       id 31753
+       port 65
+      }
      }
     }
     ConnectionsClass connections {
@@ -98,6 +146,14 @@ AudioClass {
       }
       ConnectionClass connection {
        id 21533
+       port 65
+      }
+      ConnectionClass connection {
+       id 28701
+       port 65
+      }
+      ConnectionClass connection {
+       id 35869
        port 65
       }
      }
@@ -227,6 +283,82 @@ AudioClass {
     3 0
    }
   }
+  ShaderClass {
+   id 23570
+   name "Shader Flyby Near"
+   version 5
+   tl -512 1200
+   ins {
+    ConnectionsClass connections {
+     id 0
+     links {
+      ConnectionClass connection {
+       id 27676
+       port 65
+      }
+     }
+    }
+    ConnectionsClass connections {
+     id 1
+     links {
+      ConnectionClass connection {
+       id 26643
+       port 65
+      }
+     }
+    }
+    ConnectionsClass connections {
+     id 64
+     links {
+      ConnectionClass connection {
+       id 22532
+       port 65
+      }
+     }
+    }
+   }
+   pi {
+    3 0
+   }
+  }
+  ShaderClass {
+   id 30738
+   name "Shader Flyby Mid"
+   version 5
+   tl -512 1600
+   ins {
+    ConnectionsClass connections {
+     id 0
+     links {
+      ConnectionClass connection {
+       id 34844
+       port 65
+      }
+     }
+    }
+    ConnectionsClass connections {
+     id 1
+     links {
+      ConnectionClass connection {
+       id 33811
+       port 65
+      }
+     }
+    }
+    ConnectionsClass connections {
+     id 64
+     links {
+      ConnectionClass connection {
+       id 29700
+       port 65
+      }
+     }
+    }
+   }
+   pi {
+    3 0
+   }
+  }
  }
  amplitudes {
   AmplitudeClass {
@@ -292,6 +424,44 @@ AudioClass {
     }
    }
   }
+  AmplitudeClass {
+   id 26643
+   name "Amplitude Flyby Near"
+   version 5
+   tl -512 1120
+   curve Custom
+   AttenuationCurve {
+    CurvePoint "1" {
+     Y 1
+    }
+    CurvePoint "2" {
+     X 3000
+     Y 1
+    }
+    CurvePoint "3" {
+     X 3500
+    }
+   }
+  }
+  AmplitudeClass {
+   id 33811
+   name "Amplitude Flyby Mid"
+   version 5
+   tl -512 1520
+   curve Custom
+   AttenuationCurve {
+    CurvePoint "1" {
+     Y 1
+    }
+    CurvePoint "2" {
+     X 3000
+     Y 1
+    }
+    CurvePoint "3" {
+     X 3500
+    }
+   }
+  }
  }
  banks_local {
   BankLocalClass {
@@ -302,8 +472,8 @@ AudioClass {
    Volume -17
    "Loop count" 255
    "Infinite loop" 1
-   "Termination Fade Out" 4000
    "Fade in time" 6000
+   "Termination Fade Out" 4000
    Samples {
     AudioBankSampleClass Sample {
      Filename "{7D184BA0C00E5A3A}Sounds/Vehicles/Aircraft/Samples/ACR_Su17M4R_Engine_Near_LP.wav"
@@ -318,8 +488,8 @@ AudioClass {
    Volume -15
    "Loop count" 255
    "Infinite loop" 1
-   "Termination Fade Out" 4000
    "Fade in time" 6000
+   "Termination Fade Out" 4000
    Samples {
     AudioBankSampleClass Sample {
      Filename "{90B13B2882DC41EF}Sounds/Vehicles/Aircraft/Samples/ACR_Su17M4R_Engine_Far_LP.wav"
@@ -334,8 +504,8 @@ AudioClass {
    Volume -19
    "Loop count" 255
    "Infinite loop" 1
-   "Termination Fade Out" 4000
    "Fade in time" 6000
+   "Termination Fade Out" 4000
    Samples {
     AudioBankSampleClass Sample {
      Filename "{EEAAB6A1A00AC630}Sounds/Vehicles/Aircraft/Samples/ACR_Su17M4R_Engine_Scream_LP.wav"
@@ -348,6 +518,32 @@ AudioClass {
     }
     AudioBankSampleClass Sample {
      Filename "{401381C07DE27C5E}Sounds/Vehicles/Aircraft/Samples/ACR_Su17M4R_Engine_Scream_3_LP.wav"
+    }
+   }
+  }
+  BankLocalClass {
+   id 22532
+   name "Engine Flyby Near"
+   version 7
+   tl -768 1200
+   Volume -17
+   "Termination Fade Out" 4000
+   Samples {
+    AudioBankSampleClass Sample {
+     Filename "{007799ED137CB559}Sounds/Vehicles/Aircraft/Samples/ACR_Su17M4R_Flyby_Near.wav"
+    }
+   }
+  }
+  BankLocalClass {
+   id 29700
+   name "Engine Flyby Mid"
+   version 7
+   tl -768 1600
+   Volume -17
+   "Termination Fade Out" 4000
+   Samples {
+    AudioBankSampleClass Sample {
+     Filename "{85BC7EF3304F1201}Sounds/Vehicles/Aircraft/Samples/ACR_Su17M4R_Flyby_Mid.wav"
     }
    }
   }
@@ -373,6 +569,20 @@ AudioClass {
    version 5
    tl -512 640
    spatialFactor 0.85
+  }
+  SpatialityClass {
+   id 27676
+   name "Spatiality Flyby Near"
+   version 5
+   tl -512 1040
+   spatialFactor 0.6
+  }
+  SpatialityClass {
+   id 34844
+   name "Spatiality Flyby Mid"
+   version 5
+   tl -512 1440
+   spatialFactor 0.6
   }
  }
  auxOuts {
@@ -431,6 +641,50 @@ AudioClass {
      links {
       ConnectionClass connection {
        id 17417
+       port 5
+      }
+     }
+    }
+   }
+   pi {
+    1 0
+   }
+   OSPort 197639
+   Volume -12
+  }
+  AuxOutClass {
+   id 28701
+   name "AuxOut EXT Reverb Flyby Near"
+   version 5
+   tl 0 1120
+   ins {
+    ConnectionsClass connections {
+     id 0
+     links {
+      ConnectionClass connection {
+       id 24585
+       port 5
+      }
+     }
+    }
+   }
+   pi {
+    1 0
+   }
+   OSPort 197639
+   Volume -12
+  }
+  AuxOutClass {
+   id 35869
+   name "AuxOut EXT Reverb Flyby Mid"
+   version 5
+   tl 0 1520
+   ins {
+    ConnectionsClass connections {
+     id 0
+     links {
+      ConnectionClass connection {
+       id 31753
        port 5
       }
      }

@@ -46,8 +46,8 @@ class ACR_TestFlyDemo
    if (d < s_Closest[i])
    {
     s_Closest[i] = d;
-    // overhead: both layers must be playing by now, and the model drawn
-    if (d < 350 && flight.m_hEngine != AudioHandle.Invalid && flight.m_hEngineFar != AudioHandle.Invalid && (flight.m_Plane.GetFlags() & EntityFlags.VISIBLE) && flight.m_Plane.GetVObject())
+    // overhead: the far layer and the pass-by must be playing by now, and the model drawn
+    if (d < 350 && flight.m_hFlyby != AudioHandle.Invalid && flight.m_hEngineFar != AudioHandle.Invalid && (flight.m_Plane.GetFlags() & EntityFlags.VISIBLE) && flight.m_Plane.GetVObject())
      flight.m_bDemoOverhead = true;
    }
   }
@@ -58,9 +58,9 @@ class ACR_TestFlyDemo
    foreach (int j, ACR_LocalFlyover f : s_Flights)
    {
     if (f.m_bDemoOverhead) good++;
-    report += string.Format(" %1 closest %2 m;", j, Math.Round(s_Closest[j]));
+    report += string.Format(" %1 closest %2 m, pass-by for %3 m;", j, Math.Round(s_Closest[j]), Math.Round(f.m_fFlybyMiss));
    }
-   ACR_TestRegress.Check("flydemo: four jets passed over the player's head, drawn, both engine layers playing", s_Flights.Count() == 4 && good == 4, string.Format("good %1 of %2:%3", good, s_Flights.Count(), report));
+   ACR_TestRegress.Check("flydemo: four jets passed over the player's head, drawn, with the far layer and the pass-by playing", s_Flights.Count() == 4 && good == 4, string.Format("good %1 of %2:%3", good, s_Flights.Count(), report));
   }
   int shot = tick - 4;
   if (shot >= 0 && shot < 12)

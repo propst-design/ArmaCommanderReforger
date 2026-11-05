@@ -277,6 +277,17 @@ class ACR_LocalFlyover : Managed
 	// 1.2 km: Jacob, 4 Nov, "the non-turbofan jets need a better scream when they're overhead".
 	static const string SCREAM_EVENT = "SOUND_ACR_JET_SCREAM_LP";
 	static const float SCREAM_START_M = 1150;
+	// The pass-by (tools/audio/synth_jets.py flyby()): a 24 s fly-past rendered through the real geometry, with
+	// the Doppler fall of the pitch and the roar slamming in from behind just after the jet has gone over
+	// (Jacob, 4 Nov: the A-10 "missing its signature noise", the turbojets "missing that Michael Bay oomph",
+	// which no loop can do). Started so its closest moment, FLYBY_PEAK_S in, lands when this machine's listener
+	// hears the jet nearest; the near and scream loops are left off (or let go) under it. Rendered at 250 m
+	// (NEAR, used under FLYBY_NEAR_M) and 600 m (MID, out to FLYBY_MAX_M); farther passes keep the loops.
+	static const string FLYBY_NEAR_EVENT = "SOUND_ACR_JET_FLYBY_NEAR";
+	static const string FLYBY_MID_EVENT = "SOUND_ACR_JET_FLYBY_MID";
+	static const float FLYBY_PEAK_S = 12;
+	static const float FLYBY_NEAR_M = 420;
+	static const float FLYBY_MAX_M = 900;
 	static const float SOUND_START_M = 5800; // the acp's far curve is silent at 6000 m
 	static const float NEAR_START_M = 2400;  // ...and its near curve at 2500 m
 	static const float SOUND_KEEP_M = 6000;
@@ -307,6 +318,10 @@ class ACR_LocalFlyover : Managed
 	AudioHandle m_hScream = AudioHandle.Invalid; // tests
 	bool m_bScreams;
 	bool m_bScreaming;
+	bool m_bFlybys;
+	bool m_bFlybyFired;
+	AudioHandle m_hFlyby = AudioHandle.Invalid; // tests
+	float m_fFlybyMiss; // tests
 	ResourceName m_sBomb;
 	ref array<vector> m_aHardpoints;
 	ref array<ref ACR_FallingBomb> m_aBombs;
@@ -485,6 +500,7 @@ class ACR_LocalFlyover : Managed
 		flyover.m_fStartedAt = GetGame().GetWorld().GetWorldTime();
 		flyover.m_Sound = SoundComponent.Cast(plane.FindComponent(SoundComponent));
 		flyover.m_bScreams = prefab == ACR_ReconRun.RECON_JET_WEST || prefab == ACR_ReconRun.RECON_JET_EAST || prefab == ACR_Supports.BOMB_JET_EAST;
+		flyover.m_bFlybys = flyover.m_bScreams || prefab == ACR_Supports.BOMB_JET_WEST;
 		flyover.m_aHardpoints = {};
 		flyover.m_aBombs = {};
 		flyover.m_sBomb = Hardpoints(prefab, flyover.m_aHardpoints);
@@ -560,6 +576,34 @@ class ACR_LocalFlyover : Managed
 		return false;
 	}
 
+	// Where this flight passes nearest `listener`: if within FLYBY_MAX_M, starts the pass-by when its closest
+	// moment will land on time (the jet's nearest point heard after its sound has crossed the gap). True while
+	// one is still to come, so the close-range loops stay off; a pass-by that would have to start more than 2 s
+	// late (a flight begun close by) is skipped and the loops play instead.
+	protected bool Flyby(vector listener, float elapsed)
+	{
+		vector flat = m_vDir;
+		flat[1] = 0;
+		flat.Normalize();
+		float nearestAt = vector.Dot(listener - m_vStart, flat) / m_fSpeed;
+		vector nearest = m_vStart + flat * (m_fSpeed * nearestAt);
+		nearest[1] = m_fAltitude;
+		float miss = vector.Distance(listener, nearest);
+		if (miss > FLYBY_MAX_M) return false;
+		float startAt = nearestAt + miss / SPEED_OF_SOUND - FLYBY_PEAK_S;
+		if (elapsed > startAt + 2) return false;
+		if (elapsed < startAt) return true;
+		string eventName = FLYBY_MID_EVENT;
+		if (miss < FLYBY_NEAR_M) eventName = FLYBY_NEAR_EVENT;
+		m_hFlyby = m_Sound.SoundEvent(eventName);
+		m_bFlybyFired = true;
+		m_fFlybyMiss = miss;
+		// the loops (if a listener's move started them) fade out under it (their banks' 4 s termination fade)
+		if (m_bSoundingNear) m_Sound.Terminate(m_hEngine);
+		if (m_bScreaming) m_Sound.Terminate(m_hScream);
+		return false;
+	}
+
 	static ACR_LocalFlyover Latest()
 	{
 		if (s_All.IsEmpty()) return null;
@@ -612,20 +656,22 @@ class ACR_LocalFlyover : Managed
 			if (m_bSounding) m_Sound.SetSoundTransformation(m_hEngineFar, heardAt);
 			if (m_bSoundingNear) m_Sound.SetSoundTransformation(m_hEngine, heardAt);
 			if (m_bScreaming) m_Sound.SetSoundTransformation(m_hScream, heardAt);
+			if (m_bFlybyFired) m_Sound.SetSoundTransformation(m_hFlyby, heardAt);
 		}
 		float distance = vector.Distance(listener, position);
+		bool flybyComing = m_Sound && m_bFlybys && heard && !m_bFlybyFired && Flyby(listener, elapsed);
 		if (m_Sound && !m_bSounding && (!heard || distance <= SOUND_START_M))
 		{
 			m_Sound.EnableDynamicSimulation(true);
 			m_hEngineFar = m_Sound.SoundEvent(ENGINE_FAR_EVENT);
 			m_bSounding = true;
 		}
-		if (m_Sound && !m_bSoundingNear && (!heard || distance <= NEAR_START_M))
+		if (m_Sound && !m_bSoundingNear && !flybyComing && !m_bFlybyFired && (!heard || distance <= NEAR_START_M))
 		{
 			m_hEngine = m_Sound.SoundEvent(ENGINE_EVENT);
 			m_bSoundingNear = true;
 		}
-		if (m_Sound && m_bScreams && !m_bScreaming && (!heard || distance <= SCREAM_START_M))
+		if (m_Sound && m_bScreams && !m_bScreaming && !flybyComing && !m_bFlybyFired && (!heard || distance <= SCREAM_START_M))
 		{
 			m_hScream = m_Sound.SoundEvent(SCREAM_EVENT);
 			m_bScreaming = true;
