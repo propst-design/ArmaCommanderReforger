@@ -363,9 +363,11 @@ class ACR_TestLogistics : Managed
    IEntity fresh = BBB_Launchers.DisposableOf(m_LauncherMan);
    int rounds = -1;
    if (fresh) rounds = BBB_Launchers.Loaded(fresh);
-   PrintFormat("[ACR] LAUNCHERTEST after rearm: has launcher %1 (want 1), rounds %2 (want 1)", fresh != null, rounds);
+   // BBB_Launchers.Loaded counts the muzzle and its magazine, so a loaded tube reads 2 (BBB documents
+   // it in BBB_LauncherInfantryTest; game callers only ask > 0).
+   PrintFormat("[ACR] LAUNCHERTEST after rearm: has launcher %1 (want 1), rounds %2 (want > 0)", fresh != null, rounds);
    ACR_TestRegress.Check("launcher: a rearm gives him a launcher back", fresh != null);
-   ACR_TestRegress.Check("launcher: the new launcher is loaded", rounds == 1, rounds.ToString());
+   ACR_TestRegress.Check("launcher: the new launcher is loaded", rounds > 0, rounds.ToString());
   }
   if (h.m_Ticks == 22) ACR_TestRegress.Complete("launcher", 4);
  }
