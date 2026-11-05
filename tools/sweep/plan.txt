@@ -1,0 +1,376 @@
+# Nightly test sweep plan (tools/sweep/sweep.py). One row per test:
+#   REPO|PRESET|TIER[|timeout s]   # why
+# TIER: nightly = every night; weekly = rotates in after the nightly rows (longest-waiting first) until
+# the run's --until time, and all of it runs with --tier weekly; track = runs nightly, reported apart,
+# never counted as a regression (known-broken or future-version rows); skip = documented reason only.
+# Only headless runs belong here: never a preset that opens the game client on Jacob's screen.
+# Generated from the 14-day result history on 4 Nov 2026 (median duration, server runs seen), then
+# edited by hand. Promote a weekly row to nightly when it matters; demote a flaky one with a note.
+
+# ---- Mod-set matrix: a dedicated server boots with a set of mods, done at the marker, fails on the
+# first script error. Catches the shared static-initializer budget (2 Nov: ACA + ACE + Cold War + AiO
+# couldn't compile), GUID clashes and mods that only break beside another.
+#   matrix|name|server (stable|experimental)|world|mod GUIDs|done regex|tier
+matrix|ours|stable|Worlds/ACR_TestRange.ent|AC230926A0010001,BBB0261015000001,629405AEFC950C12,7A3FC4563CFC8DE3,E1449AD34E401261,A23FD9596646EACD,2AB715B4B16B5824|\[ACR\] Scenario started|nightly
+matrix|coldwar|stable|Worlds/ACR_TestRange.ent|AC230926A0010001,BBB0261015000001,629405AEFC950C12,AC230926CC000002,60C4E0B49618CC62|\[ACR\] Scenario started|nightly
+matrix|modern|stable|Worlds/ACR_TestRange.ent|AC230926A0010001,BBB0261015000001,629405AEFC950C12,AC230926DD000003,595F2BF2F44836FB,1337C0DE5DABBEEF,BADC0DEDABBEDA5E,65F92D51845AC237,60C4E0B49618CC62|\[ACR\] Scenario started|nightly
+matrix|ours-1.9|experimental|Worlds/ACR_TestRange.ent|AC230926A0010001,BBB0261015000001,629405AEFC950C12,7A3FC4563CFC8DE3|\[ACR\] Scenario started|track
+
+# ---- MCC (tools/Run-MCC-Test.ps1)
+MCC|compile|nightly
+MCC|zones|nightly
+
+# ---- ACA (srv: on the sweep worktree; ACA loads the sibling BBB worktree at main)
+ACA|srv:compile|nightly|120
+ACA|srv:vehicle|skip|240   # needs a player (game client)
+ACA|srv:organ|weekly|100   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bases|skip|280   # needs a player (game client)
+ACA|srv:assault|skip|190   # needs a player (game client)
+ACA|srv:requisition|skip|150   # needs a player (game client)
+ACA|srv:gamemaster|skip|90   # needs a player (game client)
+ACA|srv:ai|weekly|200   # not run in the last 14 days; server capability not yet seen
+ACA|srv:arland|weekly|240   # not run in the last 14 days; server capability not yet seen
+ACA|srv:gunner|skip|120   # needs a player (game client)
+ACA|srv:probe|skip|90   # needs a player (game client)
+ACA|srv:respawn|skip|90   # needs a player (game client)
+ACA|srv:deathfade|skip|90   # needs a player (game client)
+ACA|srv:rtscamera|skip|90   # needs a player (game client)
+ACA|srv:rtsaim|skip|150   # needs a player (game client)
+ACA|srv:rtslook|skip|150   # needs a player (game client)
+ACA|srv:thinkoverlay|skip|90   # needs a player (game client)
+ACA|srv:support|skip|260   # needs a player (game client)
+ACA|srv:gunship|skip|180   # needs a player (game client)
+ACA|srv:heli|weekly|180   # not run in the last 14 days; server capability not yet seen
+ACA|srv:tactics|weekly|200   # not run in the last 14 days; server capability not yet seen
+ACA|srv:transport|weekly|130   # not run in the last 14 days; server capability not yet seen
+ACA|srv:stall|weekly|220   # not run in the last 14 days; server capability not yet seen
+ACA|srv:ride|skip|200   # needs a player (game client)
+ACA|srv:logistics|weekly|130   # not run in the last 14 days; server capability not yet seen
+ACA|srv:queue|weekly|140   # not run in the last 14 days; server capability not yet seen
+ACA|srv:cleanup|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:soak|skip|1320   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:side|skip|90   # needs a player (game client)
+ACA|srv:intel|weekly|100   # not run in the last 14 days; server capability not yet seen
+ACA|srv:stalled|weekly|260   # not run in the last 14 days; server capability not yet seen
+ACA|srv:hunt|weekly|110   # not run in the last 14 days; server capability not yet seen
+ACA|srv:launcher|skip|80   # needs a player (game client)
+ACA|srv:supplies|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:drive|weekly|130   # median 90s, 2 runs/14d
+ACA|srv:driveai|skip|130   # needs a player (game client)
+ACA|srv:drivelock|skip|130   # needs a player (game client)
+ACA|srv:drivefixed|skip|130   # needs a player (game client)
+ACA|srv:driveattached|skip|130   # needs a player (game client)
+ACA|srv:roads|weekly|60   # not run in the last 14 days; server capability not yet seen
+ACA|srv:spawnspot|weekly|60   # not run in the last 14 days; server capability not yet seen
+ACA|srv:perf|skip|260   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:tags|weekly|90   # not run in the last 14 days; server capability not yet seen
+ACA|srv:shared|skip|150   # needs a player (game client)
+ACA|srv:maphandoff|skip|100   # needs a player (game client)
+ACA|srv:regress|nightly|100   # median 75s, 69 runs/14d
+ACA|srv:getout|skip|150   # needs a player (game client)
+ACA|srv:getoutold|skip|110   # needs a player (game client)
+ACA|srv:mortar|weekly|360   # not run in the last 14 days; server capability not yet seen
+ACA|srv:crew|nightly|120   # median 87s, 3 runs/14d
+ACA|srv:skillbbb|weekly|120   # median 20s, 1 runs/14d
+ACA|srv:fieldroutes|nightly|230   # median 178s, 4 runs/14d
+ACA|srv:fieldbridges|nightly|120   # median 41s, 3 runs/14d
+ACA|srv:fieldbridgeswz|nightly|150   # median 39s, 14 runs/14d
+ACA|srv:manners|weekly|540   # median 332s, 1 runs/14d
+ACA|srv:mannersgetout|weekly|150   # median 63s, 1 runs/14d
+ACA|srv:fieldsoffire|weekly|120   # median 20s, 2 runs/14d
+ACA|srv:crewold|skip|120   # A/B control with the feature off or the old code: run beside its pair by hand
+ACA|srv:bbbaim|skip|3000   # long (3000s timeout): run by hand
+ACA|srv:bbbsuppress|skip|1200   # long (1200s timeout): run by hand
+ACA|srv:battery|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:liftclearance|weekly|150   # not run in the last 14 days; server capability not yet seen
+ACA|srv:liftcontact|weekly|240   # not run in the last 14 days; server capability not yet seen
+ACA|srv:airlift|weekly|460   # median 247s, 1 runs/14d
+ACA|srv:airlifttwo|weekly|460   # not run in the last 14 days; server capability not yet seen
+ACA|srv:airliftboarding|weekly|150   # not run in the last 14 days; server capability not yet seen
+ACA|srv:pads|weekly|130   # not run in the last 14 days; server capability not yet seen
+ACA|srv:helipad|nightly|280   # median 165s, 1 runs/14d
+ACA|srv:garrison|nightly|220   # median 169s, 3 runs/14d
+ACA|srv:garrisonoffice|nightly|220   # median 165s, 1 runs/14d
+ACA|srv:garrisonstuck|nightly|220   # median 166s, 2 runs/14d
+ACA|srv:bbbmedic|skip|1800   # long (1800s timeout): run by hand
+ACA|srv:bbbmedicroad|skip|1800   # long (1800s timeout): run by hand
+ACA|srv:structures|nightly|160   # median 115s, 1 runs/14d
+ACA|srv:survey|skip|90   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:bbbdrag|skip|1500   # long (1500s timeout): run by hand
+ACA|srv:bbbgunner|skip|2100   # long (2100s timeout): run by hand
+ACA|srv:bbbarmour|skip|900   # long (900s timeout): run by hand
+ACA|srv:bbbvanilla|weekly|300   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbbgrenadier|skip|1500   # long (1500s timeout): run by hand
+ACA|srv:bbbglnear|weekly|600   # not run in the last 14 days; server capability not yet seen
+ACA|srv:places|skip|120   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:placeskolguyev|skip|120   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:generate|nightly|150   # median 145s, 1 runs/14d
+ACA|srv:setupgen|nightly|120   # median 51s, 1 runs/14d
+ACA|srv:generateeveron|nightly|120   # median 96s, 1 runs/14d
+ACA|srv:everonsurvey|skip|150   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:everon|weekly|240   # not run in the last 14 days; server capability not yet seen
+ACA|srv:skirmish|nightly|120   # median 51s, 1 runs/14d
+ACA|srv:skirmishsouth|nightly|120   # median 51s, 1 runs/14d
+ACA|srv:skirmishplay|weekly|240   # not run in the last 14 days; server capability not yet seen
+ACA|srv:blast|weekly|90   # not run in the last 14 days; server capability not yet seen
+ACA|srv:blastold|skip|90   # A/B control with the feature off or the old code: run beside its pair by hand
+ACA|srv:everonpads|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:padslevie|weekly|130   # not run in the last 14 days; server capability not yet seen
+ACA|srv:padsmontignac|weekly|130   # not run in the last 14 days; server capability not yet seen
+ACA|srv:padsphilippe|weekly|130   # not run in the last 14 days; server capability not yet seen
+ACA|srv:motorized|weekly|230   # not run in the last 14 days; server capability not yet seen
+ACA|srv:everonsoak|skip|1380   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:longsoak|skip|7380   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:fire|weekly|240   # not run in the last 14 days; server capability not yet seen
+ACA|srv:factions|nightly|120   # median 29s, 1 runs/14d
+ACA|srv:uahands|weekly|100   # not run in the last 14 days; server capability not yet seen
+ACA|srv:weaponreadyeast|weekly|100   # not run in the last 14 days; server capability not yet seen
+ACA|srv:uahelmets|weekly|200   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbbsky|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbbcombat|weekly|420   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbbengagement|weekly|260   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbbtargetpriority|weekly|260   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbbperception|weekly|300   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbbvision|weekly|160   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbblongrange|skip|840   # long (840s timeout): run by hand
+ACA|srv:flank|weekly|160   # not run in the last 14 days; server capability not yet seen
+ACA|srv:attackplan|nightly|150   # median 102s, 3 runs/14d
+ACA|srv:drivelessgun|nightly|100   # median 34s, 2 runs/14d
+ACA|srv:minefields|nightly|330   # median 84s, 1 runs/14d
+ACA|srv:defenders|nightly|200   # median 44s, 2 runs/14d
+ACA|srv:aim|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:roadblocks|nightly|420   # median 146s, 4 runs/14d
+ACA|srv:fortify|nightly|420   # median 87s, 7 runs/14d
+ACA|srv:fortifyfit|nightly|200   # median 35s, 1 runs/14d
+ACA|srv:gunhold|nightly|200   # median 56s, 3 runs/14d
+ACA|srv:positiongun|nightly|240   # median 69s, 1 runs/14d
+ACA|srv:ridejob|nightly|340   # median 99s, 1 runs/14d
+ACA|srv:ambush|nightly|360   # median 53s, 1 runs/14d
+ACA|srv:ambushroad|nightly|240   # median 72s, 1 runs/14d
+ACA|srv:ambushroadcmd|weekly|240   # not run in the last 14 days; server capability not yet seen
+ACA|srv:ambushdrag|weekly|360   # not run in the last 14 days; server capability not yet seen
+ACA|srv:ambushslope|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:attackreach|weekly|120   # median 29s, 1 runs/14d; server capability not yet seen
+ACA|srv:groundtilt|nightly|120   # median 23s, 1 runs/14d
+ACA|srv:structlayout|nightly|150   # median 22s, 2 runs/14d
+ACA|srv:budget|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:aidefences|weekly|120   # median 32s, 1 runs/14d; server capability not yet seen
+ACA|srv:rblane|nightly|420   # median 78s, 1 runs/14d
+ACA|srv:roadsiting|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:buildride|weekly|540   # median 160s, 1 runs/14d; server capability not yet seen
+ACA|srv:variety|weekly|60   # not run in the last 14 days; server capability not yet seen
+ACA|srv:mapdeclutter|weekly|60   # not run in the last 14 days; server capability not yet seen
+ACA|srv:mapdecluttershots|skip|240   # needs a player (game client)
+ACA|srv:minesiting|nightly|120   # median 20s, 1 runs/14d
+ACA|srv:possiting|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:possitingarland|weekly|240   # not run in the last 14 days; server capability not yet seen
+ACA|srv:doctrinekits|nightly|300   # median 172s, 1 runs/14d
+ACA|srv:grabs|nightly|60   # median 24s, 4 runs/14d
+ACA|srv:mortarspot|weekly|60   # not run in the last 14 days; server capability not yet seen
+ACA|srv:fobsiting|weekly|180   # not run in the last 14 days; server capability not yet seen
+ACA|srv:fobai|nightly|200   # median 26s, 1 runs/14d
+ACA|srv:squadai|nightly|200   # median 60s, 3 runs/14d
+ACA|srv:twoic|nightly|200   # median 69s, 3 runs/14d
+ACA|srv:twoicui|skip|240   # needs a player (game client)
+ACA|srv:twoicask|nightly|300   # median 75s, 2 runs/14d
+ACA|srv:twoicsuggest|nightly|200   # median 23s, 1 runs/14d
+ACA|srv:twoicshots|skip|240   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:twoicdeclutter|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:ridelav|weekly|400   # not run in the last 14 days; server capability not yet seen
+ACA|srv:ridelavkill|weekly|400   # not run in the last 14 days; server capability not yet seen
+ACA|srv:ridelavgetout|weekly|400   # not run in the last 14 days; server capability not yet seen
+ACA|srv:lavgetout|weekly|240   # not run in the last 14 days; server capability not yet seen
+ACA|srv:lavgetoutold|skip|240   # A/B control with the feature off or the old code: run beside its pair by hand
+ACA|srv:ridecarry|nightly|420   # median 159s, 3 runs/14d
+ACA|srv:ridecommit|nightly|480   # median 156s, 11 runs/14d
+ACA|srv:ridetruck|nightly|400   # median 141s, 3 runs/14d
+ACA|srv:patrol|weekly|600   # not run in the last 14 days; server capability not yet seen
+ACA|srv:holdreturn|weekly|90   # median 26s, 2 runs/14d; server capability not yet seen
+ACA|srv:capscale|nightly|120   # median 20s, 1 runs/14d
+ACA|srv:qrf|nightly|300   # median 47s, 1 runs/14d
+ACA|srv:bbbfiremaneuver|weekly|500   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbbfiremaneuverperf|skip|160   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:bbbfiremaneuverprobe|skip|170   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:bbbfiremaneuverduck|weekly|170   # not run in the last 14 days; server capability not yet seen
+ACA|srv:setup|weekly|90   # not run in the last 14 days; server capability not yet seen
+ACA|srv:setupui|skip|90   # needs a player (game client)
+ACA|srv:setupmap|weekly|180   # not run in the last 14 days; server capability not yet seen
+ACA|srv:reserve|nightly|120   # median 32s, 3 runs/14d
+ACA|srv:bbbrelaxedmarch|weekly|160   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbblook|weekly|90   # not run in the last 14 days; server capability not yet seen
+ACA|srv:perfeveron|skip|260   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:perfscaleeveron|skip|260   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:lzbench|skip|90   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:shoreroutes|weekly|90   # not run in the last 14 days; server capability not yet seen
+ACA|srv:perfkolguyev|skip|260   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:slopes|weekly|260   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbbfeatureaudit|weekly|200   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bbborderleash|weekly|190   # not run in the last 14 days; server capability not yet seen
+ACA|srv:typhoons|nightly|120   # median 44s, 2 runs/14d
+ACA|srv:pockets|nightly|150   # median 48s, 3 runs/14d
+ACA|srv:quickstart|nightly|150   # median 100s, 3 runs/14d
+ACA|srv:stuckmen|nightly|240   # median 172s, 5 runs/14d
+ACA|srv:basedefences|nightly|120   # median 60s, 2 runs/14d
+ACA|srv:basedefencessurvey|skip|90   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:basedefencessurveyarland|skip|90   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:basedefencessurveykolguyev|skip|90   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:basedefencesmodels|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:basedefencesmodelskolguyev|weekly|120   # not run in the last 14 days; server capability not yet seen
+ACA|srv:longsoakkolguyev|skip|7380   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:pathprobe|skip|400   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:guerrillas|nightly|150   # median 99s, 9 runs/14d
+ACA|srv:insurgency|nightly|170   # median 134s, 2 runs/14d
+ACA|srv:fialeaning|nightly|100   # median 72s, 1 runs/14d
+ACA|srv:hideouts|nightly|120   # median 93s, 1 runs/14d
+ACA|srv:kolguyevsoak|skip|1380   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:deploymenu|skip|180   # needs a player (game client)
+ACA|srv:mappolygon|weekly|60   # not run in the last 14 days; server capability not yet seen
+ACA|srv:rtsoverlay|skip|60   # needs a player (game client)
+ACA|srv:intelmarks|nightly|60   # median 20s, 1 runs/14d
+ACA|srv:restart|nightly|200   # median 72s, 1 runs/14d
+ACA|srv:stallwait|nightly|130   # median 99s, 1 runs/14d
+ACA|srv:recrew|nightly|120   # median 93s, 1 runs/14d
+ACA|srv:mortargiveup|nightly|100   # median 60s, 1 runs/14d
+ACA|srv:roadhops|weekly|500   # median 277s, 1 runs/14d
+ACA|srv:roadhopsoff|skip|500   # A/B control with the feature off or the old code: run beside its pair by hand
+ACA|srv:keyhints|skip|60   # needs a player (game client)
+ACA|srv:panelshots|skip|420   # needs a player (game client)
+ACA|srv:panelfit|skip|1500   # needs a player (game client)
+ACA|srv:panelfitclassic|skip|600   # needs a player (game client)
+ACA|srv:genmapchernarus|nightly|150   # median 115s, 1 runs/14d
+ACA|srv:genmapgulfcoast|weekly|150   # median 15s, 1 runs/14d
+ACA|srv:genmapkunar|nightly|150   # median 45s, 1 runs/14d
+ACA|srv:genmapwestzagoria|nightly|150   # median 48s, 1 runs/14d
+ACA|srv:genmapzimnitrita|weekly|150   # median 31s, 1 runs/14d
+ACA|srv:baseworks|weekly|900   # median 382s, 2 runs/14d
+ACA|srv:baseworksarland|weekly|900   # not run in the last 14 days; server capability not yet seen
+ACA|srv:baseworksai|weekly|620   # median 380s, 1 runs/14d
+ACA|srv:baseworksplan|nightly|120   # median 99s, 5 runs/14d
+ACA|srv:baseworksplanarland|nightly|120   # median 45s, 1 runs/14d
+ACA|srv:baseworksplankolguyev|nightly|120   # median 84s, 1 runs/14d
+ACA|srv:planwall|nightly|120   # median 99s, 1 runs/14d
+ACA|srv:planpoints|nightly|120   # median 101s, 1 runs/14d
+ACA|srv:plandepth|nightly|120   # median 101s, 1 runs/14d
+ACA|srv:planfunnel|nightly|120   # median 111s, 1 runs/14d
+ACA|srv:planring|nightly|120   # median 108s, 1 runs/14d
+ACA|srv:shotswall|skip|300   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:shotspoints|skip|300   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:shotsdepth|skip|300   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:shotsfunnel|skip|300   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:shotsring|skip|300   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:worksfight|weekly|480   # median 323s, 1 runs/14d
+ACA|srv:baghold|nightly|420   # median 184s, 3 runs/14d
+ACA|srv:bagholdlate|weekly|420   # not run in the last 14 days; server capability not yet seen
+ACA|srv:bagholdoff|skip|420   # A/B control with the feature off or the old code: run beside its pair by hand
+ACA|srv:bagholdlow|nightly|420   # median 117s, 1 runs/14d
+ACA|srv:bagholdsquads|nightly|240   # median 160s, 34 runs/14d
+ACA|srv:worksfightold|skip|480   # A/B control with the feature off or the old code: run beside its pair by hand
+ACA|srv:worksfightvalueoff|weekly|480   # not run in the last 14 days; server capability not yet seen
+ACA|srv:worksfightvillage|weekly|480   # not run in the last 14 days; server capability not yet seen
+ACA|srv:worksfightvillageoff|skip|480   # A/B control with the feature off or the old code: run beside its pair by hand
+ACA|srv:worksfightoff|skip|480   # A/B control with the feature off or the old code: run beside its pair by hand
+ACA|srv:worksfightcompact|weekly|480   # not run in the last 14 days; server capability not yet seen
+ACA|srv:worksfightbase|weekly|480   # not run in the last 14 days; server capability not yet seen
+ACA|srv:baseworkscompact|weekly|900   # not run in the last 14 days; server capability not yet seen
+ACA|srv:worksshotscompact|skip|600   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:worksshotseveron|skip|600   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:placeaudit|nightly|180   # median 114s, 6 runs/14d
+ACA|srv:placeauditold|skip|180   # A/B control with the feature off or the old code: run beside its pair by hand
+ACA|srv:placeauditarland|weekly|180   # not run in the last 14 days; server capability not yet seen
+ACA|srv:placeauditkolguyev|weekly|180   # not run in the last 14 days; server capability not yet seen
+ACA|srv:parts|weekly|360   # not run in the last 14 days; server capability not yet seen
+ACA|srv:wings|nightly|240   # median 51s, 1 runs/14d
+ACA|srv:wingsarland|nightly|240   # median 45s, 1 runs/14d
+ACA|srv:wingskolguyev|nightly|240   # median 51s, 1 runs/14d
+ACA|srv:wingsoff|skip|240   # A/B control with the feature off or the old code: run beside its pair by hand
+ACA|srv:wingshots|skip|420   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:worksaisoak|skip|1320   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:worksshots|skip|600   # measurement/screenshots or soak: no pass/fail meaning, run by hand
+ACA|srv:contentpack|nightly|120   # median 91s, 3 runs/14d
+ACA|srv:contentpackwinter|nightly|120   # median 94s, 2 runs/14d
+ACA|srv:quickstartfia|nightly|90   # median 35s, 1 runs/14d
+ACA|srv:helidown|nightly|160   # median 96s, 1 runs/14d
+ACA|srv:basedefenceskolguyev|weekly|120   # not run in the last 14 days; server capability not yet seen
+
+# ---- BBB (tools/Test-BBB.ps1 on the sweep worktree: BBB + base game only, never ACA)
+BBB|vanilla|nightly   # median 40s, 130 runs
+BBB|rearm|nightly   # median 36s, 4 runs
+BBB|seatdiag|skip   # diagnostic/variant: run by hand
+BBB|seatfire|skip   # diagnostic/variant: run by hand
+BBB|seatidle|skip   # diagnostic/variant: run by hand
+BBB|look|nightly   # median 44s, 2 runs
+BBB|firemaneuverperf|skip   # diagnostic/variant: run by hand
+BBB|morale|nightly   # median 29s, 22 runs
+BBB|smoke|nightly   # median 26s, 8 runs
+BBB|staticweapons|nightly   # median 26s, 11 runs
+BBB|grenades|nightly   # median 27s, 13 runs
+BBB|featureaudit|nightly   # median 117s, 52 runs
+BBB|reactions|nightly   # median 66s, 50 runs
+BBB|crewturnout|nightly   # median 103s, 11 runs
+BBB|driveralign|nightly   # median 65s, 17 runs
+BBB|driveraligncomplete|nightly   # median 65s, 7 runs
+BBB|commanderseat|nightly   # median 39s, 12 runs
+BBB|think|nightly   # median 30s, 8 runs
+BBB|flares|nightly   # median 65s, 35 runs
+BBB|doors|nightly   # median 124s, 9 runs
+BBB|orderleash|nightly   # median 131s, 5 runs
+BBB|crewstays|nightly   # median 51s, 19 runs
+BBB|gatelane|nightly   # median 25s, 12 runs
+BBB|contactrelay|nightly   # median 121s, 5 runs
+BBB|claims|nightly   # median 71s, 18 runs
+BBB|teams|nightly   # median 69s, 1 runs
+BBB|squad|nightly   # median 139s, 57 runs
+BBB|tactic|nightly   # median 126s, 29 runs
+BBB|assault|nightly   # median 200s, 1 runs
+BBB|coverfire|nightly   # median 123s, 15 runs
+BBB|flank|nightly   # median 177s, 5 runs
+BBB|search|nightly   # median 143s, 5 runs
+BBB|heldguns|nightly   # median 79s, 5 runs
+BBB|vanillanodes|nightly   # median 85s, 1 runs
+BBB|indoorhold|nightly   # median 111s, 19 runs
+BBB|roadexit|nightly   # median 132s, 1 runs
+BBB|roadexitiso|skip   # diagnostic/variant: run by hand
+BBB|roadexiton|skip   # diagnostic/variant: run by hand
+BBB|roadexitnear|skip   # diagnostic/variant: run by hand
+BBB|armourrounds|nightly   # median 53s, 7 runs
+BBB|launcherinf|weekly   # median 218s, 3 runs
+BBB|launcherinfrhs|skip   # needs RHS loaded
+BBB|settings|nightly   # median 13s, 12 runs
+BBB|compile|nightly   # median 19s, 33 runs
+
+# ---- AiO (its own watcher on the sweep worktree; plain presets = hidden server on 2001)
+AIO|compile|nightly
+AIO|tasks|nightly   # median 101s, 24 runs
+AIO|moves|nightly   # median 162s, 12 runs
+AIO|infantry|nightly   # median 95s, 9 runs
+AIO|supply|nightly   # median 74s, 8 runs
+AIO|attack|nightly   # median 225s, 5 runs
+AIO|defense|nightly   # median 278s, 14 runs
+AIO|tower|nightly   # median 392s, 10 runs
+AIO|garrison|nightly   # median 261s, 6 runs
+AIO|tasks-aca|weekly   # median 103s, 4 runs; ACA+BBB alongside, rotates
+AIO|moves-aca|weekly   # median 164s, 4 runs; ACA+BBB alongside, rotates
+AIO|infantry-aca|weekly   # median 99s, 3 runs; ACA+BBB alongside, rotates
+AIO|supply-aca|weekly   # median 80s, 3 runs; ACA+BBB alongside, rotates
+AIO|attack-aca|weekly   # median 228s, 4 runs; ACA+BBB alongside, rotates
+AIO|defense-aca|weekly   # median 280s, 6 runs; ACA+BBB alongside, rotates
+AIO|vehicles|nightly   # median 201s, 13 runs
+AIO|vehicles-aca|weekly   # median 195s, 7 runs; ACA+BBB alongside, rotates
+AIO|recovery|nightly   # median 136s, 6 runs
+AIO|formations|nightly   # median 303s, 18 runs
+AIO|formations-aca|weekly   # median 370s, 4 runs; ACA+BBB alongside, rotates
+AIO|support|nightly   # median 204s, 9 runs
+AIO|support-aca|weekly   # median 207s, 5 runs; ACA+BBB alongside, rotates
+AIO|radius|nightly   # median 77s, 3 runs
+AIO|radius-aca|weekly   # median 74s, 3 runs; ACA+BBB alongside, rotates
+AIO|contact|nightly   # median 196s, 14 runs
+AIO|contact-aca|weekly   # median 198s, 6 runs; ACA+BBB alongside, rotates
+AIO|teleport|nightly   # median 74s, 9 runs
+AIO|behaviour|nightly   # median 68s, 9 runs
+AIO|behaviour-aca|weekly   # median 71s, 6 runs; ACA+BBB alongside, rotates
+AIO|explosives|nightly   # median 104s, 10 runs
+AIO|specialists|nightly   # median 166s, 6 runs
+AIO|firemission|nightly   # median 65s, 5 runs
+AIO|grenades|nightly   # median 92s, 23 runs
+AIO|grenades-aca|weekly   # median 104s, 30 runs; ACA+BBB alongside, rotates
+AIO|leadership|nightly   # median 34s, 8 runs
