@@ -64,6 +64,7 @@ class ACR_BaseWork : Managed
  int m_iMannedTier;                 // the tier the reserve has been raised for (under this owner)
  int m_iPicks;                      // sites handed out, for the weighted pick's key
  ref ACR_KillGround m_Kill;         // the ground as planned on: which line sees the way he's walking
+ ref ACR_DefenderPost m_GarrisonPost; // the base's own garrison out on the bags, kept as the reserve is (WatchGarrison)
 }
 
 class ACR_BaseWorks
@@ -83,11 +84,16 @@ class ACR_BaseWorks
  static const float POST_AREA = 40;     // m round the command post its defenders garrison
  static const int REACH_GRACE_MS = 90000; // ms past a 1 m/s walk to a site before the squad gives up on it
  static const int AI_RP_RESERVE = 30;   // an AI commander keeps this much back (as ManageBaseWorks)
+ static const float STAGE_SEEN_M = 120;  // m from a planned staging point: a contact there is him staging (StagingWatch)
+ static const float STAGE_SEEN_S = 30;   // ... seen this recently
+ static const float STAGE_SAY_MS = 300000; // and the side is told once per base in this long
+ protected static ref map<ACR_BaseWork, float> s_mStagingSaid;
  static ref array<ref ACR_BaseWork> s_aWorks;
  // Called by ACR_StaticInit at game start (static initializer budget: HANDBOOK Pitfalls).
  static void ACR_InitStatics()
  {
   s_aWorks = {};
+  s_mStagingSaid = new map<ACR_BaseWork, float>();
  }
  static int s_iMaxSitesForTest;         // at most this many sites of each kind (0: no limit)
  static int s_iLastPlanMs;              // the last plan's cost (tests, log)
@@ -501,6 +507,9 @@ class ACR_BaseWorks
   work.m_iMannedTier = work.m_iTier;
   if (!work.m_Defenders) work.m_Defenders = ACR_Defenders.Add(work.m_sFaction, work.m_Base.GetOrigin(), work.m_Base.m_sName + " works", ACR_BaseDefences.SearchRadius(work.m_Base));
   work.m_Defenders.m_Work = work;
+  // Out as early as the base's own garrison (ACR_BaseSystem.WORKS_SPAWN_RANGE): the AI stages its attack about 320 m
+  // out, and at 400 m the reserve was still running to the bags as it stepped off.
+  work.m_Defenders.m_fSpawnRange = ACR_BaseSystem.WORKS_SPAWN_RANGE;
   work.m_Defenders.m_iReserve += more;
  }
 
@@ -515,19 +524,28 @@ class ACR_BaseWorks
    post.m_fRadius = POST_AREA;
    post.m_fGarrisonArea = POST_AREA;
   }
-  array<IEntity> guns = {};
   foreach (ACR_BaseSite site : work.m_aSites)
   {
-   if (!site.m_bBuilt) continue;
-   if (work.m_iTier >= 3 && site.m_Plan && site.m_Plan.m_eKind == ACR_EBaseDefenceKind.POST) post.m_vPos = site.m_vPos;
-   if (site.m_eKind != ACR_EBaseSite.NEST && site.m_eKind != ACR_EBaseSite.BUNKER) continue;
+   if (work.m_iTier >= 3 && site.m_bBuilt && site.m_Plan && site.m_Plan.m_eKind == ACR_EBaseDefenceKind.POST) post.m_vPos = site.m_vPos;
+  }
+  array<IEntity> guns = {};
+  WorksGuns(work, guns);
+  if (!guns.IsEmpty()) ACR_Defenders.CrewGuns(post, guns);
+ }
+
+ // The guns of the works' nests and bunkers that stand.
+ static void WorksGuns(ACR_BaseWork work, notnull array<IEntity> guns)
+ {
+  guns.Clear();
+  foreach (ACR_BaseSite site : work.m_aSites)
+  {
+   if (!site.m_bBuilt || (site.m_eKind != ACR_EBaseSite.NEST && site.m_eKind != ACR_EBaseSite.BUNKER)) continue;
    foreach (IEntity piece : site.m_aWalls)
    {
     IEntity gun = ACR_Roadblocks.FindTurretInHierarchy(piece);
     if (gun) guns.Insert(gun);
    }
   }
-  if (!guns.IsEmpty()) ACR_Defenders.CrewGuns(post, guns);
  }
 
  protected static bool Build(ACR_BaseWork work, ACR_BaseSite site)
@@ -783,12 +801,13 @@ class ACR_BaseWorks
  protected static int MannablePieces(ACR_BaseWork work, ACR_BaseLine line, notnull array<ACR_LinePiece> result)
  {
   result.Clear();
+  int index = work.m_aLines.Find(line);
   foreach (ACR_LinePiece piece : line.m_aPieces)
   {
    if (!piece.m_bLong || CutForNest(work, piece.m_vPos)) continue;
    foreach (ACR_BaseSite site : work.m_aSites)
    {
-    if (site.m_iLine != work.m_aLines.Find(line) || !site.m_bBuilt || !StandsAt(site, piece.m_vPos)) continue;
+    if (site.m_iLine != index || !site.m_bBuilt || !StandsAt(site, piece.m_vPos)) continue;
     result.Insert(piece);
     break;
    }
@@ -859,7 +878,8 @@ class ACR_BaseWorks
  // The reserve out: each man to his own place behind the bags of the lines that face the enemy, nearest him
  // first, standing to fire over them. Before, they stood in the town's middle or in its buildings and
  // the works did nothing for them (pn23 playtest). False: no line for it, the caller does what it did.
- static bool ManLine(ACR_DefenderPost post, int men)
+ // 'chosen' (may be null): the lines to use, best first, when the caller has already picked them.
+ static bool ManLine(ACR_DefenderPost post, int men, array<int> chosen = null)
  {
   ACR_BaseWork work = post.m_Work;
   if (!work || !post.m_Group || s_bNoLineMenForTest || men <= 0) return false;
@@ -867,7 +887,8 @@ class ACR_BaseWorks
   vector threat;
   bool hasThreat = ThreatAt(post, threat);
   array<int> lines = {};
-  LinesFor(work, threat, hasThreat, lines);
+  if (chosen) lines.Copy(chosen);
+  else LinesFor(work, threat, hasThreat, lines);
   if (lines.IsEmpty()) return false;
   array<ref ACR_GarrisonSpot> spots = {};
   LineSpots(work, lines, threat, hasThreat, men, post.m_Group, spots);
@@ -913,8 +934,10 @@ class ACR_BaseWorks
  }
 
  // A squad holding this base: behind the lines that face the enemy. False: nothing to man, it does what it did.
- static bool ManSquad(ACR_BaseWork work, SCR_AIGroup group, int men, out vector center, out float radius)
+ // 'line': the line its first men are on (-1 none).
+ static bool ManSquad(ACR_BaseWork work, SCR_AIGroup group, int men, out vector center, out float radius, out int line)
  {
+  line = -1;
   if (!work || !work.m_Base || !group || men <= 0 || !ACR_BagHold.On()) return false;
   vector threat;
   bool hasThreat = ThreatNear(work.m_sFaction, work.m_Base.GetOrigin(), threat);
@@ -926,8 +949,47 @@ class ACR_BaseWorks
   if (spots.IsEmpty()) return false;
   center = spots[0].m_Pos;
   if (ACR_Garrison.PostsAt(group, spots, center, radius) <= 0) return false;
+  line = lines[0];
   PrintFormat("[ACR] BASEWORKS %1 %2: squad of %3 to line %4 and on (%5 places)", work.m_sFaction, work.m_Base.m_sName, men, lines[0], spots.Count());
   return true;
+ }
+
+ // A base's own garrison out on its bags (ACR_BaseSystem.SpawnGarrison) gets the care the works' reserve gets, through
+ // a post of its own that ACR_Defenders never deploys or packs up: KeepManned when he goes round to a side its line
+ // doesn't face, SeatLineMen for a gun of the works that empties beside it. Before, it was posted once and never looked
+ // at again. Dropped when the garrison packs up, dies, leaves the bags for him, or the base changes hands.
+ static void WatchGarrison(ACR_BaseWork work, SCR_AIGroup group, int line)
+ {
+  if (!work || !work.m_Base || !group || line < 0) return;
+  ACR_DefenderPost post = new ACR_DefenderPost();
+  post.m_sFaction = work.m_sFaction;
+  post.m_vPos = work.m_Base.GetOrigin();
+  post.m_sName = work.m_Base.m_sName + " garrison";
+  post.m_fRadius = ACR_BaseSystem.GarrisonArea(work.m_Base);
+  post.m_Group = group;
+  post.m_Work = work;
+  post.m_iMannedLine = line;
+  post.m_fMannedAt = GetGame().GetWorld().GetWorldTime();
+  WorksGuns(work, post.m_aCrewGuns);
+  work.m_GarrisonPost = post;
+ }
+
+ // Every Tick (5 s) while the garrison is out on the bags.
+ protected static void TickGarrison(ACR_BaseWork work)
+ {
+  ACR_DefenderPost post = work.m_GarrisonPost;
+  if (!post) return;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!post.m_Group || !manager || post.m_sFaction != work.m_sFaction || post.m_iMannedLine < 0 || manager.m_Bases.GuardsAlive(post.m_Group) <= 0)
+  {
+   work.m_GarrisonPost = null;
+   return;
+  }
+  KeepManned(post);
+  // They left the bags for him: KeepManned's own order holds them now.
+  if (post.m_iMannedLine < 0) return;
+  WorksGuns(work, post.m_aCrewGuns);
+  ACR_Defenders.SeatLineMen(post);
  }
 
  // An order at 'point' with bags of the group's side within 'within' of it: behind them, that line and those facing
@@ -1022,12 +1084,15 @@ class ACR_BaseWorks
    if (!way.IsEmpty())
    {
     if (post.m_Work.m_Kill.OnWay(line.m_vMiddle, ACR_BaseDefences.Bearing(line.m_vFacing), way) > 0) return;
-    if (!InContact(post.m_Group))
+    // ... and not with him already close: men running across the base to a better line as he opens fire
+    // (srv:worksfightbase, 2 Nov: all five off the bags at 160 m, 7 of 8 lost).
+    if (!InContact(post.m_Group) && vector.DistanceXZ(line.m_vMiddle, threat) > STAY_CLOSE)
     {
      array<int> better = {};
      LinesFor(post.m_Work, threat, true, better);
      ACR_Manager keeper = ACR_Manager.GetInstance();
-     if (keeper && !better.IsEmpty() && better[0] != post.m_iMannedLine && ManLine(post, keeper.m_Bases.GuardsAlive(post.m_Group))) return;
+     // (The lines just picked are the ones they go to: picking again in ManLine could send them back onto this one.)
+     if (keeper && !better.IsEmpty() && better[0] != post.m_iMannedLine && ManLine(post, keeper.m_Bases.GuardsAlive(post.m_Group), better)) return;
     }
    }
   }
@@ -1134,6 +1199,18 @@ class ACR_BaseWorks
   ACR_BaseLines.Checkpoints(work, survey, MAX_ROADBLOCKS);
   ACR_BaseLines.Posts(work, survey, MAX_BUNKERS);
   ACR_BaseLines.CommandPost(work, survey);
+  // Everything placed: he's walked in once more against it, and while tier I and II have pieces left one more part
+  // goes on his softest way (-acrBaseFinalWalk 0: not). A line it lays gets its dressing, stretches, wire and obstacles.
+  ACR_KillGround honest;
+  int linesBefore = work.m_aLines.Count();
+  if (survey.m_Kill && ACR_BaseRing.FinalWalkOn()) honest = ACR_BaseRing.FinalWalk(work, survey, ACR_BaseDefences.Kit(work.m_sFaction));
+  if (work.m_aLines.Count() > linesBefore)
+  {
+   ACR_BaseLines.DressLines(work, linesBefore);
+   ACR_BaseLines.Stretches(work, survey, linesBefore);
+   ACR_BaseLines.Wire(work, survey, linesBefore);
+   ACR_BaseLines.Obstacles(work, survey, linesBefore);
+  }
   string refused = survey.RefusedWords();
   if (!refused.IsEmpty()) PrintFormat("[ACR] BASEWORKS %1: command post pieces left out: %2", base.m_sName, refused);
   float seconds = 0;
@@ -1164,8 +1241,13 @@ class ACR_BaseWorks
   survey.Coverage(work, ours, existing, either);
   PrintFormat("[ACR] BASEWORKS %1: covers %2%% of the threatened arc with lines, %3%% with those and what stands there (%4%% that alone); anchored ends %5 of %6", base.m_sName, (int)(ours * 100), (int)(either * 100), (int)(existing * 100), anchored, ends);
   PrintFormat("[ACR] BASEWORKS %1: %2 sandbag pieces, about %3 entities in all; tier I is %4 s of work, walking aside", base.m_sName, pieces, entities, (int)seconds);
-  if (survey.m_Kill) survey.m_Kill.Done(base.m_sName);
-  work.m_Kill = survey.m_Kill;
+  // The men at runtime (LinesFor, KeepManned) read the honest ground when there is one: every piece's bags are on it.
+  work.m_Kill = honest;
+  if (!honest)
+  {
+   if (survey.m_Kill) survey.m_Kill.Done(base.m_sName);
+   work.m_Kill = survey.m_Kill;
+  }
   if (s_iMaxSitesForTest > 0) Trim(work);
  }
 
@@ -1249,13 +1331,57 @@ class ACR_BaseWorks
    if (!owner.IsEmpty() && owner != work.m_sFaction) Transfer(work, owner);
    foreach (ACR_BaseSite site : work.m_aSites)
     if (site.m_bBuilt) PruneSite(site);
+   TickGarrison(work);
    // The tier stands while any site of it does.
    while (work.m_iTier > 0 && BuiltSites(work, work.m_iTier) == 0)
    {
     PrintFormat("[ACR] BASEWORKS %1 %2: %3 is gone", work.m_sFaction, work.m_Base.m_sName, ACR_FobDefences.TierName(work.m_iTier - 1));
     work.m_iTier--;
    }
+   StagingWatch(work);
   }
+ }
+
+ // The planner knows where his attack stages against this base (ACR_KillGround.m_aStagePoints). A contact of his
+ // seen lately within STAGE_SEEN_M of one, while the lines stand, is him staging: the side is told once per base
+ // every STAGE_SAY_MS, so a player can get on the bags before he steps off.
+ protected static void StagingWatch(ACR_BaseWork work)
+ {
+  if (!work.m_Kill || work.m_Kill.m_aStagePoints.IsEmpty() || !LinesStand(work.m_Base)) return;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  float again;
+  if (s_mStagingSaid.Find(work, again) && now < again) return;
+  ACR_Intel intel = manager.IntelFor(work.m_sFaction);
+  if (!intel) return;
+  foreach (ACR_Contact contact : intel.m_Contacts)
+  {
+   if (!contact || contact.m_iKind == ACR_Intel.KIND_AIR || now - contact.m_fSeen > STAGE_SEEN_S * 1000) continue;
+   vector nearest = vector.Zero;
+   float best = STAGE_SEEN_M;
+   foreach (vector point : work.m_Kill.m_aStagePoints)
+   {
+    float d = vector.DistanceXZ(point, contact.m_Pos);
+    if (d >= best) continue;
+    best = d;
+    nearest = point;
+   }
+   if (best >= STAGE_SEEN_M) continue;
+   s_mStagingSaid.Set(work, now + STAGE_SAY_MS);
+   string line = string.Format("Enemy staging %1 of %2: %3", Octant(ACR_BaseDefences.FlatDir(work.m_Base.GetOrigin(), nearest)), work.m_Base.m_sName, ACR_Intel.Describe(contact.m_iKind, contact.m_iCount));
+   manager.NotifyFaction(work.m_sFaction, line);
+   intel.AddFeed(now, line, nearest);
+   PrintFormat("[ACR] BASEWORKS %1 %2: %3 (%4 m from the staging point, seen by %5)", work.m_sFaction, work.m_Base.m_sName, line, (int)best, contact.m_sSpotter);
+   return;
+  }
+ }
+
+ static string Octant(vector dir)
+ {
+  array<string> names = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+  int i = Math.Round(ACR_BaseSurvey.Normal(ACR_BaseDefences.Bearing(dir)) / 45);
+  return names[i % 8];
  }
 
  protected static void PruneSite(ACR_BaseSite site)
@@ -1286,6 +1412,7 @@ class ACR_BaseWorks
   // The sandbags change hands; the men in reserve don't.
   ACR_Defenders.Remove(work.m_Defenders);
   work.m_Defenders = null;
+  work.m_GarrisonPost = null;
   work.m_iMannedTier = 0;
   foreach (ACR_BaseSite site : work.m_aSites)
   {
@@ -1359,6 +1486,7 @@ class ACR_BaseWorks
 
  static void Reset()
  {
+  s_mStagingSaid.Clear();
   s_aWorks.Clear();
   s_iMaxSitesForTest = 0;
   s_LastSurvey = null;

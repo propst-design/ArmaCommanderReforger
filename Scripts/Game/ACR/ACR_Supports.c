@@ -26,7 +26,8 @@ enum ACR_ESupportType
  HELI_DOOR_GUNS, // transport helicopter, door gunners only, orbiting
  ARTILLERY_BATTERY, // battalion howitzers: no range limit, three heavy salvos over a wide area
  AIR_LIFT,         // off-map transport helicopter flies a squad to a landing zone (ACR_AirLift)
- ATTACK_HELI       // a content pack's attack helicopter (ACR_ContentSocket.AttackHelicopter) on station
+ ATTACK_HELI,      // a content pack's attack helicopter (ACR_ContentSocket.AttackHelicopter) on station
+ RECON_FLIGHT      // off-map jet photographs a corridor: sightings into the side's intel (ACR_Recon)
 }
 
 enum ACR_EBombRunDelivery
@@ -65,6 +66,8 @@ class ACR_SupportEntry
 	float m_fBombRunSpacing = 28;
 	[Attribute("5", UIWidgets.EditBox, "Random lateral scatter for virtual bomb impacts in metres")]
 	float m_fBombRunScatter = 5;
+	[Attribute("", UIWidgets.ResourcePickerThumbnail, "Recon flight: aircraft prefab flown over the corridor, with its own engine sound (empty = ACA's default for the side)", "et")]
+	ResourceName m_sReconPrefab;
 
  // runtime
  float m_fReadyAt;
@@ -104,6 +107,7 @@ class ACR_SupportEntry
   copy.m_iBombRunBombs = m_iBombRunBombs;
   copy.m_fBombRunSpacing = m_fBombRunSpacing;
   copy.m_fBombRunScatter = m_fBombRunScatter;
+  copy.m_sReconPrefab = m_sReconPrefab;
   copy.m_fReadyAt = 0;
   copy.Resolve();
   return copy;
@@ -1703,6 +1707,7 @@ class ACR_Supports : Managed
    case ACR_ESupportType.ARTILLERY_BATTERY: return "Artillery: howitzer battery";
    case ACR_ESupportType.AIR_LIFT: return "Helicopter: air lift";
    case ACR_ESupportType.ATTACK_HELI: return "Helicopter: attack helicopter (120 s)";
+   case ACR_ESupportType.RECON_FLIGHT: return "Air: recon flight";
   }
   return "Support";
  }
@@ -1723,6 +1728,7 @@ class ACR_Supports : Managed
    case ACR_ESupportType.ATTACK_HELI: return 55;
    case ACR_ESupportType.ARTILLERY_BATTERY: return 60;
    case ACR_ESupportType.AIR_LIFT: return 40;
+   case ACR_ESupportType.RECON_FLIGHT: return 15;
   }
   return 20;
  }
@@ -1743,6 +1749,7 @@ class ACR_Supports : Managed
    case ACR_ESupportType.ATTACK_HELI: return 300;
    case ACR_ESupportType.ARTILLERY_BATTERY: return 300;
    case ACR_ESupportType.AIR_LIFT: return 240;
+   case ACR_ESupportType.RECON_FLIGHT: return 180;
   }
   return 120;
  }
@@ -1785,6 +1792,19 @@ class ACR_Supports : Managed
    }
    entries.Insert(entry);
   }
+  entries.Insert(NewEntry(ACR_ESupportType.RECON_FLIGHT));
+ }
+
+ // A default row of one type.
+ static ACR_SupportEntry NewEntry(ACR_ESupportType type)
+ {
+  ACR_SupportEntry entry = new ACR_SupportEntry();
+  entry.m_eType = type;
+  entry.m_iCost = -1;
+  entry.m_iAICost = -1;
+  entry.m_iCooldown = -1;
+  entry.Resolve();
+  return entry;
  }
 
  // The side's attack helicopter from a content pack (ACR_ContentSocket.AttackHelicopter), or null:
@@ -1941,6 +1961,17 @@ class ACR_Supports : Managed
   string where = ACR_Manager.Grid(target);
   int delay = DefaultDelay(entry.m_eType);
   PrintFormat("[ACR] SUPPORT %1 %2 at %3 (delay %4 s)", factionKey, entry.m_sName, target, delay);
+  // A recon flight harms nobody: no danger area on the map, and the photographs land in the
+  // side's intel as the jet crosses (ACR_ReconRun).
+  if (entry.m_eType == ACR_ESupportType.RECON_FLIGHT)
+  {
+   ACR_ReconRun recon = new ACR_ReconRun();
+   delay = recon.Start(entry, factionKey, target, dir);
+   m_Runs.Insert(recon);
+   string reconMessage = string.Format("%1 over %2, overhead in about %3 s.", entry.m_sName, where, delay);
+   if (!byAI) m_Manager.NotifyFaction(factionKey, reconMessage);
+   return reconMessage;
+  }
   switch (entry.m_eType)
   {
    case ACR_ESupportType.ROCKET_STRIKE:

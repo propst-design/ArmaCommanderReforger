@@ -1438,6 +1438,7 @@ modded class SCR_PlayerController
 
  protected void ACR_ClosePanel()
  {
+  m_ACR_MineCorners.Clear();
   SCR_MapEntity.GetOnSelection().Remove(ACR_OnMapClick);
   m_ACR_AimHeld = false; // closed with the button held: the release listener is gone with the map
   if (m_ACR_Panel) m_ACR_Panel.Destroy();
@@ -1617,7 +1618,7 @@ modded class SCR_PlayerController
   else if (roadblock >= 0) hint = ACR_Roadblocks.Hint(roadblock, roadblockFaction);
   else if (m_ACR_CursorMode == ACR_ECursorMode.FORTIFY) hint = ACR_Fortify.Hint();
   else if (m_ACR_CursorMode == ACR_ECursorMode.QRF) hint = "Right-click its post: it stands by there, goes after enemies your side spots within 300 m and comes back (click QRF again to cancel)";
-  else if (m_ACR_CursorMode >= ACR_ECursorMode.MINES_AP && m_ACR_CursorMode <= ACR_ECursorMode.DISARM_MINES) hint = ACR_Minefields.Hint(ACR_Minefields.KindOfCursor(m_ACR_CursorMode));
+  else if (m_ACR_CursorMode >= ACR_ECursorMode.MINES_AP && m_ACR_CursorMode <= ACR_ECursorMode.DISARM_MINES) hint = ACR_Minefields.Hint(ACR_Minefields.KindOfCursor(m_ACR_CursorMode)) + ACR_MineShapeHint();
   else hint = "Right-click: move there";
   if (friendly && m_ACR_IsCommander && ACR_Aimable()) hint += " Right-click and drag to set the way it faces (a right-drag aims while this is armed, it doesn't pan the map).";
   string title = m_ACR_Data.m_GroupNames[index];
@@ -1803,6 +1804,11 @@ modded class SCR_PlayerController
  // (the map doesn't pan then: see SCR_MapCursorModule in ACR_CommandPanel).
  // The facing goes with the order request (ACR_Requests.s_vAim), so it holds in multiplayer;
  // the AI commander keeps ThreatPoint.
+ // Minefield points (#200): the right-clicks so far for the armed mine order, for one squad in one mode.
+ protected ref array<vector> m_ACR_MineCorners = {};
+ protected RplId m_ACR_MineCornersFor;
+ protected int m_ACR_MineCornersMode = -1;
+ static const int MINE_SAME_PX = 14;      // px: the last point clicked again
  protected bool m_ACR_AimHeld;
  protected vector m_ACR_AimFrom;
  protected int m_ACR_AimFromX;
@@ -1956,6 +1962,11 @@ modded class SCR_PlayerController
   if (m_ACR_CursorMode == ACR_ECursorMode.ROADBLOCK_L) command = ACR_ERequest.ORDER_ROADBLOCK_L;
   if (m_ACR_CursorMode == ACR_ECursorMode.BARRICADE) command = ACR_ERequest.ORDER_BARRICADE;
   if (m_ACR_CursorMode == ACR_ECursorMode.FORTIFY) command = ACR_ERequest.ORDER_FORTIFY;
+  // Minefield points (#200): a right-click drops a point and the last one clicked again lays the field (one
+  // point the square as before, two a line, three or four that area); a fourth lays it at once. A drag on
+  // the first point still lays the square facing the drag.
+  ACR_MineCornersCheck();
+  if (ACR_MineShapeMode() && !append && !(aimed && m_ACR_MineCorners.IsEmpty())) return ACR_MineShapeClick(mapEntity, command, Vector(x, 0, z));
   vector target = Vector(x, 0, z);
   // Dragged: the order goes where the button went down, facing where it came up.
   vector aim;
@@ -1983,6 +1994,95 @@ modded class SCR_PlayerController
  {
   if (m_ACR_CursorMode == mode) m_ACR_CursorMode = ACR_ECursorMode.MOVE;
   else m_ACR_CursorMode = mode;
+  m_ACR_MineCorners.Clear();
+ }
+
+ // ---------------------------------------------------------------- minefield points (#200)
+ protected bool ACR_MineShapeMode()
+ {
+  return m_ACR_CursorMode == ACR_ECursorMode.MINES_AP || m_ACR_CursorMode == ACR_ECursorMode.MINES_AT || m_ACR_CursorMode == ACR_ECursorMode.MINES_MIXED;
+ }
+
+ // The points belong to the squad and the order they were clicked for: another squad, another order or the
+ // order disarmed drops them.
+ protected void ACR_MineCornersCheck()
+ {
+  if (m_ACR_MineCorners.IsEmpty()) return;
+  if (!ACR_MineShapeMode() || m_ACR_MineCornersFor != m_ACR_SelectedGroup || m_ACR_MineCornersMode != m_ACR_CursorMode) m_ACR_MineCorners.Clear();
+ }
+
+ // A right-click with a mine order armed: a point more, or (the last point clicked again, or a fourth point)
+ // the field laid.
+ protected bool ACR_MineShapeClick(SCR_MapEntity mapEntity, int command, vector point)
+ {
+  ACR_MineCornersCheck();
+  if (!m_ACR_MineCorners.IsEmpty())
+  {
+   vector last = m_ACR_MineCorners[m_ACR_MineCorners.Count() - 1];
+   int lx, ly, px, py;
+   mapEntity.WorldToScreen(last[0], last[2], lx, ly, true);
+   mapEntity.WorldToScreen(point[0], point[2], px, py, true);
+   if (Math.AbsInt(lx - px) <= MINE_SAME_PX && Math.AbsInt(ly - py) <= MINE_SAME_PX)
+   {
+    ACR_LayMineShape(command);
+    return true;
+   }
+  }
+  m_ACR_MineCorners.Insert(point);
+  m_ACR_MineCornersFor = m_ACR_SelectedGroup;
+  m_ACR_MineCornersMode = m_ACR_CursorMode;
+  if (m_ACR_MineCorners.Count() >= ACR_MineShape.MOST_CORNERS) ACR_LayMineShape(command);
+  return true;
+ }
+
+ // One point: the square there, as before. Two to four: that shape, laid by the selected squad (one squad
+ // lays one field).
+ protected void ACR_LayMineShape(int command)
+ {
+  array<vector> corners = {};
+  corners.Copy(m_ACR_MineCorners);
+  m_ACR_MineCorners.Clear();
+  if (corners.Count() == 1)
+  {
+   ACR_IssueOrder(command, corners[0]);
+   return;
+  }
+  array<RplId> squads = {};
+  squads.Insert(m_ACR_SelectedGroup);
+  if (!ACR_ConfirmOverride(squads)) return;
+  Rpc(ACR_ShapeServer, command, m_ACR_SelectedGroup, corners);
+ }
+
+ // The hint's line while points are down: how many, and what they make.
+ protected string ACR_MineShapeHint()
+ {
+  int count = m_ACR_MineCorners.Count();
+  if (count == 0) return "";
+  if (count == 1) return " 1 point: right-click it again for the 30 m square, or add points.";
+  array<vector> outline = {};
+  string why = ACR_MineShape.Outline(m_ACR_MineCorners, outline);
+  if (!why.IsEmpty()) return string.Format(" %1 points: %2. Add or right-click the last again.", count, why);
+  int mines = ACR_Minefields.MinesOf(ACR_Minefields.KindOfCursor(m_ACR_CursorMode));
+  float area = ACR_MineShape.Area(outline);
+  if (count == 2) return string.Format(" A %1 m line: right-click its end again to lay it, or add points.", (int)vector.DistanceXZ(m_ACR_MineCorners[0], m_ACR_MineCorners[1]));
+  float every = Math.Sqrt(area / Math.Max(mines, 1));
+  return string.Format(" %1 points, %2 m², a mine every %3 m or so: right-click the last again to lay it.", count, (int)area, (int)Math.Round(every));
+ }
+
+ // A shaped minefield order (#200): the corners go with the request (ACR_Requests.s_aCorners), the point is
+ // their middle.
+ [RplRpc(RplChannel.Reliable, RplRcver.Server)]
+ protected void ACR_ShapeServer(int command, RplId targetId, array<vector> corners)
+ {
+  if (!ACR_Minefields.IsRequest(command) || !corners || corners.Count() < 2 || corners.Count() > ACR_MineShape.MOST_CORNERS) return;
+  foreach (vector corner : corners)
+  {
+   if (!ACR_Manager.OnMap(corner)) return;
+  }
+  ACR_Requests.s_aCorners = new array<vector>();
+  ACR_Requests.s_aCorners.Copy(corners);
+  ACR_CommandServer(command, targetId, ACR_MineShape.Middle(corners), vector.Zero);
+  ACR_Requests.s_aCorners = null;
  }
 
  bool ACR_IssueOrder(int command, vector target, bool append = false, vector aim = vector.Zero)
@@ -2056,6 +2156,12 @@ modded class SCR_PlayerController
   m_ACR_Data.m_bAiming = ACR_AimDrag(aimTo);
   m_ACR_Data.m_vAimFrom = m_ACR_AimFrom;
   m_ACR_Data.m_vAimTo = aimTo;
+  // The minefield points so far and where the cursor is (the preview's last edge).
+  ACR_MineCornersCheck();
+  m_ACR_Data.m_MineCorners.Copy(m_ACR_MineCorners);
+  float mcx, mcz;
+  mapEntity.GetMapCursorWorldPosition(mcx, mcz);
+  m_ACR_Data.m_vMineCursor = Vector(mcx, 0, mcz);
   m_ACR_Display.Draw(mapEntity, m_ACR_Data, m_ACR_Boxing, m_ACR_BoxStart);
  }
 
@@ -2347,6 +2453,18 @@ modded class SCR_PlayerController
  void ACR_SendZones(array<vector> positions, array<float> radii, array<string> labels)
  {
   Rpc(ACR_ZonesOwner, positions, radii, labels);
+ }
+
+ // The side's shaped minefields' outlines (#200, ACR_Minefields.Shapes).
+ void ACR_SendMineShapes(array<vector> corners, array<int> counts)
+ {
+  Rpc(ACR_MineShapesOwner, corners, counts);
+ }
+ [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
+ protected void ACR_MineShapesOwner(array<vector> corners, array<int> counts)
+ {
+  m_ACR_Data.m_MineShapeCorners.Copy(corners);
+  m_ACR_Data.m_MineShapeCounts.Copy(counts);
  }
  [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
  protected void ACR_ZonesOwner(array<vector> positions, array<float> radii, array<string> labels)
