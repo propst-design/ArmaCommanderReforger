@@ -497,8 +497,13 @@ def run_matrix(rid, name, spec, timeout):
         if proc.poll() is None:
             subprocess.run(['taskkill', '/PID', str(proc.pid), '/T', '/F'], capture_output=True)
     builds = ' '.join(f'{r}={build_label(r)}' for r in REPOS if (WT / REPOS[r][0]).exists())
-    keep = [l for l in text.splitlines() if re.search(r"\(E\)|Can't compile|Too many|addon|Addon|\[ACR\]|\[BBB\]|\[AIO\]|\[MCC\]", l)]
-    body = f'server={server}\naddons={spec["addons"]}\nworld={world}\n' + '\n'.join(keep[:300])
+    # Script errors first (Workshop mods' own RESOURCES (E) noise stays out), then our mods' start
+    # lines and the end of the boot: a long list of mod GUID warnings must not hide how it ended.
+    lines = text.splitlines()
+    errs = [l for l in lines if re.search(r"SCRIPT\s+\(E\)|Can't compile|Too many instructions", l)]
+    ours = [l for l in lines if re.search(r'\[(ACR|BBB|AIO|MCC|R7|CWL|SPG9)\]', l)]
+    body = (f'server={server}\naddons={spec["addons"]}\nworld={world}\n'
+            + '\n'.join(errs[:100] + ['...'] + ours[:20] + ['...'] + lines[-60:]))
     return write_result(rid, 'MATRIX', f'matrix:{name}', status, int(time.time() - t0), body, builds)
 
 
