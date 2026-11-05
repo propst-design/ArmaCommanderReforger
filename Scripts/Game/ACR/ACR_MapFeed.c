@@ -55,6 +55,9 @@ class ACR_FeedFrame : Managed
  ref array<float> m_ZoneRadii = {};
  ref array<string> m_ZoneLabels = {};
  string m_sZonesSig;
+ ref array<vector> m_MineShapeCorners = {}; // shaped minefields' outlines (#200), each one's corners in turn
+ ref array<int> m_MineShapeCounts = {};
+ string m_sMineShapesSig;
  // intel and our empty vehicles
  ref array<vector> m_ContactPos = {};
  ref array<int> m_ContactKinds = {};
@@ -214,6 +217,7 @@ class ACR_MapFeed
   if (Changed(id, "reqs", frame.m_sReqSig, full)) { pc.ACR_SendRequisitions(frame.m_ReqNames, frame.m_ReqCosts, frame.m_ReqRemaining); Count(frame, "reqs"); }
   if (Changed(id, "sups", frame.m_sSupSig, full)) { pc.ACR_SendSupports(frame.m_SupNames, frame.m_SupCosts, frame.m_SupCooldowns); Count(frame, "sups"); }
   if (Changed(id, "zones", frame.m_sZonesSig, full)) { pc.ACR_SendZones(frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels); Count(frame, "zones"); }
+  if (Changed(id, "mineshapes", frame.m_sMineShapesSig, full)) { pc.ACR_SendMineShapes(frame.m_MineShapeCorners, frame.m_MineShapeCounts); Count(frame, "mineshapes"); }
   if (Changed(id, "orders", frame.m_sOrdersSig, full)) { pc.ACR_SendOrders(frame.m_OrderGroups, frame.m_OrderTargets, frame.m_OrderKinds, frame.m_OrderIssuers); Count(frame, "orders"); }
   PublishCapture(pc, key);
   if (Changed(id, "intel", frame.m_sIntelSig, full)) { pc.ACR_SendIntel(frame.m_ContactPos, frame.m_ContactKinds, frame.m_ContactCounts, frame.m_ContactAges, frame.m_ContactDetails, frame.m_Feed, frame.m_FeedAges, frame.m_FeedPos); Count(frame, "intel"); }
@@ -662,9 +666,17 @@ class ACR_MapFeed
   // ...and roads where FIA ambushed it (danger areas, ACR_Insurgency).
   ACR_Insurgency.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   ACR_Guerrillas.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
+  // ...and enemy transmissions it picked up (pale rings, ACR_RadioIntercept).
+  ACR_RadioIntercept.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   foreach (int r, vector rangePos : frame.m_ZonePos) sig += P(rangePos) + frame.m_ZoneLabels[r] + ";";
   frame.m_sZonesSig = sig;
   frame.m_Bytes.Set("zones", sig.Length() + frame.m_ZonePos.Count() * 16 + 12);
+  // The side's shaped minefields' outlines (#200), drawn instead of their circles.
+  ACR_Minefields.Shapes(frame.m_sKey, frame.m_MineShapeCorners, frame.m_MineShapeCounts);
+  string shapes = "";
+  foreach (vector corner : frame.m_MineShapeCorners) shapes += P(corner);
+  frame.m_sMineShapesSig = shapes;
+  frame.m_Bytes.Set("mineshapes", frame.m_MineShapeCorners.Count() * 12 + frame.m_MineShapeCounts.Count() * 4 + 8);
  }
 
  // Spotted enemies (hostile markers), the side's feed, our known empty vehicles.

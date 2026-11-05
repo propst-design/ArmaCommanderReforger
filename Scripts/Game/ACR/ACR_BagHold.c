@@ -42,7 +42,9 @@ class ACR_BagHold
  // Nothing to shoot at: down, and up now and then for a look (srv:worksfight: on his feet all the while, a man was
  // shot from 150 m by attackers lying in the grass he never saw). Up for good with someone in his sights or close.
  static const float SEEN_S = 4;          // s since he saw his target: he has someone to shoot
- static const float WATCH_NEAR = 40;     // m: an enemy this close, he stays up
+ static const float WATCH_NEAR = 160;    // m: an enemy this close, he stays up. 40 before: he ducked for 3-6 s whenever he hadn't seen
+                                         // his target for 4 s, and down behind high bags he sees nothing, so he never saw it again
+                                         // (srv:worksfightbase, 2-3 Nov: the lost fights were the ones 'blind behind bags' 54-82%)
  static const float LOOK_MIN_S = 2.5;    // how long he looks
  static const float LOOK_MAX_S = 4;
  static const float DOWN_MIN_S = 3;      // how long he stays down

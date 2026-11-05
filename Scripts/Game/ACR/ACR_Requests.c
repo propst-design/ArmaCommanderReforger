@@ -209,6 +209,8 @@ class ACR_Requests : Managed
  // Drag to aim: where the player dragged the order being handled to face (ACR_CommandServer
  // sets it for the request), vector.Zero for none. Only player orders have one.
  static vector s_vAim;
+ // A shaped minefield order's corners while it is handled (ACR_PlayerController.ACR_ShapeServer, #200); null otherwise.
+ static ref array<vector> s_aCorners;
 
  // The orders a drag can aim (ACR_PlayerController.ACR_Aimable): roadblocks, minefields, Fortify.
  static bool TakesFacing(int command)
@@ -305,7 +307,7 @@ class ACR_Requests : Managed
   {
    string mineWhy;
    ACR_EMineKind mineKind = ACR_Minefields.KindOf(command);
-   if (!ACR_Minefields.Order(squad, mineKind, point, mineWhy, AimFor(point))) return outcome.Refuse(name + ": " + mineWhy);
+   if (!ACR_Minefields.Order(squad, mineKind, point, mineWhy, AimFor(point), s_aCorners)) return outcome.Refuse(name + ": " + mineWhy);
    PrintFormat("[ACR] MINEFIELD order player=%1 squad=%2 %3 at %4", pc.GetPlayerId(), name, ACR_Minefields.Name(mineKind), point);
    return outcome.Accept(name + ": " + OrderWords(command));
   }

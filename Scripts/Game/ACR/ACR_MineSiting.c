@@ -226,4 +226,77 @@ class ACR_MineSiting
   }
   return string.Format("score %1 (%2)", site.m_fScore, why);
  }
+ // ---------------------------------------------------------------- shapes (#200)
+ // The shape the AI lays at a scored site, from the site and weighted at random among the near-best
+ // (ACR_Variety, seeded per site):
+ // - on a road (AT, mixed): a belt across it, verge to verge, so a vehicle can't drive round, likeliest on the
+ //   enemy's road route and at a chokepoint; a block along the road, likelier where our gunners cover it; or
+ //   the 30 m square;
+ // - off the road (AP): a band across the enemy's approach, likelier in dead ground and tree lines; or the square.
+ // Sizes vary a little too. Empty corners: the square.
+ static const float BELT_LENGTH = 60;     // m across the road
+ static const float BLOCK_LENGTH = 50;    // m along the road
+ static const float BLOCK_WIDTH = 18;     // m across it
+ static const float BAND_WIDTH = 55;      // m across the enemy's approach
+ static const float BAND_DEPTH = 22;      // m deep
+ static const float SHAPE_NEAR = 0.25;    // shapes this close to the best one's score are picked among
+
+ static string ShapeFor(ACR_MineSite site, vector enemyPos, notnull array<vector> corners)
+ {
+  corners.Clear();
+  string key = string.Format("mine shape %1", site.m_vPos);
+  vector toEnemy = enemyPos - site.m_vPos;
+  toEnemy[1] = 0;
+  if (toEnemy.Length() < 1) toEnemy = Vector(0, 0, 1);
+  toEnemy.Normalize();
+  vector roadPoint, roadDir;
+  float width;
+  bool onRoad = site.m_eKind != ACR_EMineKind.AP && ACR_Minefields.Snap(site.m_vPos, ACR_Minefields.ROAD_SNAP, roadPoint, roadDir, width);
+  array<float> scores = {};
+  if (onRoad)
+  {
+   float belt = 1;
+   if (site.m_bOnRoute) belt += 0.1;
+   if (!site.m_sChoke.IsEmpty()) belt += 0.1;
+   float block = 0.95;
+   if (site.m_fCover > 0) block += 0.1;
+   scores.Insert(belt);
+   scores.Insert(block);
+   scores.Insert(0.9);
+   int pick = ACR_Variety.Pick(scores, key, SHAPE_NEAR);
+   vector across = Vector(roadDir[2], 0, -roadDir[0]);
+   if (pick == 0)
+   {
+    float length = ACR_Variety.Jitter(BELT_LENGTH, 0.25, key + " length");
+    corners.Insert(roadPoint - across * (length * 0.5));
+    corners.Insert(roadPoint + across * (length * 0.5));
+    return "belt across the road";
+   }
+   if (pick == 1)
+   {
+    float along = ACR_Variety.Jitter(BLOCK_LENGTH, 0.2, key + " length") * 0.5;
+    float half = BLOCK_WIDTH * 0.5;
+    corners.Insert(roadPoint + roadDir * along + across * half);
+    corners.Insert(roadPoint + roadDir * along - across * half);
+    corners.Insert(roadPoint - roadDir * along - across * half);
+    corners.Insert(roadPoint - roadDir * along + across * half);
+    return "block along the road";
+   }
+   return "square";
+  }
+  float band = 1;
+  if (site.m_bDead) band += 0.05;
+  if (site.m_bTrees) band += 0.05;
+  scores.Insert(band);
+  scores.Insert(0.9);
+  if (ACR_Variety.Pick(scores, key, SHAPE_NEAR) != 0) return "square";
+  vector side = Vector(toEnemy[2], 0, -toEnemy[0]);
+  float wide = ACR_Variety.Jitter(BAND_WIDTH, 0.2, key + " width") * 0.5;
+  float deep = ACR_Variety.Jitter(BAND_DEPTH, 0.2, key + " depth") * 0.5;
+  corners.Insert(site.m_vPos + side * wide + toEnemy * deep);
+  corners.Insert(site.m_vPos - side * wide + toEnemy * deep);
+  corners.Insert(site.m_vPos - side * wide - toEnemy * deep);
+  corners.Insert(site.m_vPos + side * wide - toEnemy * deep);
+  return "band across the approach";
+ }
 }

@@ -68,88 +68,66 @@ function Get-ACRAddonList([string]$pair, [string]$ace, [string]$pack = 'none', [
   return ($ids -join ',')
 }
 
-# Every BBB host option. BBB reads them where the AI runs (this server). Default is BBB's own
-# default; only changed values are passed. No Min = a switch ('1' on, '0' off).
-# Left out: bbbBios/bbbIdentityEggs (every machine must match), bbbVanilla (ACA starts BBB),
-# test-only flags, and aliases (bbbAntiArmor, bbbThreatDecay, bbbThreatExplosion).
-$script:BBBOptions = @(
-  @{ Flag = 'bbbExposedFire'; Group = 'Combat'; Label = 'Pinned in the open: keep spotting, fire faster'; Default = '1' }
-  @{ Flag = 'bbbCombatResponse'; Group = 'Combat'; Label = 'Return fire toward incoming fire (no target yet)'; Default = '1' }
-  @{ Flag = 'bbbCombatRadio'; Group = 'Combat'; Label = 'Squads share contact reports'; Default = '1' }
-  @{ Flag = 'bbbCombatDetail'; Group = 'Combat'; Label = 'Keep AI near a firefight fully simulated'; Default = '1' }
-  @{ Flag = 'bbbCombatEngagement'; Group = 'Combat'; Label = 'Take the shot before repositioning (< 100 m)'; Default = '1' }
-  @{ Flag = 'bbbCombatTargetPriority'; Group = 'Combat'; Label = 'Prefer a visible close enemy to a remembered one'; Default = '1' }
-  @{ Flag = 'bbbCombatManeuver'; Group = 'Combat'; Label = 'Shorter waits in cover under fire (experimental)'; Default = '0' }
-  @{ Flag = 'bbbFireManeuver'; Group = 'Combat'; Label = 'Fire and maneuver: base of fire + assault (experimental)'; Default = '0' }
-  @{ Flag = 'bbbBuildings'; Group = 'Combat'; Label = 'Use and clear buildings near contacts (experimental)'; Default = '0' }
-  @{ Flag = 'bbbGrenades'; Group = 'Grenades'; Label = 'Throw frag grenades at enemies in cover'; Default = '0' }
-  @{ Flag = 'bbbGrenadesMinDist'; Group = 'Grenades'; Label = 'Closest throw (m)'; Default = '12'; Min = 8; Max = 25 }
-  @{ Flag = 'bbbGrenadesMaxDist'; Group = 'Grenades'; Label = 'Farthest throw (m)'; Default = '38'; Min = 20; Max = 45 }
-  @{ Flag = 'bbbGrenadesFriendlyDist'; Group = 'Grenades'; Label = 'Keep friendlies this far from the blast (m)'; Default = '14'; Min = 8; Max = 25 }
-  @{ Flag = 'bbbGrenadesCooldown'; Group = 'Grenades'; Label = 'Squad cooldown (s)'; Default = '25'; Min = 5; Max = 120 }
-  @{ Flag = 'bbbThreat'; Group = 'Suppression'; Label = 'BBB suppression tuning (off = all of this group vanilla)'; Default = '1' }
-  @{ Flag = 'bbbSuppressionDecay'; Group = 'Suppression'; Label = 'Suppression wears off at (1 = vanilla, lower = longer)'; Default = '0.55'; Min = 0.05; Max = 5 }
-  @{ Flag = 'bbbExplosionThreat'; Group = 'Suppression'; Label = 'Explosion suppression (1 = vanilla)'; Default = '2.2'; Min = 0.1; Max = 5 }
-  @{ Flag = 'bbbExplosionReflex'; Group = 'Suppression'; Label = 'Hit the dirt when a blast wave arrives'; Default = '1' }
-  @{ Flag = 'bbbThreatGeometry'; Group = 'Suppression'; Label = 'High ground, flank and ambush fire pin harder'; Default = '1' }
-  @{ Flag = 'bbbElevationThreat'; Group = 'Suppression'; Label = 'High-ground factor (0 = off)'; Default = '1'; Min = 0; Max = 3 }
-  @{ Flag = 'bbbFlankThreat'; Group = 'Suppression'; Label = 'Rear/flank bonus (0 = off)'; Default = '0.5'; Min = 0; Max = 2 }
-  @{ Flag = 'bbbAmbushThreat'; Group = 'Suppression'; Label = 'Ambush shock (0 = off)'; Default = '0.2'; Min = 0; Max = 1 }
-  @{ Flag = 'bbbSkySuppression'; Group = 'Suppression'; Label = 'Aircraft gunfire is not a ground contact (fix)'; Default = '1' }
-  @{ Flag = 'bbbAimFixes'; Group = 'Aim'; Label = 'Aim fixes (binoculars, suppressed aim)'; Default = '1' }
-  @{ Flag = 'bbbAimTuning'; Group = 'Aim'; Label = 'Tuned aim preset (launchers, long range; untested)'; Default = '0' }
-  @{ Flag = 'bbbAimScale'; Group = 'Aim'; Label = 'Aim error scale (1 = vanilla, higher = worse)'; Default = '1'; Min = 0; Max = 5 }
-  @{ Flag = 'bbbSuppressedAim'; Group = 'Aim'; Label = 'Aim error when suppressed (1 = none)'; Default = '1.3'; Min = 1; Max = 5 }
-  @{ Flag = 'bbbLauncherAim'; Group = 'Aim'; Label = 'Launcher aim error (0 = vanilla, never miss)'; Default = '0'; Min = 0; Max = 5 }
-  @{ Flag = 'bbbLongRangeAim'; Group = 'Aim'; Label = 'Aim error growth past 215 m (0 = vanilla)'; Default = '0'; Min = 0; Max = 5 }
-  @{ Flag = 'bbbBinocsUnderFire'; Group = 'Aim'; Label = 'Allow binoculars while under fire (vanilla)'; Default = '0' }
-  @{ Flag = 'bbbArmour'; Group = 'Vehicles'; Label = 'Hold rifle fire at armour it cannot hurt'; Default = '1' }
-  @{ Flag = 'bbbArmourHits'; Group = 'Vehicles'; Label = 'Hits before a round counts as useless'; Default = '12'; Min = 1; Max = 100 }
-  @{ Flag = 'bbbArmourScatter'; Group = 'Vehicles'; Label = 'Non-AT infantry get low near armour'; Default = '0' }
-  @{ Flag = 'bbbArmorReaction'; Group = 'Vehicles'; Label = 'Vehicles smoke and reverse from AT fire (experimental)'; Default = '0' }
-  @{ Flag = 'bbbCrewTurnout'; Group = 'Vehicles'; Label = 'Crews turn out when quiet (experimental)'; Default = '0' }
-  @{ Flag = 'bbbDriverAlign'; Group = 'Vehicles'; Label = 'Drivers turn for the gunner (experimental)'; Default = '0' }
-  @{ Flag = 'bbbCommanderCrew'; Group = 'Vehicles'; Label = 'Commander seats count as crew'; Default = '1' }
-  @{ Flag = 'bbbTacticalDismount'; Group = 'Vehicles'; Label = 'Passengers dismount under fire'; Default = '1' }
-  @{ Flag = 'bbbGunnerReplace'; Group = 'Vehicles'; Label = 'Replace a dead or downed gunner'; Default = '1' }
-  @{ Flag = 'bbbGunnerDrill'; Group = 'Vehicles'; Label = 'Gunners fire back at unseen shooters'; Default = '1' }
-  @{ Flag = 'bbbGunnerScan'; Group = 'Vehicles'; Label = 'Gunners scan wider while moving'; Default = '1' }
-  @{ Flag = 'bbbUnstick'; Group = 'Vehicles'; Label = 'Free stuck vehicles'; Default = '1' }
-  @{ Flag = 'bbbDoors'; Group = 'Vehicles'; Label = 'Crews close doors and hatches'; Default = '1' }
-  @{ Flag = 'bbbStaticWeapons'; Group = 'Static weapons'; Label = 'Man nearby static weapons in contact'; Default = '0' }
-  @{ Flag = 'bbbStaticReach'; Group = 'Static weapons'; Label = 'Search radius (m)'; Default = '35'; Min = 10; Max = 80 }
-  @{ Flag = 'bbbStaticArc'; Group = 'Static weapons'; Label = 'Enemy within this traverse arc (deg)'; Default = '60'; Min = 15; Max = 180 }
-  @{ Flag = 'bbbStaticQuiet'; Group = 'Static weapons'; Label = 'Leave the gun after this long quiet (s)'; Default = '15'; Min = 5; Max = 120 }
-  @{ Flag = 'bbbMedic'; Group = 'Medical'; Label = 'Safer healing (wait for cover and smoke)'; Default = '0' }
-  @{ Flag = 'bbbMedicSmoke'; Group = 'Medical'; Label = 'Smoke before reaching an exposed casualty'; Default = '1' }
-  @{ Flag = 'bbbDrag'; Group = 'Medical'; Label = 'Drag casualties into cover (with ACE)'; Default = '1' }
-  @{ Flag = 'bbbSmoke'; Group = 'Smoke'; Label = 'Tactical smoke screens'; Default = '0' }
-  @{ Flag = 'bbbSmokeDrag'; Group = 'Smoke'; Label = '... for casualty drags'; Default = '1' }
-  @{ Flag = 'bbbSmokeManeuver'; Group = 'Smoke'; Label = '... for bounding advances'; Default = '1' }
-  @{ Flag = 'bbbSmokeMorale'; Group = 'Smoke'; Label = '... for withdrawals'; Default = '1' }
-  @{ Flag = 'bbbSmokeCooldown'; Group = 'Smoke'; Label = 'Squad cooldown (s)'; Default = '30'; Min = 5; Max = 180 }
-  @{ Flag = 'bbbSmokeDist'; Group = 'Smoke'; Label = 'Throw distance (m)'; Default = '20'; Min = 8; Max = 35 }
-  @{ Flag = 'bbbMorale'; Group = 'Morale'; Label = 'Badly hurt squads break contact (experimental)'; Default = '0' }
-  @{ Flag = 'bbbMoraleSurrender'; Group = 'Morale'; Label = 'Cornered, out-of-ammo men surrender'; Default = '1' }
-  @{ Flag = 'bbbMoraleCasualties'; Group = 'Morale'; Label = 'Break at this share of casualties'; Default = '0.5'; Min = 0.11; Max = 0.9 }
-  @{ Flag = 'bbbMoraleSuppression'; Group = 'Morale'; Label = 'Break at this squad suppression'; Default = '0.6'; Min = 0.11; Max = 1 }
-  @{ Flag = 'bbbMoraleDistance'; Group = 'Morale'; Label = 'Withdrawal bound (m)'; Default = '25'; Min = 10; Max = 50 }
-  @{ Flag = 'bbbRearm'; Group = 'Soldiers'; Label = 'Take ammo and launchers from the fallen'; Default = '1' }
-  @{ Flag = 'bbbRearmRadius'; Group = 'Soldiers'; Label = 'Rearm search radius (m)'; Default = '25'; Min = 5; Max = 100 }
-  @{ Flag = 'bbbWeaponReady'; Group = 'Soldiers'; Label = 'Take the weapon in hand when walking empty-handed'; Default = '1' }
-  @{ Flag = 'bbbRelaxedMarch'; Group = 'Soldiers'; Label = 'Lower weapons on quiet marches'; Default = '1' }
-  @{ Flag = 'bbbHorizonScan'; Group = 'Soldiers'; Label = 'Scan horizons and flanks'; Default = '1' }
-  @{ Flag = 'bbbThink'; Group = 'Diagnostics'; Label = 'Think overlay: look at an AI to see why it acts'; Default = '0' }
-  @{ Flag = 'bbbPerf'; Group = 'Diagnostics'; Label = 'BBB timing report in the server log'; Default = '0' }
-  @{ Flag = 'bbbTurretTrace'; Group = 'Diagnostics'; Label = 'Log turret boarding handoffs'; Default = '0' }
-)
+# Every BBB host option, read from BBB's own settings registry (BBB_Settings.c in the BBB
+# addon beside ACA: the dev checkout or the package's BetterBattleBuddies folder), so the
+# launcher always offers what the BBB it starts has. BBB reads them where the AI runs (this
+# server). Default is BBB's own default; only changed values are passed. A switch has no Min
+# and no Values; a choice has Values.
+# Left out: bbbVanilla (ACA starts BBB) and bbbBios/bbbIdentityEggs (every machine must match).
+$script:BBBSkip = @('bbbVanilla', 'bbbBios', 'bbbIdentityEggs')
 
-# The launcher starts every BBB switch on. Kept off: binoculars under fire (on = vanilla,
-# undoing a fix) and log-only diagnostics. Default stays BBB's own, so args still reach BBB.
-$script:BBBKeepOff = @('bbbBinocsUnderFire', 'bbbPerf', 'bbbTurretTrace')
+function Find-BBBSettingsFile {
+  $root = Split-Path $PSScriptRoot -Parent
+  foreach ($addon in Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue) {
+    $project = Join-Path $addon.FullName 'addon.gproj'
+    if (!(Test-Path -LiteralPath $project)) { continue }
+    if ((Get-Content -LiteralPath $project -Raw) -notmatch 'GUID\s+"BBB0261015000001"') { continue }
+    $file = Join-Path $addon.FullName 'Scripts\Game\BBB\BBB_Settings.c'
+    if (Test-Path -LiteralPath $file) { return $file }
+  }
+  return $null
+}
 
+function Read-BBBOptions {
+  $options = @()
+  $file = Find-BBBSettingsFile
+  if (!$file) { return $options }
+  $str = '"((?:[^"\\]|\\.)*)"'
+  $num = '(-?[\d.]+)'
+  $group = ''
+  $culture = [Globalization.CultureInfo]::InvariantCulture
+  foreach ($line in Get-Content -LiteralPath $file) {
+    $m = [regex]::Match($line, '^\s*g = ' + $str + ';')
+    if ($m.Success) { $group = $m.Groups[1].Value; continue }
+    $m = [regex]::Match($line, '^\s*(On|Off)\(g, ' + $str + ', ' + $str)
+    if ($m.Success) {
+      $default = '0'
+      if ($m.Groups[1].Value -eq 'On') { $default = '1' }
+      $options += @{ Flag = $m.Groups[2].Value; Group = $group; Label = $m.Groups[3].Value; Default = $default }
+      continue
+    }
+    $m = [regex]::Match($line, '^\s*Num\(g, ' + $str + ', ' + $num + ', ' + $num + ', ' + $num + ', ' + $num + ', ' + $str)
+    if ($m.Success) {
+      $options += @{ Flag = $m.Groups[1].Value; Group = $group; Label = $m.Groups[6].Value; Default = $m.Groups[2].Value
+                     Min = [double]::Parse($m.Groups[3].Value, $culture); Max = [double]::Parse($m.Groups[4].Value, $culture) }
+      continue
+    }
+    $m = [regex]::Match($line, '^\s*Def\(g, ' + $str + ', BBB_ESettingKind\.CHOICE, ' + $str + ', ' + $str + '.*\.Choices\(' + $str + ', ' + $str + '\)')
+    if ($m.Success) {
+      $options += @{ Flag = $m.Groups[1].Value; Group = $group; Label = $m.Groups[3].Value; Default = $m.Groups[2].Value
+                     Values = $m.Groups[4].Value.Split('|'); Labels = $m.Groups[5].Value.Split('|') }
+    }
+  }
+  return @($options | Where-Object { $script:BBBSkip -notcontains $_.Flag })
+}
+
+$script:BBBOptions = @(Read-BBBOptions)
+
+# The launcher starts every BBB switch on, the experimental and off-by-default ones too (Hot AI,
+# vehicles giving way...). Kept at BBB's default: numbers, choices (binoculars under fire = vanilla,
+# AI skill = the mission's own, Think panel) and the log-only Diagnostics group.
 function Get-BBBLaunchDefault($o) {
-  if ($o.ContainsKey('Min') -or $script:BBBKeepOff -contains $o.Flag) { return $o.Default }
+  if ($o.ContainsKey('Min') -or $o.ContainsKey('Values') -or $o.Group -eq 'Diagnostics') { return $o.Default }
   return '1'
 }
 
@@ -158,7 +136,8 @@ function Get-BBBChangedCount($bbb) {
 }
 
 function Get-BBBSummary($bbb) {
-  $switches = @($script:BBBOptions | Where-Object { !$_.ContainsKey('Min') })
+  if ($script:BBBOptions.Count -eq 0) { return "BBB's own defaults (BBB_Settings.c not found beside ACA)" }
+  $switches = @($script:BBBOptions | Where-Object { !$_.ContainsKey('Min') -and !$_.ContainsKey('Values') })
   $onCount = @($switches | Where-Object { $bbb[$_.Flag] -eq '1' }).Count
   return ([string]$onCount + ' of ' + $switches.Count + ' on, ' + (Get-BBBChangedCount $bbb) + ' changed from defaults')
 }
@@ -173,11 +152,17 @@ function Get-BBBArgs($bbb) {
 
 function Format-BBBValue($o, [string]$value) {
   if ($o.ContainsKey('Min')) { return $value }
+  if ($o.ContainsKey('Values')) {
+    $i = [array]::IndexOf($o.Values, $value)
+    if ($i -ge 0 -and $i -lt $o.Labels.Count) { return $o.Labels[$i] }
+    return $value
+  }
   if ($value -eq '1') { return 'on' }
   return 'off'
 }
 
 function Show-BBBOptions($bbb) {
+  if ($script:BBBOptions.Count -eq 0) { Write-Host "BBB's settings file was not found beside ACA: BBB runs with its own defaults." -ForegroundColor Yellow; return }
   while ($true) {
     Write-Host ''
     Write-Host '=== ALL BBB OPTIONS ===  (number: toggle or set, d: all defaults, Enter: back)' -ForegroundColor Cyan
@@ -197,6 +182,11 @@ function Show-BBBOptions($bbb) {
     $n = 0
     if (![int]::TryParse($choice, [ref]$n) -or $n -lt 1 -or $n -gt $script:BBBOptions.Count) { Write-Host ('Type a number from 1 to ' + $script:BBBOptions.Count + ', d, or Enter.') -ForegroundColor Yellow; continue }
     $o = $script:BBBOptions[$n - 1]
+    if ($o.ContainsKey('Values')) {
+      $i = [array]::IndexOf($o.Values, $bbb[$o.Flag])
+      $bbb[$o.Flag] = $o.Values[($i + 1) % $o.Values.Count]
+      continue
+    }
     if (!$o.ContainsKey('Min')) {
       if ($bbb[$o.Flag] -eq '1') { $bbb[$o.Flag] = '0' } else { $bbb[$o.Flag] = '1' }
       continue
@@ -242,7 +232,8 @@ function Show-HostSetup([switch]$Solo) {
   if (@('yes', 'no') -notcontains $s.ACE) { $s.ACE = 'no' }
   foreach ($o in $script:BBBOptions) {
     $v = 0.0
-    if (!$o.ContainsKey('Min')) { if (@('0', '1') -notcontains $bbb[$o.Flag]) { $bbb[$o.Flag] = Get-BBBLaunchDefault $o } }
+    if ($o.ContainsKey('Values')) { if ($o.Values -notcontains $bbb[$o.Flag]) { $bbb[$o.Flag] = $o.Default } }
+    elseif (!$o.ContainsKey('Min')) { if (@('0', '1') -notcontains $bbb[$o.Flag]) { $bbb[$o.Flag] = Get-BBBLaunchDefault $o } }
     elseif (![double]::TryParse($bbb[$o.Flag], [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$v) -or $v -lt $o.Min -or $v -gt $o.Max) { $bbb[$o.Flag] = $o.Default }
   }
   while ($true) {

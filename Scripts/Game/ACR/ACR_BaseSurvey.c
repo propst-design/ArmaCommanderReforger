@@ -93,6 +93,7 @@ class ACR_BaseSurvey : Managed
  ref array<string> m_aWallNames = {};      // ... the prefab of each pair
  ref array<float> m_aWallTall = {};       // ... and how tall
  ref ACR_KillGround m_Kill;               // where he walks and what fires on it (ACR_BaseRing.Plan)
+ ref ACR_BaseRing m_Ring;                 // the town's grid, for a last part once everything's placed (ACR_BaseRing.FinalWalk)
  int m_iTown;                             // buildings within the search radius
  int m_iWallPieces;
  int m_iMapWorks;                         // the map's sandbags, bunkers and towers seen

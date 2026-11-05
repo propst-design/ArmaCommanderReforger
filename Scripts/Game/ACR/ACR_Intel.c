@@ -150,6 +150,32 @@ class ACR_Intel : Managed
   m_SeenBy.Set(enemy, spotter);
  }
 
+ // A recon flight's sighting (ACR_ReconRun): a fuzzed spot, kept until keepUntil rather than
+ // MEMORY_MS. A later, closer look replaces the spot but never shortens how long it is kept.
+ void NoteFromAir(IEntity enemy, float now, string spotter, vector position, float keepUntil)
+ {
+  if (!enemy || !ACR_Respawn.IsAlive(enemy)) return;
+  NoteAt(enemy, now, spotter, position);
+  float kept;
+  if (!m_KeepUntil.Find(enemy, kept) || kept < keepUntil) m_KeepUntil.Set(enemy, keepUntil);
+ }
+ protected ref map<IEntity, float> m_KeepUntil = new map<IEntity, float>();
+ float KeepUntil(IEntity enemy) { float kept; m_KeepUntil.Find(enemy, kept); return kept; }
+ string SpotterOf(IEntity enemy) { string by; m_SeenBy.Find(enemy, by); return by; }
+
+ // Enemy bases a recon flight has photographed, and when (the AI commander trusts its count of
+ // what is there instead of guessing: ACR_AICommander.Assess).
+ protected ref map<ACR_Base, float> m_Photographed = new map<ACR_Base, float>();
+ void Photographed(ACR_Base base, float now) { m_Photographed.Set(base, now); }
+ bool PhotographedRecently(ACR_Base base, float now)
+ {
+  float at;
+  return m_Photographed.Find(base, at) && now - at <= ACR_ReconRun.RECON_MEMORY_MS;
+ }
+
+ // Enemy transmissions this side picked up (ACR_RadioIntercept).
+ ref array<ref ACR_Intercept> m_Intercepts = {};
+
  // Called every second by the manager.
  void Tick()
  {
@@ -215,14 +241,16 @@ class ACR_Intel : Managed
   // Forget the stale and the dead.
   array<IEntity> stale = {};
   foreach (IEntity enemy, float when : m_SeenTime)
-   if (!enemy || now - when > MEMORY_MS || !ACR_Respawn.IsAlive(enemy)) stale.Insert(enemy);
+   if (!enemy || (now - when > MEMORY_MS && now > KeepUntil(enemy)) || !ACR_Respawn.IsAlive(enemy)) stale.Insert(enemy);
   foreach (IEntity gone : stale)
   {
    m_SeenTime.Remove(gone);
    m_SeenAt.Remove(gone);
    m_SeenBy.Remove(gone);
    m_Role.Remove(gone);
+   m_KeepUntil.Remove(gone);
   }
+  ACR_RadioIntercept.Forget(this, now);
   BuildContacts(now);
   Report(now);
   if (m_iTicks % 60 == 0)
@@ -468,6 +496,24 @@ class ACR_Intel : Managed
   return fraction * length >= length - slack;
  }
 
+ // From a point in the sky to a soldier's chest: stopped by roofs, trees and terrain, not by
+ // other soldiers or the vehicle he rides in (ACR_ReconRun: a man under cover is rarely seen).
+ static bool SkyView(vector from, IEntity target)
+ {
+  TraceParam trace = new TraceParam();
+  trace.Start = from;
+  trace.End = target.GetOrigin() + Vector(0, 1.1, 0);
+  trace.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
+  s_TraceIgnoreVehicle = ACR_Transport.VehicleOf(target);
+  s_TraceTarget = target;
+  float fraction = GetGame().GetWorld().TraceMove(trace, IgnoreOwn);
+  s_TraceIgnoreVehicle = null;
+  s_TraceTarget = null;
+  if (fraction >= 0.995) return true;
+  IEntity hit = trace.TraceEnt;
+  return hit && (hit == target || hit.GetRootParent() == target);
+ }
+
  // One contact per enemy squad (newest sighting of any member), plus lone
  // enemy players who aren't in a squad.
  protected void BuildContacts(float now)
@@ -595,6 +641,8 @@ class ACR_Intel : Managed
   if (angle < 0) angle += 360;
   return angle;
  }
+
+ static AIGroup GroupOfBody(IEntity body) { return GroupOf(body); }
 
  protected static AIGroup GroupOf(IEntity body)
  {
@@ -855,8 +903,32 @@ class ACR_Intel : Managed
    if (spotter.IsEmpty()) spotter = "Contact";
    AddFeed(now, string.Format("%1: %2 %3", spotter, Describe(contact.m_iKind, contact.m_iCount), Place(contact.m_Pos)), contact.m_Pos);
    QueueRadio(string.Format("%1: contact, %2, %3.", spotter, Describe(contact.m_iKind, contact.m_iCount), Relative(contact.m_Pos)));
+   // The report goes out on the radio, where the enemy may hear it.
+   ACR_RadioIntercept.Transmitted(m_sFaction, TransmitterAt(contact.m_sSpotter), contact.m_sSpotter);
    m_DoctrineIntel.OnContact(contact);
   }
+ }
+
+ // Where a spotter of ours stands (a squad by name, else a player by name), or vector.Zero:
+ // unknown, a base's sentries (their base is no secret) or a recon flight.
+ vector TransmitterAt(string spotter)
+ {
+  if (spotter.IsEmpty() || !m_Manager) return vector.Zero;
+  foreach (ACR_Squad squad : m_Manager.m_Squads)
+  {
+   if (!squad || squad.GetName() != spotter || !squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction) continue;
+   if (squad.GetAnchor()) return squad.GetAnchor().GetOrigin();
+   return vector.Zero;
+  }
+  array<int> players = {};
+  GetGame().GetPlayerManager().GetPlayers(players);
+  foreach (int id : players)
+  {
+   if (GetGame().GetPlayerManager().GetPlayerName(id) != spotter) continue;
+   IEntity body = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
+   if (body && FactionKeyOf(body) == m_sFaction) return body.GetOrigin();
+  }
+  return vector.Zero;
  }
 
  // Radio-style position: "200 m E of Barracks", "at Barracks", or a grid.

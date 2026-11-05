@@ -30,6 +30,7 @@ class ACR_TestHarness : Managed
  static const int MODE_STALL = 17;
  static const int MODE_RTSOVERLAY = 119; // #66: RTS camera order-line clipping and contact fading
  static const int MODE_INTELMARKS = 146; // intel map markers: NATO symbols, labels, headings
+ static const int MODE_RECON = 250; // recon flight and radio intercept (ACR_Recon)
  static const int MODE_RESTART = 147; // a match restarted in the same process starts clean
  static const int MODE_RIDECOMMIT = 158; // posted squads keep their trip, catch rides on it, convoys (148-157 left for open branches)
  static const int MODE_STALLWAIT = 118; // #53: a vehicle waiting for its own crew to board isn't stuck
@@ -116,6 +117,7 @@ class ACR_TestHarness : Managed
  static const int MODE_QRF = 57; // 52 / 53 / 55 / 56: Fortify / roadblocks / patrol / ambush
  static const int MODE_HELIDOWN = 141; // a helicopter crippled in the air comes down
  static const int MODE_FIELDROUTES = 164; // foot squads off the roads, over bridges (3 Nov)
+ static const int MODE_MINESHAPES = 165; // minefield shapes from a commander's points (#200)
  static const int MODE_SKILLBBB = 163; // ACA's skill update lets BBB's Settings-tab values through
  static const int MODE_MANNERS = 162; // vehicle manners: give way, pull over, handbrake, evade
  static const int MODE_FIELDSOFFIRE = 161; // bushes knocked down round guns and posts (160: a local test)
@@ -152,6 +154,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrHeliDownTest", flag)) mode = MODE_HELIDOWN;
   if (System.GetCLIParam("acrSkillBBBTest", flag)) mode = MODE_SKILLBBB;
   if (System.GetCLIParam("acrFieldRoutesTest", flag)) mode = MODE_FIELDROUTES;
+  if (System.GetCLIParam("acrMineShapesTest", flag)) mode = MODE_MINESHAPES;
   if (System.GetCLIParam("acrMortarGiveUpTest", flag)) mode = MODE_MORTARGIVEUP;
   if (System.GetCLIParam("acrContentPackTest", flag)) mode = MODE_CONTENTPACK;
   if (System.GetCLIParam("acrContentPackWinterTest", flag)) mode = MODE_CONTENTPACK;
@@ -159,6 +162,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrRoadHopsOffTest", flag)) mode = MODE_ROADHOPS;
   if (System.GetCLIParam("acrRTSOverlayTest", flag)) mode = MODE_RTSOVERLAY;
   if (System.GetCLIParam("acrIntelMarksTest", flag)) mode = MODE_INTELMARKS;
+  if (System.GetCLIParam("acrReconTest", flag)) mode = MODE_RECON;
   if (System.GetCLIParam("acrRestartTest", flag)) mode = MODE_RESTART;
   if (System.GetCLIParam("acrRideTest", flag)) mode = MODE_RIDE;
   if (System.GetCLIParam("acrLogisticsTest", flag)) mode = MODE_LOGISTICS;
@@ -322,11 +326,13 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_HELIDOWN) { ACR_TestHeliDown.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_SKILLBBB) { ACR_TestSkillBBB.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_FIELDROUTES) { ACR_TestFieldRoutes.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_MINESHAPES) { ACR_TestMineShapes.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_MORTARGIVEUP) { ACR_TestMortarGiveUp.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_CONTENTPACK) { ACR_TestContentPack.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_ROADHOPS) { ACR_TestRoadHops.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RTSOVERLAY) { ACR_TestRTSOverlay.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_INTELMARKS) { ACR_TestIntelMarkers.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_RECON) { ACR_TestRecon.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RESTART) { ACR_TestRestart.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RIDE) { m_Vehicles.TestRide(); return; }
   if (m_Mode == MODE_LOGISTICS) { m_Logistics.TestLogistics(); return; }

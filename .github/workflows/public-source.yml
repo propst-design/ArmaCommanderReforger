@@ -21,3 +21,5 @@ jobs:
         run: python3 tools/check_enforce_numbers.py
       - name: Check the static-initializer budget
         run: python3 tools/check_static_init.py
+      - name: Check AI squad jobs change only through SetAITask
+        run: python3 tools/check_ai_task_writes.py

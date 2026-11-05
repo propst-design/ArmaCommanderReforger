@@ -3,8 +3,8 @@
 // directions stay; a gun's cone takes the bushes in front of it out to GUN_FRONT_M and leaves the ones
 // behind; trees over MAX_HEIGHT_M are never touched; another machine clears the same map bushes from
 // their spots, and only once. A medium checkpoint built there clears round its post, its own cut
-// branches included (hidden, colliders gone, recorded by index), and the record hides the same cut
-// branches on another copy of the checkpoint. Off by default: the test turns it on.
+// branches included (hidden, colliders gone, recorded by their place in its prefab), and the record
+// hides the same cut branches on another copy of the checkpoint, built from the prefab as a client does. Off by default: the test turns it on.
 class ACR_TestFieldOfFire
 {
  static ref ACR_TestFieldOfFire s_Test;
@@ -56,6 +56,13 @@ class ACR_TestFieldOfFire
   int alive;
   foreach (IEntity bush : bushes) if (bush) alive++;
   return alive;
+ }
+
+ protected static int VisibleCuttings(array<IEntity> parts)
+ {
+  int n;
+  foreach (IEntity part : parts) if (IsCutting(part) && (part.GetFlags() & EntityFlags.VISIBLE)) n++;
+  return n;
  }
 
  protected static bool IsCutting(IEntity e)
@@ -153,27 +160,41 @@ class ACR_TestFieldOfFire
    }
    array<int> record = {};
    SCR_CampaignBuildingCompositionComponent comp = ACR_StructureLayout.Comp(rb.m_Entity);
-   if (comp) comp.ACR_ClearedPieces(record);
-   PrintFormat("[ACR] FOFTEST checkpoint %1: %2 cut branches, %3 hidden (%4 still solid), %5 in its record", FilePath.StripPath(rb.m_Entity.GetPrefabData().GetPrefabName()), cuttings, hidden, solid, record.Count());
+   int recorded;
+   if (comp) recorded = comp.ACR_ClearedPieces(record);
+   PrintFormat("[ACR] FOFTEST checkpoint %1: %2 cut branches, %3 hidden (%4 still solid), %5 in its record", FilePath.StripPath(rb.m_Entity.GetPrefabData().GetPrefabName()), cuttings, hidden, solid, recorded);
    ACR_TestRegress.Check("field of fire: a checkpoint's own cut branches are cleared", cuttings > 0 && hidden > 0 && solid == 0);
-   ACR_TestRegress.Check("field of fire: the checkpoint records each one it cleared", record.Count() == hidden);
-   // Another copy of the same checkpoint, as a client builds it from the prefab: the record hides
-   // the same pieces, and they are cut branches.
+   ACR_TestRegress.Check("field of fire: the checkpoint records each one it cleared", recorded == hidden);
+   // Another copy of the same checkpoint where it stands, built from the prefab as a client builds it
+   // (and left as built, as a client does when the layout record doesn't fit): the record hides the
+   // same cut branches there, and nothing more when read again.
    EntitySpawnParams spawnParams = new EntitySpawnParams();
    spawnParams.TransformMode = ETransformMode.WORLD;
    rb.m_Entity.GetWorldTransform(spawnParams.Transform);
-   spawnParams.Transform[3] = spawnParams.Transform[3] + Vector(0, -50, 0); // out of the way
    IEntity copy = GetGame().SpawnEntityPrefab(Resource.Load(rb.m_Entity.GetPrefabData().GetPrefabName()), GetGame().GetWorld(), spawnParams);
-   int mirrored = ACR_FieldOfFire.MirrorPieces(copy, record, true);
    array<IEntity> copyParts = {};
    if (copy) ACR_StructureLayout.Parts(copy, copyParts);
+   int standing = VisibleCuttings(copyParts);
+   int mirrored = ACR_FieldOfFire.MirrorPieces(copy, record, true);
+   int again = ACR_FieldOfFire.MirrorPieces(copy, record, true);
+   int remaining = VisibleCuttings(copyParts);
    int wrong;
-   foreach (int i : record)
+   // Each cut branch hidden on the original has its twin (the same place in the prefab) hidden on the copy.
+   foreach (IEntity original : parts)
    {
-    if (i < 0 || i >= copyParts.Count() || !IsCutting(copyParts[i]) || (copyParts[i].GetFlags() & EntityFlags.VISIBLE)) wrong++;
+    if (!IsCutting(original) || (original.GetFlags() & EntityFlags.VISIBLE)) continue;
+    int ox, oy, oz, oh;
+    ACR_FieldOfFire.PieceKey(original, ox, oy, oz, oh);
+    bool match;
+    foreach (IEntity part : copyParts)
+    {
+     int cx, cy, cz, ch;
+     if (IsCutting(part) && !(part.GetFlags() & EntityFlags.VISIBLE) && ACR_FieldOfFire.PieceKey(part, cx, cy, cz, ch) && cx == ox && cy == oy && cz == oz && ch == oh) match = true;
+    }
+    if (!match) wrong++;
    }
-   PrintFormat("[ACR] FOFTEST copy: %1 pieces (the checkpoint %2), %3 hidden from the record, %4 wrong", copyParts.Count(), parts.Count(), mirrored, wrong);
-   ACR_TestRegress.Check("field of fire: the record hides the same cut branches on another copy", copy && copyParts.Count() == parts.Count() && mirrored == record.Count() && wrong == 0);
+   PrintFormat("[ACR] FOFTEST copy: %1 pieces (the checkpoint %2), %3 hidden from the record (%4 the second time), cut branches standing %5 before and %6 after, %7 not matched", copyParts.Count(), parts.Count(), mirrored, again, standing, remaining, wrong);
+   ACR_TestRegress.Check("field of fire: the record hides the same cut branches on another copy", copy && mirrored == recorded && again == 0 && standing - remaining == recorded && wrong == 0);
    if (copy) SCR_EntityHelper.DeleteEntityAndChildren(copy);
    ACR_Roadblocks.DismantleRoadblock(rb);
    ACR_FieldOfFire.s_bTestOn = false;

@@ -62,10 +62,12 @@ class ACR_BaseSystem : Managed
    if (settings && settings.m_aSupports && !settings.m_aSupports.IsEmpty())
    {
     bool listsAirLift = false;
+    bool listsRecon = false;
     foreach (ACR_SupportEntry configured : settings.m_aSupports)
     {
      if (configured && configured.m_eType == ACR_ESupportType.AIR_LIFT) listsAirLift = true;
      if (configured && configured.m_eType == ACR_ESupportType.ATTACK_HELI) listsAttack = true;
+     if (configured && configured.m_eType == ACR_ESupportType.RECON_FLIGHT) listsRecon = true;
      if (!configured || !configured.m_bEnabled) continue;
      data.m_aSupports.Insert(configured.Copy());
     }
@@ -80,6 +82,8 @@ class ACR_BaseSystem : Managed
      lift.Resolve();
      data.m_aSupports.Insert(lift);
     }
+    // ...and the recon flight (4 Nov), the same way.
+    if (!listsRecon) data.m_aSupports.Insert(ACR_Supports.NewEntry(ACR_ESupportType.RECON_FLIGHT));
    }
    else ACR_Supports.BuildDefaults(data.m_aSupports);
    // A content pack's attack helicopter for the side adds its support.
@@ -411,11 +415,40 @@ class ACR_BaseSystem : Managed
   return near;
  }
 
- // Room for a soldier standing right here (only the spot itself is tried).
- static bool RoomAt(vector spot)
+ // Room for a soldier standing right here (only the spot itself is tried): nothing solid where
+ // his body would be, other soldiers included ('ignore': the one standing there now).
+ // The game's finder (FindEmptyTerrainPosition) tests four diagonal lines through its cylinder,
+ // which miss a wall crossing it off-centre below head height, and a line starting inside a thick
+ // wall or a rock hits nothing at all: FIA went on spawning in walls after #73 (Jacob, 3 Nov).
+ // A box overlap catches both; the box starts above the ankles so a kerb or a step doesn't count.
+ static bool RoomAt(vector spot, IEntity ignore = null)
  {
+  // The finder can't be told to skip the man standing here: for him, the box alone.
   vector free;
-  return SCR_WorldTools.FindEmptyTerrainPosition(free, spot, 0.7, 0.6, 2) && vector.DistanceXZ(free, spot) < 0.1;
+  if (!ignore && (!SCR_WorldTools.FindEmptyTerrainPosition(free, spot, 0.7, 0.6, 2) || vector.DistanceXZ(free, spot) >= 0.1)) return false;
+  TraceBox body = new TraceBox();
+  body.Mins = Vector(-0.3, 0.35, -0.3);
+  body.Maxs = Vector(0.3, 1.75, 0.3);
+  body.Start = spot;
+  body.Flags = TraceFlags.ENTS;
+  array<IEntity> skip = {};
+  if (ignore)
+  {
+   Hierarchy(ignore, skip); // his rifle and kit are entities of their own
+   body.ExcludeArray = skip;
+  }
+  return GetGame().GetWorld().TracePosition(body, null) >= 0;
+ }
+
+ protected static void Hierarchy(IEntity root, notnull array<IEntity> into)
+ {
+  into.Insert(root);
+  IEntity child = root.GetChildren();
+  while (child)
+  {
+   Hierarchy(child, into);
+   child = child.GetSibling();
+  }
  }
 
  // Something other than a tree or a person overhead within 25 m: a roof, a floor, a bridge.
@@ -474,7 +507,7 @@ class ACR_BaseSystem : Managed
  }
 
  // #87: a squad the game spawned in its formation round one spot: anyone who came out inside a
- // heap or under a roof steps to clear ground near where he stands. The game queues its members
+ // wall or a heap or under a roof steps to clear ground near where he stands. The game queues its members
  // over a few frames, so it looks twice.
  static void SettleSoon(SCR_AIGroup group)
  {
@@ -492,9 +525,9 @@ class ACR_BaseSystem : Managed
    IEntity body = agent.GetControlledEntity();
    if (!body || !ACR_Respawn.IsAlive(body) || EntityUtils.IsPlayer(body) || ACR_Transport.VehicleOf(body)) continue;
    vector at = body.GetOrigin();
-   if (!Covered(at)) continue;
+   if (!Covered(at) && RoomAt(at, body)) continue;
    vector spot = SoldierSpot(at, 3, agent);
-   if (Covered(spot)) continue;
+   if (Covered(spot) || !RoomAt(spot, body)) continue;
    body.SetOrigin(spot);
    PrintFormat("[ACR] SPAWN %1: a soldier who came out inside something stepped %2 m clear", group.GetCustomName(), (int)vector.DistanceXZ(at, spot));
   }
@@ -573,9 +606,12 @@ class ACR_BaseSystem : Managed
   ACR_BaseWork work = ACR_BaseWorks.Find(base);
   vector lineCenter;
   float lineRadius;
-  if (work && work.m_sFaction == base.m_sOwner && ACR_BaseWorks.ManSquad(work, group, base.m_iGarrisonLeft, lineCenter, lineRadius))
+  int line;
+  if (work && work.m_sFaction == base.m_sOwner && ACR_BaseWorks.ManSquad(work, group, base.m_iGarrisonLeft, lineCenter, lineRadius, line))
   {
    ACR_Guerrillas.Order(group, ACR_Squad.WP_GARRISON, lineCenter, lineRadius, true);
+   // ... and kept there as the works' reserve is: the line it faces looked at again, a gun beside it re-manned.
+   ACR_BaseWorks.WatchGarrison(work, group, line);
    PrintFormat("[ACR] Garrison deployed at %1: %2 soldiers, %3 in group, behind its bags", base.m_sName, base.m_iGarrisonLeft, group.GetAgentsCount());
    return;
   }

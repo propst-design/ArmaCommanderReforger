@@ -263,6 +263,36 @@ class ACR_MapDeclutter
   return hq && side == ACR_EBaseSide.ENEMY;
  }
 
+ // The dark map's place names (ACR_PlayerMapTheme): the base within 'within' m of a place (the
+ // nearest), or -1.
+ static int NearestBase(vector pos, notnull array<vector> bases, float within)
+ {
+  int nearest = -1;
+  float best = within;
+  foreach (int b, vector at : bases)
+  {
+   float d = vector.DistanceXZ(at, pos);
+   if (d >= best) continue;
+   best = d;
+   nearest = b;
+  }
+  return nearest;
+ }
+
+ // Whether base b's name is drawn: its rectangle in the layout's names (4 per base, x1 <= x0: none).
+ static bool NameDrawn(notnull array<float> names, int b)
+ {
+  if (b < 0 || b * 4 + 2 >= names.Count()) return false;
+  return names[b * 4 + 2] > names[b * 4];
+ }
+
+ // A place's own name shows on the dark map unless its base's name stands for it right now. Zoomed
+ // out only some bases are named and the rest are bare dots, so their places keep their names (#203).
+ static bool PlaceNameShows(int base, notnull array<float> names)
+ {
+  return !NameDrawn(names, base);
+ }
+
  // ---------------------------------------------------------------- squads
  // A base's ring as far as "at it" goes (m).
  static float RingOf(int b, array<float> baseRadii)

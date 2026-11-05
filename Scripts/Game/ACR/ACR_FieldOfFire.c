@@ -16,8 +16,12 @@
 //
 // The AI runs on the server, which clears them; the server records what it cleared so every machine
 // clears the same (a map entity's deletion isn't replicated, and each machine builds a structure's
-// pieces from its prefab). A built structure's own pieces are recorded on it by their index in its
-// hierarchy (they go when it is dismantled); everything else (map bushes, and pieces of what the map
+// pieces from its prefab). A built structure's own pieces are recorded on it by their place in its
+// prefab: the coords their entity source gives them and their own prefab, the same on every machine
+// (they go when it is dismantled). Not by index or by where they stand: a client joined to a dedicated
+// server builds a checkpoint with its pieces in another order and 6 fewer (52 vs 58, -acrFofMPTest,
+// 4 Nov), and leaves it as built, since ACR_StructureLayout refuses a record whose count differs.
+// Everything else (map bushes, and pieces of what the map
 // itself placed) by its spot on the game mode, gone for the whole mission (up to MAX_SPOTS of them).
 // A client clears from a record when the structure (or the game) streams in and whenever it grows.
 // Host option -acrFieldsOfFire 1 turns it on; off by default (an AI option until it has been played,
@@ -115,11 +119,15 @@ class ACR_FieldOfFire
    SCR_CampaignBuildingCompositionComponent comp = ACR_StructureLayout.Comp(owner);
    if (comp)
    {
-    // A built structure's piece (a checkpoint's cut branches): hidden, recorded by its index.
+    // A built structure's piece (a checkpoint's cut branches): hidden, recorded by its place in the
+    // structure's prefab.
     if (!Hide(bush)) continue;
     array<IEntity> parts = {};
     ACR_StructureLayout.Parts(owner, parts);
-    comp.ACR_AddClearedPiece(parts.Find(bush));
+    array<int> keys = {};
+    PieceKeys(parts, keys);
+    int k = parts.Find(bush) * 4;
+    if (k >= 0 && keys[k + 3] != 0) comp.ACR_AddClearedPiece(keys[k], keys[k + 1], keys[k + 2], keys[k + 3]);
     cleared++;
     continue;
    }
@@ -155,17 +163,74 @@ class ACR_FieldOfFire
   return true;
  }
 
- // Another machine: a structure's pieces the server cleared, by their index in its hierarchy (the
- // same on every machine). 'test' runs it on the server.
+ // A structure's piece by its place in the structure's prefab: the coords its entity source gives it
+ // (cm, in its parent's frame) and a hash of its own prefab. False for a piece without them.
+ static bool PieceKey(IEntity piece, out int x, out int y, out int z, out int prefab)
+ {
+  if (!piece || !piece.GetPrefabData()) return false;
+  BaseContainer source = piece.GetPrefabData().GetPrefab();
+  if (!source) return false;
+  vector coords;
+  if (!source.Get("coords", coords)) return false;
+  BaseContainer named = source;
+  while (named && named.GetResourceName().IsEmpty()) named = named.GetAncestor();
+  if (!named) return false;
+  string name = named.GetResourceName();
+  x = (int)Math.Round(coords[0] / SPOT_STEP);
+  y = (int)Math.Round(coords[1] / SPOT_STEP);
+  z = (int)Math.Round(coords[2] / SPOT_STEP);
+  prefab = name.Hash();
+  return true;
+ }
+
+ // Every piece's key (4 ints each, all 0 for a piece without one), in Parts order. Pieces of one prefab
+ // at one place (a prefab's grouped copies give all theirs the group's coords) are told apart by their
+ // order among themselves, which is the prefab's on every machine.
+ static void PieceKeys(notnull array<IEntity> parts, notnull array<int> keys)
+ {
+  map<string, int> seen = new map<string, int>();
+  foreach (IEntity part : parts)
+  {
+   int x, y, z, h;
+   if (!PieceKey(part, x, y, z, h))
+   {
+    keys.Insert(0); keys.Insert(0); keys.Insert(0); keys.Insert(0);
+    continue;
+   }
+   string place = string.Format("%1,%2,%3,%4", x, y, z, h);
+   int n = seen.Get(place);
+   seen.Set(place, n + 1);
+   if (n > 0) h = string.Format("%1#%2", h, n).Hash();
+   if (h == 0) h = 1;
+   keys.Insert(x); keys.Insert(y); keys.Insert(z); keys.Insert(h);
+  }
+ }
+
+ // Another machine: a structure's pieces the server cleared, by their place in its prefab (4 ints a
+ // piece): each of its bushes and cut branches with a recorded key is hidden. Run again, a record hides
+ // nothing more. 'test' runs it on the server.
  static int MirrorPieces(IEntity root, notnull array<int> pieces, bool test = false)
  {
-  if (!root || pieces.IsEmpty() || (Replication.IsServer() && !test)) return 0;
+  if (!root || pieces.Count() < 4 || (Replication.IsServer() && !test)) return 0;
   array<IEntity> parts = {};
   ACR_StructureLayout.Parts(root, parts);
+  array<int> keys = {};
+  PieceKeys(parts, keys);
   int hidden;
-  foreach (int i : pieces)
+  foreach (int p, IEntity part : parts)
   {
-   if (i >= 0 && i < parts.Count() && Hide(parts[i])) hidden++;
+   if (!part || !(part.GetFlags() & EntityFlags.VISIBLE) || !ACR_FieldOfFireQuery.IsBush(part)) continue;
+   int x = keys[p * 4];
+   int y = keys[p * 4 + 1];
+   int z = keys[p * 4 + 2];
+   int h = keys[p * 4 + 3];
+   if (h == 0) continue;
+   for (int i = 0; i + 3 < pieces.Count(); i += 4)
+   {
+    if (pieces[i] != x || pieces[i + 1] != y || pieces[i + 2] != z || pieces[i + 3] != h) continue;
+    if (Hide(part)) hidden++;
+    break;
+   }
   }
   s_iMirrored += hidden;
   return hidden;
@@ -245,17 +310,21 @@ modded class SCR_CampaignBuildingCompositionComponent
  [RplProp(onRplName: "ACR_OnCleared")]
  protected ref array<int> m_aACRClearedPieces = {};
 
- void ACR_AddClearedPiece(int index)
+ // A piece by its place in the structure's prefab (ACR_FieldOfFire.PieceKey): 4 ints.
+ void ACR_AddClearedPiece(int x, int y, int z, int prefab)
  {
-  if (index < 0) return;
-  m_aACRClearedPieces.Insert(index);
+  m_aACRClearedPieces.Insert(x);
+  m_aACRClearedPieces.Insert(y);
+  m_aACRClearedPieces.Insert(z);
+  m_aACRClearedPieces.Insert(prefab);
   Replication.BumpMe();
  }
 
+ // The record (4 ints a piece); returns how many pieces.
  int ACR_ClearedPieces(notnull array<int> pieces)
  {
   pieces.Copy(m_aACRClearedPieces);
-  return pieces.Count();
+  return pieces.Count() / 4;
  }
 
  protected void ACR_OnCleared()
@@ -266,12 +335,18 @@ modded class SCR_CampaignBuildingCompositionComponent
  override void OnPostInit(IEntity owner)
  {
   super.OnPostInit(owner);
-  // A client that streams the structure in: once more after its pieces are built.
-  if (GetGame().InPlayMode() && !Replication.IsServer()) GetGame().GetCallqueue().CallLater(ACR_OnCleared, 1000);
+  // A client that streams the structure in: again once its pieces are built, and once more later.
+  if (GetGame().InPlayMode() && !Replication.IsServer())
+  {
+   GetGame().GetCallqueue().CallLater(ACR_OnCleared, 1500);
+   GetGame().GetCallqueue().CallLater(ACR_OnCleared, 4000);
+  }
  }
 
  override void OnDelete(IEntity owner)
  {
+  // Both later calls (Remove takes one at a time).
+  GetGame().GetCallqueue().Remove(ACR_OnCleared);
   GetGame().GetCallqueue().Remove(ACR_OnCleared);
   super.OnDelete(owner);
  }
