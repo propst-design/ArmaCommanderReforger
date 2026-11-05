@@ -1,4 +1,6 @@
 // Bases, assault, AI commander, tactics, supports, intel, hunt and queue tests (split out of ACR_TestHarness, 2 Oct).
+// VERDICT lines (ACR_TestRegress): assault 1, heli 2, intel 3 (the client's radio is skipped on a server), hunt 2.
+// Bases, AI, support, gunship (the plain loiter run), tactics and queue only log what happens (no verdict).
 class ACR_TestBattle : Managed
 {
  protected ACR_TestHarness h;
@@ -59,9 +61,15 @@ class ACR_TestBattle : Managed
   {
    m_AssaultDone = true;
    PrintFormat("[ACR] ASSAULT captured at t=%1", h.m_Ticks);
-   GetGame().GetCallqueue().CallLater(h.PrintComplete, 5000, false);
+   GetGame().GetCallqueue().CallLater(AssaultComplete, 5000, false);
   }
-  if (h.m_Ticks == 150) Print("[ACR] TEST COMPLETE");
+  if (h.m_Ticks == 150) AssaultComplete();
+ }
+ void AssaultComplete()
+ {
+  if (ACR_TestRegress.s_bCompleted) return;
+  ACR_TestRegress.Check("assault: the Outpost flips to US", m_AssaultDone, string.Format("t=%1", h.m_Ticks));
+  ACR_TestRegress.Complete("assault", 1);
  }
  string LodList(AIGroup group)
  {
@@ -175,7 +183,7 @@ class ACR_TestBattle : Managed
   {
    m_HipRun = manager.m_Supports.TestHeliRun("USSR");
    bool orbit = m_HipRun && m_HipRun.m_bAnalyzed && !m_HipRun.m_bPasses;
-   PrintFormat("[ACR] REGRESS %1 Mi-8 door gunners orbit instead of flying passes (run %2)", ACR_TestRegress.Verdict(orbit), m_HipRun != null);
+   ACR_TestRegress.Check("Mi-8 door gunners orbit instead of flying passes", orbit, string.Format("(run %1)", m_HipRun != null));
   }
   if (ACR_TestHarness.s_bHeliVariant && h.m_Ticks == 60 && m_HipRun && m_HipRun.m_Vehicle)
   {
@@ -194,12 +202,14 @@ class ACR_TestBattle : Managed
   if (ACR_TestHarness.s_bHeliVariant && h.m_Ticks == 64)
   {
    bool down = m_HipRun && m_HipRun.m_bDestroyed;
-   PrintFormat("[ACR] REGRESS %1 a helicopter with its rotors shot off stops flying and goes down", ACR_TestRegress.Verdict(down));
+   ACR_TestRegress.Check("a helicopter with its rotors shot off stops flying and goes down", down);
   }
   if (h.m_Ticks == 10) PrintFormat("[ACR] GUNSHIPTEST Mi-8: %1", manager.m_Supports.Call("USSR", h.SupportIndex(manager, miType), miSpot, true));
   if (h.m_Ticks == 12) PrintFormat("[ACR] GUNSHIPTEST UH-1H: %1", manager.m_Supports.Call("US", h.SupportIndex(manager, uhType), uhSpot, true));
   if (h.m_Ticks % 10 == 0 && h.m_Ticks >= 20) PrintFormat("[ACR] GUNSHIPTEST t=%1 UH-1H target alive %2 | Mi-8 target alive %3", h.m_Ticks, h.AliveIn(m_UHTarget), h.AliveIn(m_MiTarget));
-  if (h.m_Ticks == 150) Print("[ACR] TEST COMPLETE");
+  // The door-gunner variant (-acrHeliTest) judges two things; the plain loiter run only logs.
+  if (h.m_Ticks == 150 && ACR_TestHarness.s_bHeliVariant) ACR_TestRegress.Complete("heli", 2);
+  else if (h.m_Ticks == 150) Print("[ACR] TEST COMPLETE");
  }
 
  // ---------------------------------------------------------------- -acrTacticsTest
@@ -326,6 +336,7 @@ class ACR_TestBattle : Managed
   if (h.m_Ticks == 12)
   {
    PrintFormat("[ACR] INTELTEST far: US contacts %1 (want 0)", us.m_Contacts.Count());
+   ACR_TestRegress.Check("intel: a team 1.4 km away, out of everyone's sight, isn't known", us.m_Contacts.Count() == 0, string.Format("%1 contacts", us.m_Contacts.Count()));
    IEntity body = h.Eye(pc);
    if (body && m_IntelEnemy)
    {
@@ -337,6 +348,7 @@ class ACR_TestBattle : Managed
   {
    PrintFormat("[ACR] INTELTEST near: US contacts %1 (want >=1), feed %2, client contacts %3, client feed %4, USSR knows %5",
     us.m_Contacts.Count(), us.m_Feed.Count(), h.ClientContacts(pc), h.ClientFeed(pc), soviets.m_Contacts.Count());
+   ACR_TestRegress.Check("intel: a team in the open 120 m away is picked up", us.m_Contacts.Count() >= 1, string.Format("%1 contacts", us.m_Contacts.Count()));
    foreach (string line : us.m_Feed) PrintFormat("[ACR] INTELTEST feed: %1", line);
    foreach (ACR_Contact c : us.m_Contacts) PrintFormat("[ACR] INTELTEST contact kind %1 count %2 at %3 by %4, icons %5 (%6), heading %7", c.m_iKind, c.m_iCount, c.m_Pos, c.m_sSpotter, c.m_iIcons, ACR_Intel.DescribeSymbol(c.m_iIcons, c.m_iKind, c.m_iCount), c.m_fHeading);
    foreach (ACR_Contact roles : us.m_Contacts) foreach (IEntity seenBody : roles.m_Bodies) PrintFormat("[ACR] INTELTEST seen %1: role %2", seenBody.GetPrefabData().GetPrefabName(), ACR_Intel.RoleOf(seenBody));
@@ -349,13 +361,18 @@ class ACR_TestBattle : Managed
    IEntity me = h.Eye(pc);
    if (me) PrintFormat("[ACR] INTELTEST relative: %1 | %2", us.Relative(me.GetOrigin()), us.Relative(me.GetOrigin() + Vector(300, 0, 20)));
   }
-  if (h.m_Ticks == 21 && pc) PrintFormat("[ACR] INTELTEST radio received by client: %1 (want >=1)", pc.m_ACR_RadioCount);
+  if (h.m_Ticks == 21 && pc)
+  {
+   PrintFormat("[ACR] INTELTEST radio received by client: %1 (want >=1)", pc.m_ACR_RadioCount);
+   ACR_TestRegress.Check("intel: the radio message reaches the client", pc.m_ACR_RadioCount >= 1, pc.m_ACR_RadioCount.ToString());
+  }
+  if (h.m_Ticks == 21 && !pc) ACR_TestRegress.Skip("intel: the radio message reaches the client", "no client on a dedicated server");
   if (h.m_Ticks == 21)
   {
    PrintFormat("[ACR] INTELTEST our empty vehicles: server knows %1, client shows %2", us.m_VehicleSeen.Count(), h.ClientVehicles(pc));
    foreach (IEntity v, vector at : us.m_VehicleAt) PrintFormat("[ACR] INTELTEST vehicle %1 at %2", ACR_Vehicles.NameOf(v), at);
   }
-  if (h.m_Ticks == 22) Print("[ACR] TEST COMPLETE");
+  if (h.m_Ticks == 22) ACR_TestRegress.Complete("intel", 3);
  }
 
  void MoveSquad(ACR_Squad squad, string where)
@@ -408,17 +425,32 @@ class ACR_TestBattle : Managed
     m_iHuntOrderedAt = h.m_Ticks;
    }
   }
-  if (h.m_Ticks == 41 && m_iHuntOrderedAt == 0) Print("[ACR] HUNTTEST the enemy was never spotted");
+  if (h.m_Ticks == 41 && m_iHuntOrderedAt == 0)
+  {
+   Print("[ACR] HUNTTEST the enemy was never spotted");
+   ACR_TestRegress.Abort("hunt", "the enemy was never spotted");
+  }
   // (m_HuntTarget is null once the squad is gone: Alpha may finish it off first)
-  if (m_iHuntOrderedAt > 0 && h.m_Ticks == m_iHuntOrderedAt + 15 && alpha && m_HuntTarget && m_HuntTarget.GetAnchor() && alpha.GetAnchor())
-   PrintFormat("[ACR] HUNTTEST after 15 s: alpha '%1', hunting %2 (want 1), distance %3 m", alpha.m_Order, alpha.IsHunting(), (int)vector.DistanceXZ(alpha.GetAnchor().GetOrigin(), m_HuntTarget.GetAnchor().GetOrigin()));
+  if (m_iHuntOrderedAt > 0 && h.m_Ticks == m_iHuntOrderedAt + 15)
+  {
+   if (alpha && m_HuntTarget && m_HuntTarget.GetAnchor() && alpha.GetAnchor())
+   {
+    PrintFormat("[ACR] HUNTTEST after 15 s: alpha '%1', hunting %2 (want 1), distance %3 m", alpha.m_Order, alpha.IsHunting(), (int)vector.DistanceXZ(alpha.GetAnchor().GetOrigin(), m_HuntTarget.GetAnchor().GetOrigin()));
+    ACR_TestRegress.Check("hunt: Alpha is hunting the spotted team", alpha.IsHunting(), alpha.m_Order);
+   }
+   else ACR_TestRegress.Skip("hunt: Alpha is hunting the spotted team", "the team was already gone after 15 s");
+  }
   if (m_iHuntOrderedAt > 0 && h.m_Ticks == m_iHuntOrderedAt + 17 && m_HuntTarget)
   {
    array<AIAgent> agents = {};
    m_HuntTarget.GetAgents(agents);
    foreach (AIAgent agent : agents) h.Kill(agent.GetControlledEntity());
   }
-  if (m_iHuntOrderedAt > 0 && h.m_Ticks == m_iHuntOrderedAt + 32 && alpha) PrintFormat("[ACR] HUNTTEST after the kill: alpha '%1', hunting %2 (want 0)", alpha.m_Order, alpha.IsHunting());
-  if (h.m_Ticks == 80 || (m_iHuntOrderedAt > 0 && h.m_Ticks == m_iHuntOrderedAt + 34)) Print("[ACR] TEST COMPLETE");
+  if (m_iHuntOrderedAt > 0 && h.m_Ticks == m_iHuntOrderedAt + 32 && alpha)
+  {
+   PrintFormat("[ACR] HUNTTEST after the kill: alpha '%1', hunting %2 (want 0)", alpha.m_Order, alpha.IsHunting());
+   ACR_TestRegress.Check("hunt: the hunt ends on its own once the team is dead", !alpha.IsHunting(), alpha.m_Order);
+  }
+  if (h.m_Ticks == 80 || (m_iHuntOrderedAt > 0 && h.m_Ticks == m_iHuntOrderedAt + 34)) ACR_TestRegress.Complete("hunt", 2);
  }
 }

@@ -8,8 +8,11 @@
 //  3. evade: an unarmed truck drives at an enemy BTR-70 parked at the far end: it gets away (EVADE)
 //     and doesn't drive on into the BTR (the BTR's gunner may stop it on the way).
 // Logs "[ACR] MANNERS ...". Every part is an option, off by default: the test turns them on.
+// VERDICT: 11 checks (head-on 2 x 3, get out 3, evade 2); -acrMannersGetOutTest: the 3 get-out checks.
 class ACR_TestManners
 {
+ static const int CHECKS = 11;
+ static const int CHECKS_GETOUT = 3;
  static const ResourceName M1025 = "{4A71F755A4513227}Prefabs/Vehicles/Wheeled/M998/M1025.et";
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const ResourceName BTR = "{C012BB3488BEA0C2}Prefabs/Vehicles/Wheeled/BTR70/BTR70.et";
@@ -35,6 +38,12 @@ class ACR_TestManners
  {
   if (!s_Test) s_Test = new ACR_TestManners();
   s_Test.Step(tick);
+ }
+
+ protected static string TestName()
+ {
+  if (System.IsCLIParam("acrMannersGetOutTest")) return "mannersgetout";
+  return "manners";
  }
 
  protected void Check(string what, bool ok)
@@ -67,7 +76,7 @@ class ACR_TestManners
    if (!PickRoad())
    {
     Print("[ACR] MANNERS FAIL: no straight road");
-    Print("[ACR] TEST COMPLETE");
+    ACR_TestRegress.Abort(TestName(), "no straight road");
     m_iStep = 99;
     return;
    }
@@ -82,7 +91,8 @@ class ACR_TestManners
   else if (m_iStep == 4)
   {
    PrintFormat("[ACR] MANNERS done: %1 passed, %2 failed", m_iPass, m_iFail);
-   Print("[ACR] TEST COMPLETE");
+   if (System.IsCLIParam("acrMannersGetOutTest")) ACR_TestRegress.Complete(TestName(), CHECKS_GETOUT);
+   else ACR_TestRegress.Complete(TestName(), CHECKS);
    m_iStep = 99;
   }
  }

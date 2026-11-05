@@ -5,8 +5,10 @@
 // their spots, and only once. A medium checkpoint built there clears round its post, its own cut
 // branches included (hidden, colliders gone, recorded by their place in its prefab), and the record
 // hides the same cut branches on another copy of the checkpoint, built from the prefab as a client does. Off by default: the test turns it on.
+// VERDICT: 10 checks (6 round the spot and the gun, 4 on the checkpoint).
 class ACR_TestFieldOfFire
 {
+ static const int CHECKS = 10;
  static ref ACR_TestFieldOfFire s_Test;
  protected vector m_vSpot;
  protected ref array<IEntity> m_aNear = {};
@@ -80,7 +82,7 @@ class ACR_TestFieldOfFire
    if (!FindClump())
    {
     ACR_TestRegress.Check("field of fire: a clump of bushes found", false);
-    Print("[ACR] TEST COMPLETE");
+    ACR_TestRegress.Complete("fieldsoffire", CHECKS);
     return;
    }
    // Sort the bushes round the spot: within ROUND_M, and 9-20 m out (in front of / behind a facing
@@ -144,7 +146,7 @@ class ACR_TestFieldOfFire
    ACR_TestRegress.Check("field of fire: no bush left round a new roadblock's post", rb && left == 0);
    if (!rb)
    {
-    Print("[ACR] TEST COMPLETE");
+    ACR_TestRegress.Complete("fieldsoffire", CHECKS);
     return;
    }
    array<IEntity> parts = {};
@@ -198,7 +200,7 @@ class ACR_TestFieldOfFire
    if (copy) SCR_EntityHelper.DeleteEntityAndChildren(copy);
    ACR_Roadblocks.DismantleRoadblock(rb);
    ACR_FieldOfFire.s_bTestOn = false;
-   Print("[ACR] TEST COMPLETE");
+   ACR_TestRegress.Complete("fieldsoffire", CHECKS);
   }
  }
 }
