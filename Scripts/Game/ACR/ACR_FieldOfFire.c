@@ -125,7 +125,7 @@ class ACR_FieldOfFire
     array<IEntity> parts = {};
     ACR_StructureLayout.Parts(owner, parts);
     array<int> keys = {};
-    PieceKeys(parts, keys);
+    PieceKeys(owner, parts, keys);
     int k = parts.Find(bush) * 4;
     if (k >= 0 && keys[k + 3] != 0) comp.ACR_AddClearedPiece(keys[k], keys[k + 1], keys[k + 2], keys[k + 3]);
     cleared++;
@@ -165,34 +165,50 @@ class ACR_FieldOfFire
 
  // A structure's piece by its place in the structure's prefab: the coords its entity source gives it
  // (cm, in its parent's frame) and a hash of its own prefab. False for a piece without them.
- static bool PieceKey(IEntity piece, out int x, out int y, out int z, out int prefab)
+ // x, y, z: the piece's own coords; prefab: its prefab and every level above it up to the structure
+ // (prefab, coords, angles), as ACR_StructureLayout.Key: like pieces in two copies of one sub-prefab
+ // (two MG nests) differ by the copy they are in, not by an order joined clients build differently.
+ static bool PieceKey(IEntity root, IEntity piece, out int x, out int y, out int z, out int prefab)
  {
   if (!piece || !piece.GetPrefabData()) return false;
   BaseContainer source = piece.GetPrefabData().GetPrefab();
   if (!source) return false;
   vector coords;
   if (!source.Get("coords", coords)) return false;
-  BaseContainer named = source;
-  while (named && named.GetResourceName().IsEmpty()) named = named.GetAncestor();
-  if (!named) return false;
-  string name = named.GetResourceName();
+  string path;
+  IEntity e = piece;
+  while (e && e != root)
+  {
+   if (!e.GetPrefabData()) return false;
+   BaseContainer level = e.GetPrefabData().GetPrefab();
+   if (!level) return false;
+   vector at, angles;
+   if (!level.Get("coords", at)) return false;
+   level.Get("angles", angles);
+   BaseContainer named = level;
+   while (named && named.GetResourceName().IsEmpty()) named = named.GetAncestor();
+   if (!named) return false;
+   path += string.Format("%1@%2,%3,%4@%5,%6,%7/", named.GetResourceName(), Math.Round(at[0] * 1000), Math.Round(at[1] * 1000), Math.Round(at[2] * 1000), Math.Round(angles[0] * 100), Math.Round(angles[1] * 100), Math.Round(angles[2] * 100));
+   e = e.GetParent();
+  }
+  if (!e) return false;
   x = (int)Math.Round(coords[0] / SPOT_STEP);
   y = (int)Math.Round(coords[1] / SPOT_STEP);
   z = (int)Math.Round(coords[2] / SPOT_STEP);
-  prefab = name.Hash();
+  prefab = path.Hash();
   return true;
  }
 
  // Every piece's key (4 ints each, all 0 for a piece without one), in Parts order. Pieces of one prefab
  // at one place (a prefab's grouped copies give all theirs the group's coords) are told apart by their
  // order among themselves, which is the prefab's on every machine.
- static void PieceKeys(notnull array<IEntity> parts, notnull array<int> keys)
+ static void PieceKeys(IEntity root, notnull array<IEntity> parts, notnull array<int> keys)
  {
   map<string, int> seen = new map<string, int>();
   foreach (IEntity part : parts)
   {
    int x, y, z, h;
-   if (!PieceKey(part, x, y, z, h))
+   if (!PieceKey(root, part, x, y, z, h))
    {
     keys.Insert(0); keys.Insert(0); keys.Insert(0); keys.Insert(0);
     continue;
@@ -215,7 +231,7 @@ class ACR_FieldOfFire
   array<IEntity> parts = {};
   ACR_StructureLayout.Parts(root, parts);
   array<int> keys = {};
-  PieceKeys(parts, keys);
+  PieceKeys(root, parts, keys);
   int hidden;
   foreach (int p, IEntity part : parts)
   {

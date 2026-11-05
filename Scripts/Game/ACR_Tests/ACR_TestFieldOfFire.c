@@ -184,12 +184,12 @@ class ACR_TestFieldOfFire
    {
     if (!IsCutting(original) || (original.GetFlags() & EntityFlags.VISIBLE)) continue;
     int ox, oy, oz, oh;
-    ACR_FieldOfFire.PieceKey(original, ox, oy, oz, oh);
+    ACR_FieldOfFire.PieceKey(rb.m_Entity, original, ox, oy, oz, oh);
     bool match;
     foreach (IEntity part : copyParts)
     {
      int cx, cy, cz, ch;
-     if (IsCutting(part) && !(part.GetFlags() & EntityFlags.VISIBLE) && ACR_FieldOfFire.PieceKey(part, cx, cy, cz, ch) && cx == ox && cy == oy && cz == oz && ch == oh) match = true;
+     if (IsCutting(part) && !(part.GetFlags() & EntityFlags.VISIBLE) && ACR_FieldOfFire.PieceKey(copy, part, cx, cy, cz, ch) && cx == ox && cy == oy && cz == oz && ch == oh) match = true;
     }
     if (!match) wrong++;
    }
