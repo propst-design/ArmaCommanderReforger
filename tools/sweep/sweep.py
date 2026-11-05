@@ -5,6 +5,7 @@
   python tools/sweep/sweep.py run [--tier nightly|weekly] [--only ACA,BBB] [--match REGEX] [--until 08:00] [--dry-run]
   python tools/sweep/sweep.py report [--days 7]  # write the morning report
   python tools/sweep/sweep.py stats [REPO]       # per-preset pass rate / duration from the history
+  python tools/sweep/sweep.py tested ACA [REF]   # what passed at a commit (before merging a PR)
 
 Tests run headless only (hidden dedicated servers, never the game client), one at a time, each
 under the shared _wt/test-server.lock (see _wt/lockrun.sh), on detached worktrees of each repo's
@@ -638,6 +639,32 @@ def cmd_stats(args):
         print(f"{repo:6} {preset:30} {len(rs):4} {sum(ok(r['verdict']) for r in rs):4} {med:6.0f}  {rs[-1]['verdict']} {rs[-1]['started'][:10]}")
 
 
+def cmd_tested(args):
+    """What passed at a commit (any session's runs): the evidence to read before merging a PR."""
+    folder = REPOS[args.repo][0]
+    repo_dir = ADDONS / folder
+    ref = args.ref or 'HEAD'
+    full = git(repo_dir, 'rev-parse', ref, check=False)
+    if not full:
+        sys.exit(f'unknown ref {ref} in {folder}')
+    rows = [r for r in load_history() if r['repo'] == args.repo and r['build'] and full.startswith(r['build'].split('+')[0])]
+    if not rows:
+        print(f'{args.repo} {full[:9]}: no test results at this commit on this PC')
+        return 1
+    print(f'{args.repo} {full[:9]} ({git(repo_dir, "log", "-1", "--format=%s", full, check=False)[:70]})')
+    last = {}
+    for r in sorted(rows, key=lambda r: r['started']):
+        last[r['preset']] = r
+    for name, r in sorted(last.items()):
+        dirty = ' (uncommitted changes on top)' if '+dirty' in r['build'] else ''
+        bbb = f" with BBB {r['bbb']}" if r.get('bbb') else ''
+        print(f"  {r['verdict']:16} {name:28} {r['passed'] or ''}/{r['failed'] or ''} {r['started'][:16]} [{r['origin']}]{bbb}{dirty}")
+    must = 'regress' if args.repo == 'ACA' else 'compile'   # a passing regress has compiled too
+    if must not in last or not ok(last[must]['verdict']) or '+dirty' in last[must]['build']:
+        print(f'  MISSING: no clean passing {must} at this commit')
+    return 0
+
+
 def cmd_report(args):
     rows = load_history()
     since = (dt.datetime.now() - dt.timedelta(days=args.days)).strftime('%Y-%m-%dT%H:%M:%S')
@@ -757,11 +784,15 @@ def main():
     r.add_argument('--dry-run', action='store_true')
     s = sub.add_parser('stats')
     s.add_argument('repo', nargs='?')
+    t = sub.add_parser('tested')
+    t.add_argument('repo', choices=list(REPOS))
+    t.add_argument('ref', nargs='?', help='commit, branch or PR head (default HEAD of the main checkout)')
     p = sub.add_parser('report')
     p.add_argument('--days', type=int, default=7)
     p.add_argument('--out')
     a = ap.parse_args()
-    {'ingest': cmd_ingest, 'run': cmd_run, 'stats': cmd_stats, 'report': cmd_report}[a.cmd](a)
+    sys.exit({'ingest': cmd_ingest, 'run': cmd_run, 'stats': cmd_stats, 'report': cmd_report,
+              'tested': cmd_tested}[a.cmd](a))
 
 
 if __name__ == '__main__':
