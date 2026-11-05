@@ -144,6 +144,12 @@ class ACR_FallingBomb : Managed
 	static const float PYLON_DROP = 1;     // the pylons hang about this far under the jet's origin
 	static const ResourceName MK82_OPEN = "{AC230926A00100E6}Prefabs/Vehicles/Aircraft/ACR_Mk82_Open.et";
 	static const ResourceName OFAB_OPEN = "{AC230926A00100E8}Prefabs/Vehicles/Aircraft/ACR_OFAB250ShN_Open.et";
+	// The Snakeye's blades swinging out from their hinges, 15, 30 and 45 degrees (fully open at 55: MK82_OPEN),
+	// one STAGE_S apart: a quarter-second opening, not a sudden change of model.
+	static const ResourceName MK82_OPEN_15 = "{AC230926A00100E9}Prefabs/Vehicles/Aircraft/ACR_Mk82_Open15.et";
+	static const ResourceName MK82_OPEN_30 = "{AC230926A00100EA}Prefabs/Vehicles/Aircraft/ACR_Mk82_Open30.et";
+	static const ResourceName MK82_OPEN_45 = "{AC230926A00100EB}Prefabs/Vehicles/Aircraft/ACR_Mk82_Open45.et";
+	static const float STAGE_S = 0.06;
 	IEntity m_Body;
 	vector m_vSlot;        // where it hangs, in the jet's model axes
 	bool m_bHung;          // on a pylon (false: it appears under the jet's belly at release)
@@ -158,7 +164,7 @@ class ACR_FallingBomb : Managed
 	ResourceName m_sPrefab;
 	float m_fDrag;          // SNAKEYE_K, CHUTE_K, or 0 for a low-drag bomb
 	float m_fOpenAfter;
-	bool m_bOpened;
+	int m_iStage;           // how many of its opening stages are showing (0: shut)
 	ref array<float> m_aAlong; // the simulated fall every SAMPLE_DT: metres forward...
 	ref array<float> m_aDown;  // ...and metres down
 	float m_fSimT;
@@ -182,6 +188,23 @@ class ACR_FallingBomb : Managed
 		if (bomb == ACR_LocalFlyover.BOMB_MK82) return MK82_OPEN;
 		if (bomb == ACR_LocalFlyover.BOMB_OFAB) return OFAB_OPEN;
 		return "";
+	}
+	// The models it goes through as its retarder opens, the last fully open.
+	static int StageCount(ResourceName bomb)
+	{
+		if (bomb == ACR_LocalFlyover.BOMB_MK82) return 4;
+		if (OpenedOf(bomb) != "") return 1;
+		return 0;
+	}
+	static ResourceName StageOf(ResourceName bomb, int stage)
+	{
+		if (bomb == ACR_LocalFlyover.BOMB_MK82)
+		{
+			if (stage == 0) return MK82_OPEN_15;
+			if (stage == 1) return MK82_OPEN_30;
+			if (stage == 2) return MK82_OPEN_45;
+		}
+		return OpenedOf(bomb);
 	}
 
 	// A bomb let go at `v0` m/s level, `h` m up, with drag `k` from `openAfter` s on: samples of the fall
@@ -459,12 +482,18 @@ class ACR_LocalFlyover : Managed
 			at[1] = bomb.m_vFrom[1] - down * scaleY;
 			vector velocity = across * ((bomb.m_aAlong[i + 1] - bomb.m_aAlong[i]) * scaleX);
 			velocity[1] = -(bomb.m_aDown[i + 1] - bomb.m_aDown[i]) * scaleY;
-			// the retarder opens (petals out, or the chute streaming behind): its model with it out, which the
-			// bomb's pose carries along its path and which goes with the bomb when it lands
-			if (bomb.m_fDrag > 0 && !bomb.m_bOpened && s >= bomb.m_fOpenAfter)
+			// the retarder opens (the Snakeye's blades swinging out through their stages, or the chute streaming
+			// behind): each stage's model in turn, which the bomb's pose carries along its path and which goes
+			// with the bomb when it lands
+			int stages = ACR_FallingBomb.StageCount(bomb.m_sPrefab);
+			int due = 0;
+			if (bomb.m_fDrag > 0 && s >= bomb.m_fOpenAfter)
+				due = 1 + (int)Math.Floor((s - bomb.m_fOpenAfter) / ACR_FallingBomb.STAGE_S);
+			if (due > stages) due = stages;
+			if (due > bomb.m_iStage)
 			{
-				bomb.m_bOpened = true;
-				IEntity opened = ACR_Supports.SpawnLocal(ACR_FallingBomb.OpenedOf(bomb.m_sPrefab), at, vector.Zero);
+				bomb.m_iStage = due;
+				IEntity opened = ACR_Supports.SpawnLocal(ACR_FallingBomb.StageOf(bomb.m_sPrefab, due - 1), at, vector.Zero);
 				if (opened)
 				{
 					SCR_EntityHelper.DeleteEntityAndChildren(bomb.m_Body);

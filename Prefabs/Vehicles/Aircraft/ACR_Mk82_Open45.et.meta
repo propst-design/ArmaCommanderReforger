@@ -1,0 +1,9 @@
+MetaFileClass {
+ Name "{AC230926A00100EB}Prefabs/Vehicles/Aircraft/ACR_Mk82_Open45.et"
+ Configurations {
+  ETResourceClass PC {
+  }
+  ETResourceClass HEADLESS : PC {
+  }
+ }
+}

@@ -452,45 +452,88 @@ def fins(b, x, root_r, span_r, root_ch, tip_ch, sweep, paint, th=0.025):
         b._faces(rings, paint)
 
 
-def mk82(b):
-    """Mk 82 500 lb low-drag bomb (the A-10's): 2.21 m, 273 mm across, olive drab with the yellow nose band
-    of a filled bomb, conical tail with four fins. Origin at its middle, nose +X."""
-    b.loft([(1.1, 0, 0, 0), (1.02, 0, 0.055, 0.055), (0.8, 0, 0.115, 0.115), (0.5, 0, 0.137, 0.137),
-            (-0.4, 0, 0.137, 0.137), (-0.7, 0, 0.1, 0.1), (-0.95, 0, 0.065, 0.065), (-1.0, 0, 0, 0)], "od", n=2, smooth=True,
-           seg=20)
-    b.loft([(0.68, 0, 0.13, 0.13), (0.6, 0, 0.134, 0.134)], "yellow", n=2, seg=14)
-    fins(b, -0.62, 0.09, 0.26, 0.45, 0.28, 0.18, "od")
+SNAKEYE_OPEN = 55  # degrees the Mk 15's blades stand off the tail's axis, deployed (photos: 50-60)
+SNAKEYE_STAGES = (15, 30, 45)  # the opening, in between (ACR_FallingBomb swaps them in over ~0.25 s)
 
 
-def mk82_spec():
-    return {"name": "Mk82", "build": mk82, "camo": EURO, "role": "A-10 bomb (Snakeye, petals shut)", "ortho": 3}
-
-
-def mk82_open(b):
-    """The Mk 82 Snakeye half a second after release: its Mk 15 tail's four petals sprung open into an X airbrake,
-    hinged at the tail and flared out forward, broad face to the airflow (ACR_FallingBomb swaps this in)."""
-    b.loft([(1.1, 0, 0, 0), (1.02, 0, 0.055, 0.055), (0.8, 0, 0.115, 0.115), (0.5, 0, 0.137, 0.137),
-            (-0.4, 0, 0.137, 0.137), (-0.7, 0, 0.1, 0.1), (-0.95, 0, 0.065, 0.065), (-1.0, 0, 0, 0)], "od", n=2,
-           smooth=True, seg=20)
-    b.loft([(0.68, 0, 0.13, 0.13), (0.6, 0, 0.134, 0.134)], "yellow", n=2, seg=14)
-    hinge_x, hinge_r, length, width, th = -0.97, 0.07, 0.48, 0.2, 0.012
-    tilt = math.radians(70)  # off the tail's axis, swung forward
+def snakeye(b, phi_deg):
+    """Mk 82 with the Mk 15 Snakeye retarding tail (the A-10's), measured off identified photographs: the NMUSAF
+    display (Wikimedia Commons, "Mk. 81 250-lb and Mk. 82 Snakeye I 500-lb.jpg"), the Pima, Pax River and Eglin
+    displays on 447bg.org (deployed) and the gunplumbers.ca practice round (stowed). 273 mm body: a tangent-ogive
+    nose with a small fuze, the yellow band of a filled bomb where the ogive meets the cylinder, a short rear taper
+    into a cone and a slim hub tube. On it the Mk 15: four U-channel blades hinged at the hub's rear end. Stowed
+    (phi 0) they lie forward along the hub as a square sleeve narrower than the body; deployed they swing out
+    forward to SNAKEYE_OPEN degrees off the axis, broad face to the airflow, each braced by a strut to a spring
+    collar that slides aft along the hub as they open. Two suspension lugs on top. Origin at its middle, nose +X.
+    phi_deg: how far open (the in-between stages animate the opening)."""
+    X = Vector((1, 0, 0))
+    R = 0.1365
+    nose_x, ln = 1.12, 0.62
+    rho = (R * R + ln * ln) / (2 * R)  # tangent ogive
+    ogive = lambda xp: math.sqrt(max(0.0, rho * rho - (ln - xp) ** 2)) + R - rho
+    st = [(nose_x - 0.045, 0, 0.0, 0.0)]  # behind the blunt fuze
+    for xp in (0.045, 0.07, 0.1, 0.16, 0.24, 0.33, 0.43, 0.53, 0.62):
+        r = max(ogive(xp), 0.03)
+        st.append((nose_x - xp, 0, r, r))
+    for x, k in ((-0.12, 1.0), (-0.24, 0.95), (-0.36, 0.82), (-0.46, 0.66), (-0.52, 0.55), (-0.58, 0.33),
+                 (-1.08, 0.3), (-1.095, 0.5), (-1.12, 0.5)):
+        st.append((x, 0, k * R, k * R))
+    st.append((-1.12, 0, 0.0, 0.0))
+    paints = ["od"] * (len(st) - 1)
+    paints[-1] = "intake"  # the hub's open rear end
+    b._faces([[Vector((x, math.cos(2 * math.pi * i / 24) * hw, math.sin(2 * math.pi * i / 24) * hh))
+               for i in range(24)] if hw > 0 else [Vector((x, 0, 0))] for x, _, hw, hh in st], paints, smooth=True)
+    b.loft([(nose_x, 0, 0.0, 0.0), (nose_x - 0.004, 0, 0.018, 0.018), (nose_x - 0.016, 0, 0.027, 0.027),
+            (nose_x - 0.05, 0, 0.031, 0.031)], "nozzle", n=2, seg=16, smooth=True)  # blunt nose fuze
+    band = [(nose_x - xp, 0, ogive(xp) + 0.0012, ogive(xp) + 0.0012) for xp in (0.555, 0.585, 0.62)]
+    b.loft(band, "yellow", n=2, seg=24, smooth=True)
+    for x in (0.278, -0.078):  # suspension lugs, 14 in apart
+        b.box((x - 0.026, -0.006, R - 0.01), (x - 0.014, 0.006, R + 0.034), "od")
+        b.box((x + 0.014, -0.006, R - 0.01), (x + 0.026, 0.006, R + 0.034), "od")
+        b.box((x - 0.026, -0.006, R + 0.024), (x + 0.026, 0.006, R + 0.036), "od")
+    # the Mk 15
+    xh, d, blade, w0, w1, flange, th = -1.1, 0.088, 0.62, 0.13, 0.16, 0.026, 0.006
+    rc, ub, open_c = 0.045, 0.25 * blade, -0.72
+    phi, phi_open = math.radians(phi_deg), math.radians(SNAKEYE_OPEN)
+    b_open = Vector((xh + ub * math.cos(phi_open), d + ub * math.sin(phi_open)))
+    strut = (Vector((open_c, rc)) - b_open).length
+    bx, br = xh + ub * math.cos(phi), d + ub * math.sin(phi)
+    collar = bx + math.sqrt(max(0.0, strut ** 2 - (br - rc) ** 2))  # where the collar sits for this opening
+    b.loft([(collar + 0.018, 0, 0.0, 0.0), (collar + 0.018, 0, 0.052, 0.052), (collar - 0.018, 0, 0.052, 0.052),
+            (collar - 0.018, 0, 0.0, 0.0)], "nozzle", n=2, seg=16)
+    x = collar + 0.035
+    while x < -0.59:  # the spring between the collar and the cone
+        b.loft([(x + 0.006, 0, 0.046, 0.046), (x - 0.006, 0, 0.046, 0.046)], "nozzle", n=2, seg=12)
+        x += 0.03
+    b.loft([(xh + 0.03, 0, 0.0, 0.0), (xh + 0.03, 0, d + 0.008, d + 0.008), (xh - 0.01, 0, d + 0.008, d + 0.008),
+            (xh - 0.01, 0, 0.0, 0.0)], "od", n=2, seg=16)  # hinge ring
     for k in range(4):
         a = math.radians(45 + 90 * k)
         radial = Vector((0, math.cos(a), math.sin(a)))
-        tangent = Vector((0, -math.sin(a), math.cos(a)))
-        hinge = Vector((hinge_x, 0, 0)) + radial * hinge_r
-        span = Vector((math.cos(tilt), 0, 0)) + radial * math.sin(tilt)
-        normal = span.cross(tangent).normalized() * (th / 2)
-        quad = [hinge - tangent * width / 2, hinge + tangent * width / 2,
-                hinge + span * length + tangent * width / 2, hinge + span * length - tangent * width / 2]
-        b._faces([[q + normal for q in quad], [q - normal for q in quad]], "od")
-        b.box((hinge_x - 0.02, -0.01, -0.01), (hinge_x + 0.02, 0.01, 0.01), "od")
+        tang = Vector((0, -math.sin(a), math.cos(a)))
+        span = X * math.cos(phi) + radial * math.sin(phi)
+        inward = X * math.sin(phi) - radial * math.cos(phi)  # the channel's open side: to the hub when stowed
+        hinge = X * xh + radial * d
+
+        def ring(u):
+            w = w0 + (w1 - w0) * u / blade
+            o = hinge + span * u
+            sec = [(-w / 2, flange), (-w / 2, 0), (w / 2, 0), (w / 2, flange),
+                   (w / 2 - th, flange), (w / 2 - th, th), (-w / 2 + th, th), (-w / 2 + th, flange)]
+            return [o + tang * c + inward * h for c, h in sec]
+        b._faces([ring(0.0), ring(blade)], "od")
+        cord(b, X * collar + radial * rc, hinge + span * ub + inward * th, 0.011, "nozzle")
 
 
-def mk82_open_spec():
-    return {"name": "Mk82_Open", "build": mk82_open, "camo": EURO, "role": "A-10 bomb (Snakeye, petals open)",
-            "ortho": 3}
+def snakeye_spec(phi):
+    if phi == 0:
+        name, role = "Mk82", "A-10 bomb (Snakeye, stowed)"
+    elif phi == SNAKEYE_OPEN:
+        name, role = "Mk82_Open", "A-10 bomb (Snakeye, open)"
+    else:
+        name, role = "Mk82_Open%d" % phi, "A-10 bomb (Snakeye, opening %d deg)" % phi
+    return {"name": name, "build": lambda b: snakeye(b, phi), "camo": EURO, "role": role, "ortho": 2.8,
+            "rear_ortho": 0.6 + 0.7 * phi / SNAKEYE_OPEN}
 
 
 def fab250(b):
@@ -639,7 +682,8 @@ def ofab_open_spec():
             "role": "Su-25 bomb (brake chute out)", "ortho": 6.5, "centre": (-2.3, 0, 0)}
 
 
-PLANES = [a10_spec(), su25_spec(), rf4c_spec(), su17_spec(), mk82_spec(), mk82_open_spec(), fab250_spec(),
+PLANES = [a10_spec(), su25_spec(), rf4c_spec(), su17_spec(), snakeye_spec(0)] + [snakeye_spec(p) for p in SNAKEYE_STAGES] + [
+          snakeye_spec(SNAKEYE_OPEN), fab250_spec(),
           ofab_spec(), ofab_open_spec()]
 
 # ---------- build, export, preview ----------
@@ -721,7 +765,7 @@ for plane in PLANES:
         cam.location = Vector(loc) + centre
         d = Vector((0, 0, aim)) - Vector(loc)
         cam.rotation_euler = d.to_track_quat("-Z", {"below": "X", "top": "X", "rear": "Y"}.get(view, "Z")).to_euler()
-        cam_data.ortho_scale = 0.6 if view == "rear" else plane.get("ortho", 23)
+        cam_data.ortho_scale = plane.get("rear_ortho", 0.6) if view == "rear" else plane.get("ortho", 23)
         scene.render.filepath = os.path.join(PREV, "%s_%s.png" % (name, view))
         bpy.ops.render.render(write_still=True)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT, ".local-aircraft", name + ".blend"), copy=True)

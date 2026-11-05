@@ -104,10 +104,10 @@ class ACR_TestRecon
  {
   if (tick == 4)
   {
-   // stowed and opened: the Mk 82 Snakeye (petals out), the OFAB-250ShN (brake chute streaming 3.9 m behind),
+   // stowed and opened: the Mk 82 Snakeye (shut, its blades at 15, 30 and 45 degrees, open), the OFAB-250ShN (brake chute streaming 3.9 m behind),
    // and the FAB-250 M-62
-   array<ResourceName> names = {ACR_LocalFlyover.BOMB_MK82, ACR_FallingBomb.MK82_OPEN, ACR_LocalFlyover.BOMB_OFAB, ACR_FallingBomb.OFAB_OPEN, ACR_LocalFlyover.BOMB_FAB250};
-   array<float> lengths = {2.18, 2.1, 1.99, 5.84, 1.96};
+   array<ResourceName> names = {ACR_LocalFlyover.BOMB_MK82, ACR_FallingBomb.MK82_OPEN_15, ACR_FallingBomb.MK82_OPEN_30, ACR_FallingBomb.MK82_OPEN_45, ACR_FallingBomb.MK82_OPEN, ACR_LocalFlyover.BOMB_OFAB, ACR_FallingBomb.OFAB_OPEN, ACR_LocalFlyover.BOMB_FAB250};
+   array<float> lengths = {2.24, 2.24, 2.24, 2.24, 2.24, 1.99, 5.84, 1.96};
    int good = 0;
    string sizes = "";
    foreach (int i, ResourceName name : names)
@@ -164,8 +164,9 @@ class ACR_TestRecon
     vector nose = m[0];
     pitch = nose[1];
    }
-   s_sDrop += string.Format("at ~10 s falling %1, %2 m below the jet, %3 m up, nose %4; ", bomb.m_bFalling, below, above, pitch);
-   if (!bomb.m_bFalling || below < 20 || above < 1 || pitch > -0.05) s_sDrop += "BAD ";
+   // and its blades all the way open: shut, 15, 30, 45 degrees, then open
+   s_sDrop += string.Format("at ~10 s falling %1, %2 m below the jet, %3 m up, nose %4, stage %5 of %6; ", bomb.m_bFalling, below, above, pitch, bomb.m_iStage, ACR_FallingBomb.StageCount(bomb.m_sPrefab));
+   if (!bomb.m_bFalling || below < 20 || above < 1 || pitch > -0.05 || bomb.m_iStage != 4) s_sDrop += "BAD ";
    return;
   }
   s_sDrop += string.Format("at ~18 s landed %1", bomb.m_bDone && !bomb.m_Body);
