@@ -2,7 +2,7 @@
 // 300 m up, one every GAP_S seconds (RF-4C, Su-17M4R, A-10A, Su-25), each on its own heading, so a person
 // can look and listen. Checks that each passed within 350 m of the character, visible, with both engine
 // layers playing as it went over. First each is parked side-on 60 m in front of the character for a screenshot
-// ($profile:acr-shots/flydemo_<jet>.png), to see that it is drawn, then an A-10 crosses 200 m in front at 25 m
+// ($profile:acr-shots/flydemo_<jet>.png), to see that it is drawn, then an A-10 crosses 400 m in front at 80 m, over the trees
 // (flydemo_crossing.png), to see that a moving one is drawn where it is.
 class ACR_TestFlyDemo
 {
@@ -93,8 +93,8 @@ class ACR_TestFlyDemo
   forward[1] = 0;
   forward.Normalize();
   vector right = Vector(forward[2], 0, -forward[0]);
-  vector centre = body.GetOrigin() + forward * 200;
-  float altitude = GetGame().GetWorld().GetSurfaceY(centre[0], centre[2]) + 25;
+  vector centre = body.GetOrigin() + forward * 400;
+  float altitude = GetGame().GetWorld().GetSurfaceY(centre[0], centre[2]) + 80;
   vector start = centre - right * (SPEED * 5);
   start[1] = altitude;
   ACR_LocalFlyover.Start(ACR_Supports.BOMB_JET_WEST, start, right, SPEED, altitude, 8);
