@@ -3773,12 +3773,11 @@ class ACR_Squad : Managed
   return true;
  }
 
+ // BBB's lookup: it still finds the driver while BBB drives the vehicle itself with his seat
+ // unhooked from the controller (BBB_PilotHold, Reforger 1.9).
  static ChimeraCharacter DriverOf(IEntity vehicle)
  {
-  if (!vehicle) return null;
-  CarControllerComponent car = CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent));
-  if (!car || !car.GetPilotCompartmentSlot()) return null;
-  return ChimeraCharacter.Cast(car.GetPilotCompartmentSlot().GetOccupant());
+  return BBB.DriverOf(vehicle);
  }
 
  protected bool IsMember(IEntity body)
