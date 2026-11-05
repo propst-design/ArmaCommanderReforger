@@ -23,3 +23,5 @@ jobs:
         run: python3 tools/check_static_init.py
       - name: Check AI squad jobs change only through SetAITask
         run: python3 tools/check_ai_task_writes.py
+      - name: Test the nightly sweep's result parsing
+        run: python3 -m unittest discover -s tools/sweep
