@@ -1,6 +1,8 @@
 # Changelog
 ## 0.5.9 — unreleased
 
+- Works with Arma Reforger 1.9 (with Better Battle Buddies 0.1.8). In 1.9 the game's automatic gearbox overrode the vehicles that AC: Actual and Better Battle Buddies drive by hand, so they sat still or crept forward: a vehicle backing out of a jam, pulling over before a get-out, or backing away from an armed enemy vehicle moves again. A truck backing away from an armed vehicle now gets a few seconds to turn round before its crew gives up on it under fire, and a vehicle its crew abandons keeps its handbrake on: in 1.9 an empty vehicle drops into neutral, and one rolled downhill into the enemy it had just backed away from.
+
 ### AI commanders
 
 - Recon flight, a new support (15 RP, 3 min cooldown): a jet photographs a corridor 2.4 km long and 600 m wide over the point you call, flown from your nearest base, about 30 s later. Enemy soldiers and vehicles under it go on your map as if spotted, each group shown up to 50 m off (vehicles 20 m) and kept for 5 minutes; vehicles and men in the open are nearly always seen, men under a roof or trees rarely. Hidden FOBs in the corridor are found. The side flown over hears the jet and is told it may have been seen. With RHS loaded a western side's flight is an FA-18 you see and hear; AC: Actual's own period jets are still to come, and until then other flights are unseen. AI commanders fly it too: over a fresh radio intercept near their bases, else over the enemy base nearest their own, and an enemy base they have photographed lately is judged on what they saw instead of an assumed extra garrison.
