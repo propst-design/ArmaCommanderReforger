@@ -40,12 +40,15 @@ posix = lambda q: q.replace("\\", "/")
 # Distance curves (gain 0-1 by metres) and bank volumes (dB). The flyover starts the sound at 5.8 km (silent here)
 # and keeps the jet until the listener is 6 km away (ACR_LocalFlyover.SOUND_START_M / SOUND_KEEP_M).
 # spatial: 1 = a point source; the near roar a little less (a loud jet fills the sky).
-NEAR = dict(curve=[(0, 1, False), (300, 1, True), (2500, 0, False)], volume=-17, spatial=0.75)
-FAR = dict(curve=[(300, 0, False), (1200, 1, True), (6000, 0, False)], volume=-15, spatial=1)
+# rate: what each loop is saved at, enough for what it holds (Jacob, 5 Nov: trim the mod's size): the far rumble
+# is low-passed under 420 Hz, the near roar under 1.8 kHz (its whine to ~3.2 kHz), the scream under ~7 kHz.
+NEAR = dict(curve=[(0, 1, False), (300, 1, True), (2500, 0, False)], volume=-17, spatial=0.75, rate=16000)
+FAR = dict(curve=[(300, 0, False), (1200, 1, True), (6000, 0, False)], volume=-15, spatial=1, rate=11025)
 # The turbojets' scream, close in only: the hot, tearing high roar of an afterburnerless turbojet going over (Jacob,
 # 4 Nov: the non-turbofan jets need a better scream overhead). High frequencies die off in air fast, so it is gone by
 # 1.2 km (the flyover starts it inside that: ACR_LocalFlyover.SCREAM_START_M).
-SCREAM = dict(curve=[(0, 1, False), (250, 1, True), (1200, 0, False)], volume=-19, spatial=0.85)
+SCREAM = dict(curve=[(0, 1, False), (250, 1, True), (1200, 0, False)], volume=-19, spatial=0.85, rate=24000)
+SCREAM_VARIANTS = 2  # within 900 m the pass-by takes over, so this layer only plays for passes 0.9-1.2 km off
 # The pass-by carries its own distance in the render: flat out to 3 km. Its loudest moment sits at -9 dBFS, about
 # 7 dB over the old near loop at full, with the approach far quieter than that: the dynamics are the point.
 FLYBY = dict(curve=[(0, 1, False), (3000, 1, False), (3500, 0, False)], volume=-17, spatial=0.6, oneshot=True)
@@ -238,7 +241,7 @@ def slap(spec, variant, rng):
 # changes), with each part radiating its own way: the fan tones forward and aft, the jet's tear and slap in a
 # lobe behind the nozzle. ACR_LocalFlyover starts it so its closest moment (FLYBY_PEAK_S in) lands as the jet
 # passes, and lets the close-range loops go under it.
-FLYBY_RATE = 32000
+FLYBY_RATE = 24000
 FLYBY_SECONDS = 24.0
 FLYBY_PEAK_S = 12.0
 FLYBY_DISTANCES = {"Near": 250.0, "Mid": 600.0}  # ACR_LocalFlyover picks Near under 420 m
@@ -322,6 +325,13 @@ def flyby(spec, D, seed):
     out[:ramp] *= np.linspace(0, 1, ramp)
     out[-ramp:] *= np.linspace(1, 0, ramp)
     return out
+
+
+def resample_loop(x, rate):
+    """A periodic loop at RATE to `rate`, by its spectrum: band-limited, and it still closes seamlessly."""
+    n = int(round(len(x) * rate / RATE))
+    spec = np.fft.rfft(x)[:n // 2 + 1]
+    return np.fft.irfft(spec, n) * n / len(x)
 
 
 def write_wav(path, x, rate=RATE):
@@ -555,16 +565,16 @@ for name, spec in JETS.items():
     far = layer(spec, spec["cut"][1], False)
     loops = [("Near", near, NEAR), ("Far", far, FAR)]
     if spec.get("scream"):
-        loops += [("Scream" + ("_%d" % v if v else ""), scream(spec, v), SCREAM) for v in range(4)]
+        loops += [("Scream" + ("_%d" % v if v else ""), scream(spec, v), SCREAM) for v in range(SCREAM_VARIANTS)]
     wavs = []
-    for tag, loop, _ in loops:
+    for tag, loop, cfg in loops:
         wav = os.path.join(SAMPLES, "ACR_%s_Engine_%s_LP.wav" % (name, tag))
-        write_wav(wav, loop)
+        write_wav(wav, resample_loop(loop, cfg["rate"]), cfg["rate"])
         wavs.append(posix(wav))
         job.append("WAV %s" % posix(wav))
     preview = loops[:3]
     flyby_preview([(x, cfg) for _, x, cfg in preview], os.path.join(PREVIEW, "ACR_%s_flyby.wav" % name))
-    for v in range(4 if spec.get("scream") else 1):
+    for v in range(SCREAM_VARIANTS if spec.get("scream") else 1):
         pick = loops[:2] + loops[2 + v:3 + v]
         flyby_preview([(x, cfg) for _, x, cfg in pick],
                       os.path.join(PREVIEW, "ACR_%s_overhead%s.wav" % (name, "_%d" % v if v else "")), closest=300)

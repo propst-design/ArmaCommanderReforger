@@ -513,12 +513,6 @@ AudioClass {
     AudioBankSampleClass Sample {
      Filename "{3D9B8327135FA114}Sounds/Vehicles/Aircraft/Samples/ACR_RF4C_Engine_Scream_1_LP.wav"
     }
-    AudioBankSampleClass Sample {
-     Filename "{8F4CC1CC4CFD928C}Sounds/Vehicles/Aircraft/Samples/ACR_RF4C_Engine_Scream_2_LP.wav"
-    }
-    AudioBankSampleClass Sample {
-     Filename "{E101FF95799C7C04}Sounds/Vehicles/Aircraft/Samples/ACR_RF4C_Engine_Scream_3_LP.wav"
-    }
    }
   }
   BankLocalClass {

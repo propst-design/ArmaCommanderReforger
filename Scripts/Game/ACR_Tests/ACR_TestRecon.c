@@ -18,14 +18,16 @@ class ACR_TestRecon
  static float s_fCallAt;
  static ACR_LocalFlyover s_Bomber;
  static string s_sDrop;
+ static int s_iReadyAt; // the tick Alpha first stood ready (0: not yet): the steps below count from it
 
- static void Run(ACR_TestHarness h, int tick)
+ static void Run(ACR_TestHarness h, int clock)
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager || !h.m_Range) return;
   ACR_Squad alpha = manager.FindSquadByGroup(h.m_Range.m_Group);
-  if (tick == 1)
+  if (clock == 1)
   {
+   s_iReadyAt = 0;
    ACR_FactionSettings soviets = ACR_FactionSettings.Find("USSR");
    if (soviets) soviets.m_bAICommander = false;
    ACR_FactionSettings us = ACR_FactionSettings.Find("US");
@@ -37,6 +39,11 @@ class ACR_TestRecon
    ACR_RadioIntercept.INTERCEPT_CHANCE = 1;
   }
   if (!alpha || !alpha.GetAnchor()) return;
+  // Alpha can stand ready a few seconds late (a slow load): every step waits for it, then keeps its
+  // spacing, rather than a fixed tick that silently skipped the setup (5 Nov: 8 checks missing).
+  if (s_iReadyAt == 0 && clock >= 4) s_iReadyAt = clock;
+  if (s_iReadyAt == 0) return;
+  int tick = clock - s_iReadyAt + 4;
   if (tick == 4) { Pure(manager); Aircraft(); }
   if (tick == 4 || tick == 14 || tick == 22) Drop(tick);
   if (tick == CALL_TICK) Call(h, manager, alpha);
