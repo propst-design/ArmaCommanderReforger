@@ -3980,6 +3980,14 @@ class ACR_Squad : Managed
    }
   }
   else m_fQueueSince = -1;
+  // BBB is driving it itself (backing away from an armed vehicle brakes to a stop first, unstick,
+  // pull-over): not stalled, and nobody bails out mid-manoeuvre. From 1.9 that brake really stops
+  // the truck, so the 3 s unarmed-under-fire bail fired every time (pak:mannersevade 0/3).
+  if (BBB_PilotHold.Driving(vehicle))
+  {
+   m_fStallSince = now;
+   return;
+  }
   float stalled = (now - m_fStallSince) / 1000;
   bool armed = HasGunner(vehicle);
   // Fighting vehicles (anything with a turret: LAV, BTR, BRDM, gun trucks) keep
