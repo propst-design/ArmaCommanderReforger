@@ -394,7 +394,16 @@ class Watcher:
         self.proc = subprocess.Popen(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(script)],
                                      cwd=str(self.wt), stdout=log, stderr=subprocess.STDOUT, creationflags=NO_WINDOW)
 
+    def running(self):
+        # A launcher that found another one holding its mutex exits at once (AiO's mutex was one
+        # per PC until AiO's per-checkout launcher change; Jacob's own launcher would block us).
+        return self.proc.poll() is None
+
     def run(self, rid, preset, timeout):
+        if not self.running():
+            return write_result(rid, self.repo, preset, 'refused', 0,
+                                'reason=the test launcher exited at start (another launcher holds its mutex?): '
+                                + read_text(DATA / f'watcher-{self.repo}.log')[-300:], build_label(self.repo))
         self.queue.mkdir(exist_ok=True)
         (self.queue / f'{rid}.build.txt').write_text(f'{build_label(self.repo)} bbb {build_label("BBB")}')
         (self.queue / f'{rid}.request').write_text(preset + '\n')
