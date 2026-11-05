@@ -52,7 +52,7 @@ class ACR_TestRecon
  static void Aircraft()
  {
   array<ResourceName> jets = {ACR_Supports.BOMB_JET_WEST, ACR_Supports.BOMB_JET_EAST, ACR_ReconRun.RECON_JET_WEST, ACR_ReconRun.RECON_JET_EAST};
-  array<float> lengths = {16.85, 15.4, 19.15, 19.05};
+  array<float> lengths = {16.85, 14.62, 19.15, 19.05}; // the Su-25 without its nose probes (3-view: ~14.5 m body)
   bool client = GetGame().GetPlayerController() != null;
   int good = 0;
   string sizes = "";

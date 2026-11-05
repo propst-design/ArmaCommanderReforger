@@ -87,6 +87,9 @@ def swatch_uv(name):
 
 
 # ---------- geometry ----------
+SHARP_DEG = 48  # smooth-shaded faces meeting at more than this keep a hard edge
+
+
 class Builder:
     """Closed shells in one bmesh; each shell's faces carry a paint rule ("camo" or a fixed swatch)."""
 
@@ -97,36 +100,52 @@ class Builder:
         self.mirror_parts = []
 
     def _faces(self, rings, paint, cap0=True, cap1=True, smooth=False):
+        """paint: one paint, or a list of one per gap between rings (caps take the end ones)."""
         bm = self.bm
         vr = [[bm.verts.new(p) for p in ring] for ring in rings]
-        faces = []
-        for a, b in zip(vr, vr[1:]):
+        paints = paint if isinstance(paint, list) else [paint] * max(1, len(vr) - 1)
+        faces = []  # (face, paint, smooth)
+        for k, (a, b) in enumerate(zip(vr, vr[1:])):
             n = len(a)
             if len(a) == 1 and len(b) == 1:
                 continue
             if len(a) == 1:
-                faces += [bm.faces.new((a[0], b[i], b[(i + 1) % len(b)])) for i in range(len(b))]
+                new = [bm.faces.new((a[0], b[i], b[(i + 1) % len(b)])) for i in range(len(b))]
             elif len(b) == 1:
-                faces += [bm.faces.new((a[i], a[(i + 1) % n], b[0])) for i in range(n)]
+                new = [bm.faces.new((a[i], a[(i + 1) % n], b[0])) for i in range(n)]
             else:
-                faces += [bm.faces.new((a[i], a[(i + 1) % n], b[(i + 1) % n], b[i])) for i in range(n)]
+                new = [bm.faces.new((a[i], a[(i + 1) % n], b[(i + 1) % n], b[i])) for i in range(n)]
+            faces += [(f, paints[k], smooth) for f in new]
         if cap0 and len(vr[0]) > 2:
-            faces.append(bm.faces.new(vr[0]))
+            faces.append((bm.faces.new(vr[0]), paints[0], False))
         if cap1 and len(vr[-1]) > 2:
-            faces.append(bm.faces.new(list(reversed(vr[-1]))))
-        code = -1 if paint == "camo" else SWATCH[paint]
-        n_caps = int(cap0 and len(vr[0]) > 2) + int(cap1 and len(vr[-1]) > 2)
-        for i, f in enumerate(faces):
-            f[self.paint] = code
-            f[self.smooth] = int(smooth and i < len(faces) - n_caps)
-        return faces
+            faces.append((bm.faces.new(list(reversed(vr[-1]))), paints[-1], False))
+        for f, p, sm in faces:
+            f[self.paint] = -1 if p == "camo" else SWATCH[p]
+            f[self.smooth] = int(sm)
+        return [f for f, _, _ in faces]
 
-    def loft(self, stations, paint="camo", y=0.0, n=2.4, seg=20, mirror=False, smooth=False):
+    def loft(self, stations, paint="camo", y=0.0, n=2.4, seg=20, mirror=False, smooth=False, inlet=None,
+             outlet=None, duct="intake"):
         """Fuselage-like body along X. stations: (x, z centre, half width, half height); a zero half width
-        closes the body to a point. n: superellipse exponent (2 round, higher boxier)."""
+        closes the body to a point. n: superellipse exponent (2 round, higher boxier). inlet / outlet: (depth,
+        mouth) opens the first / last station into a `duct`-coloured hole `depth` m deep, its mouth `mouth` of
+        that station's size inside a lip: an intake or a jet pipe that reads as an opening, not a capped pod. The
+        hole is part of the same closed skin, so the duct's faces look inward."""
+        st, paints = list(stations), [paint] * (len(stations) - 1)
+        if inlet:
+            d, k = inlet
+            x, zc, hw, hh = st[0]
+            st = [(x - d, zc, 0, 0), (x - d, zc, hw * k, hh * k), (x - 0.02, zc, hw * k, hh * k)] + st
+            paints = [duct, duct, paint] + paints
+        if outlet:
+            d, k = outlet
+            x, zc, hw, hh = st[-1]
+            st = st + [(x + 0.02, zc, hw * k, hh * k), (x + d, zc, hw * k, hh * k), (x + d, zc, 0, 0)]
+            paints = paints + [paint, duct, duct]
         for side in ((1, -1) if mirror else (1,)):
             rings = []
-            for x, zc, hw, hh in stations:
+            for x, zc, hw, hh in st:
                 if hw < 1e-4:
                     rings.append([Vector((x, y * side, zc))])
                     continue
@@ -138,11 +157,12 @@ class Builder:
                     rz = math.copysign(abs(s) ** (2 / n), s) * hh
                     ring.append(Vector((x, y * side + ry, zc + rz)))
                 rings.append(ring)
-            self._faces(rings, paint, smooth=smooth)
+            self._faces(rings, paints, smooth=smooth)
 
     def surface(self, root, tip, paint="camo", vertical=False, mirror=True, spans=6):
         """Wing/tail panel. root/tip: (x leading edge, y, z, chord, thickness as a fraction of chord). The
-        section's thickness runs along Z, or along Y for a fin (vertical). Mirrored across Y=0 by default."""
+        section's thickness runs along Z, or along Y for a fin (vertical). Mirrored across Y=0 by default.
+        Smooth shaded across the skin; finish() keeps the leading and trailing edges and the tips sharp."""
         prof = [(0, 0), (0.06, 0.7), (0.25, 1), (0.55, 0.85), (0.85, 0.35), (1, 0),
                 (0.85, -0.35), (0.55, -0.85), (0.25, -1), (0.06, -0.7)]
         for side in ((1, -1) if mirror else (1,)):
@@ -158,7 +178,7 @@ class Builder:
                     else:
                         ring.append(Vector((xl - u * ch, y * side, z + off)))
                 rings.append(ring)
-            self._faces(rings, paint)
+            self._faces(rings, paint, smooth=True)
 
     def box(self, lo, hi, paint="camo", mirror=False):
         for side in ((1, -1) if mirror else (1,)):
@@ -203,7 +223,7 @@ class Builder:
         st = [(x0, z, 0, 0), (x0 - 0.12 * L, z, r * 0.75, r * 0.75), (x0 - 0.3 * L, z, r, r),
               (x1 + 0.25 * L, z, r, r), (x1 + 0.05 * L, z, r * 0.6, r * 0.6), (x1, z, 0.0, 0)]
         if body:
-            self.loft(st, paint, y=y, n=2, seg=12, mirror=mirror and abs(y) > 1e-3)
+            self.loft(st, paint, y=y, n=2, seg=12, mirror=mirror and abs(y) > 1e-3, smooth=True)
         if pylon > 0:
             self.box((x1 + 0.35 * L, y - 0.04, z + r * 0.8), (x0 - 0.3 * L, y + 0.04, z + r + pylon), paint,
                      mirror=mirror and abs(y) > 1e-3)
@@ -233,6 +253,18 @@ class Builder:
             for loop in f.loops:
                 loop[uv].uv = u
             f.smooth = bool(f[self.smooth])
+        # Hard edges stay hard: split the skin where smooth meets flat, and wherever two smooth faces meet at
+        # more than SHARP_DEG (wing and fin edges, intake lips, a nacelle's mouth). The FBX then carries plain
+        # per-vertex normals, which Workbench reads the same way whatever it makes of smoothing groups.
+        bm.normal_update()
+        cos_sharp = math.cos(math.radians(SHARP_DEG))
+        sharp = []
+        for e in bm.edges:
+            fs = e.link_faces
+            if len(fs) == 2 and (fs[0].smooth or fs[1].smooth):
+                if fs[0].smooth != fs[1].smooth or fs[0].normal.dot(fs[1].normal) < cos_sharp:
+                    sharp.append(e)
+        bmesh.ops.split_edges(bm, edges=sharp)
         me = bpy.data.meshes.new(name)
         bm.to_mesh(me)
         bm.free()
@@ -276,32 +308,41 @@ SOVIET = {"colours": ["sov_tan", "sov_brown", "sov_green", "sov_dkgreen"], "unde
 
 
 def a10(b):
-    """Fairchild A-10A Thunderbolt II (USAF bomb run): 16.26 m long, 17.53 m span, European I 'lizard'."""
-    b.loft([(8.15, -0.25, 0, 0), (7.7, -0.15, 0.42, 0.45), (6.6, -0.02, 0.74, 0.82), (5.0, 0.05, 0.86, 0.98),
-            (2.5, 0.0, 0.9, 1.0), (0.0, 0.0, 0.86, 0.9), (-3.0, 0.15, 0.62, 0.72), (-6.0, 0.3, 0.36, 0.46),
-            (-7.7, 0.38, 0.2, 0.3), (-8.1, 0.4, 0, 0)])
+    """Fairchild A-10A Thunderbolt II (USAF bomb run): 16.26 m long, 17.53 m span, European I 'lizard'.
+    Checked against the Commons 3-view and a head-on photo (A-10 '707', 118th TFS, Iraq 2003)."""
+    b.loft([(8.15, -0.25, 0, 0), (8.1, -0.24, 0.2, 0.22), (7.85, -0.18, 0.42, 0.46), (7.35, -0.09, 0.62, 0.68),
+            (6.6, -0.02, 0.76, 0.84), (5.0, 0.05, 0.86, 0.98), (2.5, 0.0, 0.9, 1.0), (0.0, 0.0, 0.86, 0.9),
+            (-3.0, 0.15, 0.62, 0.72), (-6.0, 0.3, 0.36, 0.46), (-7.7, 0.38, 0.2, 0.3), (-8.1, 0.4, 0, 0)],
+           smooth=True)
     b.loft([(8.75, -0.32, 0.07, 0.07), (8.0, -0.32, 0.09, 0.09)], "nozzle", seg=8)  # GAU-8 muzzle
-    b.loft([(6.05, 0.75, 0, 0), (5.5, 0.98, 0.42, 0.36), (4.4, 1.12, 0.46, 0.42), (3.6, 1.02, 0.34, 0.28),
-            (3.2, 0.9, 0, 0)], "canopy")
-    # straight wing: flat centre section, 7 deg dihedral outboard
-    b.surface((1.3, 0.6, -0.55, 3.0, 0.16), (1.05, 3.0, -0.55, 2.7, 0.15), spans=3)
-    b.surface((1.05, 3.0, -0.55, 2.7, 0.15), (0.55, 8.76, 0.16, 1.5, 0.12), spans=7)
-    b.loft([(2.6, -0.62, 0, 0), (2.1, -0.66, 0.26, 0.24), (0.6, -0.66, 0.3, 0.26), (0.0, -0.62, 0, 0)],
-           y=3.15, mirror=True)  # main gear fairings
-    # TF34 nacelles high on the rear fuselage
-    nac = [(-0.85, 1.05, 0.58, 0.58), (-1.5, 1.05, 0.66, 0.66), (-3.4, 1.05, 0.6, 0.6), (-4.3, 1.05, 0.46, 0.46),
-           (-4.75, 1.05, 0.38, 0.38)]
-    b.loft(nac, y=1.4, n=2, mirror=True)
-    b.loft([(-0.8, 1.05, 0.5, 0.5), (-0.84, 1.05, 0.5, 0.5)], "intake", y=1.4, n=2, mirror=True)
-    b.loft([(-4.7, 1.05, 0.34, 0.34), (-4.95, 1.05, 0.3, 0.3)], "nozzle", y=1.4, n=2, mirror=True)
+    # bubble canopy well forward (the windscreen about 2.3 m behind the muzzle), faired into the fuselage
+    b.loft([(6.45, 0.72, 0, 0), (6.15, 0.86, 0.3, 0.26), (5.75, 1.0, 0.42, 0.36), (5.0, 1.1, 0.46, 0.42),
+            (4.2, 1.06, 0.4, 0.36), (3.6, 0.96, 0.26, 0.22), (3.15, 0.86, 0, 0)], "canopy", smooth=True)
+    # straight wing. Front view (3-view, photo): a flat centre section out to the gear pods, then the outer
+    # panels at about 6 deg on the chord (upper skin ~4.5, lower ~6.5 as they thin), with hardly any taper
+    # (tip chord ~2 m). Was 7 deg on a 1.5 m tip over a centre section whose top sloped down: a gull kink.
+    b.surface((1.3, 0.6, -0.55, 3.0, 0.16), (1.05, 3.0, -0.5125, 2.7, 0.15), spans=3)
+    b.surface((1.05, 3.0, -0.5125, 2.7, 0.15), (0.6, 8.76, 0.045, 2.0, 0.1), spans=7)
+    # main gear pods under the wing break, hiding it as on the real aircraft, their noses well ahead of it
+    b.loft([(2.45, -0.72, 0, 0), (2.15, -0.73, 0.24, 0.26), (1.5, -0.74, 0.3, 0.3), (0.5, -0.72, 0.28, 0.28),
+            (-0.2, -0.66, 0, 0)], y=3.0, n=2.2, seg=14, mirror=True, smooth=True)
+    # TF34 nacelles high on the rear fuselage: open intake lips onto a dark fan face with its spinner, and a
+    # dark jet pipe round the exhaust plug at the back
+    nac = [(-0.85, 1.05, 0.6, 0.6), (-1.5, 1.05, 0.66, 0.66), (-3.4, 1.05, 0.6, 0.6), (-4.3, 1.05, 0.47, 0.47),
+           (-4.85, 1.05, 0.4, 0.4)]
+    b.loft(nac, y=1.4, n=2, mirror=True, smooth=True, inlet=(0.45, 0.84), outlet=(0.55, 0.8))
+    b.loft([(-1.06, 1.05, 0, 0), (-1.18, 1.05, 0.11, 0.11), (-1.3, 1.05, 0.17, 0.17)], "nozzle", y=1.4, n=2,
+           seg=12, mirror=True, smooth=True)  # fan spinner
+    b.loft([(-4.3, 1.05, 0.2, 0.2), (-4.8, 1.05, 0.15, 0.15), (-5.05, 1.05, 0, 0)], "nozzle", y=1.4, n=2,
+           seg=12, mirror=True, smooth=True)  # exhaust plug
     b.box((-3.3, 0.85, 0.45), (-1.7, 1.05, 0.62), mirror=True)  # pylons
     # tailplane with twin fins at its tips
     b.surface((-5.95, 0.0, 0.42, 1.65, 0.1), (-6.15, 2.95, 0.42, 1.45, 0.1), spans=4)
     for side in (1, -1):
         b.surface((-5.55, 2.95 * side, -0.35, 1.95, 0.08), (-6.2, 2.95 * side, 2.55, 1.25, 0.08), vertical=True,
                   mirror=False, spans=5)
-    for y in (2.3, 3.8):  # pylons for four Mk 82s (ACR_Mk82, hung by ACR_LocalFlyover.Hardpoints)
-        b.store(2.0, -0.2, y, -1.05, 0.15, "camo", pylon=0.25, body=False)
+    for y in (2.3, 3.8):  # pylons for four Mk 82s (ACR_Mk82, hung by ACR_LocalFlyover.Hardpoints): up into the wing
+        b.store(2.0, -0.2, y, -1.05, 0.15, "camo", pylon=0.32, body=False)
 
 
 def a10_spec():
@@ -309,23 +350,27 @@ def a10_spec():
 
 
 def su25(b):
-    """Sukhoi Su-25 'Frogfoot' (Soviet bomb run): 15.33 m long, 14.36 m span, 1980s four-colour over blue."""
-    b.loft([(7.75, 0.0, 0.1, 0.12), (7.1, -0.02, 0.42, 0.45), (5.6, 0.05, 0.64, 0.74), (4.2, 0.1, 0.72, 0.84),
-            (2.0, 0.12, 0.74, 0.86), (-1.0, 0.18, 0.68, 0.8), (-4.5, 0.32, 0.45, 0.6), (-6.8, 0.48, 0.26, 0.4),
-            (-7.6, 0.52, 0, 0)], n=2.8)
-    b.loft([(4.95, 0.86, 0, 0), (4.5, 1.06, 0.38, 0.28), (3.6, 1.1, 0.4, 0.3), (2.8, 1.0, 0.3, 0.2),
-            (2.4, 0.92, 0, 0)], "canopy")
-    b.loft([(2.4, 0.95, 0.3, 0.2), (0.5, 0.95, 0.34, 0.24), (-3.5, 0.75, 0.24, 0.16), (-4.4, 0.65, 0, 0)])  # spine
-    # R-95Sh nacelles along the fuselage sides, under the wing root
-    b.loft([(2.65, -0.1, 0.44, 0.56), (1.6, -0.1, 0.5, 0.62), (-2.0, -0.1, 0.5, 0.6), (-4.6, -0.05, 0.42, 0.46),
-            (-5.5, 0.0, 0.32, 0.32)], y=0.98, n=3.2, mirror=True)
-    b.loft([(2.7, -0.1, 0.36, 0.48), (2.66, -0.1, 0.36, 0.48)], "intake", y=0.98, n=3.2, mirror=True)
-    b.loft([(-5.45, 0.0, 0.28, 0.28), (-5.75, 0.0, 0.26, 0.26)], "nozzle", y=0.98, n=2, mirror=True)
+    """Sukhoi Su-25 'Frogfoot' (Soviet bomb run): 15.53 m long over its probes (the body about 14.5), 14.36 m span,
+    1980s four-colour over blue. Proportions from the Commons 3-view: a short drooped nose ending in the laser
+    window, the engines' nozzles well ahead of a slim tail boom, a 4.65 m tailplane."""
+    b.loft([(6.95, -0.28, 0.1, 0.12), (6.75, -0.25, 0.24, 0.26), (6.2, -0.16, 0.44, 0.5), (5.2, -0.02, 0.62, 0.72),
+            (4.2, 0.08, 0.72, 0.84), (2.0, 0.12, 0.74, 0.86), (-1.0, 0.18, 0.68, 0.8), (-3.2, 0.3, 0.5, 0.64),
+            (-5.0, 0.42, 0.36, 0.48), (-6.8, 0.5, 0.24, 0.36), (-7.6, 0.52, 0, 0)], n=2.8, smooth=True)
+    b.loft([(6.965, -0.28, 0.085, 0.1), (6.94, -0.28, 0.085, 0.1)], "canopy", n=2.8, seg=12)  # laser window
+    b.loft([(4.95, 0.86, 0, 0), (4.6, 1.02, 0.34, 0.24), (3.9, 1.1, 0.4, 0.3), (3.0, 1.04, 0.34, 0.24),
+            (2.4, 0.95, 0.3, 0.2)], "canopy", smooth=True)
+    b.loft([(2.4, 0.95, 0.3, 0.2), (0.5, 0.95, 0.34, 0.24), (-3.5, 0.75, 0.24, 0.16), (-4.4, 0.65, 0, 0)],
+           smooth=True)  # spine
+    # R-95Sh nacelles along the fuselage sides, under the wing root: open intakes, nozzles under the wing's
+    # trailing edge
+    b.loft([(2.65, -0.1, 0.44, 0.56), (1.6, -0.1, 0.5, 0.62), (-1.2, -0.1, 0.5, 0.6), (-2.8, -0.08, 0.42, 0.48),
+            (-3.55, -0.05, 0.34, 0.36)], y=0.98, n=3.2, mirror=True, smooth=True, inlet=(0.55, 0.8),
+           outlet=(0.45, 0.78))
     # shoulder wing, 20 deg sweep, slight anhedral; speed-brake pods on the tips
     b.surface((1.9, 1.2, 0.48, 3.5, 0.13), (-0.3, 7.18, 0.2, 1.45, 0.1), spans=7)
     b.loft([(0.5, 0.2, 0, 0), (0.2, 0.2, 0.15, 0.15), (-1.4, 0.2, 0.15, 0.15), (-1.75, 0.2, 0, 0)], y=7.18,
-           n=2, seg=10, mirror=True)
-    b.surface((-4.85, 0.3, 1.05, 1.9, 0.09), (-5.8, 2.8, 1.3, 0.95, 0.08), spans=4)
+           n=2, seg=10, mirror=True, smooth=True)
+    b.surface((-4.85, 0.3, 1.05, 1.9, 0.09), (-5.65, 2.35, 1.26, 0.95, 0.08), spans=4)
     fin = ((-4.1, 0.0, 0.85, 3.2, 0.09), (-6.35, 0.0, 3.95, 1.3, 0.08))
     b.surface(*fin, vertical=True, mirror=False, spans=6)
     b.fin_star(*fin, 0.5, 0.55)
@@ -338,21 +383,24 @@ def su25_spec():
 
 
 def rf4c(b):
-    """McDonnell Douglas RF-4C Phantom II (USAF recon flight): 19.2 m long, 11.7 m span, European I."""
-    b.loft([(9.65, 0.12, 0, 0), (9.0, 0.1, 0.32, 0.36), (7.8, 0.05, 0.55, 0.6), (6.2, 0.05, 0.7, 0.78),
-            (4.5, 0.05, 0.84, 0.84), (2.5, 0.05, 0.95, 0.85), (0.0, 0.05, 1.1, 0.8), (-3.0, 0.1, 1.15, 0.75),
-            (-5.5, 0.18, 0.92, 0.6), (-7.2, 0.32, 0.55, 0.45), (-9.5, 0.55, 0, 0)], n=2.6)
+    """McDonnell Douglas RF-4C Phantom II (USAF recon flight): 19.2 m long, 11.7 m span, European I. Checked
+    against the dimensioned 3-view on Commons (19.18 m length, 8.40 m fold line, 5.00 m stabilator)."""
+    b.loft([(9.65, 0.12, 0, 0), (9.55, 0.12, 0.1, 0.11), (9.0, 0.1, 0.33, 0.37), (7.8, 0.05, 0.56, 0.61),
+            (6.2, 0.05, 0.7, 0.78), (4.5, 0.05, 0.84, 0.84), (2.5, 0.05, 0.95, 0.85), (0.0, 0.05, 1.1, 0.8),
+            (-3.0, 0.1, 1.15, 0.75), (-5.5, 0.18, 0.92, 0.6), (-7.2, 0.32, 0.55, 0.45), (-9.5, 0.55, 0, 0)], n=2.6,
+           smooth=True)
     b.loft([(4.1, 0.05, 0.36, 0.58), (3.0, 0.05, 0.4, 0.62), (0.2, 0.05, 0.38, 0.58), (-0.6, 0.05, 0, 0)],
-           y=0.98, n=6, mirror=True)  # intakes
-    b.loft([(4.15, 0.05, 0.28, 0.48), (4.1, 0.05, 0.28, 0.48)], "intake", y=0.98, n=6, mirror=True)
-    b.loft([(6.95, 0.68, 0, 0), (6.4, 0.98, 0.42, 0.34), (5.0, 1.1, 0.45, 0.38), (3.6, 1.08, 0.42, 0.33),
-            (2.8, 0.92, 0.26, 0.2), (2.3, 0.8, 0, 0)], "canopy")
-    b.loft([(-6.7, -0.05, 0.46, 0.46), (-7.8, -0.05, 0.44, 0.44)], "nozzle", y=0.55, n=2, mirror=True)
+           y=0.98, n=6, mirror=True, smooth=True, inlet=(0.6, 0.8))  # intakes
+    # the long tandem canopy, from 2.2 to 7 m behind the nose tip
+    b.loft([(7.35, 0.68, 0, 0), (6.95, 0.92, 0.38, 0.3), (6.3, 1.04, 0.44, 0.37), (5.0, 1.1, 0.45, 0.38),
+            (3.6, 1.08, 0.42, 0.33), (2.8, 0.94, 0.28, 0.21), (2.3, 0.8, 0, 0)], "canopy", smooth=True)
+    b.loft([(-6.7, -0.05, 0.46, 0.46), (-7.8, -0.05, 0.44, 0.44)], "nozzle", y=0.55, n=2, mirror=True, smooth=True,
+           outlet=(0.45, 0.8))
     # low wing: 45 deg leading edge, flat inner panel, 12 deg dihedral outer panel
     b.surface((1.6, 0.9, -0.45, 5.4, 0.07), (-1.5, 4.0, -0.45, 2.7, 0.06), spans=5)
     b.surface((-1.5, 4.0, -0.45, 2.7, 0.06), (-3.35, 5.85, -0.06, 1.55, 0.05), spans=3)
-    # anhedral stabilator, tall fin
-    b.surface((-6.4, 0.5, 0.45, 2.6, 0.07), (-8.1, 2.9, -0.53, 1.0, 0.06), spans=4)
+    # stabilator: 23 deg anhedral, 5.0 m across; tall fin
+    b.surface((-6.4, 0.5, 0.45, 2.6, 0.07), (-7.82, 2.5, -0.41, 1.0, 0.06), spans=4)
     b.surface((-4.2, 0.0, 0.7, 4.4, 0.07), (-7.6, 0.0, 3.6, 1.4, 0.06), vertical=True, mirror=False, spans=6)
     b.store(2.6, -3.0, 3.4, -1.05, 0.4, "euro_gray", pylon=0.3)  # 370 gal tanks
 
@@ -363,20 +411,21 @@ def rf4c_spec():
 
 def su17(b):
     """Sukhoi Su-17M4R 'Fitter-K' (Soviet recon flight): 19.0 m long, wings at 45 deg (spread 13.68 m),
-    KKR-1 recon pod on the centreline."""
+    KKR-1 recon pod on the centreline. Nose intake open round the shock cone; tailplane as the Commons 3-view."""
     b.loft([(9.35, 0.0, 0.55, 0.55), (8.0, 0.0, 0.68, 0.74), (6.0, 0.05, 0.74, 0.82), (3.0, 0.05, 0.78, 0.86),
             (0.0, 0.05, 0.78, 0.86), (-4.0, 0.05, 0.72, 0.76), (-7.5, 0.05, 0.62, 0.62), (-8.6, 0.05, 0.55, 0.55)],
-           n=2.2)
-    b.loft([(9.36, 0.0, 0.47, 0.47), (9.3, 0.0, 0.47, 0.47)], "intake", n=2)
-    b.loft([(10.05, 0.0, 0, 0), (9.35, 0.0, 0.3, 0.3), (9.1, 0.0, 0.3, 0.3)], "radome", n=2, seg=14)  # shock cone
-    b.loft([(-8.55, 0.05, 0.5, 0.5), (-9.0, 0.05, 0.47, 0.47)], "nozzle", n=2)
-    b.loft([(5.6, 0.75, 0.0, 0.0), (4.6, 0.85, 0.32, 0.26), (-3.0, 0.8, 0.3, 0.24), (-5.0, 0.7, 0, 0)])  # spine
-    b.loft([(7.15, 0.6, 0, 0), (6.5, 0.95, 0.38, 0.3), (5.6, 1.0, 0.4, 0.32), (4.9, 0.92, 0.3, 0.2),
-            (4.5, 0.85, 0, 0)], "canopy")
+           n=2.2, smooth=True, inlet=(0.6, 0.86))
+    b.loft([(10.05, 0.0, 0, 0), (9.35, 0.0, 0.3, 0.3), (8.8, 0.0, 0.3, 0.3)], "radome", n=2, seg=14,
+           smooth=True)  # shock cone
+    b.loft([(-8.55, 0.05, 0.5, 0.5), (-9.0, 0.05, 0.47, 0.47)], "nozzle", n=2, smooth=True, outlet=(0.5, 0.82))
+    b.loft([(5.6, 0.75, 0.0, 0.0), (4.6, 0.85, 0.32, 0.26), (-3.0, 0.8, 0.3, 0.24), (-5.0, 0.7, 0, 0)],
+           smooth=True)  # spine
+    b.loft([(7.15, 0.6, 0, 0), (6.6, 0.9, 0.36, 0.28), (6.0, 1.0, 0.4, 0.32), (5.3, 0.98, 0.36, 0.27),
+            (4.8, 0.9, 0.24, 0.17), (4.5, 0.85, 0, 0)], "canopy", smooth=True)
     # fixed glove and the outer panel at 45 deg
     b.surface((3.9, 0.7, -0.05, 5.1, 0.08), (1.0, 2.1, -0.05, 2.9, 0.08), spans=3)
     b.surface((1.0, 2.1, -0.05, 2.7, 0.08), (-1.85, 5.9, -0.05, 1.35, 0.07), spans=6)
-    b.surface((-5.6, 0.6, -0.1, 2.4, 0.07), (-7.4, 3.3, -0.25, 1.0, 0.06), spans=4)
+    b.surface((-5.6, 0.6, -0.1, 2.4, 0.07), (-7.1, 2.8, -0.24, 1.0, 0.06), spans=4)
     fin = ((-3.3, 0.0, 0.7, 3.6, 0.08), (-6.7, 0.0, 3.6, 1.3, 0.07))
     b.surface(*fin, vertical=True, mirror=False, spans=6)
     b.surface((-5.5, 0.0, -0.5, 1.6, 0.06), (-6.3, 0.0, -1.0, 0.9, 0.06), vertical=True, mirror=False, spans=2)
