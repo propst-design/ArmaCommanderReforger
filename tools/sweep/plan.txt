@@ -395,17 +395,17 @@ BBB|staticweapons|skip||-bbbStaticWeapons 0   # 5 Nov: the test sets BBB_StaticW
 BBB|crewturnout|control||-bbbCrewTurnout 0
 BBB|driveralign|control||-bbbDriverAlign 0
 BBB|morale|skip||-bbbMorale 0   # 5 Nov: the test sets BBB_Morale.s_bOn = true itself (passed with the switch off), so no switch control can bite
-BBB|flares|control||-bbbFlares 0
+BBB|flares|skip||-bbbFlares 0   # the test sets BBB_Flares.s_bOn = true itself
 BBB|doors|control||-bbbDoors 0
-BBB|crewstays|control||-bbbCrewStays 0
-BBB|claims|control||-bbbClaims 0
-BBB|orderleash|control||-bbbOrderLeash 0
-BBB|contactrelay|control||-bbbContactRelay 0
+BBB|crewstays|skip||-bbbCrewStays 0   # the test sets BBB_CrewStays.s_bOn = true itself
+BBB|claims|skip||-bbbClaims 0   # the test sets BBB_Claims.s_bOn = true itself
+BBB|orderleash|skip||-bbbOrderLeash 0   # the test sets BBB_OrderLeash.s_bOn = true itself
+BBB|contactrelay|skip||-bbbContactRelay 0   # the test sets BBB_ContactRelay.s_bOn = true itself
 BBB|coverfire|control||-bbbCoverFire 0
 BBB|tactic|control||-bbbTactic 0
 BBB|flank|control||-bbbTacticFlank 0
 BBB|search|control||-bbbTacticSearch 0
-BBB|heldguns|control||-bbbHoldGuns 0
+BBB|heldguns|skip||-bbbHoldGuns 0   # the test sets BBB_HeldGuns.s_bOn = true itself
 BBB|indoorhold|control||-bbbIndoorHold 0
 BBB|roadexit|control||-bbbRoadExit 0
 BBB|rearm|control||-bbbRearm 0
