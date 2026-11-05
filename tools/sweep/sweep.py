@@ -726,8 +726,10 @@ def cmd_report(args):
         res = [ok(r['verdict']) for r in rs if r['verdict'] not in ('REFUSED', 'NOVERDICT')]
         same_build = {}
         for r in rs:
-            if r['build'] and '+dirty' not in r['build'] and r['verdict'] not in ('REFUSED', 'NOVERDICT'):
-                same_build.setdefault(r['build'], set()).add(ok(r['verdict']))
+            # Same code = same commit and, for ACA, the same BBB it loaded; uncommitted runs don't count.
+            if r['build'] and '+dirty' not in r['build'] + r.get('bbb', '') and r['verdict'] not in ('REFUSED', 'NOVERDICT', 'TIMEOUT'):
+                b = r['build'] + (f" (BBB {r['bbb']})" if r.get('bbb') else '')
+                same_build.setdefault(b, set()).add(ok(r['verdict']))
         mixed = [b for b, s in same_build.items() if len(s) == 2]
         flips = sum(1 for a, b in zip(res[-10:], res[-9:]) if a != b)
         if mixed or flips >= 3:
