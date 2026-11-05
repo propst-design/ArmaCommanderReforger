@@ -392,11 +392,11 @@ AIO|leadership|nightly   # median 34s, 8 runs
 BBB|grenades|skip||-bbbGrenades 0   # 5 Nov: the test sets BBB_Grenades.s_bOn = true itself (passed with the switch off), so no switch control can bite
 BBB|smoke|skip||-bbbSmoke 0   # 5 Nov: the test sets BBB_Smoke.s_bOn = true itself (passed with the switch off), so no switch control can bite
 BBB|staticweapons|skip||-bbbStaticWeapons 0   # 5 Nov: the test sets BBB_StaticWeapons.s_bOn = true itself (passed with the switch off), so no switch control can bite
-BBB|crewturnout|control||-bbbCrewTurnout 0
-BBB|driveralign|control||-bbbDriverAlign 0
+BBB|crewturnout|skip||-bbbCrewTurnout 0   # 5 Nov control passed: the vehicle-posture test sets BBB_CrewTurnout.s_bOn itself
+BBB|driveralign|skip||-bbbDriverAlign 0   # 5 Nov control passed: the vehicle-posture test sets BBB_DriverAlignment.s_bOn itself
 BBB|morale|skip||-bbbMorale 0   # 5 Nov: the test sets BBB_Morale.s_bOn = true itself (passed with the switch off), so no switch control can bite
 BBB|flares|skip||-bbbFlares 0   # the test sets BBB_Flares.s_bOn = true itself
-BBB|doors|control||-bbbDoors 0
+BBB|doors|control||-bbbDoors 0   # 5 Nov: fails with the switch off (10/12), as it should
 BBB|crewstays|skip||-bbbCrewStays 0   # the test sets BBB_CrewStays.s_bOn = true itself
 BBB|claims|skip||-bbbClaims 0   # the test sets BBB_Claims.s_bOn = true itself
 BBB|orderleash|skip||-bbbOrderLeash 0   # the test sets BBB_OrderLeash.s_bOn = true itself
@@ -408,6 +408,6 @@ BBB|search|control||-bbbTacticSearch 0
 BBB|heldguns|skip||-bbbHoldGuns 0   # the test sets BBB_HeldGuns.s_bOn = true itself
 BBB|indoorhold|control||-bbbIndoorHold 0
 BBB|roadexit|control||-bbbRoadExit 0
-BBB|rearm|control||-bbbRearm 0
-BBB|launcherinf|control||-bbbLauncherInfantry 0
-BBB|commanderseat|control||-bbbCommanderCrew 0
+BBB|rearm|skip||-bbbRearm 0   # 5 Nov control passed: COVERAGE GAP: the test checks the looting rules directly; the s_bOn gate is in the AI loop it never runs, so nothing checks that soldiers actually rearm
+BBB|launcherinf|skip||-bbbLauncherInfantry 0   # 5 Nov control passed: the test lowers its expectation when the setting is off (passes both ways by design)
+BBB|commanderseat|skip||-bbbCommanderCrew 0   # 5 Nov control passed: an A/B test that sets the switch per lane itself
