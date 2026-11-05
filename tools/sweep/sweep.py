@@ -444,7 +444,7 @@ def run_script(rid, repo, preset, timeout, extra=''):
     except subprocess.TimeoutExpired as e:
         out, code = (e.stdout or '') if isinstance(e.stdout, str) else '', -1
     secs = int(time.time() - t0)
-    m = re.search(r'result=(\S+\.result\.txt)', out)   # Test-BBB writes its own result file
+    m = re.search(r'result=(.+?\.result\.txt)', out)   # Test-BBB's own result file (path has spaces)
     if repo == 'BBB' and m and Path(m.group(1)).exists():
         body = read_text(m.group(1))
         status = header(body).get('status', 'error')

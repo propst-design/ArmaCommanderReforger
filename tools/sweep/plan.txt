@@ -387,13 +387,14 @@ AIO|leadership|nightly   # median 34s, 8 runs
 
 # ---- Controls: a BBB preset run with its own feature switched off (5th field = extra server args).
 # The test must FAIL then; one that still passes can't tell whether the feature works (a "blind"
-# test: strengthen it, or the switch isn't honoured). Rotate in with the weekly rows.
-BBB|grenades|control||-bbbGrenades 0
-BBB|smoke|control||-bbbSmoke 0
-BBB|staticweapons|control||-bbbStaticWeapons 0
+# test: strengthen it, or the switch isn't honoured). Rotate in with the weekly rows. Tests that set
+# their feature's s_bOn themselves are skipped here (they check the logic, not the setting).
+BBB|grenades|skip||-bbbGrenades 0   # 5 Nov: the test sets BBB_Grenades.s_bOn = true itself (passed with the switch off), so no switch control can bite
+BBB|smoke|skip||-bbbSmoke 0   # 5 Nov: the test sets BBB_Smoke.s_bOn = true itself (passed with the switch off), so no switch control can bite
+BBB|staticweapons|skip||-bbbStaticWeapons 0   # 5 Nov: the test sets BBB_StaticWeapons.s_bOn = true itself (passed with the switch off), so no switch control can bite
 BBB|crewturnout|control||-bbbCrewTurnout 0
 BBB|driveralign|control||-bbbDriverAlign 0
-BBB|morale|control||-bbbMorale 0
+BBB|morale|skip||-bbbMorale 0   # 5 Nov: the test sets BBB_Morale.s_bOn = true itself (passed with the switch off), so no switch control can bite
 BBB|flares|control||-bbbFlares 0
 BBB|doors|control||-bbbDoors 0
 BBB|crewstays|control||-bbbCrewStays 0
