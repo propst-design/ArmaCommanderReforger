@@ -133,9 +133,9 @@ ACA|srv:everonsoak|skip|1380   # measurement/screenshots or soak: no pass/fail m
 ACA|srv:longsoak|skip|7380   # measurement/screenshots or soak: no pass/fail meaning, run by hand
 ACA|srv:fire|weekly|240   # not run in the last 14 days; server capability not yet seen
 ACA|srv:factions|nightly|120   # median 29s, 1 runs/14d
-ACA|srv:uahands|weekly|100   # not run in the last 14 days; server capability not yet seen
-ACA|srv:weaponreadyeast|weekly|100   # not run in the last 14 days; server capability not yet seen
-ACA|srv:uahelmets|weekly|200   # not run in the last 14 days; server capability not yet seen
+ACA|srv:uahands|skip|100   # needs the UA mod set
+ACA|srv:weaponreadyeast|skip|100   # needs the UA mod set
+ACA|srv:uahelmets|skip|200   # needs the UA mod set
 ACA|srv:bbbsky|weekly|120   # not run in the last 14 days; server capability not yet seen
 ACA|srv:bbbcombat|weekly|420   # not run in the last 14 days; server capability not yet seen
 ACA|srv:bbbengagement|weekly|260   # not run in the last 14 days; server capability not yet seen
@@ -203,8 +203,8 @@ ACA|srv:bbbfiremaneuverperf|skip|160   # measurement/screenshots or soak: no pas
 ACA|srv:bbbfiremaneuverprobe|skip|170   # measurement/screenshots or soak: no pass/fail meaning, run by hand
 ACA|srv:bbbfiremaneuverduck|weekly|170   # not run in the last 14 days; server capability not yet seen
 ACA|srv:setup|weekly|90   # not run in the last 14 days; server capability not yet seen
-ACA|srv:setupui|skip|90   # needs a player (game client)
-ACA|srv:setupmap|weekly|180   # not run in the last 14 days; server capability not yet seen
+ACA|srv:setupui|skip|90   # setup dialog UI: needs a client
+ACA|srv:setupmap|skip|180   # setup dialog UI: needs a client (VM exceptions on a headless server, 5 Nov)
 ACA|srv:reserve|nightly|120   # median 32s, 3 runs/14d
 ACA|srv:bbbrelaxedmarch|weekly|160   # not run in the last 14 days; server capability not yet seen
 ACA|srv:bbblook|weekly|90   # not run in the last 14 days; server capability not yet seen
@@ -216,7 +216,7 @@ ACA|srv:perfkolguyev|skip|260   # measurement/screenshots or soak: no pass/fail 
 ACA|srv:slopes|weekly|260   # not run in the last 14 days; server capability not yet seen
 ACA|srv:bbbfeatureaudit|weekly|200   # not run in the last 14 days; server capability not yet seen
 ACA|srv:bbborderleash|weekly|190   # not run in the last 14 days; server capability not yet seen
-ACA|srv:typhoons|nightly|120   # median 44s, 2 runs/14d
+ACA|srv:typhoons|skip|120   # needs RHS + UAAF loaded (aborts otherwise)
 ACA|srv:pockets|nightly|150   # median 48s, 3 runs/14d
 ACA|srv:quickstart|nightly|150   # median 100s, 3 runs/14d
 ACA|srv:stuckmen|nightly|240   # median 172s, 5 runs/14d
@@ -247,11 +247,11 @@ ACA|srv:keyhints|skip|60   # needs a player (game client)
 ACA|srv:panelshots|skip|420   # needs a player (game client)
 ACA|srv:panelfit|skip|1500   # needs a player (game client)
 ACA|srv:panelfitclassic|skip|600   # needs a player (game client)
-ACA|srv:genmapchernarus|nightly|150   # median 115s, 1 runs/14d
-ACA|srv:genmapgulfcoast|weekly|150   # median 15s, 1 runs/14d
-ACA|srv:genmapkunar|nightly|150   # median 45s, 1 runs/14d
-ACA|srv:genmapwestzagoria|nightly|150   # median 48s, 1 runs/14d
-ACA|srv:genmapzimnitrita|weekly|150   # median 31s, 1 runs/14d
+ACA|srv:genmapchernarus|skip|150   # world is in the ACAMapChernarusMinus add-on, not in _wt/sweep (server exits in 3 s)
+ACA|srv:genmapgulfcoast|skip|150   # world is in the ACAMapGulfcoastIslands add-on, not in _wt/sweep
+ACA|srv:genmapkunar|skip|150   # world is in the ACAMapKunarProvince add-on, not in _wt/sweep
+ACA|srv:genmapwestzagoria|skip|150   # world is in the ACAMapWestZagoria add-on, not in _wt/sweep
+ACA|srv:genmapzimnitrita|skip|150   # world is in the ACAMapZimnitrita add-on, not in _wt/sweep
 ACA|srv:baseworks|weekly|900   # median 382s, 2 runs/14d
 ACA|srv:baseworksarland|weekly|900   # not run in the last 14 days; server capability not yet seen
 ACA|srv:baseworksai|weekly|620   # median 380s, 1 runs/14d
@@ -296,8 +296,8 @@ ACA|srv:wingsoff|skip|240   # A/B control with the feature off or the old code: 
 ACA|srv:wingshots|skip|420   # measurement/screenshots or soak: no pass/fail meaning, run by hand
 ACA|srv:worksaisoak|skip|1320   # measurement/screenshots or soak: no pass/fail meaning, run by hand
 ACA|srv:worksshots|skip|600   # measurement/screenshots or soak: no pass/fail meaning, run by hand
-ACA|srv:contentpack|nightly|120   # median 91s, 3 runs/14d
-ACA|srv:contentpackwinter|nightly|120   # median 94s, 2 runs/14d
+ACA|srv:contentpack|track|120   # passes 38/0 in the main checkout but "no pack plugged in" in _wt/sweep (5 Nov): the sweep lacks the pack add-on it needs; investigate
+ACA|srv:contentpackwinter|track|120   # as contentpack
 ACA|srv:quickstartfia|nightly|90   # median 35s, 1 runs/14d
 ACA|srv:helidown|nightly|160   # median 96s, 1 runs/14d
 ACA|srv:basedefenceskolguyev|weekly|120   # not run in the last 14 days; server capability not yet seen

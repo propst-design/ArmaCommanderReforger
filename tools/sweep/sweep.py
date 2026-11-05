@@ -696,9 +696,9 @@ def cmd_report(args):
     sys.path.insert(0, str(HERE))
     last_day = max(r['started'][:10] for r in sweep)
     # The latest sweep = sweep rows from its start (a sweep crosses midnight).
-    last_run = max(r['file'] for r in sweep)
-    m = re.search(r'sw(\d{4}-\d{4})', last_run)
-    tag = m.group(1) if m else ''
+    # Its tag is in each result's name (sw<MMDD-HHMM>-...); paths differ by repo, so compare tags.
+    tags = [m.group(1) for m in (re.search(r'sw(\d{4}-\d{4})-', r['file']) for r in sweep) if m]
+    tag = getattr(args, 'tag', None) or (max(tags) if tags else '')
     tonight = [r for r in sweep if f'sw{tag}-' in r['file']] if tag else [r for r in sweep if r['started'][:10] == last_day]
     prev = {}
     for r in sorted(sweep, key=lambda r: r['started']):
@@ -829,6 +829,7 @@ def main():
     p = sub.add_parser('report')
     p.add_argument('--days', type=int, default=7)
     p.add_argument('--out')
+    p.add_argument('--tag', help='report this sweep run (MMDD-HHMM from its result names), default the latest')
     a = ap.parse_args()
     sys.exit({'ingest': cmd_ingest, 'run': cmd_run, 'stats': cmd_stats, 'report': cmd_report,
               'tested': cmd_tested}[a.cmd](a))
