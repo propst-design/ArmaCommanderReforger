@@ -40,8 +40,8 @@ posix = lambda q: q.replace("\\", "/")
 # Distance curves (gain 0-1 by metres) and bank volumes (dB). The flyover starts the sound at 5.8 km (silent here)
 # and keeps the jet until the listener is 6 km away (ACR_LocalFlyover.SOUND_START_M / SOUND_KEEP_M).
 # spatial: 1 = a point source; the near roar a little less (a loud jet fills the sky).
-NEAR = dict(curve=[(0, 1, False), (300, 1, True), (2500, 0, False)], volume=-22, spatial=0.75)
-FAR = dict(curve=[(300, 0, False), (1200, 1, True), (6000, 0, False)], volume=-20, spatial=1)
+NEAR = dict(curve=[(0, 1, False), (300, 1, True), (2500, 0, False)], volume=-17, spatial=0.75)
+FAR = dict(curve=[(300, 0, False), (1200, 1, True), (6000, 0, False)], volume=-15, spatial=1)
 
 JETS = {
     # hump: the roar's low hump (Hz); cut: the NEAR / FAR low-pass (Hz); whine: [(Hz, level)] in the NEAR layer

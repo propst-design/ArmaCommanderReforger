@@ -212,7 +212,7 @@ AudioClass {
    name "Engine Near"
    version 7
    tl -768 0
-   Volume -22
+   Volume -17
    "Loop count" 255
    "Infinite loop" 1
    "Termination Fade Out" 4000
@@ -228,7 +228,7 @@ AudioClass {
    name "Engine Far"
    version 7
    tl -768 400
-   Volume -20
+   Volume -15
    "Loop count" 255
    "Infinite loop" 1
    "Termination Fade Out" 4000
