@@ -20,6 +20,16 @@ matrix|ours-1.9|experimental|Worlds/ACR_TestRange.ent|AC230926A0010001,BBB026101
 MCC|compile|nightly
 MCC|zones|nightly
 
+# ---- 1989 weapons add-ons (tools/Run-<X>-Test.ps1, from branch test/smoke once merged into main).
+# range spawns every shipped prefab/config, fires every round at a UAZ at 60 m (flies, InitSpeed,
+# hits, damages) and checks it against its AI ballistic table; a vanilla round is the control.
+R7|compile|nightly
+R7|range|nightly
+CWL|compile|nightly
+CWL|range|nightly
+SPG9|compile|nightly
+SPG9|range|nightly
+
 # ---- ACA (srv: on the sweep worktree; ACA loads the sibling BBB worktree at main)
 ACA|srv:compile|nightly|120
 ACA|srv:vehicle|skip|240   # needs a player (game client)

@@ -432,7 +432,7 @@ def run_script(rid, repo, preset, timeout):
     else:
         runner = next((wt / 'tools').glob('Run-*-Test.ps1'), None)
         if not runner:
-            return None
+            return write_result(rid, repo, preset, 'refused', 0, 'reason=no tools/Run-*-Test.ps1 on main yet', build_label(repo))
         cmd = ['-File', str(runner), preset]
     t0 = time.time()
     try:
@@ -448,8 +448,10 @@ def run_script(rid, repo, preset, timeout):
         status = header(body).get('status', 'error')
     else:
         body = out
-        sm = re.search(r'status=(\w[\w ]*?)(?: log=|$)', out, re.M)
-        status = (sm.group(1).strip() if sm else ('completed' if code == 0 else 'error'))
+        # MCC: "status=done log=...", weapons runners: "RESULT PASS|FAIL preset=x status=done ...":
+        # a finished run is 'completed' and its VERDICT line decides; anything else is an error.
+        sm = re.search(r'status=(\w+)', out)
+        status = (sm.group(1) if sm else ('completed' if code == 0 else 'error'))
         status = 'completed' if status == 'done' else status
     return write_result(rid, repo, preset, status, secs, body, build_label(repo))
 
