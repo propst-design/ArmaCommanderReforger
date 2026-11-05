@@ -73,6 +73,7 @@ class ACR_TestManners
    }
    m_iStep = 1;
    if (System.IsCLIParam("acrMannersGetOutTest")) m_iStep = 2; // the get-out part alone
+   if (System.IsCLIParam("acrMannersEvadeTest")) m_iStep = 3; // the evade part alone
    m_iStepAt = tick;
   }
   if (m_iStep == 1) HeadOn(manager, tick);
@@ -334,8 +335,12 @@ class ACR_TestManners
    IEntity vehicle = m_aVehicles[0];
    vector point, dir;
    float width;
-   float off = 0;
-   if (vehicle && BBB_PullOver.Snap(vehicle.GetOrigin(), 30, point, dir, width)) off = vector.DistanceXZ(vehicle.GetOrigin(), point) - width * 0.5;
+   float off = 0, side = 0;
+   if (vehicle && BBB_PullOver.Snap(vehicle.GetOrigin(), 30, point, dir, width))
+   {
+    side = vector.DistanceXZ(vehicle.GetOrigin(), point);
+    off = side - width * 0.5;
+   }
    bool handbrake;
    CarControllerComponent car;
    if (vehicle) car = CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent));
@@ -344,8 +349,9 @@ class ACR_TestManners
    array<AIAgent> agents = {};
    m_aSquads[0].GetAgents(agents);
    foreach (AIAgent agent : agents) if (agent.GetControlledEntity() && ChimeraCharacter.Cast(agent.GetControlledEntity()).IsInVehicle()) aboard++;
-   PrintFormat("[ACR] MANNERS get out: %1 m past the road's edge, handbrake %2, %3 still aboard, pulled over %4 times in all, moved %5 m", Math.Round(off * 10) / 10, handbrake, aboard, BBB_PullOver.s_iParked, Math.Round(vector.DistanceXZ(vehicle.GetOrigin(), m_vGetOutAt)));
-   Check("get out: the vehicle stopped off the road (its centre past the road's edge)", off > 0);
+   PrintFormat("[ACR] MANNERS get out: %6 m from the road's middle (%1 m past its edge, the road %7 m wide), handbrake %2, %3 still aboard, pulled over %4 times in all, moved %5 m", Math.Round(off * 10) / 10, handbrake, aboard, BBB_PullOver.s_iParked, Math.Round(vector.DistanceXZ(vehicle.GetOrigin(), m_vGetOutAt)), Math.Round(side * 10) / 10, Math.Round(width * 10) / 10);
+   // The user's ask: "move the vehicle off the road or to the side of the road instead of getting out in the middle".
+   Check("get out: the vehicle stopped to the side of the road or off it (its centre 1.5 m or more from the middle)", side >= 1.5);
    Check("get out: handbrake on", handbrake);
    Check("get out: the crew is out", aboard == 0);
    Clear(manager);
@@ -377,6 +383,18 @@ class ACR_TestManners
    }
    m_aSquads[1].RouteTo(m_vTo, ACR_Squad.WP_MOVE, -1, "Moving", ACR_EOrderKind.MOVE, true);
   }
+  // Every 2 s: where the truck is, how fast, what it is doing (why it ends nearer the BTR).
+  if (t > 12 && t % 2 == 0 && m_aVehicles.Count() == 2 && m_aVehicles[1] && m_aSquads.Count() == 2 && m_aSquads[1])
+  {
+   IEntity truck = m_aVehicles[1];
+   float kmh;
+   if (truck.GetPhysics()) kmh = truck.GetPhysics().GetVelocity().Length() * 3.6;
+   vector heading = truck.GetTransformAxis(2);
+   vector toBtr = m_vTo - truck.GetOrigin();
+   toBtr[1] = 0;
+   toBtr.Normalize();
+   PrintFormat("[ACR] MANNERS evade t=%1: %2 m from the BTR, %3 km/h, facing it %4, order %5, BTR alive %6", t, Math.Round(vector.DistanceXZ(m_vTo, truck.GetOrigin())), Math.Round(kmh), Math.Round(vector.Dot(heading, toBtr) * 100) / 100, m_aSquads[1].m_Order, m_aVehicles[0] != null);
+  }
   if (t > 12 && m_aVehicles.Count() == 2 && m_aVehicles[0] && m_aVehicles[1] && m_fEvadeDistance < 0 && BBB_Traffic.s_iEvades > m_iEvadeBase)
   {
    m_fEvadeDistance = vector.DistanceXZ(m_vTo, m_aVehicles[1].GetOrigin());
@@ -393,6 +411,7 @@ class ACR_TestManners
    Check("evade: it turned away and didn't drive on into the BTR", m_fEvadeDistance > 0 && now >= m_fEvadeDistance - 5);
    Clear(manager);
    Next(tick);
+   if (System.IsCLIParam("acrMannersEvadeTest")) m_iStep = 4;
   }
  }
 }

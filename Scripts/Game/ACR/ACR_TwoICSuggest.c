@@ -202,7 +202,7 @@ class ACR_TwoICSuggest
    why = best.GetName() + " can't take the order";
    return null;
   }
-  if (best.m_bAICommanded) best.m_iAITask = ACR_EAITask.BUILD_FOB;
+  if (best.m_bAICommanded) best.SetAITask(ACR_EAITask.BUILD_FOB);
   PrintFormat("[ACR] 2IC %1: %2 establishes the suggested FOB at %3", s.m_sFaction, best.GetName(), site);
   return best;
  }

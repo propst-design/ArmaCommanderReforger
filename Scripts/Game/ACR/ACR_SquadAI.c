@@ -99,7 +99,7 @@ class ACR_SquadAI
   s_ModeBefore.Set(squad, squad.m_Mode);
   squad.m_bAICommanded = true;
   squad.m_bClaimed = false;
-  if (!keepTask) squad.m_iAITask = ACR_EAITask.FREE;
+  if (!keepTask) squad.SetAITask(ACR_EAITask.FREE);
   squad.m_iOrderedBy = 0;
   PrintFormat("[ACR] SQUAD AI %1: handed to the AI", squad.GetName());
  }
@@ -111,7 +111,7 @@ class ACR_SquadAI
   if (!squad || !squad.m_bAICommanded) return false;
   squad.m_bAICommanded = false;
   squad.m_bClaimed = true;
-  squad.m_iAITask = ACR_EAITask.FREE;
+  squad.SetAITask(ACR_EAITask.FREE);
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (manager && squad.GetFaction())
   {
@@ -151,7 +151,7 @@ class ACR_SquadAI
     ACR_AICommander ai;
     if (manager) ai = manager.FobAICommanderFor(squad.GetFaction().GetFactionKey());
     if (ai) ai.Forget(squad);
-    squad.m_iAITask = ACR_EAITask.FREE;
+    squad.SetAITask(ACR_EAITask.FREE);
    }
    return false;
   }

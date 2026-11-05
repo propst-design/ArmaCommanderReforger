@@ -550,7 +550,7 @@ class ACR_Insurgency
 
  protected static void Release(ACR_DangerRoad road)
  {
-  if (road.m_Sweeper && road.m_Sweeper.m_iAITask == ACR_EAITask.SWEEP) road.m_Sweeper.m_iAITask = ACR_EAITask.FREE;
+  if (road.m_Sweeper && road.m_Sweeper.m_iAITask == ACR_EAITask.SWEEP) road.m_Sweeper.SetAITask(ACR_EAITask.FREE);
   road.m_Sweeper = null;
  }
 

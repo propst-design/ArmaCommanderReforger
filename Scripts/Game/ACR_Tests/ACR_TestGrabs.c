@@ -1,9 +1,10 @@
 // -acrGrabsTest 1 (server-capable, ~20 s): quick grabs of empty bases skip support teams (#34), as
 // attacks do. Alpha is the only free US squad, 200 m from an empty base: named as a medic team it
-// isn't sent to grab it; under its own name (the control) it is.
+// isn't sent to grab it; under its own name (the control) it is. Then another job takes Alpha
+// (base works borrow attackers, WorksWorkerFurther): the grab drops it instead of keeping it.
 class ACR_TestGrabs
 {
- static const int CHECKS = 3;
+ static const int CHECKS = 5;
 
  static void Run(ACR_TestHarness h, int tick)
  {
@@ -59,6 +60,14 @@ class ACR_TestGrabs
   plainAI.AssignAttacksForTest();
   bool plainGoes = alpha.m_iAITask == ACR_EAITask.ATTACK && alpha.m_AITarget == empty;
   ACR_TestRegress.Check("grabs: in the same spot a fighting squad grabs it (the control)", plainGoes, string.Format("%1: task %2, target %3", alpha.m_Name, typename.EnumToString(ACR_EAITask, alpha.m_iAITask), alpha.m_AITarget == empty));
+
+  // Another job takes the grabber: the grab lets it go, and the squad keeps its new job.
+  bool grabbing = plainAI.IsAttackingForTest(empty);
+  alpha.SetAITask(ACR_EAITask.FORTIFY);
+  plainAI.UpdateAttacksForTest();
+  bool dropped = !plainAI.IsAttackingForTest(empty) && alpha.m_iAITask == ACR_EAITask.FORTIFY;
+  ACR_TestRegress.Check("grabs: the grab is running before the squad is taken", grabbing, empty.m_sName);
+  ACR_TestRegress.Check("grabs: a grabber taken for another job leaves the grab and keeps that job", dropped, string.Format("still attacking %1: %2, task %3", empty.m_sName, plainAI.IsAttackingForTest(empty), typename.EnumToString(ACR_EAITask, alpha.m_iAITask)));
 
   alpha.Halt("Holding");
   alpha.m_iAITask = ACR_EAITask.FREE;

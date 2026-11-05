@@ -1,17 +1,18 @@
 // -acrMapDeclutterTest 1 (server-capable, ~20 s): the calm command map's rules (ACR_MapDeclutter), as
 // pure functions: INTEL merging (counts, RP totals, "+N older", "N new"), which bases keep their
-// names at each zoom, which markers stand and which go into a base's count at each zoom (none is ever
-// moved), the counts and their list's place, the owner colours, the size pips, the corner marks, and
-// the host option's default and setup row.
+// names at each zoom (and which places keep theirs on the dark map), which markers stand and which
+// go into a base's count at each zoom (none is ever moved), the counts and their list's place, the
+// owner colours, the size pips, the corner marks, and the host option's default and setup row.
 class ACR_TestMapDeclutter
 {
- static const int CHECKS = 23;
+ static const int CHECKS = 24;
 
  static void Run(ACR_TestHarness h, int tick)
  {
   if (tick != 5) return;
   CheckIntel();
   CheckBases();
+  CheckDarkNames();
   CheckSquads();
   CheckPlacement();
   CheckOption();
@@ -305,6 +306,28 @@ class ACR_TestMapDeclutter
   // (hidden); one in the open doesn't.
   bool onIt = ACR_MapDeclutter.OnAName(500, 524, 14, obstacles) && ACR_MapDeclutter.OnAName(552, 490, 14, obstacles) && !ACR_MapDeclutter.OnAName(700, 700, 14, obstacles);
   ACR_TestRegress.Check("mapdeclutter: soldiers' markers on a base's name or dot count as on it", onIt, string.Format("on %1", onIt));
+ }
+
+ // The dark map's place names (#203): a name near a base gives way only while that base's name is
+ // drawn. West Zagoria's case: a base in nearly every town, and zoomed out only an HQ named.
+ static void CheckDarkNames()
+ {
+  array<vector> bases = {Vector(1000, 0, 1000), Vector(3000, 0, 1000), Vector(5000, 0, 1000)};
+  int atHQ = ACR_MapDeclutter.NearestBase(Vector(1100, 0, 1050), bases, 300);
+  int atDot = ACR_MapDeclutter.NearestBase(Vector(3150, 0, 900), bases, 300);
+  int alone = ACR_MapDeclutter.NearestBase(Vector(4000, 0, 1000), bases, 300);
+  int past = ACR_MapDeclutter.NearestBase(Vector(5000, 0, 1310), bases, 300);
+  bool picks = atHQ == 0 && atDot == 1 && alone == -1 && past == -1;
+  // Zoomed out: base 0 named, bases 1 and 2 bare dots (x1 <= x0), as the far layout leaves them.
+  array<float> farNames = {-20.0, -30.0, 40.0, -18.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+  bool farShows = !ACR_MapDeclutter.PlaceNameShows(atHQ, farNames) && ACR_MapDeclutter.PlaceNameShows(atDot, farNames) && ACR_MapDeclutter.PlaceNameShows(alone, farNames) && ACR_MapDeclutter.PlaceNameShows(past, farNames);
+  // Closer in every base is named: every name near a base gives way, as before.
+  array<float> nearNames = {-20.0, -30.0, 40.0, -18.0, -25.0, -30.0, 50.0, -18.0, -22.0, -30.0, 44.0, -18.0};
+  bool nearShows = !ACR_MapDeclutter.PlaceNameShows(atHQ, nearNames) && !ACR_MapDeclutter.PlaceNameShows(atDot, nearNames) && ACR_MapDeclutter.PlaceNameShows(alone, nearNames);
+  // No layout yet (no names at all): nothing gives way.
+  array<float> none = {};
+  bool empty = ACR_MapDeclutter.PlaceNameShows(atHQ, none) && ACR_MapDeclutter.PlaceNameShows(atDot, none);
+  ACR_TestRegress.Check("mapdeclutter: on the dark map a place near a base keeps its name while the base shows only as a dot (#203)", picks && farShows && nearShows && empty, string.Format("bases %1 %2 %3 %4, far %5, near %6, no layout %7", atHQ, atDot, alone, past, farShows, nearShows, empty));
  }
 
  static void CheckOption()

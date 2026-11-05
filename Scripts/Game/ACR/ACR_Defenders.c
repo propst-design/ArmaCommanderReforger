@@ -128,7 +128,8 @@ class ACR_Defenders
   post.m_bCrewWanted = true;
   post.m_aCrewGuns.Clear();
   post.m_aCrewGuns.InsertAll(guns);
-  PrintFormat("[ACR] DEFENDERS %1: its squad left for another job, %2 gun(s) to man from the reserve (%3 in reserve)", post.m_sName, guns.Count(), post.m_iReserve);
+  if (post.m_Work) PrintFormat("[ACR] DEFENDERS %1: %2 gun(s) to man from the reserve (%3 in reserve)", post.m_sName, guns.Count(), post.m_iReserve);
+  else PrintFormat("[ACR] DEFENDERS %1: its squad left for another job, %2 gun(s) to man from the reserve (%3 in reserve)", post.m_sName, guns.Count(), post.m_iReserve);
  }
 
  // A squad holds it again: the gun crew goes back into the reserve.
@@ -195,7 +196,7 @@ class ACR_Defenders
  // is manned by the man on the bags beside it (within REMAN_REACH), at most once per REMAN_WAIT_MS per gun. The
  // gunner is who the attackers shoot first: from further off, or oftener, this emptied the bags into the guns
  // (srv:worksfightbase, 2 Nov: 10 re-mans, 7 of 8 lost; the men on the bags were doing the killing).
- protected static void SeatLineMen(ACR_DefenderPost post)
+ static void SeatLineMen(ACR_DefenderPost post)
  {
   if (!post.m_Group || post.m_aCrewGuns.IsEmpty()) return;
   array<AIAgent> agents = {};

@@ -24,6 +24,8 @@ class ACR_Minefield : Managed
  ACR_EMineKind m_eKind;
  string m_sFaction;
  vector m_vPos;
+ ref array<vector> m_aCorners = {}; // a shaped field's outline (#200: a line's band, or its corners in order); empty: the square
+ float m_fReach = 21;         // m from m_vPos to its farthest corner
  bool m_bLaying;              // its squad is still laying it
  ref array<IEntity> m_aMines = {};
  ref array<IEntity> m_aSigns = {};
@@ -38,6 +40,9 @@ class ACR_MinePlan : Managed
  vector m_vSite;              // field centre (on the road through it for AT / mixed)
  vector m_vForward;           // along that road, else the squad's approach (or the dragged facing)
  bool m_bAimed;               // a player dragged its facing
+ ref array<vector> m_aCorners = {}; // the commander's points (#200): 2 a line, 3 or 4 an area; empty: the square
+ ref array<vector> m_aOutline = {}; // ...and the field's outline from them (ACR_MineShape.Outline)
+ float m_fReach = 21;         // m from the site to the outline's farthest corner
  vector m_vStage;             // where the squad gathers, outside the near edge
  float m_fRadius;             // squad members this close to the site work
  float m_fDuration;           // seconds of work (disarming: at least this long)
@@ -96,6 +101,15 @@ class ACR_Minefields
   return 3;
  }
 
+ // Mines one order of this kind lays (AT, AP).
+ static int MinesOf(ACR_EMineKind kind)
+ {
+  if (kind == ACR_EMineKind.AP) return 30;
+  if (kind == ACR_EMineKind.AT) return 12;
+  if (kind == ACR_EMineKind.MIXED) return 28;
+  return 0;
+ }
+
  static float Duration(ACR_EMineKind kind)
  {
   if (kind == ACR_EMineKind.AP) return 60;
@@ -124,9 +138,10 @@ class ACR_Minefields
  // The map panel's hint while the order's cursor is armed.
  static string Hint(ACR_EMineKind kind)
  {
-  if (kind == ACR_EMineKind.AP) return string.Format("Right-click: lay a %1 m AP minefield off the roads (%2 RP; click AP mines again to cancel)", (int)SIZE, Cost(kind));
-  if (kind == ACR_EMineKind.AT) return string.Format("Right-click a road: AT mines in both lanes, across the area without one (%1 RP; click AT mines again to cancel)", Cost(kind));
-  if (kind == ACR_EMineKind.MIXED) return string.Format("Right-click a road: AT mines on it, AP mines round it (%1 RP; click Mixed mines again to cancel)", Cost(kind));
+  string shape = " Right-click up to 4 points and the last one again to lay it: 1 point a 30 m square, 2 a line, 3 or 4 that area.";
+  if (kind == ACR_EMineKind.AP) return string.Format("AP minefield off the roads (%1 RP; click AP mines again to cancel).", Cost(kind)) + shape;
+  if (kind == ACR_EMineKind.AT) return string.Format("AT minefield, its mines on the roads first (%1 RP; click AT mines again to cancel).", Cost(kind)) + shape;
+  if (kind == ACR_EMineKind.MIXED) return string.Format("Mixed minefield: AT mines on the roads, AP mines round them (%1 RP; click Mixed mines again to cancel).", Cost(kind)) + shape;
   return string.Format("Right-click: disarm and lift every armed mine within %1 m (%2 RP; click Disarm mines again to cancel)", (int)DISARM_RADIUS, Cost(kind));
  }
 
@@ -174,9 +189,10 @@ class ACR_Minefields
  // a FOB or roadblock build), which refunds itself. false + refusal, nothing charged, when it
  // can't.
  // faceTowards: a player's dragged facing (vector.Zero: the squad's approach, as before).
- static bool Order(ACR_Squad squad, ACR_EMineKind kind, vector point, out string refusal, vector faceTowards = vector.Zero)
+ // corners (#200): 2 to 4 map points for a line or an area instead of the square at 'point'.
+ static bool Order(ACR_Squad squad, ACR_EMineKind kind, vector point, out string refusal, vector faceTowards = vector.Zero, array<vector> corners = null)
  {
-  ACR_MinePlan plan = Plan(squad, kind, point, refusal, faceTowards);
+  ACR_MinePlan plan = Plan(squad, kind, point, refusal, faceTowards, corners);
   if (!plan) return false;
   if (!squad.LayMinefield(plan))
   {
@@ -186,7 +202,7 @@ class ACR_Minefields
   return true;
  }
 
- static ACR_MinePlan Plan(ACR_Squad squad, ACR_EMineKind kind, vector point, out string refusal, vector faceTowards = vector.Zero)
+ static ACR_MinePlan Plan(ACR_Squad squad, ACR_EMineKind kind, vector point, out string refusal, vector faceTowards = vector.Zero, array<vector> corners = null)
  {
   refusal = "";
   if (!Enabled())
@@ -233,12 +249,20 @@ class ACR_Minefields
   plan.m_iCost = cost;
   plan.m_vForward = approach;
   plan.m_bAimed = aimed;
+  if (corners && corners.Count() >= 2 && kind != ACR_EMineKind.DISARM)
+  {
+   foreach (vector corner : corners) plan.m_aCorners.Insert(ACR_Manager.Ground(corner));
+  }
   if (kind == ACR_EMineKind.DISARM)
   {
    plan.m_vSite = point;
    plan.m_vStage = ACR_Manager.Ground(point - approach * (DISARM_RADIUS * 0.6));
    plan.m_fRadius = DISARM_RADIUS + 15;
    plan.m_fDuration = Duration(kind) * WORK_SCALE;
+  }
+  else if (!plan.m_aCorners.IsEmpty())
+  {
+   if (!ACR_Minefields.PlanShape(plan, refusal)) return null;
   }
   else if (!PlanField(plan, point, refusal)) return null;
   // Not where another squad of ours is already on its way to lay a field (the AI once sent two
@@ -248,7 +272,7 @@ class ACR_Minefields
    foreach (ACR_Squad other : manager.m_Squads)
    {
     if (!other || other == squad || !other.m_MinePlan || other.m_MinePlan.m_eKind == ACR_EMineKind.DISARM || other.m_MinePlan.m_sFaction != faction) continue;
-    if (vector.DistanceXZ(other.m_MinePlan.m_vSite, plan.m_vSite) >= SIZE * 1.5) continue;
+    if (vector.DistanceXZ(other.m_MinePlan.m_vSite, plan.m_vSite) >= Math.Max(SIZE * 1.5, Math.Min(other.m_MinePlan.m_fReach, plan.m_fReach) + 15)) continue;
     refusal = "another squad of ours is already laying mines there";
     return null;
    }
@@ -283,7 +307,7 @@ class ACR_Minefields
   }
   foreach (ACR_Minefield field : s_Fields)
   {
-   if (field.m_sFaction != plan.m_sFaction || vector.DistanceXZ(field.m_vPos, plan.m_vSite) >= SIZE * 1.5) continue;
+   if (field.m_sFaction != plan.m_sFaction || !ACR_Minefields.Overlaps(field, plan)) continue;
    refusal = "there is already a minefield of ours there";
    return false;
   }
@@ -324,6 +348,214 @@ class ACR_Minefields
   // A field cut short by water or buildings takes less time.
   plan.m_fDuration = Duration(plan.m_eKind) * WORK_SCALE * Math.Max(0.25, plan.m_aPos.Count() / (float)(at + ap));
   return true;
+ }
+
+ // A shaped field (#200): the same mines as the square, spread over the outline of the commander's points.
+ // AT mines go on the roads inside it first (as many as fit) and the rest across it; AP mines keep off the
+ // roads. The squad works from the edge nearest its approach; a bigger area takes longer to walk.
+ protected static bool PlanShape(ACR_MinePlan plan, out string refusal)
+ {
+  string why = ACR_MineShape.Outline(plan.m_aCorners, plan.m_aOutline);
+  if (!why.IsEmpty())
+  {
+   refusal = why;
+   return false;
+  }
+  vector approach = plan.m_vForward;
+  vector middle = ACR_MineShape.Middle(plan.m_aOutline);
+  plan.m_vSite = ACR_Manager.Ground(middle);
+  plan.m_vForward = ACR_MineShape.Long(plan.m_aOutline);
+  plan.m_fReach = ACR_MineShape.Reach(plan.m_aOutline, plan.m_vSite);
+  if (BBB_Terrain.IsWaterAt(plan.m_vSite) && ACR_MineShape.Area(plan.m_aOutline) < ACR_MineShape.MIN_AREA * 2)
+  {
+   refusal = "that spot is in water";
+   return false;
+  }
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || !ACR_MineShape.Near(plan.m_aOutline, base.GetOrigin(), MIN_BASE_DIST)) continue;
+   refusal = "too close to a base (units deploy there)";
+   return false;
+  }
+  foreach (ACR_Minefield field : s_Fields)
+  {
+   if (field.m_sFaction != plan.m_sFaction || !ACR_Minefields.Overlaps(field, plan)) continue;
+   refusal = "there is already a minefield of ours there";
+   return false;
+  }
+  foreach (ACR_Roadblock rb : ACR_Roadblocks.s_aRoadblocks)
+  {
+   if (!rb || !rb.m_Entity || !ACR_MineShape.Near(plan.m_aOutline, rb.m_vPos, ACR_Roadblocks.WORKS_CLEARANCE * 0.5)) continue;
+   refusal = "a roadblock is there";
+   return false;
+  }
+  if (CountMines(plan.m_sFaction) >= MAX_MINES)
+  {
+   refusal = string.Format("our side already has %1 mines down", MAX_MINES);
+   return false;
+  }
+  int at, ap;
+  if (plan.m_eKind == ACR_EMineKind.AP) ap = 30;
+  if (plan.m_eKind == ACR_EMineKind.AT) at = 12;
+  if (plan.m_eKind == ACR_EMineKind.MIXED)
+  {
+   at = 8;
+   ap = 20;
+  }
+  if (at > 0) ACR_Minefields.ShapeRoadMines(plan, at);
+  if (ap > 0) ACR_Minefields.ShapeScatter(plan, ap, false, AP_SPACING, true);
+  if (plan.m_aPos.IsEmpty())
+  {
+   refusal = "no room for mines there (water or buildings)";
+   return false;
+  }
+  // The squad gathers outside the edge it comes to first.
+  vector nearest = plan.m_vSite;
+  float least = float.MAX;
+  foreach (vector corner : plan.m_aOutline)
+  {
+   float d = vector.Dot(corner - plan.m_vSite, approach);
+   if (d >= least) continue;
+   least = d;
+   nearest = corner;
+  }
+  plan.m_vStage = ACR_Manager.Ground(nearest - approach * 8);
+  plan.m_fRadius = plan.m_fReach + 24;
+  float walk = Math.Clamp(Math.Sqrt(Math.Max(ACR_MineShape.Area(plan.m_aOutline), plan.m_fReach * 6) / (SIZE * SIZE)), 1, 1.8);
+  plan.m_fDuration = Duration(plan.m_eKind) * WORK_SCALE * Math.Max(0.25, plan.m_aPos.Count() / (float)(at + ap)) * walk;
+  PrintFormat("[ACR] MINEFIELD %1 shape: %2 points, %3 m², reach %4 m, %5 mines planned (%6 AT)", plan.m_sFaction, plan.m_aCorners.Count(), (int)ACR_MineShape.Area(plan.m_aOutline), (int)plan.m_fReach, plan.m_aPos.Count(), ACR_Minefields.CountAT(plan));
+  return true;
+ }
+
+ protected static int CountAT(ACR_MinePlan plan)
+ {
+  int at;
+  foreach (bool antiTank : plan.m_aAntiTank)
+  {
+   if (antiTank) at++;
+  }
+  return at;
+ }
+
+ // AT mines on the roads inside the outline first: points every metre along each road through it, in its two
+ // lanes in turn as the square's road mines are, picked at random far enough apart; then across the outline.
+ protected static void ShapeRoadMines(ACR_MinePlan plan, int count)
+ {
+  float minX, minZ, maxX, maxZ;
+  ACR_MineShape.Bounds(plan.m_aOutline, minX, minZ, maxX, maxZ);
+  array<vector> onRoad = {};
+  ChimeraAIWorld aiWorld = ChimeraAIWorld.Cast(GetGame().GetAIWorld());
+  if (aiWorld && aiWorld.GetRoadNetworkManager())
+  {
+   array<BaseRoad> roads = {};
+   aiWorld.GetRoadNetworkManager().GetRoadsInAABB(Vector(minX - 5, -1000, minZ - 5), Vector(maxX + 5, 3000, maxZ + 5), roads);
+   foreach (BaseRoad road : roads)
+   {
+    if (!road) continue;
+    float lane = Math.Max(0.6, RoadWidth(road) * 0.25);
+    array<vector> nodes = {};
+    road.GetPoints(nodes);
+    int step;
+    for (int i = 0; i + 1 < nodes.Count(); i++)
+    {
+     vector a = nodes[i];
+     vector b = nodes[i + 1];
+     vector along = b - a;
+     along[1] = 0;
+     float length = along.Length();
+     if (length < 0.1) continue;
+     along = along * (1 / length);
+     vector across = Vector(along[2], 0, -along[0]);
+     for (float d = 0; d < length; d += 1)
+     {
+      float side = lane;
+      if (step % 2 == 1) side = -lane;
+      step++;
+      vector p = a + along * d + across * side;
+      if (!ACR_MineShape.Inside(plan.m_aOutline, p)) continue;
+      p[1] = GetGame().GetWorld().GetSurfaceY(p[0], p[2]);
+      onRoad.Insert(p);
+     }
+    }
+   }
+  }
+  int placed;
+  while (!onRoad.IsEmpty() && placed < count)
+  {
+   int pick = Math.RandomInt(0, onRoad.Count());
+   vector pos = onRoad[pick];
+   onRoad.Remove(pick);
+   if (!Usable(plan, pos, AT_SPACING * 0.6)) continue;
+   plan.m_aPos.Insert(pos);
+   plan.m_aAntiTank.Insert(true);
+   placed++;
+  }
+  if (placed < count) ACR_Minefields.ShapeScatter(plan, count - placed, true, AT_SPACING, false);
+ }
+
+ // 'count' mines spread evenly over the outline: a staggered grid as wide as the area shares out, each point
+ // shaken a little and the grid's points taken in a random order, then random points for any it couldn't
+ // place. clearOfRoads: a metre clear of every road.
+ protected static void ShapeScatter(ACR_MinePlan plan, int count, bool antiTank, float spacing, bool clearOfRoads)
+ {
+  float area = Math.Max(ACR_MineShape.Area(plan.m_aOutline), 1);
+  float step = Math.Max(spacing, Math.Sqrt(area / Math.Max(count, 1)));
+  float minX, minZ, maxX, maxZ;
+  ACR_MineShape.Bounds(plan.m_aOutline, minX, minZ, maxX, maxZ);
+  array<vector> grid = {};
+  int row;
+  for (float z = minZ + step * 0.5; z <= maxZ; z += step)
+  {
+   float shift = 0;
+   if (row % 2 == 1) shift = step * 0.5;
+   row++;
+   for (float x = minX + step * 0.25 + shift; x <= maxX; x += step)
+   {
+    vector p = Vector(x + Math.RandomFloat(-step, step) * 0.25, 0, z + Math.RandomFloat(-step, step) * 0.25);
+    if (!ACR_MineShape.Inside(plan.m_aOutline, p)) continue;
+    grid.Insert(p);
+   }
+  }
+  int placed;
+  while (!grid.IsEmpty() && placed < count)
+  {
+   int pick = Math.RandomInt(0, grid.Count());
+   vector pos = grid[pick];
+   grid.Remove(pick);
+   pos[1] = GetGame().GetWorld().GetSurfaceY(pos[0], pos[2]);
+   if (clearOfRoads && RoadClearance(pos) < 1) continue;
+   if (!Usable(plan, pos, spacing)) continue;
+   plan.m_aPos.Insert(pos);
+   plan.m_aAntiTank.Insert(antiTank);
+   placed++;
+  }
+  for (int tries = 0; tries < count * 20 && placed < count; tries++)
+  {
+   vector pos2 = Vector(Math.RandomFloat(minX, maxX), 0, Math.RandomFloat(minZ, maxZ));
+   if (!ACR_MineShape.Inside(plan.m_aOutline, pos2)) continue;
+   pos2[1] = GetGame().GetWorld().GetSurfaceY(pos2[0], pos2[2]);
+   if (clearOfRoads && RoadClearance(pos2) < 1) continue;
+   if (!Usable(plan, pos2, spacing)) continue;
+   plan.m_aPos.Insert(pos2);
+   plan.m_aAntiTank.Insert(antiTank);
+   placed++;
+  }
+ }
+
+ // Whether the field already there and the planned one are in the same place: two squares within 1.5 of
+ // the square's size of each other (as before), or either's middle inside (or within 10 m of) the other's
+ // outline.
+ static bool Overlaps(ACR_Minefield field, ACR_MinePlan plan)
+ {
+  float apart = vector.DistanceXZ(field.m_vPos, plan.m_vSite);
+  if (field.m_aCorners.IsEmpty() && plan.m_aOutline.IsEmpty()) return apart < SIZE * 1.5;
+  if (apart < 20) return true;
+  if (!plan.m_aOutline.IsEmpty() && ACR_MineShape.Near(plan.m_aOutline, field.m_vPos, 10)) return true;
+  if (!field.m_aCorners.IsEmpty() && ACR_MineShape.Near(field.m_aCorners, plan.m_vSite, 10)) return true;
+  // A square against a shape: the square's middle near the shape (above), or the shape's middle in the square.
+  if (field.m_aCorners.IsEmpty()) return apart < SIZE * 0.5 + 10;
+  if (plan.m_aOutline.IsEmpty()) return ACR_MineShape.Near(field.m_aCorners, plan.m_vSite, SIZE * 0.5 + 10);
+  return false;
  }
 
  // Alternate lanes every step: AT_SPACING or more between mines in the same lane.
@@ -506,6 +738,8 @@ class ACR_Minefields
   field.m_eKind = plan.m_eKind;
   field.m_sFaction = plan.m_sFaction;
   field.m_vPos = plan.m_vSite;
+  field.m_aCorners.Copy(plan.m_aOutline);
+  if (!plan.m_aOutline.IsEmpty()) field.m_fReach = plan.m_fReach;
   field.m_bLaying = true;
   s_Fields.Insert(field);
   plan.m_Field = field;
@@ -537,27 +771,56 @@ class ACR_Minefields
  }
 
  // Minefield signs at the four corners, facing out.
+ static const float SIGN_EVERY = 25;          // m between signs along a shaped field's edge
+ static const int MOST_SIGNS = 16;
+
  protected static void PlaceSigns(ACR_Minefield field, vector forward)
  {
   Resource resource = Resource.Load(SIGN);
   if (!resource.IsValid()) return;
   float edge = SIZE * 0.5 + 2;
   array<vector> corners = {};
-  corners.Insert(Vector(edge, 0, edge));
-  corners.Insert(Vector(-edge, 0, edge));
-  corners.Insert(Vector(edge, 0, -edge));
-  corners.Insert(Vector(-edge, 0, -edge));
-  foreach (vector corner : corners)
+  if (field.m_aCorners.IsEmpty())
   {
-   vector pos = ToWorld(field.m_vPos, forward, corner);
+   corners.Insert(ToWorld(field.m_vPos, forward, Vector(edge, 0, edge)));
+   corners.Insert(ToWorld(field.m_vPos, forward, Vector(-edge, 0, edge)));
+   corners.Insert(ToWorld(field.m_vPos, forward, Vector(edge, 0, -edge)));
+   corners.Insert(ToWorld(field.m_vPos, forward, Vector(-edge, 0, -edge)));
+  }
+  else ACR_Minefields.SignSpots(field, corners);
+  foreach (vector pos : corners)
+  {
    if (BBB_Terrain.IsWaterAt(pos)) continue;
    vector outward = pos - field.m_vPos;
+   if (outward.Length() < 0.1) outward = forward;
    EntitySpawnParams spawnParams = new EntitySpawnParams();
    spawnParams.TransformMode = ETransformMode.WORLD;
    Math3D.AnglesToMatrix(Vector(Math.Atan2(outward[0], outward[2]) * Math.RAD2DEG, 0, 0), spawnParams.Transform);
    spawnParams.Transform[3] = pos;
    IEntity sign = GetGame().SpawnEntityPrefab(resource, GetGame().GetWorld(), spawnParams);
    if (sign) field.m_aSigns.Insert(sign);
+  }
+ }
+
+ // A shaped field's signs: every corner and every SIGN_EVERY m along its edges, 2 m outside them.
+ protected static void SignSpots(ACR_Minefield field, notnull array<vector> spots)
+ {
+  int count = field.m_aCorners.Count();
+  for (int i = 0; i < count && spots.Count() < MOST_SIGNS; i++)
+  {
+   vector a = field.m_aCorners[i];
+   vector b = field.m_aCorners[(i + 1) % count];
+   int steps = Math.Max(1, (int)Math.Ceil(vector.DistanceXZ(a, b) / SIGN_EVERY));
+   for (int k = 0; k < steps && spots.Count() < MOST_SIGNS; k++)
+   {
+    vector p = a + (b - a) * (k / (float)steps);
+    vector away = p - field.m_vPos;
+    away[1] = 0;
+    if (away.Length() > 0.1) away.Normalize();
+    p = p + away * 2;
+    p[1] = GetGame().GetWorld().GetSurfaceY(p[0], p[2]);
+    spots.Insert(p);
+   }
   }
  }
 
@@ -759,8 +1022,20 @@ class ACR_Minefields
   {
    if (field.m_sFaction != faction || field.m_aMines.IsEmpty()) continue;
    positions.Insert(field.m_vPos);
-   radii.Insert(SIZE * 0.7);
+   radii.Insert(field.m_fReach * 0.7);
    labels.Insert(string.Format("%1 (%2)", Name(field.m_eKind), field.m_aMines.Count()));
+  }
+ }
+
+ // The outlines of a side's shaped fields for its command map (#200): each field's corners in 'corners', how
+ // many in 'counts'. The map draws them instead of the field's circle (ACR_OrderDisplay.DrawMineShapes).
+ static void Shapes(string faction, notnull array<vector> corners, notnull array<int> counts)
+ {
+  foreach (ACR_Minefield field : s_Fields)
+  {
+   if (field.m_sFaction != faction || field.m_aMines.IsEmpty() || field.m_aCorners.IsEmpty()) continue;
+   foreach (vector corner : field.m_aCorners) corners.Insert(corner);
+   counts.Insert(field.m_aCorners.Count());
   }
  }
 

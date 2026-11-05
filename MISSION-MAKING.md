@@ -174,9 +174,16 @@ flags also work through the normal options precedence.
 ### Minefields
 
 Infantry squads can lay minefields and disarm mines on the commander's orders (map panel: **AP
-mines**, **AT mines**, **Mixed mines**, **Disarm mines**). A field is a 30 m square: AT mines go in
-both lanes of a road within 20 m of the click (across the area without one) and AP mines off the
-road; vanilla minefield signs mark the corners and the area shows on the owning side's command map.
+mines**, **AT mines**, **Mixed mines**, **Disarm mines**). A point right-clicked twice lays a 30 m
+square: AT mines go in both lanes of a road within 20 m of it (across the area without one) and AP
+mines off the road; vanilla minefield signs mark the corners and the area shows on the owning side's
+command map. The commander can shape a field instead (#200): right-click up to four points, then the
+last one again (a fourth point lays at once). Two points make a line (a 6 m band, at least 10 m long),
+three or four that area. The field keeps its mines and its price, spread over the shape, which may be
+at most 120 m corner to corner and 2,700 m² (three times the square); AT mines go on the roads inside
+it first, signs stand every 25 m along its edges (16 at most), its outline shows on the map, and a
+bigger area takes longer to lay. With `-acrMinesAI 1` the AI commanders shape their fields too: a
+belt across a road, a block along it, or a band across the enemy's approach.
 Orders cost 15 / 20 / 25 RP (AP / AT / mixed) or 3 RP to disarm and lift every armed mine within
 25 m (8 s per mine, 4 s with engineers); they are paid up front and refund the share not laid when
 called off. Work pauses while the site is contested and runs twice
@@ -472,6 +479,7 @@ Each entry is one action in the commander's support menu, such as a mortar strik
 | `m_iBombRunBombs` | 4 | Virtual bombs in `VIRTUAL` or `FLYOVER` mode; clamped to 1-12 |
 | `m_fBombRunSpacing` | 28 m | Distance between impact points in `FLYOVER` mode; clamped to 1-500 m |
 | `m_fBombRunScatter` | 5 m | Random lateral impact scatter in metres; clamped to 0-100 m |
+| `m_sReconPrefab` | empty | `RECON_FLIGHT` only: the aircraft prefab flown over the corridor, carrying its own engine sound; empty = AC: Actual's default for the side (RHS's FA-18 for a western side when RHS is loaded, otherwise none: the flight works unseen) |
 
 | Type | Default name | RP | Cooldown (s) |
 |---|---|---|---|
@@ -488,6 +496,16 @@ Each entry is one action in the commander's support menu, such as a mortar strik
 | `ARTILLERY_BATTERY` | Artillery: howitzer battery | 60 | 300 |
 | `AIR_LIFT` | Helicopter: air lift | 40 (AI commander 20) | 240 |
 | `ATTACK_HELI` | Helicopter: *airframe* (120 s) | 55 | 300 |
+| `RECON_FLIGHT` | Air: recon flight | 15 | 180 |
+
+`RECON_FLIGHT` sends a jet over a corridor 2.4 km long and 600 m wide, centred on the called point and
+flown from the side's nearest base, about 30 s after the call. Enemy soldiers and vehicles under it go
+on the side's map as if spotted (vehicles and men in the open mostly, men under a roof or trees
+rarely), each group shown up to 50 m (vehicles 20 m) off its true spot, and kept 5 minutes; hidden
+FOBs in it are found. Nothing can shoot it down or turn it back. The side flown over is told a jet went over. The AI commander calls it too.
+Side lists made before it existed get it added; add a `RECON_FLIGHT` row with **Enabled** off to
+leave it out. Radio intercepts need no setting: a side's contact reports and fire-mission calls may
+be picked up by the enemy as a 400 m ring on its map that holds the transmitter.
 
 `ATTACK_HELI` exists only when a content pack names an attack helicopter for the side (the Cold War
 pack: AH-1S Cobra for US, Mi-24V Hind for USSR; the Modern pack: AH-64D Apache for the RHS US side,
@@ -806,6 +824,7 @@ in-game setup screen, when enabled, overrides these defaults at Start.
 | `m_iAcrBaseObstacles` | `-acrBaseObstacles 1` (default) or `0`; hedgehogs or log barricades out in front of a line either side of its road |
 | `m_iAcrBaseRing` | `-acrBaseRing 1` (default) or `0`; where a town's lines go. On: one shortest path right round the town, bags on open ground and houses, stone walls, water and cliffs for free, so the bags close the town from house to house outside its yards. Off: lines walked out from seeds along each approach, as before. |
 | `m_iAcrKillGround` | `-acrKillGround 1` (default) or `0`; how a town's bags and guns are chosen. On: the enemy is walked in over the real ground from where he comes, and each place is valued by what it fires on of his ways, the softest way most, then he walks again round what's going in. Off: by the threat per sector and how far a place sees. |
+| `m_iAcrBaseFinalWalk` | `-acrBaseFinalWalk 1` (default) or `0`; once a town's works are planned (lines, nests, gate guns, posts, the command post), the enemy is walked in once more against everything that stands, and while tiers I and II have pieces left one more line goes on his softest way in, or a small gun position where no line fits. Off: the plan ends with what the rounds laid. |
 | `m_iAcrFortifyDefenders1` | `-acrFortifyDefenders1 1` default, 0–12; defenders in reserve at a Fortify tier I position (0: none) |
 | `m_iAcrFortifyDefenders2` | `-acrFortifyDefenders2 2` default, 0–12; defenders in reserve at a Fortify tier II position (0: none) |
 | `m_iAcrFortifyDefenders3` | `-acrFortifyDefenders3 4` default, 0–12; defenders in reserve at a tier III position |
@@ -948,6 +967,7 @@ mission makers, automated tests and server operators; players choose match setti
 | `-acrBaseObstacles 0` | Only wire out in front of base-works lines (on by default: Czech hedgehogs, or log barricades for FIA, either side of a line's road) |
 | `-acrBaseRing 0` | A town's lines walked out from seeds along each approach instead of closing the town (on by default). |
 | `-acrKillGround 0` | A town's bags and guns valued by the threat per sector and how far they see, instead of by what they do to the enemy on the ways he'd walk (on by default). |
+| `-acrBaseFinalWalk 0` | No last walk against a town's finished works and no last line or small gun on his softest way in (on by default). |
 | `-acrFortifyDefenders1 N` / `-acrFortifyDefenders2 N` / `-acrFortifyDefenders3 N` | Defenders held in reserve at a Fortify tier I / II / III position (1 / 2 / 4 by default, 0 none, at most 12; see [Fortify position](#fortify-position)) |
 | `-acrRoadblockDefenders N` | Defenders held in reserve at every checkpoint (small, medium, large; not a plain barricade), as at a Fortify position: they deploy when an enemy comes within 400 m and are used up as they die (0, none, by default; at most 8) |
 | `-acrAIBuildShare N` | AI commanders set N% (at most 30) of the RP they gain aside as an engineering budget, up to 100 RP: unit purchases leave it alone, so their roadblocks, minefields (`-acrMinesAI`) and Fortify positions (`-acrFortifyAI`) get built even when they would otherwise spend everything on units; those orders are paid out of it, and it gets at least 2 RP every strategy tick (15 s) on top of the share (twice both for a Fortress). A side with more than 600 RP banked digs in with the surplus: its share rises with it, to twice the share at the 1000 RP cap (at most 50%), and the budget is kept at least at that share of what is over 600 (still at most 100 RP), since a side at the cap gains nothing to take a share of. Shown in the AI status log line. Off by default; the setup screen's **AI build budget** row sets it (off, 10, 15 or 25%) |
