@@ -476,7 +476,7 @@ Each entry is one action in the commander's support menu, such as a mortar strik
 | `m_sBombRunPrefab` | empty | Aircraft/flyover prefab (`FLYOVER`) or call-in spawner prefab (`EDITABLE_CALL_IN`). AC: Actual's own: `{AC230926A00100E0}Prefabs/Vehicles/Aircraft/ACR_A10A.et`, `{AC230926A00100E1}Prefabs/Vehicles/Aircraft/ACR_Su25.et` (a side with no support list flies the one for its side; with RHS loaded, RHS's FA-18) |
 | `m_fBombRunAltitude` | 300 m | Flyover height above the target, and never under 150 m over a hill on the way; clamped to 30-1,000 m |
 | `m_fBombRunSpeed` | 180 m/s | Flyover speed; sets bomb spacing in time in `FLYOVER` mode; clamped to 20-400 m/s |
-| `m_iBombRunBombs` | 4 | Virtual bombs in `VIRTUAL` or `FLYOVER` mode; clamped to 1-12 |
+| `m_iBombRunBombs` | 4 | Virtual bombs in `VIRTUAL` or `FLYOVER` mode; clamped to 1-12. In `FLYOVER` mode each one is seen falling from the jet onto its blast: AC: Actual's A-10A (Mk 82 Snakeye) and Su-25 (OFAB-250ShN) carry the first four on their pylons. These are retarded bombs: each blast goes off a few seconds after the jet has passed over its spot, where its bomb lands |
 | `m_fBombRunSpacing` | 28 m | Distance between impact points in `FLYOVER` mode; clamped to 1-500 m |
 | `m_fBombRunScatter` | 5 m | Random lateral impact scatter in metres; clamped to 0-100 m |
 | `m_sReconPrefab` | empty | `RECON_FLIGHT` only: the aircraft prefab flown over the corridor, carrying its own engine sound; empty = AC: Actual's own jet for the side (RF-4C Phantom for a western side, Su-17M4R for the others; `{AC230926A00100E2}Prefabs/Vehicles/Aircraft/ACR_RF4C.et`, `{AC230926A00100E3}Prefabs/Vehicles/Aircraft/ACR_Su17M4R.et`) |

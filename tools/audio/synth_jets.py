@@ -42,13 +42,18 @@ posix = lambda q: q.replace("\\", "/")
 # spatial: 1 = a point source; the near roar a little less (a loud jet fills the sky).
 NEAR = dict(curve=[(0, 1, False), (300, 1, True), (2500, 0, False)], volume=-17, spatial=0.75)
 FAR = dict(curve=[(300, 0, False), (1200, 1, True), (6000, 0, False)], volume=-15, spatial=1)
+# The turbojets' scream, close in only: the hot, tearing high roar of an afterburnerless turbojet going over (Jacob,
+# 4 Nov: the non-turbofan jets need a better scream overhead). High frequencies die off in air fast, so it is gone by
+# 1.2 km (the flyover starts it inside that: ACR_LocalFlyover.SCREAM_START_M).
+SCREAM = dict(curve=[(0, 1, False), (250, 1, True), (1200, 0, False)], volume=-19, spatial=0.85)
 
 JETS = {
-    # hump: the roar's low hump (Hz); cut: the NEAR / FAR low-pass (Hz); whine: [(Hz, level)] in the NEAR layer
+    # hump: the roar's low hump (Hz); cut: the NEAR / FAR low-pass (Hz); whine: [(Hz, level)] in the NEAR layer;
+    # scream: the turbojets' close-in roar, body centre (Hz) and tearing bursts a second; the A-10's turbofans have none
     "A10A": dict(hump=180, cut=(1800, 420), whine=[(2240, 0.10), (1150, 0.04)], seed=1),
-    "Su25": dict(hump=140, cut=(1300, 380), whine=[(2950, 0.02)], seed=2),
-    "RF4C": dict(hump=110, cut=(1100, 340), whine=[], seed=3),
-    "Su17M4R": dict(hump=125, cut=(1200, 360), whine=[], seed=4),
+    "Su25": dict(hump=140, cut=(1300, 380), whine=[(2950, 0.02)], scream=(480, 28), seed=2),
+    "RF4C": dict(hump=110, cut=(1100, 340), whine=[], scream=(300, 34), seed=3),  # J79: the lowest, harshest
+    "Su17M4R": dict(hump=125, cut=(1200, 360), whine=[], scream=(380, 25), seed=4),
 }
 
 freqs = np.fft.rfftfreq(N, 1 / RATE)
@@ -111,6 +116,51 @@ def layer(spec, cut, with_whine):
     return x
 
 
+def scream(spec, variant):
+    """Turbojet roar torn out of the nozzle, close in. Jet mixing noise peaks near Strouhal 0.2 (0.2 U/D: low
+    hundreds of Hz for a J79, AL-21 or R-95 nozzle), so the energy is a broad body round `centre` (rising below it,
+    -3 dB/oct above, high-passed at 120 Hz) with only a little hiss over 2 kHz: the first try sat at 2-2.6 kHz and
+    sounded like "a compressed air nozzle instead of air violently tearing out the back of a jet nozzle" (Jacob,
+    4 Nov). The tearing is irregular: random bursts (Poisson, `rate` a second, 20-80 ms, random depth) that swell
+    the body and carry a brighter ripping band of their own; no periodic flutter (it rattled: "rickety") and no
+    impulses (the crackle was disliked). An asymmetric soft clip skews the wave so it rips rather than hisses.
+    Each variant has its own noise, centre and burst rate, and the bank picks one at random each pass ("a
+    predictable cadence and tone each time"). Periodic like the other loops."""
+    centre, rate = spec["scream"]
+    centre *= (1.0, 0.88, 1.12, 0.95)[variant]
+    rate *= (1.0, 1.35, 0.75, 1.15)[variant]
+    rng = np.random.default_rng(spec["seed"] * 100 + 50 + variant)
+    f = np.maximum(freqs, 1.0)
+
+    def noise(mag):
+        x = np.fft.irfft(mag * np.exp(2j * np.pi * rng.random(len(freqs))), N)
+        return x / np.sqrt(np.mean(x ** 2))
+    highpass = 1 / np.sqrt(1 + (120 / f) ** 8)
+    body_mag = (np.minimum(f / centre, 1.0) ** 1.0) * (np.maximum(f / centre, 1.0) ** -0.5) * highpass
+    body_mag *= lowpass_mag(f, 5500, 3)
+    body_mag += 0.08 * highpass / np.sqrt(1 + (2500 / f) ** 4) * lowpass_mag(f, 7000, 3)  # a little hiss
+    body = noise(body_mag)
+    rip = noise(np.exp(-0.5 * (np.log2(f / (centre * 2.5)) / 1.2) ** 2) * highpass)  # brighter, broad
+    # bursts: Hann windows at Poisson times, wrapped round the loop
+    env = np.zeros(N)
+    count = rng.poisson(rate * SECONDS)
+    for start in rng.random(count) * N:
+        length = int(rng.uniform(0.02, 0.08) * RATE)
+        w = np.hanning(length) * rng.uniform(0.3, 1.0)
+        idx = (int(start) + np.arange(length)) % N
+        env[idx] += w
+    env = np.minimum(env, 1.6)
+    x = body * (0.55 + 0.45 * env) + 0.7 * rip * env
+    x = ground_phasing(x, 0.3)
+    x *= 1 + 0.15 * np.sin(2 * np.pi * periodic(0.19 + 0.04 * variant) * t + variant)
+    # asymmetric soft clip: the positive half driven harder than the negative
+    x *= 10 ** (-12 / 20) / np.sqrt(np.mean(x ** 2))
+    x = np.where(x > 0, np.tanh(1.8 * x) / 1.8, np.tanh(0.9 * x) / 0.9)
+    x -= np.mean(x)
+    x *= 10 ** (-16 / 20) / np.sqrt(np.mean(x ** 2))
+    return 0.97 * np.tanh(x / 0.97)
+
+
 def write_wav(path, x):
     pcm = np.clip(np.round(x * 32767), -32768, 32767).astype("<i2")
     with wave.open(path, "wb") as w:
@@ -130,13 +180,13 @@ def curve_gain(curve, d):
     return curve[-1][1] if d > curve[-1][0] else curve[0][1]
 
 
-def flyby_preview(near, far, path, closest=400, speed=200):
+def flyby_preview(layers, path, closest=400, speed=200):
     seconds = 50
     n = RATE * seconds
     tt = np.arange(n) / RATE - seconds / 2
     dist = np.sqrt(closest ** 2 + (speed * tt) ** 2)
     out = np.zeros(n)
-    for loop, cfg in ((near, NEAR), (far, FAR)):
+    for loop, cfg in layers:
         x = np.tile(loop, int(np.ceil(n / N)))[:n]
         gain = np.array([curve_gain(cfg["curve"], d) for d in dist[::480]])
         out += x * np.repeat(gain, 480)[:n] * 10 ** (cfg["volume"] / 20)
@@ -225,10 +275,7 @@ BANK = '''  BankLocalClass {{
    "Termination Fade Out" 4000
    "Fade in time" 6000
    Samples {{
-    AudioBankSampleClass Sample {{
-     Filename "@WAV:{wav}@"
-    }}
-   }}
+{samples}   }}
   }}
 '''
 SPATIAL = '''  SpatialityClass {{
@@ -321,7 +368,8 @@ def acp(layers):
         ids = dict(bank=0x0404 + base, shader=0x0812 + base, sound=0x0C09 + base, amp=0x1413 + base,
                    spatial=0x181C + base, aux=0x1C1D + base)
         y = k * 400
-        f = dict(ids, event=event, label=label, wav=wav, volume=cfg["volume"], y=y, y80=y - 80, y160=y - 160,
+        samples = "".join('    AudioBankSampleClass Sample {\n     Filename "@WAV:%s@"\n    }\n' % w for w in wav)
+        f = dict(ids, event=event, label=label, samples=samples, volume=cfg["volume"], y=y, y80=y - 80, y160=y - 160,
                  spatial_factor=cfg["spatial"],
                  points=curve_points(cfg["curve"]))
         parts["sounds"] += SOUND.format(**f)
@@ -342,19 +390,30 @@ job = []
 for name, spec in JETS.items():
     near = layer(spec, spec["cut"][0], True)
     far = layer(spec, spec["cut"][1], False)
+    loops = [("Near", near, NEAR), ("Far", far, FAR)]
+    if spec.get("scream"):
+        loops += [("Scream" + ("_%d" % v if v else ""), scream(spec, v), SCREAM) for v in range(4)]
     wavs = []
-    for tag, loop in (("Near", near), ("Far", far)):
+    for tag, loop, _ in loops:
         wav = os.path.join(SAMPLES, "ACR_%s_Engine_%s_LP.wav" % (name, tag))
         write_wav(wav, loop)
         wavs.append(posix(wav))
         job.append("WAV %s" % posix(wav))
-    flyby_preview(near, far, os.path.join(PREVIEW, "ACR_%s_flyby.wav" % name))
-    text = acp([("SOUND_ACR_JET_LP", "Near", wavs[0], NEAR), ("SOUND_ACR_JET_FAR_LP", "Far", wavs[1], FAR)])
+    preview = loops[:3]
+    flyby_preview([(x, cfg) for _, x, cfg in preview], os.path.join(PREVIEW, "ACR_%s_flyby.wav" % name))
+    for v in range(4 if spec.get("scream") else 1):
+        pick = loops[:2] + loops[2 + v:3 + v]
+        flyby_preview([(x, cfg) for _, x, cfg in pick],
+                      os.path.join(PREVIEW, "ACR_%s_overhead%s.wav" % (name, "_%d" % v if v else "")), closest=300)
+    events = [("SOUND_ACR_JET_LP", "Near", [wavs[0]], NEAR), ("SOUND_ACR_JET_FAR_LP", "Far", [wavs[1]], FAR)]
+    if spec.get("scream"):
+        events.append(("SOUND_ACR_JET_SCREAM_LP", "Scream", wavs[2:], SCREAM))
+    text = acp(events)
     tmpl = os.path.join(TMPL, "ACR_%s_Engine.acp" % name)
     with open(tmpl, "w", newline="\r\n") as f:
         f.write(text)
     job.append("ACP %s|%s" % (posix(os.path.join(ACPS, "ACR_%s_Engine.acp" % name)), posix(tmpl)))
-    print("[audio] %s: near + far loops" % name)
+    print("[audio] %s: %s loops" % (name, " + ".join(tag.lower() for tag, _, _ in loops)))
 with open(os.path.join(PROFILE, "audio_job.txt"), "w") as f:
     f.write("\n".join(job) + "\n")
 print("[audio] previews in " + PREVIEW)

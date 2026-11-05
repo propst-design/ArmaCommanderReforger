@@ -122,6 +122,141 @@ class ACR_SupportRun : Managed
  void Finish() {}
 }
 
+// One bomb of a flyover bomb run, on this machine only: hung on the jet's pylon from the start, let go
+// so that it lands where and when the server's blast goes off (ACR_Supports.StartBombRun sends each
+// impact), nose pitching down along its path. Purely visual: the blast and its damage stay the server's
+// synchronized virtual explosion. A low-drag bomb falls under the jet. A high-drag one slows hard, drops
+// steeply and lands well behind the jet, which is clear by then: right for a level drop from 150-300 m (Jacob,
+// 4 Nov, "make them high drag bombs which would make sense at low alt"): the A-10's Mk 82 Snakeye, whose tail
+// opens into four airbrake petals half a second out, and the Su-25's OFAB-250ShN, whose brake chute streams
+// out of its tail housing (Jacob's pick for the Soviet side). The drag is modelled, not only shown: Simulate
+// integrates the fall with it, the bomb follows that path, and the server times the blast by the same fall
+// (Lag), so the blast goes off where and when the client's bomb lands. The blast's damage is unchanged.
+class ACR_FallingBomb : Managed
+{
+	static const float GRAVITY = 9.81;
+	static const float EJECT = 1.5; // m/s down off the ejector rack
+	static const float SNAKEYE_K = 0.0025; // drag/mass (1/m) with the petals open: halves 200 m/s in 2 s, falls at ~63 m/s
+	static const float CHUTE_K = 0.0048;   // the OFAB-250ShN's chute: halves 200 m/s in 1 s, falls at ~45 m/s
+	static const float SNAKEYE_OPEN_S = 0.5; // s from release until the petals open...
+	static const float CHUTE_OPEN_S = 0.8;   // ...until the chute is out
+	static const float SAMPLE_DT = 0.05;
+	static const float PYLON_DROP = 1;     // the pylons hang about this far under the jet's origin
+	static const ResourceName MK82_OPEN = "{AC230926A00100E6}Prefabs/Vehicles/Aircraft/ACR_Mk82_Open.et";
+	static const ResourceName OFAB_OPEN = "{AC230926A00100E8}Prefabs/Vehicles/Aircraft/ACR_OFAB250ShN_Open.et";
+	IEntity m_Body;
+	vector m_vSlot;        // where it hangs, in the jet's model axes
+	bool m_bHung;          // on a pylon (false: it appears under the jet's belly at release)
+	vector m_vImpact;
+	float m_fImpactAt;     // flyover seconds when it lands
+	float m_fReleaseAt;
+	bool m_bFalling;
+	bool m_bDone;
+	vector m_vFrom;
+	float m_fFrom;
+	float m_fFall;
+	ResourceName m_sPrefab;
+	float m_fDrag;          // SNAKEYE_K, CHUTE_K, or 0 for a low-drag bomb
+	float m_fOpenAfter;
+	bool m_bOpened;
+	ref array<float> m_aAlong; // the simulated fall every SAMPLE_DT: metres forward...
+	ref array<float> m_aDown;  // ...and metres down
+	float m_fSimT;
+	float m_fSimD;
+	float m_fSimH;
+
+	// Drag once the retarder opens (0: none), when it opens, and the model with it open.
+	static float DragOf(ResourceName bomb)
+	{
+		if (bomb == ACR_LocalFlyover.BOMB_MK82) return SNAKEYE_K;
+		if (bomb == ACR_LocalFlyover.BOMB_OFAB) return CHUTE_K;
+		return 0;
+	}
+	static float OpenAfterOf(ResourceName bomb)
+	{
+		if (bomb == ACR_LocalFlyover.BOMB_OFAB) return CHUTE_OPEN_S;
+		return SNAKEYE_OPEN_S;
+	}
+	static ResourceName OpenedOf(ResourceName bomb)
+	{
+		if (bomb == ACR_LocalFlyover.BOMB_MK82) return MK82_OPEN;
+		if (bomb == ACR_LocalFlyover.BOMB_OFAB) return OFAB_OPEN;
+		return "";
+	}
+
+	// A bomb let go at `v0` m/s level, `h` m up, with drag `k` from `openAfter` s on: samples of the fall
+	// (along, down) every SAMPLE_DT, its time `T` and its distance forward `D`.
+	static void Simulate(float h, float v0, float k, float openAfter, notnull array<float> along, notnull array<float> down, out float T, out float D)
+	{
+		along.Clear();
+		down.Clear();
+		float x = 0;
+		float y = 0;
+		float vx = v0;
+		float vy = EJECT;
+		float t = 0;
+		float dt = 0.01;
+		int step = 0;
+		along.Insert(0);
+		down.Insert(0);
+		while (y < h && t < 60)
+		{
+			float kk = 0;
+			if (t >= openAfter) kk = k;
+			float speed = Math.Sqrt(vx * vx + vy * vy);
+			vx -= kk * speed * vx * dt;
+			vy += (GRAVITY - kk * speed * vy) * dt;
+			x += vx * dt;
+			y += vy * dt;
+			t += dt;
+			step++;
+			if (step % 5 == 0)
+			{
+				along.Insert(x);
+				down.Insert(Math.Min(y, h));
+			}
+		}
+		T = t;
+		D = x;
+		along.Insert(x);
+		down.Insert(h);
+	}
+
+	// How much later than the jet passes over it a bomb dropped `h` m up at `v0` m/s lands: 0 for a
+	// low-drag bomb (it falls under the jet), seconds for a Snakeye.
+	static float Lag(ResourceName bomb, float h, float v0)
+	{
+		float k = DragOf(bomb);
+		if (k <= 0) return 0;
+		array<float> along = {};
+		array<float> down = {};
+		float T, D;
+		Simulate(Math.Max(1, h), v0, k, OpenAfterOf(bomb), along, down, T, D);
+		return T - D / v0;
+	}
+
+	// Places the body with its nose (model +X) along `nose` and its fins' cross axis (model Z) level,
+	// the same way round as a jet flying along `flat` (ACR_LocalFlyover.Orient).
+	static void Pose(IEntity body, vector at, vector nose, vector flat)
+	{
+		vector up = "0 1 0";
+		vector side = ACR_LocalFlyover.Cross(up, flat) * -1;
+		side = side - nose * vector.Dot(side, nose);
+		side.Normalize();
+		// level flight: (flat, up, side) is the jet's frame; keep the same handedness when pitched
+		vector top = ACR_LocalFlyover.Cross(side, nose);
+		vector levelTop = ACR_LocalFlyover.Cross(ACR_LocalFlyover.Cross(up, flat) * -1, flat);
+		if (vector.Dot(levelTop, up) < 0) top = top * -1;
+		vector m[4];
+		m[0] = nose;
+		m[1] = top;
+		m[2] = side;
+		m[3] = at;
+		body.SetTransform(m);
+		body.Update();
+	}
+}
+
 // Bomb-run aircraft model crossing the target, flown by every machine with a player on its
 // own non-replicated copy (a server-moved entity doesn't replicate its movement: clients
 // saw it frozen where it spawned). The payload stays AC:A's synchronized virtual blasts.
@@ -138,6 +273,10 @@ class ACR_LocalFlyover : Managed
 {
 	static const string ENGINE_EVENT = "SOUND_ACR_JET_LP";
 	static const string ENGINE_FAR_EVENT = "SOUND_ACR_JET_FAR_LP";
+	// The turbojets' close-in scream (RF-4C, Su-17M4R, Su-25; the A-10's turbofans have none), heard within
+	// 1.2 km: Jacob, 4 Nov, "the non-turbofan jets need a better scream when they're overhead".
+	static const string SCREAM_EVENT = "SOUND_ACR_JET_SCREAM_LP";
+	static const float SCREAM_START_M = 1150;
 	static const float SOUND_START_M = 5800; // the acp's far curve is silent at 6000 m
 	static const float NEAR_START_M = 2400;  // ...and its near curve at 2500 m
 	static const float SOUND_KEEP_M = 6000;
@@ -165,6 +304,168 @@ class ACR_LocalFlyover : Managed
 	bool m_bDemoOverhead; // tests
 	AudioHandle m_hEngine = AudioHandle.Invalid; // tests
 	AudioHandle m_hEngineFar = AudioHandle.Invalid;
+	AudioHandle m_hScream = AudioHandle.Invalid; // tests
+	bool m_bScreams;
+	bool m_bScreaming;
+	ResourceName m_sBomb;
+	ref array<vector> m_aHardpoints;
+	ref array<ref ACR_FallingBomb> m_aBombs;
+	int m_iLanded; // tests
+
+	static const ResourceName BOMB_MK82 = "{AC230926A00100E4}Prefabs/Vehicles/Aircraft/ACR_Mk82.et";
+	static const ResourceName BOMB_FAB250 = "{AC230926A00100E5}Prefabs/Vehicles/Aircraft/ACR_FAB250.et";
+	static const ResourceName BOMB_OFAB = "{AC230926A00100E7}Prefabs/Vehicles/Aircraft/ACR_OFAB250ShN.et";
+
+	// The bombs a jet drops and the pylons they hang on, in its model axes (x forward, y up, z across), in
+	// release order: an inner pair, then the outer. ACA's bombers carry four (the bomb run's default count;
+	// more appear under the belly as they are let go). Other prefabs (RHS's FA-18) have none hung.
+	static ResourceName Hardpoints(ResourceName prefab, notnull array<vector> slots)
+	{
+		slots.Clear();
+		if (prefab == ACR_Supports.BOMB_JET_WEST)
+		{
+			// A-10A: Mk 82s under the wing, 2.3 and 3.8 m out (tools/blender/build_aircraft.py)
+			slots.Insert(Vector(0.9, -1.07, 2.3));
+			slots.Insert(Vector(0.9, -1.07, -2.3));
+			slots.Insert(Vector(0.9, -1.07, 3.8));
+			slots.Insert(Vector(0.9, -1.07, -3.8));
+			return BOMB_MK82;
+		}
+		if (prefab == ACR_Supports.BOMB_JET_EAST)
+		{
+			// Su-25: OFAB-250ShN parachute-retarded bombs, 3.0 and 4.4 m out, lugs (31 and 44 % back from the
+			// nose) under the pylon
+			slots.Insert(Vector(0.2, -0.29, 3.0));
+			slots.Insert(Vector(0.2, -0.29, -3.0));
+			slots.Insert(Vector(0.2, -0.29, 4.4));
+			slots.Insert(Vector(0.2, -0.29, -4.4));
+			return BOMB_OFAB;
+		}
+		return BOMB_MK82;
+	}
+
+	// The latest flyover started at `start` (each bomb run's jet is told apart by where it set off).
+	static ACR_LocalFlyover Find(vector start)
+	{
+		for (int i = s_All.Count() - 1; i >= 0; i--)
+			if (vector.Distance(s_All[i].m_vStart, start) < 5) return s_All[i];
+		return null;
+	}
+
+	// A bomb landing at `impact`, `impactAt` seconds into the flight: hung on the next free pylon now, let
+	// go when a fall from the jet's height takes it there on time.
+	void AddBomb(vector impact, float impactAt)
+	{
+		ACR_FallingBomb bomb = new ACR_FallingBomb();
+		bomb.m_vImpact = impact;
+		bomb.m_vImpact[1] = GetGame().GetWorld().GetSurfaceY(impact[0], impact[2]);
+		bomb.m_fImpactAt = impactAt;
+		if (m_aBombs.Count() < m_aHardpoints.Count())
+		{
+			bomb.m_vSlot = m_aHardpoints[m_aBombs.Count()];
+			bomb.m_bHung = true;
+			bomb.m_Body = ACR_Supports.SpawnLocal(m_sBomb, m_vStart, vector.Zero);
+		}
+		// the same fall the server timed the blast by (ACR_FallingBomb.Lag in StartBombRun)
+		bomb.m_sPrefab = m_sBomb;
+		bomb.m_fDrag = ACR_FallingBomb.DragOf(m_sBomb);
+		bomb.m_fOpenAfter = ACR_FallingBomb.OpenAfterOf(m_sBomb);
+		bomb.m_aAlong = {};
+		bomb.m_aDown = {};
+		float h = Math.Max(1, m_fAltitude - ACR_FallingBomb.PYLON_DROP - bomb.m_vImpact[1]);
+		ACR_FallingBomb.Simulate(h, m_fSpeed, bomb.m_fDrag, bomb.m_fOpenAfter, bomb.m_aAlong, bomb.m_aDown, bomb.m_fSimT, bomb.m_fSimD);
+		bomb.m_fSimH = h;
+		bomb.m_fReleaseAt = impactAt - bomb.m_fSimT;
+		m_aBombs.Insert(bomb);
+		if (bomb.m_Body && m_Plane)
+		{
+			// on its pylon from the first frame
+			vector transform[4];
+			m_Plane.GetTransform(transform);
+			StepBombs(transform, (GetGame().GetWorld().GetWorldTime() - m_fStartedAt) / 1000);
+		}
+	}
+
+	// Hung bombs ride their pylons; released ones fall on a parabola that ends at their impact on time.
+	protected void StepBombs(vector transform[4], float elapsed)
+	{
+		vector flat = m_vDir;
+		flat[1] = 0;
+		flat.Normalize();
+		foreach (ACR_FallingBomb bomb : m_aBombs)
+		{
+			if (bomb.m_bDone) continue;
+			vector pylon = transform[3] + transform[0] * bomb.m_vSlot[0] + transform[1] * bomb.m_vSlot[1] + transform[2] * bomb.m_vSlot[2];
+			if (!bomb.m_bFalling && elapsed >= bomb.m_fReleaseAt)
+			{
+				bomb.m_bFalling = true;
+				bomb.m_vFrom = pylon;
+				if (!bomb.m_bHung) bomb.m_vFrom = transform[3] - "0 2 0";
+				bomb.m_fFrom = elapsed;
+				// word from the server that came late still lands it on time, falling faster
+				bomb.m_fFall = Math.Max(0.3, bomb.m_fImpactAt - elapsed);
+				if (!bomb.m_Body) bomb.m_Body = ACR_Supports.SpawnLocal(m_sBomb, bomb.m_vFrom, vector.Zero);
+			}
+			if (!bomb.m_Body) continue;
+			if (!bomb.m_bFalling)
+			{
+				vector hung[4];
+				hung[0] = transform[0];
+				hung[1] = transform[1];
+				hung[2] = transform[2];
+				hung[3] = pylon;
+				bomb.m_Body.SetTransform(hung);
+				bomb.m_Body.Update();
+				continue;
+			}
+			float t = elapsed - bomb.m_fFrom;
+			if (t >= bomb.m_fFall)
+			{
+				SCR_EntityHelper.DeleteEntityAndChildren(bomb.m_Body); // the blast goes off here now
+				bomb.m_Body = null;
+				bomb.m_bDone = true;
+				m_iLanded++;
+				continue;
+			}
+			// the simulated fall, stretched onto the real line from the pylon to the impact
+			float s = t * bomb.m_fSimT / bomb.m_fFall;
+			int last = bomb.m_aAlong.Count() - 2;
+			int i = (int)Math.Floor(s / ACR_FallingBomb.SAMPLE_DT);
+			if (i > last) i = last;
+			float frac = Math.Clamp(s / ACR_FallingBomb.SAMPLE_DT - i, 0, 1);
+			float along = bomb.m_aAlong[i] + (bomb.m_aAlong[i + 1] - bomb.m_aAlong[i]) * frac;
+			float down = bomb.m_aDown[i] + (bomb.m_aDown[i + 1] - bomb.m_aDown[i]) * frac;
+			vector across = bomb.m_vImpact - bomb.m_vFrom;
+			across[1] = 0;
+			float scaleX = across.Length() / Math.Max(1, bomb.m_fSimD);
+			float scaleY = (bomb.m_vFrom[1] - bomb.m_vImpact[1]) / bomb.m_fSimH;
+			across.Normalize();
+			vector at = bomb.m_vFrom + across * (along * scaleX);
+			at[1] = bomb.m_vFrom[1] - down * scaleY;
+			vector velocity = across * ((bomb.m_aAlong[i + 1] - bomb.m_aAlong[i]) * scaleX);
+			velocity[1] = -(bomb.m_aDown[i + 1] - bomb.m_aDown[i]) * scaleY;
+			// the retarder opens (petals out, or the chute streaming behind): its model with it out, which the
+			// bomb's pose carries along its path and which goes with the bomb when it lands
+			if (bomb.m_fDrag > 0 && !bomb.m_bOpened && s >= bomb.m_fOpenAfter)
+			{
+				bomb.m_bOpened = true;
+				IEntity opened = ACR_Supports.SpawnLocal(ACR_FallingBomb.OpenedOf(bomb.m_sPrefab), at, vector.Zero);
+				if (opened)
+				{
+					SCR_EntityHelper.DeleteEntityAndChildren(bomb.m_Body);
+					bomb.m_Body = opened;
+				}
+			}
+			if (velocity.Length() > 0.01) ACR_FallingBomb.Pose(bomb.m_Body, at, velocity.Normalized(), flat);
+		}
+	}
+
+	protected void ClearBombs()
+	{
+		foreach (ACR_FallingBomb bomb : m_aBombs)
+			if (bomb.m_Body) SCR_EntityHelper.DeleteEntityAndChildren(bomb.m_Body);
+		m_aBombs.Clear();
+	}
 
 	static void Start(ResourceName prefab, vector start, vector dir, float speed, float altitude, float seconds)
 	{
@@ -183,6 +484,10 @@ class ACR_LocalFlyover : Managed
 		flyover.m_fSeconds = seconds;
 		flyover.m_fStartedAt = GetGame().GetWorld().GetWorldTime();
 		flyover.m_Sound = SoundComponent.Cast(plane.FindComponent(SoundComponent));
+		flyover.m_bScreams = prefab == ACR_ReconRun.RECON_JET_WEST || prefab == ACR_ReconRun.RECON_JET_EAST || prefab == ACR_Supports.BOMB_JET_EAST;
+		flyover.m_aHardpoints = {};
+		flyover.m_aBombs = {};
+		flyover.m_sBomb = Hardpoints(prefab, flyover.m_aHardpoints);
 		flyover.Orient();
 		s_All.Insert(flyover);
 		s_iStarted++;
@@ -272,6 +577,7 @@ class ACR_LocalFlyover : Managed
 		if (!m_Plane)
 		{
 			GetGame().GetCallqueue().Remove(Step);
+			ClearBombs();
 			m_Plane = null;
 			s_All.RemoveItem(this);
 			return;
@@ -287,6 +593,7 @@ class ACR_LocalFlyover : Managed
 		// moves its bounds in the scene too: without it the jet was culled as if still where it
 		// spawned, 5 km off, and never drawn overhead (Jacob, 4 Nov), and its sound sat astray
 		m_Plane.Update();
+		StepBombs(transform, elapsed);
 		vector listener;
 		bool heard = Listener(listener);
 		// The engine is heard where the plane was when that sound left it (sound covers 343 m/s,
@@ -304,6 +611,7 @@ class ACR_LocalFlyover : Managed
 			m_Sound.SetTransformation(heardAt);
 			if (m_bSounding) m_Sound.SetSoundTransformation(m_hEngineFar, heardAt);
 			if (m_bSoundingNear) m_Sound.SetSoundTransformation(m_hEngine, heardAt);
+			if (m_bScreaming) m_Sound.SetSoundTransformation(m_hScream, heardAt);
 		}
 		float distance = vector.Distance(listener, position);
 		if (m_Sound && !m_bSounding && (!heard || distance <= SOUND_START_M))
@@ -317,6 +625,11 @@ class ACR_LocalFlyover : Managed
 			m_hEngine = m_Sound.SoundEvent(ENGINE_EVENT);
 			m_bSoundingNear = true;
 		}
+		if (m_Sound && m_bScreams && !m_bScreaming && (!heard || distance <= SCREAM_START_M))
+		{
+			m_hScream = m_Sound.SoundEvent(SCREAM_EVENT);
+			m_bScreaming = true;
+		}
 		// The configured route ends 2.5 km beyond the target, but listeners farther downrange
 		// can still hear it. Let the plane leave the sound's range locally before deleting it,
 		// so entity cleanup does not cut the engine loop off mid-tail.
@@ -325,6 +638,7 @@ class ACR_LocalFlyover : Managed
 		if (m_Sound) keep = SOUND_KEEP_M;
 		if (heard && distance <= keep && elapsed <= m_fSeconds + MAX_TAIL_S) return;
 		GetGame().GetCallqueue().Remove(Step);
+		ClearBombs();
 		SCR_EntityHelper.DeleteEntityAndChildren(m_Plane);
 		m_Plane = null;
 		s_All.RemoveItem(this);
@@ -2174,6 +2488,8 @@ class ACR_Supports : Managed
    return true;
   }
 
+  vector start;
+  float flyAltitude;
   if (entry.m_eBombRunDelivery == ACR_EBombRunDelivery.FLYOVER)
   {
    Resource resource = Resource.Load(entry.m_sBombRunPrefab);
@@ -2182,7 +2498,7 @@ class ACR_Supports : Managed
    vector flat = dir;
    flat[1] = 0;
    flat.Normalize();
-   vector start = target - flat * (speed * delay);
+   start = target - flat * (speed * delay);
    // Overhead at the set height, and never lower than 150 m over a hill on the way in or
    // the first 2.5 km out.
    float altitude = target[1] + Math.Clamp(entry.m_fBombRunAltitude, 30, 1000);
@@ -2193,6 +2509,7 @@ class ACR_Supports : Managed
     altitude = Math.Max(altitude, GetGame().GetWorld().GetSurfaceY(point[0], point[2]) + 150);
    }
    start[1] = altitude;
+   flyAltitude = altitude;
    float seconds = delay + 2500 / speed;
    SCR_BaseGameMode mode = SCR_BaseGameMode.Cast(GetGame().GetGameMode());
    if (mode) mode.ACR_BroadcastFlyover(entry.m_sBombRunPrefab, start, flat, speed, altitude, seconds);
@@ -2210,13 +2527,25 @@ class ACR_Supports : Managed
    spacing = 28;
    interval = 350;
   }
+  // what the jet drops: a high-drag bomb lands after the jet has passed over its spot (ACR_FallingBomb.Lag)
+  array<vector> pylons = {};
+  ResourceName dropped = ACR_LocalFlyover.Hardpoints(entry.m_sBombRunPrefab, pylons);
   for (int bomb = 0; bomb < count; bomb++)
   {
    float along = (bomb - (count - 1) * 0.5) * spacing;
    vector impact = target + dir * along + right * Math.RandomFloat(-scatter, scatter);
    int impactDelay = delay * 1000 + bomb * interval;
    if (entry.m_eBombRunDelivery == ACR_EBombRunDelivery.FLYOVER)
+   {
     impactDelay = Math.Max(0, delay * 1000 + Math.Round(along / Math.Clamp(entry.m_fBombRunSpeed, 20, 400) * 1000));
+    float dropHeight = flyAltitude - ACR_FallingBomb.PYLON_DROP - GetGame().GetWorld().GetSurfaceY(impact[0], impact[2]);
+    impactDelay += Math.Round(ACR_FallingBomb.Lag(dropped, dropHeight, Math.Clamp(entry.m_fBombRunSpeed, 20, 400)) * 1000);
+    // every machine's jet carries this bomb and lets it go to land here on time (ACR_FallingBomb)
+    SCR_BaseGameMode bombMode = SCR_BaseGameMode.Cast(GetGame().GetGameMode());
+    if (bombMode) bombMode.ACR_BroadcastFlyoverBomb(start, impact, impactDelay / 1000.0);
+    ACR_LocalFlyover flight = ACR_LocalFlyover.Find(start);
+    if (GetGame().GetPlayerController() && flight) flight.AddBomb(impact, impactDelay / 1000.0);
+   }
    GetGame().GetCallqueue().CallLater(Explode, impactDelay, false, impact);
   }
   return true;
@@ -2793,6 +3122,18 @@ modded class SCR_BaseGameMode
   if (Replication.IsServer()) return;
   PrintFormat("[ACR] FLYOVER RPC received prefab=%1 at=%2", prefab, start);
   ACR_LocalFlyover.Start(prefab, start, dir, speed, altitude, seconds);
+ }
+ void ACR_BroadcastFlyoverBomb(vector start, vector impact, float impactAt)
+ {
+  Rpc(ACR_RpcFlyoverBomb, start, impact, impactAt);
+ }
+ // Sent after its flyover on the same reliable channel, so the jet is already flying here.
+ [RplRpc(RplChannel.Reliable, RplRcver.Broadcast)]
+ protected void ACR_RpcFlyoverBomb(vector start, vector impact, float impactAt)
+ {
+  if (Replication.IsServer()) return;
+  ACR_LocalFlyover flight = ACR_LocalFlyover.Find(start);
+  if (flight) flight.AddBomb(impact, impactAt);
  }
  void ACR_BroadcastExplosion(vector at)
  {

@@ -1,0 +1,9 @@
+GenericEntity {
+ ID "AC230926E7A00000"
+ components {
+  MeshObject "{AC230926E7A00010}" {
+   Object "{D829C4747F7E200D}Assets/Vehicles/Aircraft/ACR_OFAB250ShN.xob"
+  }
+ }
+ Flags 3
+}

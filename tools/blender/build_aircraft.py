@@ -49,6 +49,11 @@ PAINT = {
     "white": ((0xe8, 0xe8, 0xe4), 0.55),          # star border
     "od": ((0x4b, 0x53, 0x32), 0.7),              # Mk 82 / FAB olive drab
     "fab_gray": ((0x5c, 0x62, 0x55), 0.7),
+    "yellow": ((0xd6, 0xae, 0x2c), 0.6),          # Mk 82 nose band (filled, high explosive)
+    "fab_light": ((0xa6, 0xae, 0xae), 0.6),       # FAB-250 light grey
+    "fab_seam": ((0x86, 0x8c, 0x8a), 0.65),       # weld seams and bands on a grey bomb
+    "chute": ((0xdc, 0xd6, 0xc4), 0.9),           # brake parachute (kapron, off-white)
+    "cord": ((0xb8, 0xb0, 0x98), 0.9),            # its lines and riser
 }
 SWATCH = {name: i for i, name in enumerate(PAINT)}
 GRID, SW = 16, 16  # 16 x 16 swatches of 16 px: one texel per swatch even at the 16 px mip
@@ -88,9 +93,10 @@ class Builder:
     def __init__(self):
         self.bm = bmesh.new()
         self.paint = self.bm.faces.layers.int.new("paint")  # -1 = camo, else swatch index
+        self.smooth = self.bm.faces.layers.int.new("smooth")  # 1 = smooth shaded
         self.mirror_parts = []
 
-    def _faces(self, rings, paint, cap0=True, cap1=True):
+    def _faces(self, rings, paint, cap0=True, cap1=True, smooth=False):
         bm = self.bm
         vr = [[bm.verts.new(p) for p in ring] for ring in rings]
         faces = []
@@ -109,11 +115,13 @@ class Builder:
         if cap1 and len(vr[-1]) > 2:
             faces.append(bm.faces.new(list(reversed(vr[-1]))))
         code = -1 if paint == "camo" else SWATCH[paint]
-        for f in faces:
+        n_caps = int(cap0 and len(vr[0]) > 2) + int(cap1 and len(vr[-1]) > 2)
+        for i, f in enumerate(faces):
             f[self.paint] = code
+            f[self.smooth] = int(smooth and i < len(faces) - n_caps)
         return faces
 
-    def loft(self, stations, paint="camo", y=0.0, n=2.4, seg=20, mirror=False):
+    def loft(self, stations, paint="camo", y=0.0, n=2.4, seg=20, mirror=False, smooth=False):
         """Fuselage-like body along X. stations: (x, z centre, half width, half height); a zero half width
         closes the body to a point. n: superellipse exponent (2 round, higher boxier)."""
         for side in ((1, -1) if mirror else (1,)):
@@ -130,7 +138,7 @@ class Builder:
                     rz = math.copysign(abs(s) ** (2 / n), s) * hh
                     ring.append(Vector((x, y * side + ry, zc + rz)))
                 rings.append(ring)
-            self._faces(rings, paint)
+            self._faces(rings, paint, smooth=smooth)
 
     def surface(self, root, tip, paint="camo", vertical=False, mirror=True, spans=6):
         """Wing/tail panel. root/tip: (x leading edge, y, z, chord, thickness as a fraction of chord). The
@@ -188,12 +196,14 @@ class Builder:
         xl, _, z, ch, th = [root[i] + (tip[i] - root[i]) * height for i in range(5)]
         self.star((xl - 0.5 * ch, root[1], z), radius, "y", th * ch + 0.03)
 
-    def store(self, x0, x1, y, z, r, paint, mirror=True, pylon=0.0):
-        """Bomb / tank / pod: a pointed body, on a pylon of `pylon` m up to the wing."""
+    def store(self, x0, x1, y, z, r, paint, mirror=True, pylon=0.0, body=True):
+        """Bomb / tank / pod: a pointed body, on a pylon of `pylon` m up to the wing. body=False: the pylon alone
+        (the bombs are models of their own, which ACR_LocalFlyover hangs there and drops)."""
         L = x0 - x1
         st = [(x0, z, 0, 0), (x0 - 0.12 * L, z, r * 0.75, r * 0.75), (x0 - 0.3 * L, z, r, r),
               (x1 + 0.25 * L, z, r, r), (x1 + 0.05 * L, z, r * 0.6, r * 0.6), (x1, z, 0.0, 0)]
-        self.loft(st, paint, y=y, n=2, seg=12, mirror=mirror and abs(y) > 1e-3)
+        if body:
+            self.loft(st, paint, y=y, n=2, seg=12, mirror=mirror and abs(y) > 1e-3)
         if pylon > 0:
             self.box((x1 + 0.35 * L, y - 0.04, z + r * 0.8), (x0 - 0.3 * L, y + 0.04, z + r + pylon), paint,
                      mirror=mirror and abs(y) > 1e-3)
@@ -222,11 +232,12 @@ class Builder:
                 u = swatch_uv(list(SWATCH)[code])
             for loop in f.loops:
                 loop[uv].uv = u
-            f.smooth = False
+            f.smooth = bool(f[self.smooth])
         me = bpy.data.meshes.new(name)
         bm.to_mesh(me)
         bm.free()
         me.attributes.remove(me.attributes["paint"])
+        me.attributes.remove(me.attributes["smooth"])
         ob = bpy.data.objects.new(name, me)
         bpy.context.scene.collection.objects.link(ob)
         return ob
@@ -289,8 +300,8 @@ def a10(b):
     for side in (1, -1):
         b.surface((-5.55, 2.95 * side, -0.35, 1.95, 0.08), (-6.2, 2.95 * side, 2.55, 1.25, 0.08), vertical=True,
                   mirror=False, spans=5)
-    for y in (2.3, 3.8):  # Mk 82s
-        b.store(2.0, -0.2, y, -1.05, 0.15, "od", pylon=0.25)
+    for y in (2.3, 3.8):  # pylons for four Mk 82s (ACR_Mk82, hung by ACR_LocalFlyover.Hardpoints)
+        b.store(2.0, -0.2, y, -1.05, 0.15, "camo", pylon=0.25, body=False)
 
 
 def a10_spec():
@@ -318,8 +329,8 @@ def su25(b):
     fin = ((-4.1, 0.0, 0.85, 3.2, 0.09), (-6.35, 0.0, 3.95, 1.3, 0.08))
     b.surface(*fin, vertical=True, mirror=False, spans=6)
     b.fin_star(*fin, 0.5, 0.55)
-    for y in (3.0, 4.4):  # FAB-250s
-        b.store(1.4, -0.6, y, -0.25, 0.2, "fab_gray", pylon=0.3)
+    for y in (3.0, 4.4):  # pylons for four FAB-250s (ACR_FAB250, hung by ACR_LocalFlyover.Hardpoints)
+        b.store(1.4, -0.6, y, -0.25, 0.2, "camo", pylon=0.3, body=False)
 
 
 def su25_spec():
@@ -378,7 +389,209 @@ def su17_spec():
     return {"name": "Su17M4R", "build": su17, "camo": SOVIET, "role": "East recon flight"}
 
 
-PLANES = [a10_spec(), su25_spec(), rf4c_spec(), su17_spec()]
+def fins(b, x, root_r, span_r, root_ch, tip_ch, sweep, paint, th=0.025):
+    """Four flat tail fins in an X (45 deg off the vertical, as a bomb hangs: clear of its pylon, and all four
+    show from the side), root on the body at radius root_r, tip at span_r, the tip swept back by `sweep`."""
+    for k in range(4):
+        a = math.radians(45 + 90 * k)
+        d, n = Vector((0, math.cos(a), math.sin(a))), Vector((0, -math.sin(a), math.cos(a))) * (th / 2)
+        rings = []
+        for r, xl, ch in ((root_r, x, root_ch), (span_r, x - sweep, tip_ch)):
+            c = d * r
+            rings.append([Vector((xl, 0, 0)) + c + n, Vector((xl - ch, 0, 0)) + c + n,
+                          Vector((xl - ch, 0, 0)) + c - n, Vector((xl, 0, 0)) + c - n])
+        b._faces(rings, paint)
+
+
+def mk82(b):
+    """Mk 82 500 lb low-drag bomb (the A-10's): 2.21 m, 273 mm across, olive drab with the yellow nose band
+    of a filled bomb, conical tail with four fins. Origin at its middle, nose +X."""
+    b.loft([(1.1, 0, 0, 0), (1.02, 0, 0.055, 0.055), (0.8, 0, 0.115, 0.115), (0.5, 0, 0.137, 0.137),
+            (-0.4, 0, 0.137, 0.137), (-0.7, 0, 0.1, 0.1), (-0.95, 0, 0.065, 0.065), (-1.0, 0, 0, 0)], "od", n=2, smooth=True,
+           seg=20)
+    b.loft([(0.68, 0, 0.13, 0.13), (0.6, 0, 0.134, 0.134)], "yellow", n=2, seg=14)
+    fins(b, -0.62, 0.09, 0.26, 0.45, 0.28, 0.18, "od")
+
+
+def mk82_spec():
+    return {"name": "Mk82", "build": mk82, "camo": EURO, "role": "A-10 bomb (Snakeye, petals shut)", "ortho": 3}
+
+
+def mk82_open(b):
+    """The Mk 82 Snakeye half a second after release: its Mk 15 tail's four petals sprung open into an X airbrake,
+    hinged at the tail and flared out forward, broad face to the airflow (ACR_FallingBomb swaps this in)."""
+    b.loft([(1.1, 0, 0, 0), (1.02, 0, 0.055, 0.055), (0.8, 0, 0.115, 0.115), (0.5, 0, 0.137, 0.137),
+            (-0.4, 0, 0.137, 0.137), (-0.7, 0, 0.1, 0.1), (-0.95, 0, 0.065, 0.065), (-1.0, 0, 0, 0)], "od", n=2,
+           smooth=True, seg=20)
+    b.loft([(0.68, 0, 0.13, 0.13), (0.6, 0, 0.134, 0.134)], "yellow", n=2, seg=14)
+    hinge_x, hinge_r, length, width, th = -0.97, 0.07, 0.48, 0.2, 0.012
+    tilt = math.radians(70)  # off the tail's axis, swung forward
+    for k in range(4):
+        a = math.radians(45 + 90 * k)
+        radial = Vector((0, math.cos(a), math.sin(a)))
+        tangent = Vector((0, -math.sin(a), math.cos(a)))
+        hinge = Vector((hinge_x, 0, 0)) + radial * hinge_r
+        span = Vector((math.cos(tilt), 0, 0)) + radial * math.sin(tilt)
+        normal = span.cross(tangent).normalized() * (th / 2)
+        quad = [hinge - tangent * width / 2, hinge + tangent * width / 2,
+                hinge + span * length + tangent * width / 2, hinge + span * length - tangent * width / 2]
+        b._faces([[q + normal for q in quad], [q - normal for q in quad]], "od")
+        b.box((hinge_x - 0.02, -0.01, -0.01), (hinge_x + 0.02, 0.01, 0.01), "od")
+
+
+def mk82_open_spec():
+    return {"name": "Mk82_Open", "build": mk82_open, "camo": EURO, "role": "A-10 bomb (Snakeye, petals open)",
+            "ortho": 3}
+
+
+def fab250(b):
+    """FAB-250 M-62 (the Su-25's), measured off the museum photograph Jacob chose (Wikimedia Commons,
+    "FAB-250-M62.JPG", 4 Nov), as fractions of its 1.96 m length and 325 mm body: a blunt elliptical nose with a
+    small fuze tip (to 19 %), a straight cylinder (to 40 %, a seam), a long separate taper to a narrow tail cone
+    (about a third of the diameter); four fins, upright and level, from 70 %, a short swept leading edge then a long straight outer
+    edge running back into a narrow ring round the tail (92-100 %), as wide as the body; two loop lugs on top at
+    19 and 30 %. Light grey. Origin at its middle, nose +X."""
+    L, R = 1.96, 0.1625
+    X = lambda f: L / 2 - f * L  # fraction of the length from the nose -> model x
+    st = [(X(0.0), 0, 0, 0), (X(0.0), 0, 0.12 * R, 0.12 * R), (X(0.008), 0, 0.14 * R, 0.14 * R)]  # fuze tip
+    for k in range(0, 11):  # elliptical nose, 0.8 % to 19 %
+        f = 0.008 + (0.19 - 0.008) * k / 10
+        r = max(0.2, math.sqrt(max(0.0, 1 - (1 - f / 0.19) ** 2)))
+        st.append((X(f), 0, r * R, r * R))
+    for f, r in ((0.36, 1.0), (0.45, 0.86), (0.55, 0.72), (0.65, 0.58), (0.74, 0.5), (0.85, 0.42),
+                 (0.93, 0.37), (0.975, 0.33), (0.985, 0.2), (0.99, 0.0)):
+        st.append((X(f), 0, r * R, r * R))
+    b.loft(st, "fab_light", n=2, seg=24, smooth=True)
+    # fins: flat plates upright and level (in line with the lugs, as photographed; they stay inside the body's
+    # radius, clear of the pylon), outline (fraction, radius) from the photograph, outer edge inside the ring
+    th = 0.006
+    outline = [(0.70, 0.45), (0.757, 0.98), (1.0, 0.98), (1.0, 0.3)]
+    for k in range(4):
+        a = math.radians(90 * k)
+        d = Vector((0, math.cos(a), math.sin(a)))
+        n = Vector((0, -math.sin(a), math.cos(a))) * (th / 2)
+        top = [Vector((X(f), 0, 0)) + d * (r * R) + n for f, r in outline]
+        bot = [q - n * 2 for q in top]
+        b._faces([top, bot], "fab_light")
+    ring = []  # narrow band round the fin tips: outer face, back lip, inner face, front lip
+    for r, f in ((1.0, 0.92), (1.0, 1.0), (0.965, 1.0), (0.965, 0.92), (1.0, 0.92)):
+        ring.append([Vector((X(f), math.cos(2 * math.pi * i / 24) * r * R, math.sin(2 * math.pi * i / 24) * r * R))
+                     for i in range(24)])
+    b._faces(ring, "fab_light", cap0=False, cap1=False, smooth=True)
+    for f in (0.19, 0.30):  # loop lugs: two posts and a bar
+        x = X(f)
+        b.box((x - 0.028, -0.006, R - 0.01), (x - 0.016, 0.006, R + 0.035), "fab_light")
+        b.box((x + 0.016, -0.006, R - 0.01), (x + 0.028, 0.006, R + 0.035), "fab_light")
+        b.box((x - 0.028, -0.006, R + 0.025), (x + 0.028, 0.006, R + 0.037), "fab_light")
+
+
+def fab250_spec():
+    return {"name": "FAB250", "build": fab250, "camo": SOVIET, "role": "Su-25 bomb", "ortho": 3}
+
+
+OFAB_L, OFAB_R = 1.99, 0.1625
+OFAB_X = lambda f: OFAB_L / 2 - f * OFAB_L  # fraction of the length from the nose -> model x
+
+
+def cord(b, p0, p1, w, paint="cord"):
+    """A line as a thin three-sided prism from p0 to p1."""
+    d = (p1 - p0).normalized()
+    a = d.cross(Vector((0, 0, 1)) if abs(d.z) < 0.9 else Vector((0, 1, 0))).normalized()
+    c = d.cross(a)
+    tri = [a * w, (-a * 0.5 + c * 0.866) * w, (-a * 0.5 - c * 0.866) * w]
+    b._faces([[p0 + o for o in tri], [p1 + o for o in tri]], paint)
+
+
+def ofab_body(b, deployed):
+    """OFAB-250ShN, measured off the METIS side photograph (fenixinsight.com, "OFAB-250ShN") and the 16va.be
+    MiG-27K loading photo, as fractions of 1.99 m and of its 325 mm body: a short truncated-cone nose with a small
+    flat tip (to 16 %), a straight cylinder with weld seams at 16, 50 and 64 %, a gentle step down (to 82 %) into
+    the parachute housing, which flares a little at the rear and carries four raised bands; four narrow fins upright
+    and level (in line with the lugs) from 80 % to the end, each with a rail along its tip; two loop lugs at 31 and
+    44 %. Light grey with darker seams. Stowed, the housing is shut by its cover; deployed, it is open."""
+    X, R = OFAB_X, OFAB_R
+    nose = [(0.0, 0.22), (0.003, 0.25), (0.03, 0.42), (0.07, 0.62), (0.11, 0.82), (0.145, 0.96), (0.16, 1.0),
+            (0.64, 1.0), (0.70, 0.97), (0.78, 0.9), (0.82, 0.87), (0.90, 0.86), (0.93, 0.88), (0.96, 0.93),
+            (0.99, 0.95), (1.0, 0.95)]
+    b.loft([(X(f), 0, r * R, r * R) for f, r in nose], "fab_light", n=2, seg=28, smooth=True)
+    b.loft([(X(0.0) + 0.004, 0, 0.0, 0.0), (X(0.0) + 0.004, 0, 0.18 * R, 0.18 * R), (X(0.0), 0, 0.22 * R, 0.22 * R)],
+           "fab_seam", n=2, seg=16)  # fuze tip
+    for f, r in ((0.16, 1.006), (0.5, 1.006), (0.64, 1.006), (0.87, 0.875), (0.905, 0.875), (0.935, 0.9),
+                 (0.965, 0.945)):
+        b.loft([(X(f) + 0.008, 0, r * R, r * R), (X(f) - 0.008, 0, r * R, r * R)], "fab_seam", n=2, seg=28,
+               smooth=True)
+    if deployed:  # the open housing: its inside, dark
+        b.loft([(X(1.0), 0, 0.9 * R, 0.9 * R), (X(0.93), 0, 0.8 * R, 0.8 * R), (X(0.93) - 0.001, 0, 0.0, 0.0)],
+               "intake", n=2, seg=28)
+    else:  # its cover, a little recessed
+        b.loft([(X(1.0), 0, 0.88 * R, 0.88 * R), (X(1.0) + 0.012, 0, 0.84 * R, 0.84 * R),
+                (X(1.0) + 0.012, 0, 0.0, 0.0)], "fab_seam", n=2, seg=28)
+    th = 0.007
+    outline = [(0.80, 0.86), (0.83, 1.2), (0.975, 1.2), (0.985, 0.9)]
+    for k in range(4):
+        a = math.radians(90 * k)
+        d = Vector((0, math.cos(a), math.sin(a)))
+        n = Vector((0, -math.sin(a), math.cos(a))) * (th / 2)
+        top = [Vector((X(f), 0, 0)) + d * (r * R) + n for f, r in outline]
+        b._faces([top, [q - n * 2 for q in top]], "fab_light")
+        cord(b, Vector((X(0.83), 0, 0)) + d * (1.2 * R), Vector((X(0.985), 0, 0)) + d * (1.2 * R), 0.008, "fab_light")
+    for f in (0.31, 0.44):  # loop lugs
+        x = X(f)
+        b.box((x - 0.028, -0.006, R - 0.01), (x - 0.016, 0.006, R + 0.035), "fab_light")
+        b.box((x + 0.016, -0.006, R - 0.01), (x + 0.028, 0.006, R + 0.035), "fab_light")
+        b.box((x - 0.028, -0.006, R + 0.025), (x + 0.028, 0.006, R + 0.037), "fab_light")
+
+
+def ofab250shn(b):
+    ofab_body(b, False)
+
+
+def ofab250shn_open(b):
+    """Deployed: the brake chute streaming straight back on its riser, as the bomb falls nose first along its path.
+    Four short bridle lines from the housing rim to a riser 1.1 m back; the riser to 2.0 m; twelve suspension lines
+    out to the canopy's mouth 3.3 m behind the tail; the canopy a 1.4 m inflated cup, mouth towards the bomb, its
+    twelve gores bulging between the lines. Two-sided (an outer and an inner skin), so it reads from any angle."""
+    ofab_body(b, True)
+    X, R = OFAB_X, OFAB_R
+    tail = X(1.0)
+    knot, link = Vector((tail - 1.1, 0, 0)), Vector((tail - 2.0, 0, 0))
+    for k in range(4):
+        a = math.radians(45 + 90 * k)
+        cord(b, Vector((tail, math.cos(a) * 0.8 * R, math.sin(a) * 0.8 * R)), knot, 0.012)
+    cord(b, knot, link, 0.02)
+    mouth, gores = tail - 3.3, 12
+    prof = [(0.0, 0.6), (0.12, 0.7), (0.26, 0.66), (0.4, 0.5), (0.5, 0.28), (0.55, 0.05)]  # metres back, radius
+    rings = []
+
+    def ring(s, r):
+        out = []
+        for i in range(gores * 4):
+            th = 2 * math.pi * i / (gores * 4)
+            lobe = 1 + 0.06 * abs(math.sin(gores / 2 * th))  # gores bulge between the lines
+            out.append(Vector((mouth - s, math.cos(th) * r * lobe, math.sin(th) * r * lobe)))
+        return out
+    for s, r in prof:
+        rings.append(ring(s, r))
+    for s, r in reversed(prof):
+        rings.append(ring(s - 0.015, max(0.02, r - 0.015)))
+    rings.append(ring(0.0, 0.6))
+    b._faces(rings, "chute", cap0=False, cap1=False, smooth=True)
+    for i in range(gores):
+        th = 2 * math.pi * i / gores
+        cord(b, link, Vector((mouth, math.cos(th) * 0.6, math.sin(th) * 0.6)), 0.008)
+
+
+def ofab_spec():
+    return {"name": "OFAB250ShN", "build": ofab250shn, "camo": SOVIET, "role": "Su-25 bomb (stowed)", "ortho": 3}
+
+
+def ofab_open_spec():
+    return {"name": "OFAB250ShN_Open", "build": ofab250shn_open, "camo": SOVIET,
+            "role": "Su-25 bomb (brake chute out)", "ortho": 6.5, "centre": (-2.3, 0, 0)}
+
+
+PLANES = [a10_spec(), su25_spec(), rf4c_spec(), su17_spec(), mk82_spec(), mk82_open_spec(), fab250_spec(),
+          ofab_spec(), ofab_open_spec()]
 
 # ---------- build, export, preview ----------
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -445,16 +658,21 @@ for plane in PLANES:
         o.hide_render = o != ob
     cam_data = bpy.data.cameras.get("cam") or bpy.data.cameras.new("cam")
     cam_data.type = "ORTHO"
-    cam_data.ortho_scale = 23
+    cam_data.ortho_scale = plane.get("ortho", 23)
     cam = bpy.data.objects.get("cam") or bpy.data.objects.new("cam", cam_data)
     if cam.name not in scene.collection.objects:
         scene.collection.objects.link(cam)
     scene.camera = cam
-    for view, loc in (("below", (0.01, 0.0, -40)), ("side", (0, -40, 0.5)), ("top", (0.01, 0, 40)),
-                      ("quarter", (22, -26, -16))):
-        cam.location = loc
-        d = Vector((0, 0, 0.5)) - Vector(loc)
-        cam.rotation_euler = d.to_track_quat("-Z", "Z" if view not in ("below", "top") else "X").to_euler()
+    aim = 0.5 if plane.get("ortho", 23) > 10 else 0.0
+    views = [("below", (0.01, 0.0, -40)), ("side", (0, -40, aim)), ("top", (0.01, 0, 40)), ("quarter", (22, -26, -16))]
+    if plane.get("ortho", 23) <= 10:
+        views.append(("rear", (-40, 0.0, 0.01)))
+    centre = Vector(plane.get("centre", (0, 0, 0)))  # where the previews look (a trailing chute sits aft)
+    for view, loc in views:
+        cam.location = Vector(loc) + centre
+        d = Vector((0, 0, aim)) - Vector(loc)
+        cam.rotation_euler = d.to_track_quat("-Z", {"below": "X", "top": "X", "rear": "Y"}.get(view, "Z")).to_euler()
+        cam_data.ortho_scale = 0.6 if view == "rear" else plane.get("ortho", 23)
         scene.render.filepath = os.path.join(PREV, "%s_%s.png" % (name, view))
         bpy.ops.render.render(write_still=True)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT, ".local-aircraft", name + ".blend"), copy=True)

@@ -1,0 +1,42 @@
+MetaFileClass {
+ Name "{4C54407EFB12A9D9}Assets/Vehicles/Aircraft/ACR_OFAB250ShN_Open.xob"
+ Configurations {
+  FBXResourceClass PC {
+   MaterialAssigns {
+    MaterialAssignClass "{6ACA35AE825640F3}" {
+     SourceMaterial "ACR_Aircraft_Palette"
+     AssignedMaterial "{146E8F755ECE2570}Assets/Vehicles/Aircraft/Data/ACR_Aircraft_Palette.emat"
+    }
+   }
+   MeshParams {
+    MeshParam ACR_OFAB250ShN_Open {
+    }
+   }
+   Common TXOCommonClass "{6ACA35AE826C89CD}" : "{0877E7C4BB2B2C9A}Configs/System/ResourceTypes/PC/MeshObjectCommon.conf" {
+   }
+   ApplicationVendor "Blender Foundation"
+   ApplicationName "Blender (stable FBX IO)"
+   ApplicationVersion "4.5.15 LTS"
+  }
+  FBXResourceClass XBOX_ONE : PC {
+   Common TXOCommonClass "{6ACA35AE826C8958}" : "{9D5B6207F7628CE2}Configs/System/ResourceTypes/XBOX_ONE/MeshObjectCommon.conf" {
+   }
+  }
+  FBXResourceClass XBOX_SERIES : PC {
+   Common TXOCommonClass "{6ACA35AE826C8AB4}" : "{DD9F02115C764647}Configs/System/ResourceTypes/XBOX_SERIES/MeshObjectCommon.conf" {
+   }
+  }
+  FBXResourceClass PS4 : PC {
+   Common TXOCommonClass "{6ACA35AE826C8AAE}" : "{53EC476BC921D99A}Configs/System/ResourceTypes/PS4/MeshObjectCommon.conf" {
+   }
+  }
+  FBXResourceClass PS5 : PC {
+   Common TXOCommonClass "{6ACA35AE826C8A86}" : "{F62AA8E7B8EA9D26}Configs/System/ResourceTypes/PS5/MeshObjectCommon.conf" {
+   }
+  }
+  FBXResourceClass HEADLESS : PC {
+   Common TXOCommonClass "{6ACA35AE826C8AFF}" : "{3A5B3356978039E8}Configs/System/ResourceTypes/HEADLESS/MeshObjectCommon.conf" {
+   }
+  }
+ }
+}
