@@ -2116,7 +2116,8 @@ class ACR_Squad : Managed
   m_OrderKind = ACR_EOrderKind.DEFEND;
   vector at;
   float radius;
-  if (work && !ACR_Transport.CrewedVehicle(this) && ACR_BaseWorks.ManSquad(work, m_Group, Math.Max(1, CountAlive()), at, radius) && IssueWaypoint(WP_GARRISON, at, radius)) return;
+  int line;
+  if (work && !ACR_Transport.CrewedVehicle(this) && ACR_BaseWorks.ManSquad(work, m_Group, Math.Max(1, CountAlive()), at, radius, line) && IssueWaypoint(WP_GARRISON, at, radius)) return;
   if (work && ACR_BaseWorks.HoldSpot(work, at, radius)) IssueWaypoint(WP_DEFEND, at, radius);
   else if (work && work.m_Base) IssueWaypoint(WP_DEFEND, work.m_Base.GetOrigin(), 60);
  }
@@ -4770,55 +4771,27 @@ class ACR_Squad : Managed
    PrintFormat("[ACR] GET OUT %1: no AI driver of ours, out where it stands", m_Name);
    return false;
   }
-  // The game's own driver takes it there (driving by hand only crept at 1.5 km/h: srv:mannersgetout).
-  vector spot;
-  if (!BBB_PullOver.VergeSpot(vehicle, 1, spot))
+  // Driven onto the verge by hand (BBB_PullOver, MODE_PARK), PULL_OVER_AHEAD_M on: the game's own driver
+  // keeps to the road's middle and never leaves it for a spot beside it (srv:mannersgetout, 4 Nov: 18 m
+  // on along the middle, 3 runs of 3). BBB parks it with the handbrake on and tells us (PulledOver).
+  ACR_PullOverThenGetOut listener = new ACR_PullOverThenGetOut();
+  listener.m_Squad = this;
+  NewOrder();
+  ClearPlans();
+  m_bRegrouping = false;
+  listener.m_iSerial = m_iOrderSerial;
+  if (!BBB_PullOver.Begin(vehicle, driver, BBB_PullOver.MODE_PARK, 1, null, listener, PULL_OVER_AHEAD_M))
   {
    PrintFormat("[ACR] GET OUT %1: no pull-over (%2), out where it stands", m_Name, BBB_PullOver.s_sWhyNot);
    return false;
   }
-  NewOrder();
-  ClearPlans();
-  m_bRegrouping = false;
-  if (!IssueWaypoint(WP_MOVE, spot, 3, true)) return false;
   m_iPullOverSerial = m_iOrderSerial;
-  m_fPullOverStart = GetGame().GetWorld().GetWorldTime();
-  m_vPullOverSpot = spot;
   SetOrder("Pulling over", ACR_EOrderState.GET_OUT);
   m_OrderKind = ACR_EOrderKind.GET_OUT;
-  GetGame().GetCallqueue().CallLater(PullOverWatch, 1000, false, m_iOrderSerial);
-  PrintFormat("[ACR] GET OUT %1: pulling over onto the verge at %2 first", m_Name, spot);
+  PrintFormat("[ACR] GET OUT %1: pulling over first, to the %2", m_Name, BBB_PullOver.s_sWhere);
   return true;
  }
-
- // Out once it stands on the verge (or after PULL_OVER_MAX_MS), with the handbrake on.
- static const float PULL_OVER_MAX_MS = 15000;
- protected float m_fPullOverStart;
- protected vector m_vPullOverSpot;
- void PullOverWatch(int serial)
- {
-  if (serial != m_iOrderSerial || serial != m_iPullOverSerial || !m_Group) return;
-  array<IEntity> vehicles = {};
-  GetVehicles(vehicles);
-  if (vehicles.IsEmpty()) return;
-  IEntity vehicle = vehicles[0];
-  float speed;
-  if (vehicle.GetPhysics()) speed = vehicle.GetPhysics().GetVelocity().Length();
-  bool there = vector.DistanceXZ(vehicle.GetOrigin(), m_vPullOverSpot) < 5 && speed < 1;
-  bool late = GetGame().GetWorld().GetWorldTime() - m_fPullOverStart > PULL_OVER_MAX_MS;
-  if (!there && !late)
-  {
-   GetGame().GetCallqueue().CallLater(PullOverWatch, 1000, false, serial);
-   return;
-  }
-  CarControllerComponent car = CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent));
-  if (car) car.SetPersistentHandBrake(true);
-  if (there) BBB_PullOver.s_iParked++;
-  string how = "pull-over took too long";
-  if (there) how = "on the verge";
-  PrintFormat("[ACR] GET OUT %1: %2, getting out", m_Name, how);
-  PulledOver(serial);
- }
+ static const float PULL_OVER_AHEAD_M = 16; // a gentle turn onto the verge
 
  // The pull-over is done: out now (unless a new order came meanwhile).
  void PulledOver(int serial)

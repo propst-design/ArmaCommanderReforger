@@ -210,6 +210,7 @@ class ACR_FireMissions : Managed
    PrintFormat("[ACR] FIRE %1 observer %2 calls mortars on %3 at %4: %5", key, observer.GetName(), what, best.m_Pos, result);
    if (!ai) m_Manager.NotifyFaction(key, string.Format("%1: fire mission on %2 %3", observer.GetName(), what, intel.Place(best.m_Pos)));
    intel.AddFeed(GetGame().GetWorld().GetWorldTime(), string.Format("%1 calls fire on %2 %3", observer.GetName(), what, intel.Place(best.m_Pos)), best.m_Pos);
+   ACR_RadioIntercept.Transmitted(key, eye, observer.GetName());
    return;
   }
  }

@@ -20,9 +20,23 @@ class ACR_TestWorksFight
  static void ACR_InitStatics()
  {
   s_Sampler = new ACR_BagSampler();
+  s_aLineSamples = {};
+  s_aLineSees = {};
+  s_aLineBlindBags = {};
+  s_aLineBlindOther = {};
+  s_aLineFront = {};
+  s_aLineDist = {};
  }
  protected static bool s_bShots;
  protected static bool s_bListening;
+ // Per line of bags: why a man on it can't see the enemy (the bags, or the ground and trees), and where the enemy is.
+ protected static ref array<int> s_aLineSamples;
+ protected static ref array<int> s_aLineSees;
+ protected static ref array<int> s_aLineBlindBags;
+ protected static ref array<int> s_aLineBlindOther;
+ protected static ref array<int> s_aLineFront;
+ protected static ref array<float> s_aLineDist;
+ static const float ON_LINE = 6;      // m from a piece of a line: the man is on that line
 
  static void Run(int second)
  {
@@ -57,6 +71,7 @@ class ACR_TestWorksFight
    s_Sampler.StopListening();
    PrintFormat("[ACR] WORKSFIGHT MEN %1", s_Sampler.Words());
    PrintFormat("[ACR] WORKSFIGHT held: into cover %1 times, sent back %2 times (%5 failed), holds %3, places lost %4", ACR_BagHold.s_iEntered, ACR_BagHold.s_iSentBack, ACR_BagHold.s_iHolds, ACR_BagHold.s_iLost, ACR_BagHold.s_iMoveFails);
+   LineWords();
    PrintFormat("[ACR] WORKSFIGHT RESULT %1: attackers lost %2 of %3, defenders lost %4 of %5, walls lost %6 of %7, %8 s, line men %9", s_Base.m_sName, s_iAttackers - Attackers(manager), s_iAttackers, s_iDefenders - Defenders(manager), s_iDefenders, s_iWalls - Walls(), s_iWalls, fought, !ACR_BaseWorks.s_bNoLineMenForTest);
    ACR_TestRegress.Check("worksfight: reached the end", true, "");
    ACR_TestRegress.Complete("worksfight", 1);
@@ -243,8 +258,64 @@ class ACR_TestWorksFight
     break;
    }
    s_Sampler.Sample(man, enemy, places, facing);
+   LineSample(man, enemy);
   }
   s_Sampler.Deaths(GetGame().GetWorld().GetWorldTime() / 1000);
+ }
+
+ // A man on a line (within ON_LINE of one of its pieces): does he see the nearest enemy from his eye, and if not,
+ // what's in the way; how far off the enemy is and whether he's in front of that line.
+ protected static void LineSample(IEntity man, IEntity enemy)
+ {
+  if (!man || !enemy) return;
+  int count = s_Work.m_aLines.Count();
+  while (s_aLineSamples.Count() < count)
+  {
+   s_aLineSamples.Insert(0);
+   s_aLineSees.Insert(0);
+   s_aLineBlindBags.Insert(0);
+   s_aLineBlindOther.Insert(0);
+   s_aLineFront.Insert(0);
+   s_aLineDist.Insert(0);
+  }
+  vector at = man.GetOrigin();
+  int on = -1;
+  float nearest = ON_LINE;
+  foreach (int l, ACR_BaseLine line : s_Work.m_aLines)
+  {
+   foreach (ACR_LinePiece piece : line.m_aPieces)
+   {
+    float d = vector.DistanceXZ(piece.m_vPos, at);
+    if (d >= nearest) continue;
+    nearest = d;
+    on = l;
+   }
+  }
+  if (on < 0) return;
+  ChimeraCharacter character = ChimeraCharacter.Cast(man);
+  if (!character) return;
+  vector aim = ACR_BagSampler.Target(enemy);
+  s_aLineSamples[on] = s_aLineSamples[on] + 1;
+  s_aLineDist[on] = s_aLineDist[on] + vector.DistanceXZ(aim, at);
+  if (ACR_BaseDefences.DotXZ(s_Work.m_aLines[on].m_vFacing, ACR_BaseDefences.FlatDir(at, aim)) > 0.5) s_aLineFront[on] = s_aLineFront[on] + 1;
+  TraceParam look = new TraceParam();
+  look.Start = character.EyePosition();
+  look.End = aim;
+  look.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
+  float view = GetGame().GetWorld().TraceMove(look, ACR_Garrison.SolidFilter);
+  if (view >= 1) s_aLineSees[on] = s_aLineSees[on] + 1;
+  else if (ACR_BagSampler.IsBag(look.TraceEnt)) s_aLineBlindBags[on] = s_aLineBlindBags[on] + 1;
+  else s_aLineBlindOther[on] = s_aLineBlindOther[on] + 1;
+ }
+
+ protected static void LineWords()
+ {
+  foreach (int l, int samples : s_aLineSamples)
+  {
+   if (samples == 0) continue;
+   ACR_BaseLine line = s_Work.m_aLines[l];
+   PrintFormat("[ACR] WORKSFIGHT LINE %1 facing %2 (%3 pieces): %4 samples, sees %5%%, blind: bags %6%%, ground or trees %7%%, enemy %8 m off, in front %9%%", l, (int)ACR_BaseDefences.Bearing(line.m_vFacing), line.m_aPieces.Count(), samples, 100 * s_aLineSees[l] / samples, 100 * s_aLineBlindBags[l] / samples, 100 * s_aLineBlindOther[l] / samples, (int)(s_aLineDist[l] / samples), 100 * s_aLineFront[l] / samples);
+  }
  }
 
  // How far the men stand from the nearest bags, on average, and how many are on a line.

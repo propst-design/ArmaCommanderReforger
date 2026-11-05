@@ -124,6 +124,7 @@ class ACR_KillGround : Managed
  protected int m_iHeart = -1;
  protected int m_iRoadHeart = -1;
  protected float m_fBaseRadius;               // > 0: a base's own ring, which his attack stages outside
+ ref array<vector> m_aStagePoints = {};       // where he stages against it, as planned on (ACR_BaseWorks.StagingWatch)
  protected int m_iLook;
  ref array<ref ACR_KillWay> m_aWays = {};
  ref array<ref ACR_KillSite> m_aPlaced = {};
@@ -450,6 +451,7 @@ class ACR_KillGround : Managed
     vector point;
     if (!BBB_Terrain.DryApproach(m_vCenter, ACR_AICommander.Turned(dir, turn), ring, point)) continue;
     point = Hidden(point, eyes);
+    m_aStagePoints.Insert(point);
     int cell = EdgeCell(ACR_BaseDefences.FlatDir(m_vCenter, point), reach);
     if (cell < 0) continue;
     float weight = weights[d] * share;
@@ -620,8 +622,9 @@ class ACR_KillGround : Managed
  {
   m_iSolves++;
   m_iLook++;
-  ForgetFire();
-  foreach (ACR_KillSite round : m_aPlaced) PutRound(round);
+  // All that fires, on the cells of his old ways as well as round them. (Before, only the ground round them was put
+  // back before the walk: his old ways showed no fire at all, and he walked them again as if nothing stood there.)
+  Refire();
   Flow(m_iHeart, false, m_aNext);
   Flow(m_iRoadHeart, true, m_aNextRoad);
   m_aWays.Clear();
@@ -651,13 +654,19 @@ class ACR_KillGround : Managed
   }
   // What's placed fires on his new ways as well.
   foreach (ACR_KillSite placed : m_aPlaced) Aim(placed);
+  Refire();
+  Shares();
+ }
+
+ // The fire of all that's placed, from nothing: on the cells of his ways as each was last aimed, and round about.
+ protected void Refire()
+ {
   ForgetFire();
-  foreach (int siteIndex, ACR_KillSite firing : m_aPlaced)
+  foreach (ACR_KillSite firing : m_aPlaced)
   {
    foreach (int k, int c : firing.m_aSees) PutFire(c, firing.m_aDX[k], firing.m_aDZ[k], firing.m_aHit[k]);
    PutRound(firing);
   }
-  Shares();
  }
 
  protected void ForgetFire()
@@ -1043,6 +1052,17 @@ class ACR_KillGround : Managed
    if (way.m_fWeight >= heaviest * 0.3 && way.m_fFire < fire) fire = way.m_fFire;
   }
   if (fire == float.MAX) fire = 0;
+ }
+
+ // The way he'd choose now, as Softest counts it. Null with none.
+ ACR_KillWay SoftestWay()
+ {
+  float heaviest = 0;
+  foreach (ACR_KillWay weight : m_aWays) heaviest = Math.Max(heaviest, weight.m_fWeight);
+  ACR_KillWay best;
+  foreach (ACR_KillWay way : m_aWays)
+   if (way.m_fWeight >= heaviest * 0.3 && (!best || way.m_fFire < best.m_fFire)) best = way;
+  return best;
  }
 
  // The weighted mean of metres under fire on his ways.

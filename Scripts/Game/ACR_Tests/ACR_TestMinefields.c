@@ -350,7 +350,7 @@ class ACR_TestMinefields
  }
 
  // A road point away from the bases with no other road within 25 m.
- protected static bool FindRoad(vector origin, out vector point, out vector dir, out float width)
+ static bool FindRoad(vector origin, out vector point, out vector dir, out float width)
  {
   ChimeraAIWorld aiWorld = ChimeraAIWorld.Cast(GetGame().GetAIWorld());
   if (!aiWorld || !aiWorld.GetRoadNetworkManager()) return false;

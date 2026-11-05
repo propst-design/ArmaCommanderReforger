@@ -2,6 +2,9 @@
 // buildings round its centre, 40 spots from ACR_BaseSystem.SoldierSpot must each have room for a
 // soldier, be open to the sky and lie on the soldiers' navmesh. The old way (a random spot, kept
 // when FindEmptyTerrainPosition found no room within 5 m) is counted for comparison only.
+// 3 Nov: FIA still spawned in walls, because the room check passed spots inside them. Points just
+// inside the walls of the buildings there (found by tracing in from outside) must all be refused;
+// how many the game's own cylinder finder passes is counted for comparison.
 class ACR_TestGarrisonSpawn
 {
  static const int SPOTS = 40;
@@ -47,14 +50,47 @@ class ACR_TestGarrisonSpawn
    if (SCR_WorldTools.FindEmptyTerrainPosition(free, old, 5, 0.6, 2)) old = ACR_Manager.Ground(free);
    if (!HasRoom(old) || ACR_BaseSystem.Roofed(old)) oldBad++;
   }
-  string detail = string.Format("%1 (%2 buildings): of %3 spots %4 blocked, %5 roofed, %6 off the navmesh (%7 not loaded); the old way %8 bad", densest.m_sName, most, SPOTS, blocked, roofed, offMesh, unloaded, oldBad);
-  ACR_TestRegress.Check("garrison soldiers spawn clear of walls, outdoors and on the navmesh (#73)", blocked == 0 && roofed == 0 && offMesh == 0, detail);
+  int probes, inWallPassed, inWallFinder;
+  WallProbes(center, probes, inWallPassed, inWallFinder);
+  string detail = string.Format("%1 (%2 buildings): of %3 spots %4 blocked, %5 roofed, %6 off the navmesh (%7 not loaded); the old way %8 bad; of %9 points inside walls", densest.m_sName, most, SPOTS, blocked, roofed, offMesh, unloaded, oldBad, probes);
+  detail += string.Format(" %1 passed (the game's finder alone %2)", inWallPassed, inWallFinder);
+  ACR_TestRegress.Check("garrison soldiers spawn clear of walls, outdoors and on the navmesh (#73)", blocked == 0 && roofed == 0 && offMesh == 0 && inWallPassed == 0, detail);
  }
 
  // Room for a soldier standing here (the spot itself, not a nearby one).
  static bool HasRoom(vector spot)
  {
-  vector free;
-  return SCR_WorldTools.FindEmptyTerrainPosition(free, spot, 0.7, 0.6, 2) && vector.DistanceXZ(free, spot) < 0.1;
+  return ACR_BaseSystem.RoomAt(spot);
+ }
+
+ // Points 0.12 m inside the walls of buildings round 'center': from 15 m out on four sides, a
+ // line at chest height towards each building's origin; where it meets the building, a step on.
+ static void WallProbes(vector center, out int probes, out int passed, out int finderPassed)
+ {
+  array<IEntity> buildings = {};
+  ACR_Garrison.BuildingsWithin(center, 60, buildings);
+  BaseWorld world = GetGame().GetWorld();
+  TraceParam trace = new TraceParam();
+  trace.Flags = TraceFlags.ENTS;
+  array<vector> sides = {Vector(1, 0, 0), Vector(-1, 0, 0), Vector(0, 0, 1), Vector(0, 0, -1)};
+  foreach (int b, IEntity building : buildings)
+  {
+   if (b >= 12) break;
+   vector origin = building.GetOrigin();
+   foreach (vector side : sides)
+   {
+    vector start = ACR_Manager.Ground(origin + side * 15) + Vector(0, 1, 0);
+    vector end = Vector(origin[0], start[1], origin[2]);
+    trace.Start = start;
+    trace.End = end;
+    float hit = world.TraceMove(trace, null);
+    if (hit >= 1 || !trace.TraceEnt || trace.TraceEnt.GetRootParent() != building) continue;
+    vector inside = ACR_Manager.Ground(start + (end - start) * hit - side * 0.12);
+    probes++;
+    if (ACR_BaseSystem.RoomAt(inside)) passed++;
+    vector free;
+    if (SCR_WorldTools.FindEmptyTerrainPosition(free, inside, 0.7, 0.6, 2) && vector.DistanceXZ(free, inside) < 0.1) finderPassed++;
+   }
+  }
  }
 }

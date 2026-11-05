@@ -54,6 +54,7 @@ class ACR_OrderDisplay : Managed
   m_Commands.Clear();
   DrawBaseAreas(mapEntity, data);
   DrawZones(mapEntity, data);
+  DrawMineShapes(mapEntity, data);
   DrawOrders(mapEntity, data);
   DrawOtherSelections(mapEntity, data);
   DrawStatusBars(mapEntity, data);
@@ -61,6 +62,7 @@ class ACR_OrderDisplay : Managed
   DrawContactHeadings(mapEntity, data);
   if (boxing) DrawBox(mapEntity, boxStart);
   if (data.m_bAiming) DrawAim(mapEntity, data.m_vAimFrom, data.m_vAimTo);
+  DrawMinePreview(mapEntity, data);
   ACR_PingDisplay.DrawOnMap(this, mapEntity, data);
   m_Canvas.SetDrawCommands(m_Commands);
  }
@@ -383,6 +385,8 @@ class ACR_OrderDisplay : Managed
    mapEntity.WorldToScreen(pos[0], pos[2], cx, cy, true);
    mapEntity.WorldToScreen(pos[0] + data.m_ZoneRadii[i], pos[2], ex, ey, true);
    float radius = Math.Max(Math.AbsFloat(ex - cx), 6);
+   // A shaped minefield draws its outline instead (DrawMineShapes).
+   if (ShapeAt(data, pos)) continue;
    // A mortar team's range ("~" label): thin and pale.
    if (i < data.m_ZoneLabels.Count() && data.m_ZoneLabels[i].StartsWith("~"))
    {
@@ -391,6 +395,104 @@ class ACR_OrderDisplay : Managed
    }
    Ring(cx, cy, radius, red.PackToInt(), 3, 48);
   }
+ }
+
+ // ---------------------------------------------------------------- shaped minefields (#200)
+ // Whether a shaped minefield's middle is at 'pos' (its zone: the label stays, the circle doesn't).
+ protected static bool ShapeAt(ACR_MapData data, vector pos)
+ {
+  int at = 0;
+  foreach (int count : data.m_MineShapeCounts)
+  {
+   if (count < 1 || at + count > data.m_MineShapeCorners.Count()) return false;
+   array<vector> corners = {};
+   for (int k = 0; k < count; k++) corners.Insert(data.m_MineShapeCorners[at + k]);
+   at += count;
+   if (vector.DistanceXZ(ACR_MineShape.Middle(corners), pos) < 2) return true;
+  }
+  return false;
+ }
+
+ // Each shaped field: a faint red fill and a red outline.
+ protected void DrawMineShapes(SCR_MapEntity mapEntity, ACR_MapData data)
+ {
+  Color red = new Color(1, 0.15, 0.1, 0.95);
+  Color fill = new Color(1, 0.15, 0.1, 0.16);
+  int at = 0;
+  foreach (int count : data.m_MineShapeCounts)
+  {
+   if (count < 3 || at + count > data.m_MineShapeCorners.Count()) break;
+   array<float> screen = {};
+   for (int k = 0; k < count; k++)
+   {
+    vector corner = data.m_MineShapeCorners[at + k];
+    int sx, sy;
+    mapEntity.WorldToScreen(corner[0], corner[2], sx, sy, true);
+    screen.Insert(sx);
+    screen.Insert(sy);
+   }
+   at += count;
+   PolygonDrawCommand area = new PolygonDrawCommand();
+   area.m_iColor = fill.PackToInt();
+   area.m_Vertices = {};
+   area.m_Vertices.Copy(screen);
+   AddPolygon(area);
+   LineDrawCommand edge = new LineDrawCommand();
+   edge.m_iColor = red.PackToInt();
+   edge.m_fWidth = 3;
+   edge.m_bShouldEnclose = true;
+   edge.m_Vertices = {};
+   edge.m_Vertices.Copy(screen);
+   m_Commands.Insert(edge);
+  }
+ }
+
+ // The commander's minefield points so far: dots, the edges between them, dashed edges through the cursor
+ // (where the next point would go) and a faint fill of what three or more already make; a ring on the last
+ // point, the one to click again.
+ protected void DrawMinePreview(SCR_MapEntity mapEntity, ACR_MapData data)
+ {
+  int count = data.m_MineCorners.Count();
+  if (count == 0) return;
+  Color line = new Color(1, 0.55, 0.15, 0.95);
+  Color fill = new Color(1, 0.55, 0.15, 0.18);
+  array<float> screen = {};
+  foreach (vector corner : data.m_MineCorners)
+  {
+   int sx, sy;
+   mapEntity.WorldToScreen(corner[0], corner[2], sx, sy, true);
+   screen.Insert(sx);
+   screen.Insert(sy);
+  }
+  if (count >= 3)
+  {
+   array<vector> outline = {};
+   outline.Copy(data.m_MineCorners);
+   ACR_MineShape.Order(outline);
+   PolygonDrawCommand area = new PolygonDrawCommand();
+   area.m_iColor = fill.PackToInt();
+   area.m_Vertices = {};
+   foreach (vector o : outline)
+   {
+    int ox, oy;
+    mapEntity.WorldToScreen(o[0], o[2], ox, oy, true);
+    area.m_Vertices.Insert(ox);
+    area.m_Vertices.Insert(oy);
+   }
+   AddPolygon(area);
+  }
+  for (int i = 0; i + 1 < count; i++) Line(screen[i * 2], screen[i * 2 + 1], screen[i * 2 + 2], screen[i * 2 + 3], line.PackToInt(), 3);
+  int cx, cy;
+  mapEntity.WorldToScreen(data.m_vMineCursor[0], data.m_vMineCursor[2], cx, cy, true);
+  float lx = screen[count * 2 - 2];
+  float ly = screen[count * 2 - 1];
+  if (count < ACR_MineShape.MOST_CORNERS)
+  {
+   DashedLine(lx, ly, cx, cy, line.PackToInt(), 2);
+   if (count >= 2) DashedLine(cx, cy, screen[0], screen[1], line.PackToInt(), 2);
+  }
+  for (int d = 0; d < count; d++) Dot(screen[d * 2], screen[d * 2 + 1], 4, line.PackToInt());
+  Ring(lx, ly, 9, line.PackToInt(), 2, 16);
  }
 
  // ---------------------------------------------------------------- pending, box

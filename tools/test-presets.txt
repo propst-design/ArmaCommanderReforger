@@ -53,6 +53,7 @@ fieldbridges|-acrFieldBridgesTest 1|120|Worlds/ACR_Everon.ent
 fieldbridgeswz|-acrFieldBridgesTest 1|150|Worlds/ACR_WestZagoria.ent
 manners|-acrMannersTest 1|540
 mannersgetout|-acrMannersGetOutTest 1|150
+mannersevade|-acrMannersEvadeTest 1|200
 fieldsoffire|-acrFieldsOfFireTest 1|120
 crewold|-acrCrewOldTest 1|120
 bbbaim|-acrBbbAimTest 1|3000
@@ -138,6 +139,7 @@ variety|-acrVarietyTest 1|60
 mapdeclutter|-acrMapDeclutterTest 1|60
 mapdecluttershots|-acrMapDeclutterShotsTest 1|240
 minesiting|-acrMineSitingTest 1|120
+mineshapes|-acrMineShapesTest 1|120
 possiting|-acrPositionSitingTest 1|120
 possitingarland|-acrPositionSitingArlandTest 1|240|Worlds/ACR_Arland.ent
 doctrinekits|-acrDoctrineKitsTest 1|300
@@ -205,6 +207,7 @@ deploymenu|-acrDeployMenuTest 1|180|Worlds/ACR_Arland.ent
 mappolygon|-acrMapPolygonTest 1|60
 rtsoverlay|-acrRTSOverlayTest 1|60
 intelmarks|-acrIntelMarksTest 1|60
+recon|-acrReconTest 1|90
 restart|-acrRestartTest 1|200
 stallwait|-acrStallWaitTest 1|130
 recrew|-acrRecrewTest 1|120

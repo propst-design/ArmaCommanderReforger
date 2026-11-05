@@ -6,8 +6,11 @@
 // on a dark map), is drawn again above it in light text, the map's own hidden meanwhile
 // (MapDescriptorProps.SetTextVisible): cities and seas at any zoom; towns, villages, islands and
 // lakes from mid zoom; settlements, local names, hills, ridges, valleys and streams close in. A
-// name within NAME_CLEAR m of a base is left out: the base shows its own name. (The grid's numbers
-// stay readable through the film.)
+// name within NAME_CLEAR m of a base gives way while the calm map draws that base's name, which then
+// stands for the place. Zoomed out the calm map names only some bases and leaves the rest bare dots,
+// and then the place's own name shows (#203: on West Zagoria, with a base in nearly every town,
+// leaving every such name out took almost every town's name off the map). (The grid's numbers stay
+// readable through the film.)
 // (Named to load after ACR_PlayerMapDeclutter.c, whose methods it uses.)
 modded class SCR_PlayerController
 {
@@ -19,7 +22,10 @@ modded class SCR_PlayerController
  protected ref array<TextWidget> m_aACR_PlaceTexts = {};
  protected ref array<vector> m_aACR_PlacePos = {};
  protected ref array<int> m_aACR_PlaceRank = {};
+ protected ref array<int> m_aACR_PlaceBase = {}; // the base within NAME_CLEAR of each (the nearest), -1 none
+ protected int m_iACR_PlaceBases = -1;  // the base count m_aACR_PlaceBase was found for
  protected int m_iACR_PlacesShown;      // tests
+ protected int m_iACR_PlacesForBases;   // tests: names shown for a base drawn as a bare dot
  protected bool m_bACR_NamesHidden;
 
  override void ACR_UpdateMap()
@@ -37,6 +43,8 @@ modded class SCR_PlayerController
   m_aACR_PlaceTexts.Clear();
   m_aACR_PlacePos.Clear();
   m_aACR_PlaceRank.Clear();
+  m_aACR_PlaceBase.Clear();
+  m_iACR_PlaceBases = -1;
   m_bACR_NamesHidden = false;
   super.ACR_ClosePanel();
  }
@@ -48,6 +56,7 @@ modded class SCR_PlayerController
    if (m_wACR_DarkLabels && m_wACR_DarkLabels.IsVisible()) m_wACR_DarkLabels.SetVisible(false);
    ACR_HideMapNames(mapEntity, false);
    m_iACR_PlacesShown = 0;
+   m_iACR_PlacesForBases = 0;
    return;
   }
   if (!m_wACR_DarkLabels && !ACR_NewDarkLabels(mapEntity)) return;
@@ -62,11 +71,26 @@ modded class SCR_PlayerController
   if (span < NEAR_SPAN) maxRank = 2;
   int w = ws.GetWidth();
   int h = ws.GetHeight();
+  // Each name's base, found again whenever the bases change (a FOB built or lost).
+  array<vector> bases = m_ACR_Data.m_BasePositions;
+  if (m_iACR_PlaceBases != bases.Count())
+  {
+   m_iACR_PlaceBases = bases.Count();
+   m_aACR_PlaceBase.Clear();
+   foreach (vector at : m_aACR_PlacePos)
+   {
+    m_aACR_PlaceBase.Insert(ACR_MapDeclutter.NearestBase(at, bases, NAME_CLEAR));
+   }
+  }
   m_iACR_PlacesShown = 0;
+  m_iACR_PlacesForBases = 0;
   foreach (int i, TextWidget text : m_aACR_PlaceTexts)
   {
    if (!text) continue;
-   bool show = m_aACR_PlaceRank[i] <= maxRank;
+   int base = -1;
+   if (i < m_aACR_PlaceBase.Count()) base = m_aACR_PlaceBase[i];
+   // Near a base, only while the calm map draws no name for it (its layout's m_DeclNames, this frame).
+   bool show = m_aACR_PlaceRank[i] <= maxRank && ACR_MapDeclutter.PlaceNameShows(base, m_ACR_Data.m_DeclNames);
    int sx, sy;
    if (show)
    {
@@ -78,6 +102,7 @@ modded class SCR_PlayerController
    if (!show) continue;
    FrameSlot.SetPos(text, ws.DPIUnscale(sx), ws.DPIUnscale(sy));
    m_iACR_PlacesShown++;
+   if (base >= 0) m_iACR_PlacesForBases++;
   }
  }
 
@@ -107,7 +132,6 @@ modded class SCR_PlayerController
     string name = item.GetDisplayName();
     if (name.IsEmpty()) continue;
     vector pos = item.GetPos();
-    if (ACR_NearBase(pos)) continue;
     TextWidget text = ACR_PlaceText(name, type);
     if (!text) continue;
     m_aACR_PlaceTexts.Insert(text);
@@ -116,15 +140,6 @@ modded class SCR_PlayerController
    }
   }
   return true;
- }
-
- protected bool ACR_NearBase(vector pos)
- {
-  foreach (vector base : m_ACR_Data.m_BasePositions)
-  {
-   if (vector.DistanceXZ(base, pos) < NAME_CLEAR) return true;
-  }
-  return false;
  }
 
  // 0 at any zoom, 1 from mid zoom, 2 close in.
@@ -192,5 +207,6 @@ modded class SCR_PlayerController
 
  // Tests.
  int ACR_DarkPlacesShownForTest() { return m_iACR_PlacesShown; }
+ int ACR_DarkPlacesForBasesForTest() { return m_iACR_PlacesForBases; }
  bool ACR_MapNamesHiddenForTest() { return m_bACR_NamesHidden; }
 }
