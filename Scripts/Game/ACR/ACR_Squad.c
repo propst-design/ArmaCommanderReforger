@@ -826,6 +826,9 @@ class ACR_Squad : Managed
  protected void NewOrder()
  {
   m_Evade = null; // a new order replaces an evasion and the order it would have put back
+  // ...and a get-out's pull-over: the driver takes the new order now, not after parking.
+  if (m_PullOverVehicle) BBB_PullOver.Release(m_PullOverVehicle);
+  m_PullOverVehicle = null;
   if (m_fReservedLoads > 0 || OrderState() == ACR_EOrderState.BUILD_FOB) CancelEstablishFob();
   // By payment, not state: Halt sets its own state first.
   if (RoadblockPending() || OrderState() == ACR_EOrderState.BUILD_ROADBLOCK) CancelRoadblock("replaced by a new order");
@@ -4741,6 +4744,7 @@ class ACR_Squad : Managed
  static bool s_bTestPullOver; // srv:manners runs it without the host option
  protected bool m_bPulledOver;
  protected int m_iPullOverSerial;
+ protected IEntity m_PullOverVehicle; // being pulled over for the current order (NewOrder releases it)
  static bool PullOverOn()
  {
   if (s_bTestPullOver) return true;
@@ -4777,6 +4781,7 @@ class ACR_Squad : Managed
    return false;
   }
   m_iPullOverSerial = m_iOrderSerial;
+  m_PullOverVehicle = vehicle;
   SetOrder("Pulling over", ACR_EOrderState.GET_OUT);
   m_OrderKind = ACR_EOrderKind.GET_OUT;
   PrintFormat("[ACR] GET OUT %1: pulling over first, to the %2", m_Name, BBB_PullOver.s_sWhere);

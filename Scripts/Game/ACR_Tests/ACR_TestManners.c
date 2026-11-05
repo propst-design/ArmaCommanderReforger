@@ -281,7 +281,7 @@ class ACR_TestManners
    vector roadDir;
    float roadWidth;
    if (BBB_PullOver.Snap(m_vMid, 40, road, roadDir, roadWidth)) onRoad = road;
-   Spawn(manager, "Manners get out", M1025, "US", onRoad, m_vDir);
+   Spawn(manager, string.Format("Manners get out %1", m_iRun + 1), M1025, "US", onRoad, m_vDir);
   }
   if (t == 10)
   {
@@ -330,6 +330,11 @@ class ACR_TestManners
    bool ordered = m_aSquads[0].GetOut();
    PrintFormat("[ACR] MANNERS get out ordered %1, order now %2", ordered, m_aSquads[0].m_Order);
   }
+  if (m_iRun == 1)
+  {
+   GetOutSuperseded(manager, tick, t);
+   return;
+  }
   if (t == 40)
   {
    IEntity vehicle = m_aVehicles[0];
@@ -354,6 +359,47 @@ class ACR_TestManners
    Check("get out: the vehicle stopped to the side of the road or off it (its centre 1.5 m or more from the middle)", side >= 1.5);
    Check("get out: handbrake on", handbrake);
    Check("get out: the crew is out", aboard == 0);
+   Clear(manager);
+   // Run 2: the same get-out, then a move order while it is still pulling over.
+   m_iRun = 1;
+   m_iStepAt = tick;
+  }
+ }
+
+ // A new order during the pull-over takes the driver at once: no hand-driving on to the verge,
+ // no handbrake, and the vehicle drives off to the new order with the crew aboard.
+ protected void GetOutSuperseded(ACR_Manager manager, int tick, int t)
+ {
+  if (m_aSquads.Count() != 1 || !m_aVehicles[0]) return;
+  IEntity vehicle = m_aVehicles[0];
+  if (t == 16)
+  {
+   Check("get out, new order mid pull-over: it was pulling over when the order came", m_aSquads[0].m_Order == "Pulling over");
+   vector onward = ACR_Manager.Ground(m_vGetOutAt + m_vDir * 220);
+   m_aSquads[0].RouteTo(onward, ACR_Squad.WP_MOVE, -1, "Moving", ACR_EOrderKind.MOVE, true);
+  }
+  if (t == 20)
+  {
+   ChimeraCharacter driver = ChimeraCharacter.Cast(BBB.DriverOf(vehicle));
+   AIControlComponent ai;
+   if (driver) ai = AIControlComponent.Cast(driver.FindComponent(AIControlComponent));
+   CarControllerComponent car = CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent));
+   bool aiOn = ai != null && ai.IsAIActivated();
+   bool handbrake = car != null && car.GetPersistentHandBrake();
+   PrintFormat("[ACR] MANNERS get out superseded: 4 s after the move order the driver's AI is on %1, handbrake %2, order %3", aiOn, handbrake, m_aSquads[0].m_Order);
+   Check("get out, new order mid pull-over: the driver has his AI back within 4 s", aiOn);
+   Check("get out, new order mid pull-over: no handbrake", !handbrake);
+  }
+  if (t == 45)
+  {
+   vector moved = vehicle.GetOrigin() - m_vGetOutAt;
+   float along = vector.Dot(moved, m_vDir);
+   int aboard;
+   array<AIAgent> agents = {};
+   m_aSquads[0].GetAgents(agents);
+   foreach (AIAgent agent : agents) if (agent.GetControlledEntity() && ChimeraCharacter.Cast(agent.GetControlledEntity()).IsInVehicle()) aboard++;
+   PrintFormat("[ACR] MANNERS get out superseded: %1 m on along the road, %2 aboard", Math.Round(along), aboard);
+   Check("get out, new order mid pull-over: it drove on to the new order (30 m or more along the road) with the crew aboard", along >= 30 && aboard > 0);
    Clear(manager);
    Next(tick);
    if (System.IsCLIParam("acrMannersGetOutTest")) m_iStep = 4;
