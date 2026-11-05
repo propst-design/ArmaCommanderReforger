@@ -653,8 +653,10 @@ class ACR_Squad : Managed
   ACR_EOrderState state = OrderState();
   string label = m_Order;
   if (state == ACR_EOrderState.BUILD_FOB && label.StartsWith("Establishing FOB")) return;
-  bool oldMoving = label == "Moving" || label == "Patrolling" || label == "Air lift: to the landing zone";
-  bool oldFinished = oldMoving || label == "Assaulting" || label == "Suppressing" || label == "Getting in" || label == "Getting out";
+  // Every label set with MOVE or another arrive-and-finish state belongs here (vehicle manners
+  // added "Pulling over" and "Getting away"; the sappers' blast-radius clear is a move too).
+  bool oldMoving = label == "Moving" || label == "Patrolling" || label == "Air lift: to the landing zone" || label == "Getting away" || label == "Clearing blast radius";
+  bool oldFinished = oldMoving || label == "Assaulting" || label == "Suppressing" || label == "Getting in" || label == "Getting out" || label == "Pulling over";
   if ((state == ACR_EOrderState.MOVE) == oldMoving && FinishesOnArrival(state) == oldFinished) return;
   ACR_Perf.s_iInvariantErrors++;
   PrintFormat("[ACR] INVARIANT order state %1 doesn't match label '%2' (%3)", typename.EnumToString(ACR_EOrderState, state), label, m_Name);
