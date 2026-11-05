@@ -246,7 +246,7 @@ AudioClass {
    name "Spatiality Near"
    version 5
    tl -512 -160
-   spatialFactor 1
+   spatialFactor 0.75
   }
   SpatialityClass {
    id 13340

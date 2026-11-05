@@ -142,7 +142,8 @@ class ACR_LocalFlyover : Managed
 	static const float NEAR_START_M = 2400;  // ...and its near curve at 2500 m
 	static const float SOUND_KEEP_M = 6000;
 	static const float FA18_KEEP_M = 1800;   // RHS's loop is heard to 1.5 km
-	static const float MAX_TAIL_S = 60;      // past the route's end, whoever is listening
+	static const float MAX_TAIL_S = 60;
+	static const float SPEED_OF_SOUND = 343;      // past the route's end, whoever is listening
 	protected static ref array<ref ACR_LocalFlyover> s_All;
 	// Called by ACR_StaticInit at game start (static initializer budget: HANDBOOK Pitfalls).
 	static void ACR_InitStatics()
@@ -220,6 +221,21 @@ class ACR_LocalFlyover : Managed
 			m_vAxes[i] = rightWorld * rightModel[i] + upWorld * upModel[i] + noseWorld * noseModel[i];
 	}
 
+	// Where the plane was when the sound reaching `listener` now left it: the retarded time
+	// t' with |P(t') - listener| = 343 (t - t'), by a few fixed-point steps.
+	vector Emitted(vector listener, float elapsed)
+	{
+		float t = elapsed;
+		vector at = m_vStart + m_vDir * (m_fSpeed * t);
+		for (int i = 0; i < 4; i++)
+		{
+			at = m_vStart + m_vDir * (m_fSpeed * t);
+			at[1] = m_fAltitude;
+			t = elapsed - vector.Distance(at, listener) / SPEED_OF_SOUND;
+		}
+		return at;
+	}
+
 	// Where this machine's player is: the controlled character, else the camera (a commander
 	// with no body). False when there is neither.
 	static bool Listener(out vector at)
@@ -268,8 +284,27 @@ class ACR_LocalFlyover : Managed
 		transform[2] = m_vAxes[2];
 		transform[3] = position;
 		m_Plane.SetTransform(transform);
+		// moves its bounds in the scene too: without it the jet was culled as if still where it
+		// spawned, 5 km off, and never drawn overhead (Jacob, 4 Nov), and its sound sat astray
+		m_Plane.Update();
 		vector listener;
 		bool heard = Listener(listener);
+		// The engine is heard where the plane was when that sound left it (sound covers 343 m/s,
+		// the jet 200): behind the plane, swinging round smoothly and loudest just after it has
+		// passed. Placed on the plane itself it flipped to the far side the instant it crossed
+		// overhead (Jacob, 4 Nov). Set every frame on both layers.
+		if (m_Sound)
+		{
+			vector heardAt[4];
+			heardAt[0] = transform[0];
+			heardAt[1] = transform[1];
+			heardAt[2] = transform[2];
+			heardAt[3] = position;
+			if (heard) heardAt[3] = Emitted(listener, elapsed);
+			m_Sound.SetTransformation(heardAt);
+			if (m_bSounding) m_Sound.SetSoundTransformation(m_hEngineFar, heardAt);
+			if (m_bSoundingNear) m_Sound.SetSoundTransformation(m_hEngine, heardAt);
+		}
 		float distance = vector.Distance(listener, position);
 		if (m_Sound && !m_bSounding && (!heard || distance <= SOUND_START_M))
 		{

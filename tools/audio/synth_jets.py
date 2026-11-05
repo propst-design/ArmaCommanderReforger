@@ -39,8 +39,9 @@ posix = lambda q: q.replace("\\", "/")
 
 # Distance curves (gain 0-1 by metres) and bank volumes (dB). The flyover starts the sound at 5.8 km (silent here)
 # and keeps the jet until the listener is 6 km away (ACR_LocalFlyover.SOUND_START_M / SOUND_KEEP_M).
-NEAR = dict(curve=[(0, 1, False), (300, 1, True), (2500, 0, False)], volume=-22)
-FAR = dict(curve=[(300, 0, False), (1200, 1, True), (6000, 0, False)], volume=-20)
+# spatial: 1 = a point source; the near roar a little less (a loud jet fills the sky).
+NEAR = dict(curve=[(0, 1, False), (300, 1, True), (2500, 0, False)], volume=-22, spatial=0.75)
+FAR = dict(curve=[(300, 0, False), (1200, 1, True), (6000, 0, False)], volume=-20, spatial=1)
 
 JETS = {
     # hump: the roar's low hump (Hz); cut: the NEAR / FAR low-pass (Hz); whine: [(Hz, level)] in the NEAR layer
@@ -235,7 +236,7 @@ SPATIAL = '''  SpatialityClass {{
    name "Spatiality {label}"
    version 5
    tl -512 {y160}
-   spatialFactor 1
+   spatialFactor {spatial_factor}
   }}
 '''
 AUX = '''  AuxOutClass {{
@@ -321,6 +322,7 @@ def acp(layers):
                    spatial=0x181C + base, aux=0x1C1D + base)
         y = k * 400
         f = dict(ids, event=event, label=label, wav=wav, volume=cfg["volume"], y=y, y80=y - 80, y160=y - 160,
+                 spatial_factor=cfg["spatial"],
                  points=curve_points(cfg["curve"]))
         parts["sounds"] += SOUND.format(**f)
         parts["shaders"] += SHADER.format(**f)
