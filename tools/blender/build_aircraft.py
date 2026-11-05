@@ -181,6 +181,13 @@ class Builder:
                         ring_b.append(Vector((p[0], p[1], p[2] + d / 2)))
                 self._faces([ring_a, ring_b], paint)
 
+    def fin_star(self, root, tip, height, radius):
+        """A star on a fin built by surface(root, tip, vertical=True): centred on the mid-chord at `height` (a
+        fraction of the fin's span), just proud of its skin. The leading edge is swept, so a star placed by
+        eye hung off the front of the fin (Jacob, 4 Nov)."""
+        xl, _, z, ch, th = [root[i] + (tip[i] - root[i]) * height for i in range(5)]
+        self.star((xl - 0.5 * ch, root[1], z), radius, "y", th * ch + 0.03)
+
     def store(self, x0, x1, y, z, r, paint, mirror=True, pylon=0.0):
         """Bomb / tank / pod: a pointed body, on a pylon of `pylon` m up to the wing."""
         L = x0 - x1
@@ -308,8 +315,9 @@ def su25(b):
     b.loft([(0.5, 0.2, 0, 0), (0.2, 0.2, 0.15, 0.15), (-1.4, 0.2, 0.15, 0.15), (-1.75, 0.2, 0, 0)], y=7.18,
            n=2, seg=10, mirror=True)
     b.surface((-4.85, 0.3, 1.05, 1.9, 0.09), (-5.8, 2.8, 1.3, 0.95, 0.08), spans=4)
-    b.surface((-4.1, 0.0, 0.85, 3.2, 0.09), (-6.35, 0.0, 3.95, 1.3, 0.08), vertical=True, mirror=False, spans=6)
-    b.star((-5.55, 0.0, 2.45), 0.55, "y", 0.34)
+    fin = ((-4.1, 0.0, 0.85, 3.2, 0.09), (-6.35, 0.0, 3.95, 1.3, 0.08))
+    b.surface(*fin, vertical=True, mirror=False, spans=6)
+    b.fin_star(*fin, 0.5, 0.55)
     for y in (3.0, 4.4):  # FAB-250s
         b.store(1.4, -0.6, y, -0.25, 0.2, "fab_gray", pylon=0.3)
 
@@ -358,9 +366,10 @@ def su17(b):
     b.surface((3.9, 0.7, -0.05, 5.1, 0.08), (1.0, 2.1, -0.05, 2.9, 0.08), spans=3)
     b.surface((1.0, 2.1, -0.05, 2.7, 0.08), (-1.85, 5.9, -0.05, 1.35, 0.07), spans=6)
     b.surface((-5.6, 0.6, -0.1, 2.4, 0.07), (-7.4, 3.3, -0.25, 1.0, 0.06), spans=4)
-    b.surface((-3.3, 0.0, 0.7, 3.6, 0.08), (-6.7, 0.0, 3.6, 1.3, 0.07), vertical=True, mirror=False, spans=6)
+    fin = ((-3.3, 0.0, 0.7, 3.6, 0.08), (-6.7, 0.0, 3.6, 1.3, 0.07))
+    b.surface(*fin, vertical=True, mirror=False, spans=6)
     b.surface((-5.5, 0.0, -0.5, 1.6, 0.06), (-6.3, 0.0, -1.0, 0.9, 0.06), vertical=True, mirror=False, spans=2)
-    b.star((-5.4, 0.0, 2.3), 0.58, "y", 0.4)
+    b.fin_star(*fin, 0.55, 0.58)
     b.store(4.2, -3.2, 0.0, -1.15, 0.3, "pod_gray", mirror=False, pylon=0.2)  # KKR-1
     b.store(2.2, -2.0, 1.55, -0.95, 0.34, "camo", pylon=0.3)  # drop tanks under the glove
 
