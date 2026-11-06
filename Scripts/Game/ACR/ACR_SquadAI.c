@@ -16,7 +16,7 @@ class ACR_SquadAI
  static bool TwoIC() { return ACR_Options.Flag("acr2IC"); }
 
  // The RP the 2IC leaves the commanding player for their own purchases (ACR_AICommander.Purse).
- static int TwoICKeep() { return Math.ClampInt(ACR_LogisticsRules.Choice("acr2ICKeep", "100").ToInt(), 0, 100000); }
+ static int TwoICKeep() { return Math.ClampInt(ACR_LogisticsRules.Choice("acr2ICKeep", "0").ToInt(), 0, 100000); }
 
  // The 2IC runs a side a player commands, or one with no AI commander at all (its squads would
  // stand idle). A side the AI commander leads never has one, its start-up hold included: pn10

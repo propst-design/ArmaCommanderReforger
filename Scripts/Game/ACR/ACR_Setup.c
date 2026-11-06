@@ -351,7 +351,7 @@ class ACR_Setup
   if (key == "pullover") return "Pull over before getting out";
   if (key == "evadearmour") return "Unarmed vehicles evade armour";
   if (key == "fieldsoffire") return "Guns clear bushes round them";
-  if (key == "twoic") return "2IC runs the side for you";
+  if (key == "twoic") return "I'm the 2IC: the AI commands";
   return key;
  }
 
@@ -374,7 +374,7 @@ class ACR_Setup
   if (key == "pullover") return "A squad told to get out on a road first has its driver pull\nonto the verge. Under fire it gets out where it stands.";
   if (key == "evadearmour") return "An unarmed vehicle that sees an armed enemy vehicle drives 300 m\naway, then carries on. Needs Better Battle Buddies' setting on too.";
   if (key == "fieldsoffire") return "Built guns, checkpoint posts and Fortify pieces clear the bushes\nround them and in front of a gun, the same on every screen.";
-  if (key == "twoic") return "While you command, the 2IC runs the side: buys units, runs supplies\nand FOBs, fights with the squads you leave it; 100 RP stay yours.";
+  if (key == "twoic") return "While you command, the AI commander runs the side as if you didn't;\nyou keep every command power and the squads you lead or order.";
   return "";
  }
 

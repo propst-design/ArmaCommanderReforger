@@ -1,17 +1,17 @@
-// -acrTwoICAllTest 1 (server-capable, ~2 min): the 2IC runs the whole side while a player commands
-// (-acr2IC 1, Jacob 5 Nov: the lazy commander). No AI commander on either side; the test says a
-// player commands US (ACR_TestHooks.PlayerCommandsForTest). The 2IC then runs the whole of US: it
-// may spend the side's RP down to the player's keep (-acr2ICKeep, 100), buys squads with it and
-// takes them on, and leaves a squad the player ordered alone. With nobody in command it only runs
-// the squads, and buys nothing.
+// -acrTwoICAllTest 1 (server-capable, ~2 min): "I'm the 2IC" (-acr2IC 1, Jacob 6 Nov): while a player
+// commands, the AI commander runs the whole side as if nobody did. No AI commander on either side;
+// the test says a player commands US (ACR_TestHooks.PlayerCommandsForTest). The AI then spends the
+// side's RP as a commander would (a -acr2ICKeep holds some back only when set), buys squads with a
+// modest purse (6 Nov play: a 100 RP keep left it 0-42 RP and it bought nothing all match) and takes
+// them on, and leaves a squad the player ordered alone. With nobody in command it only runs the
+// squads, and buys nothing.
 class ACR_TestTwoICAll
 {
- static const int CHECKS = 7;
+ static const int CHECKS = 6;
  static string s_sCommanded;
  static int s_iStep;
  static int s_iStepAt;
  static int s_iSquadsAt;
- static int s_iLowestRP;
 
  static void Run(ACR_TestHarness h, int tick)
  {
@@ -26,7 +26,6 @@ class ACR_TestTwoICAll
    ACR_Options.Set("acrDeployment", "all");
    s_sCommanded = "";
    s_iStep = 0;
-   s_iLowestRP = 100000;
   }
   ACR_Squad alpha = manager.FindSquadByGroup(h.m_Range.m_Group);
   ACR_Squad bravo = manager.FindSquadByGroup(h.m_Range.m_Bravo);
@@ -53,15 +52,18 @@ class ACR_TestTwoICAll
    bool runs = ACR_SquadAI.RunsAll(manager, "US") && !ACR_SquadAI.RunsAll(manager, "USSR");
    ACR_TestRegress.Check("twoicall: the 2IC runs the whole side only where a player commands", runs, string.Format("US %1, USSR %2", ACR_SquadAI.RunsAll(manager, "US"), ACR_SquadAI.RunsAll(manager, "USSR")));
    us.m_iRP = 400;
-   int richAll = ai.PurseForTest(true);
-   int richPlain = ai.PurseForTest(false);
+   int whole = ai.PurseForTest(true);
+   ACR_Options.Set("acr2ICKeep", "100");
+   int kept = ai.PurseForTest(true);
    us.m_iRP = 80;
-   int poorAll = ai.PurseForTest(true);
-   ACR_TestRegress.Check("twoicall: it may spend the side's RP down to the player's 100 RP keep", richAll == 300 && richPlain == 400 && poorAll == 0, string.Format("400 RP: %1 (as the AI in command %2); 80 RP: %3", richAll, richPlain, poorAll));
+   int keptPoor = ai.PurseForTest(true);
+   ACR_Options.Unset("acr2ICKeep");
+   ACR_TestRegress.Check("twoicall: it spends the side's RP like an AI commander; -acr2ICKeep holds some back only when set", whole == 400 && kept == 300 && keptPoor == 0, string.Format("400 RP: %1, with a 100 keep %2; 80 RP with the keep: %3", whole, kept, keptPoor));
    // A player's order claims Alpha: the 2IC must leave it alone from here on.
    ACR_SquadAI.TakeBack(alpha, ACR_ERequest.MOVE_TO);
    alpha.MoveTo(alpha.GetAnchor().GetOrigin() + Vector(-15, 0, 0));
-   us.m_iRP = 600;
+   // A modest purse, as in play.
+   us.m_iRP = 140;
    s_iSquadsAt = CountSide(manager, "US");
    NextStep(tick);
    return;
@@ -69,11 +71,9 @@ class ACR_TestTwoICAll
 
   if (s_iStep == 1)
   {
-   s_iLowestRP = Math.Min(s_iLowestRP, us.m_iRP);
    int now = CountSide(manager, "US");
    if (now <= s_iSquadsAt && waited < 100) return;
-   ACR_TestRegress.Check("twoicall: the 2IC buys squads for the side", now > s_iSquadsAt, string.Format("US squads %1 -> %2 after %3 s, %4 RP left", s_iSquadsAt, now, waited, us.m_iRP));
-   ACR_TestRegress.Check("twoicall: its purchases never take the side under the player's keep", s_iLowestRP >= ACR_SquadAI.TwoICKeep(), string.Format("lowest %1 RP (keep %2)", s_iLowestRP, ACR_SquadAI.TwoICKeep()));
+   ACR_TestRegress.Check("twoicall: the AI commander buys squads for the side with a modest purse", now > s_iSquadsAt, string.Format("US squads %1 -> %2 after %3 s, %4 RP left", s_iSquadsAt, now, waited, us.m_iRP));
    NextStep(tick);
    return;
   }

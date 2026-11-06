@@ -1124,6 +1124,14 @@ class ACR_AICommander : Managed
    m_fNextDoctrineReview = -1;
   }
   if (!m_bActive) return;
+  Turn();
+ }
+
+ // The AI commander's turn, every second: in command (Tick), or as the side's 2IC while a player
+ // commands (TickHanded(true), Jacob 6 Nov: "I'm the 2IC"), the same turn with the squads nobody
+ // has claimed (m_bHandedOnly: MySquads and the pickers see only those).
+ protected void Turn()
+ {
   GatherIntel();
   TickSapperDemos();
   m_iSeconds++;
@@ -5146,7 +5154,7 @@ class ACR_AICommander : Managed
    ACR_ScreenPost post = m_Screens[i];
    ACR_Squad squad = post.m_Squad;
    // Someone else has it now (a player, a defence, a refit), or it's gone.
-   if (!squad || !m_Manager.m_Squads.Contains(squad) || squad.CountAlive() == 0 || squad.HasPlayer() || squad.m_iAITask != ACR_EAITask.POSTED || !post.m_Base || post.m_Base.m_sOwner != m_sFaction)
+   if (!squad || !m_Manager.m_Squads.Contains(squad) || squad.CountAlive() == 0 || squad.HasPlayer() || !Ours(squad) || squad.m_iAITask != ACR_EAITask.POSTED || !post.m_Base || post.m_Base.m_sOwner != m_sFaction)
    {
     m_Screens.Remove(i);
     continue;
@@ -8413,7 +8421,17 @@ class ACR_AICommander : Managed
   if (all != m_bTwoICAllShown)
   {
    m_bTwoICAllShown = all;
-   if (all) TwoICReport(string.Format("Running the side: buying, supplies, FOBs and fire support. %1 RP stays yours", ACR_SquadAI.TwoICKeep()));
+   if (all) TwoICReport("Commanding the side as your 2IC: buying, supplies, FOBs and fire support. Your squads and orders stay yours");
+  }
+  if (all)
+  {
+   // "I'm the 2IC": the AI commander's whole turn, as if nobody commanded, with the squads nobody
+   // has claimed; the player keeps every command power and whatever squads they lead or order.
+   Turn();
+   if (m_iSeconds % TICK_SECONDS == 1) PrintFormat("[ACR] AI %1: commanding the side as the player's 2IC, %2 squad(s) handed to it, %3 attack(s)", m_sFaction, ACR_SquadAI.CountFor(m_sFaction), m_Attacks.Count());
+   m_bTwoICAll = false;
+   m_bHandedOnly = false;
+   return;
   }
   GatherIntel();
   TickSapperDemos(); // its FOB raids' charges, as in Tick (AssignAttacks starts them)
@@ -8428,19 +8446,9 @@ class ACR_AICommander : Managed
    Assess();
    UpdateAttacks();
    AssignDefenders();
-   if (all) ReturnToPosts();
    AssignAttacks();
    PostIdle();
    CatchRides();
-   if (all)
-   {
-    PositionMortars();
-    Recrew();
-    ManageLogistics();
-    ManageDangerRoads();
-    ManageFobBuild();
-    ManageFobUpgrades();
-   }
    int beforeBuild = m_Manager.m_Bases.GetRP(m_sFaction);
    ManageRoadblocks();
    SpendBuildBudget(beforeBuild - m_Manager.m_Bases.GetRP(m_sFaction));
@@ -8452,23 +8460,10 @@ class ACR_AICommander : Managed
    beforeBuild = m_Manager.m_Bases.GetRP(m_sFaction);
    ManagePendingBuilds();
    SpendBuildBudget(beforeBuild - m_Manager.m_Bases.GetRP(m_sFaction));
-   if (all)
-   {
-    beforeBuild = m_Manager.m_Bases.GetRP(m_sFaction);
-    ManageFortify();
-    SpendBuildBudget(beforeBuild - m_Manager.m_Bases.GetRP(m_sFaction));
-    Requisition();
-   }
-   PrintFormat("[ACR] AI %1: commanding %2 squad(s) handed to it, %3 attack(s)%4", m_sFaction, ACR_SquadAI.CountFor(m_sFaction), m_Attacks.Count(), TwoICAllStatus());
+   PrintFormat("[ACR] AI %1: commanding %2 squad(s) handed to it, %3 attack(s)", m_sFaction, ACR_SquadAI.CountFor(m_sFaction), m_Attacks.Count());
   }
   m_bTwoICAll = false;
   m_bHandedOnly = false;
- }
-
- protected string TwoICAllStatus()
- {
-  if (!m_bTwoICAll) return "";
-  return string.Format(" | running the side, %1 RP to spend over the player's %2", Purse(), ACR_SquadAI.TwoICKeep());
  }
 
  // The RP this commander may spend: all of the side's, but while it is the lazy commander's 2IC
@@ -8556,7 +8551,7 @@ class ACR_AICommander : Managed
  protected float m_fNextSmallLog;
  bool SmallForce()
  {
-  return m_bHandedOnly && ACR_TwoIC.On() && ACR_TwoIC.SmallForce(m_sFaction);
+  return m_bHandedOnly && !m_bTwoICAll && ACR_TwoIC.On() && ACR_TwoIC.SmallForce(m_sFaction); // commanding the side, it is no small force
  }
 
  // The most squads that stay on what they built: the doctrine's m_iHolders, a small force's half.

@@ -18,7 +18,7 @@ NEW
 - New orders: Defend on a road lays an ambush. QRF stands by and hunts any enemy within 300 m. Minefields in any shape, a line or an area. Big squads ride in convoys of two or three vehicles.
 - Content packs: optional add-ons can bring era vehicles, soldiers and an attack helicopter support into the game. The Cold War pack is the first.
 - More maps: the scenario generator now handles Chernarus Minus, Gulfcoast Islands, Kunar Province, West Zagoria and Zimnitrita (separate add-ons).
-- Experimental tab (setup screen): new features to try, all off until switched on, each with a line saying what it does. AI commanders that push down one lane, an AI job planner, an AI that forecasts where it will be attacked and defends ahead of it, AI squads that fall back in covered bounds, period jets over the recon flight and bomb run, AI squad tactics inside bases, vehicles that pull over before a get-out, unarmed vehicles that drive away from armour, guns that clear the bushes in front of them, and a 2IC that runs the side for you.
+- Experimental tab (setup screen): new features to try, all off until switched on, each with a line saying what it does. AI commanders that push down one lane, an AI job planner, an AI that forecasts where it will be attacked and defends ahead of it, AI squads that fall back in covered bounds, period jets over the recon flight and bomb run, AI squad tactics inside bases, vehicles that pull over before a get-out, unarmed vehicles that drive away from armour, guns that clear the bushes in front of them, and an "I'm the 2IC" mode where the AI commander runs the side while you keep command.
 - Optional, off by default: big maps get bigger armies.
 
 BETTER
