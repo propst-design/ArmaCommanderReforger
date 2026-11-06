@@ -93,42 +93,17 @@
         "0.2.1",
         "0.2.0",
         "0.1.0",
-        "0.3.3"
+        "0.3.3",
+        "0.3.4"
       ],
-      "pending": {
-        "version": "0.3.4",
-        "messages": [
-          {
-            "content": "AiO Command Menu -Reforger- — 0.3.4\nhttps://reforger.armaplatform.com/workshop/629405AEFC950C12\nPart 1/2 · relay b9f36116170de8f3:1\n\n0.3.4\n\nSee where your orders land, drive the menu with the mouse, and a long list of fixes. Ready for Arma Reforger 1.9.\n\nREFORGER 1.9\n\n- Checked against Arma Reforger 1.9: no changes were needed.\n- Loads with long mod lists. With ACE, AC: Actual, Better Battle Buddies and more loaded, the game could refuse to load its scripts.\n\nNEW\n\n- Aim marker: while the menu is open, a crosshair shows where an aimed order will land and how far away it is. It shows the building Garrison and Clear would use, the vehicle your men would get into, unflip or repair, and turns grey when there is nothing there. More > Aim marker sets its style and size, or turns it off.\n- Mouse control, old Arma style (More > Mouse control): the wheel moves through the menu, left click gives the order, right click goes back.\n- Your menu settings are remembered across missions and restarts.\n\nBETTER\n\n- The game's own command wheel now overrides AiO: a wheel order releases men you told to hold, and a wheel fire order ends their individual fire orders.\n- A soldier taken over by a player or Game Master is left to them, and gets his AiO orders back when the AI takes over again.\n- Ordered smoke now comes before shooting in a close fight.\n- Repairs happen only with the engineer beside the vehicle.\n- Disarm mines clears the nearest mine first and has a 400 m limit.\n- The menu closes while you are unconscious.\n\nFIXED\n\n- Fire on my lead no longer leaves men holding fire after a new order.\n- Men keeping station on you rejoin the squad if you disconnect, step down or change squads.\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "AiO Command Menu -Reforger- — 0.3.4\nhttps://reforger.armaplatform.com/workshop/629405AEFC950C12\nPart 2/2 · relay b9f36116170de8f3:2\n\n- A new squad leader can set off charges and cancel fire missions the old leader started; a mortar stops its mission when given a new order.\n- Cover spots and vehicle seats are freed when a soldier dies or never arrives.\n- Men return to their Combat or Stealth stance after a repair, disarm or hold.\n- Unflip, Lights and Engine, Garrison and Bound or Peel orders: several stuck or wrong cases.\n- Admin Teleport with group no longer sends a soldier to the corner of the map.\n- Every mission starts fresh after an admin restart.\n- A rare script error while a squad was still being set up.",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          }
-        ],
-        "next": 2,
-        "inflight": null,
-        "receipts": [
-          "1568095637298479281",
-          "1568095650707677314"
-        ]
-      },
+      "pending": null,
       "delivered": {
         "0.3.3": [
           "1564861703467048980"
+        ],
+        "0.3.4": [
+          "1568095637298479281",
+          "1568095650707677314"
         ]
       }
     }
