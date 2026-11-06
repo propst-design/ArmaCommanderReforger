@@ -63,7 +63,43 @@
         "0.1.6",
         "0.1.7"
       ],
-      "pending": null,
+      "pending": {
+        "version": "0.1.8",
+        "messages": [
+          {
+            "content": "Better Battle Buddies — 0.1.8\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 1/3 · relay b4887d79f77fa09a:1\n\n0.1.8\n\nSquads that keep attacking, AT gunners who use their rockets, and vehicles that behave. Ready for Arma Reforger 1.9.\n\nREFORGER 1.9\n\n- AI vehicles move again. 1.9's automatic gearbox cancelled the driving BBB does for AI drivers (backing away from a rocket or an armed vehicle, backing out when stuck), so trucks sat still or crept forward.\n- Handbrake when the driver leaves (on by default): in 1.9 an empty vehicle drops into neutral, so one left on a slope rolled away on its own.\n- Loads with long mod lists. With ACE, AC: Actual, AiO and more loaded, the game could refuse to load its scripts.\n\nNEW\n\n- AT gunners use their launchers on infantry: HE and dual-purpose rockets at groups and men behind cover, any rocket at men in buildings or dug in, unless enemy armour is about. They load the right warhead for the target when they carry one, and wait for contact before loading.\n- Machine gunners and AT gunners work with their ammo bearer: he stays close, hands over ammo before they run dry and picks up the launcher if his gunner falls.\n- Soldiers caught on a road in a firefight get off it into cover instead of lying on the tarmac.\n- Cover only counts when it is between a soldier and the enemy: no more men sheltering on the wrong side of the sandbags.\n- A gunner on an empty static gun gets off and fights with his rifle; he mans it again once it has ammo.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Better Battle Buddies — 0.1.8\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 2/3 · relay b4887d79f77fa09a:2\n\n- Covered fall-back for missions that use it: a squad its mission orders back under fire bounds back in two halves, one covering the other, instead of going prone where it stands. AC: Actual's Experimental tab switches it on; on its own it changes nothing.\n- Off by default, in the Battle Buddies settings tab: Hot AI (faster spotting and firing; sharper vehicle gunners), return fire at shooters you can't see, vehicles that give way to each other, and unarmed vehicles that get away from armour.\n\nBETTER\n\n- Attacking squads keep moving while they trade fire. They hold only when outnumbered or flanked.\n- Morale works: losses now count, and every squad gets a morale check on big missions, not just the first 64.\n- Squads hit by a vehicle or a static gun know where the fire comes from: they take cover, smoke and fall back.\n- Riflemen shoot at armoured vehicle crews standing in the hatches.\n- A gunner stays on his gun when the vehicle has no driver.\n- Lighter on the server.\n\nFIXED\n\n- AI throws grenades and fires launchers at enemy players again.\n- No frags under hold fire, and a frag waiting to be thrown is called off if a friendly walks into its path.\n- Player and Game Master orders are respected in more places, and a player's heal order to an AI medic is carried out.\n- With ACE Carrying, the host can walk normally while an AI soldier drags a casualty.\n- Every mission starts fresh after a server restart or scenario rotation.\n- Smoke counts as cover only once a grenade has actually been thrown.\n- A soldier stuck by a door is no longer stuck there for good.\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "Better Battle Buddies — 0.1.8\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 3/3 · relay b4887d79f77fa09a:3\n\n- Settings: smoke cooldowns take effect, launch parameters are read like the Settings tab, and the Gates and Unstick switches turn off everything they describe.\n- Several rare script errors.",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          }
+        ],
+        "next": 0,
+        "inflight": null
+      },
       "delivered": {
         "0.1.6": [
           "1564098960505966683",
