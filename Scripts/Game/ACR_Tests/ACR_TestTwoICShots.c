@@ -9,8 +9,10 @@
 // orange corners), 2ic_1b_full_card (the card on hover), 2ic_4_fob (only the banner and the
 // one-line sites), 2ic_4b_site_card (a site's card), 2ic_6_suggest_before, 2ic_7_suggest_after
 // (Truck sent, the dashed ring), 2ic_8_zoomed_out (the pill), 2ic_9_hidden_badge (the count).
+// VERDICT: the 15 checks beside the shots (the shots themselves are for a look, not graded).
 class ACR_TestTwoICShots
 {
+ static const int CHECKS = 15;
  static const ResourceName RIFLE_SQUAD = "{DDF3799FA1387848}Prefabs/Groups/BLUFOR/Group_US_RifleSquad.et";
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
  protected static bool s_bSuggested;
@@ -351,8 +353,13 @@ class ACR_TestTwoICShots
 
  protected static void Finish(string why)
  {
-  if (!why.IsEmpty()) PrintFormat("[ACR] TWOICSHOTS %1", why);
-  Print("[ACR] TEST COMPLETE");
+  if (why.IsEmpty())
+  {
+   ACR_TestRegress.Complete("twoicshots", CHECKS);
+   return;
+  }
+  PrintFormat("[ACR] TWOICSHOTS %1", why);
+  ACR_TestRegress.Abort("twoicshots", why);
  }
 }
 
