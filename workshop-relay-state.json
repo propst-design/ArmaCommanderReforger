@@ -13,50 +13,10 @@
         "0.5.7",
         "0.5.8",
         "0.5.9",
-        "0.5.10"
+        "0.5.10",
+        "0.5.11"
       ],
-      "pending": {
-        "version": "0.5.11",
-        "messages": [
-          {
-            "content": "Arma Commander Actual — 0.5.11\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 1/3 · relay a44d184d5e78c9ed:1\n\n0.5.11\r\n\r\nHotfix for 0.5.10: the period jets can be seen and heard, Project Outbreak zombies no longer lock you out of respawning, generated maps put their objectives in the towns, and bought tanks get their whole crew. Needs Better Battle Buddies 0.1.9.\r\n\r\nFIXED\r\n\r\n- Period jets (-acrPeriodJets 1) are visible and audible. The 0.5.9 and 0.5.10 Workshop builds left out their models and engine sounds, so recon flights and bomb runs flew invisible and silent for everyone.\r\n- With Project Outbreak's zombies in the match, a commander killed in his command unit could be stuck on the deploy screen with nothing to pick. Zombies no longer hold, contest or take bases; they still bring the garrison out to fight.\r\n- A side is never left with nowhere to deploy: if every deploy base is under attack and there is no HQ spawn point, its best base stays open.\r\n- Objectives on generated maps sit on their towns' houses, not on the map label beside them (13 places on Chernarus Minus, 4 hamlets on Everon).\r\n- An AI truck giving a squad a ride no longer turns back halfway to the service truck and leaves its riders on the road.\r\n- Soldiers no longer spawn inside sealed attics, cellars or thick castle walls.\r\n- Content packs: soldier swaps are rolled for each garrison soldier, FIA cell member and pocket fighter, so one unlucky roll no longer leaves a whole match without the pack's kit.\r\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "Arma Commander Actual — 0.5.11\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 2/3 · relay a44d184d5e78c9ed:2\n\n- AI commanders no longer plan attacks around helicopter rides they never get. Far squads were counted as flying in, then walked 6 km and the attack was called off, over and over; on big generated maps the front froze. A squad left walking far now leaves the attack at once.\r\n- AI vehicle crews that got out under fire get back into their vehicle instead of being sent off on foot and leaving it behind.\r\n- Bought tanks and IFVs get their whole crew: with the Cold War pack the Chieftain came with 2 of 4 men, the FV510 Warrior had no commander, and the T-55 and Leopard 1 no loader. Their commanders and loaders now stay aboard when passengers get out.\r\n- FIA's S105 and S1203 minibus and van come with an FIA driver, not a civilian nobody could command.\r\n- A gunner driving his vehicle from the turret climbs steep roads again on Reforger 1.9.\r\n\r\nNEW\r\n\r\n- Battlefield size: a quarter of the map (-acrSize quarter). On Chernarus Minus that is 15-19 objectives with the HQs 4-8 km apart.\r\n- Generated battles run in a different direction on each seed instead of always corner to corner.\r\n\r\nBETTER\r\n\r\n- I'm the 2IC (Experimental): while you command, the AI commander runs your side as if nobody did and spends its RP; you keep every command power and the squads you lead or order.\r\n- AI commanders with the AI build budget on no longer sit on RP their engineers aren't using: units now get all but the next build's 30 RP.\r\n- Game Master hears the period jets from the Game Master camera.\r\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "Arma Commander Actual — 0.5.11\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 3/3 · relay a44d184d5e78c9ed:3\n\n- The host debug menu names the side every button acts on, shows both sides' RP, and says when a click is ignored.",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          }
-        ],
-        "next": 3,
-        "inflight": null,
-        "receipts": [
-          "1568637910297743451",
-          "1568637922092126328",
-          "1568637933181865985"
-        ]
-      },
+      "pending": null,
       "delivered": {
         "0.5.7": [
           "1564098843732353084",
@@ -96,6 +56,11 @@
         "0.5.10": [
           "1568476874420654212",
           "1568476887045509201"
+        ],
+        "0.5.11": [
+          "1568637910297743451",
+          "1568637922092126328",
+          "1568637933181865985"
         ]
       }
     },
