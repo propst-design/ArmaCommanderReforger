@@ -188,11 +188,31 @@ class ACR_Rides : Managed
   if (!driver || !ACR_Respawn.IsAlive(driver)) return "no driver";
   if (ACR_Squad.FindController(driver) != 0) return "a player is driving";
   if (m_Manager.IsGunnerDriven(vehicle)) return "driven from the gun";
+  if (StuckLately(squad, vehicle)) return "stuck lately";
   // Idle, holding or defending somewhere, or heading home from an earlier ride.
   ACR_EOrderState state = squad.OrderState();
   if (state == ACR_EOrderState.HOLD || state == ACR_EOrderState.DEFEND || state == ACR_EOrderState.RETURN) return "";
   if (squad.m_Group != null && squad.m_Group.GetCurrentWaypoint() == null) return "";
   return "busy with an order";
+ }
+
+ // Gave up stuck lately (ACR_Squad.MarkStuck): another ride would only repeat that. AI soak 7 Nov
+ // (Everon, 2 h, main bb511a7d): four US trucks stuck by the Airbase warehouses were given 81 rides
+ // and delivered nobody, each new ride within 10 s of "stuck, crew stays aboard and holds"; 110 of
+ // the run's 139 cancelled rides came right after that line. CountIdleTransports skipped them,
+ // FindTransport and FindConvoy didn't. Each repeat at the same spot keeps it out STUCK_TAXI_WAIT_MS
+ // longer (up to STUCK_TAXI_WAIT_MAX times); once its vehicle is ACR_Squad.STUCK_SAME_SPOT_M from
+ // that spot (driven or pushed clear), it is a taxi again at once.
+ static const float STUCK_TAXI_WAIT_MS = 600000;
+ static const int STUCK_TAXI_WAIT_MAX = 4;
+ bool StuckLately(ACR_Squad squad, IEntity vehicle)
+ {
+  int repeats = squad.m_iStuckRepeats;
+  if (repeats < 1) repeats = 1;
+  if (repeats > STUCK_TAXI_WAIT_MAX) repeats = STUCK_TAXI_WAIT_MAX;
+  if (GetGame().GetWorld().GetWorldTime() - squad.m_fStuckAt >= repeats * STUCK_TAXI_WAIT_MS) return false;
+  if (vehicle && squad.m_iStuckRepeats > 0 && vector.DistanceXZ(vehicle.GetOrigin(), squad.m_vStuckSpot) >= ACR_Squad.STUCK_SAME_SPOT_M) return false;
+  return true;
  }
 
  // For a refused ride: the nearest of our crewed vehicles and why it can't come.
@@ -328,12 +348,10 @@ class ACR_Rides : Managed
  int CountIdleTransports(string faction, bool handedOnly = false)
  {
   int count;
-  float now = GetGame().GetWorld().GetWorldTime();
   foreach (ACR_Squad squad : m_Manager.m_Squads)
   {
    if (handedOnly && !squad.m_bAICommanded) continue;
-   if (now - squad.m_fStuckAt < 600000) continue; // gave up stuck lately: it won't be coming
-   if (!IsFreeTransport(squad, faction)) continue;
+   if (!IsFreeTransport(squad, faction)) continue; // not one that gave up stuck lately either (StuckLately)
    if (FreeSeats(ACR_Transport.CrewedVehicle(squad)) >= 4) count++;
   }
   return count;
