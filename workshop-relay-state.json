@@ -50,7 +50,7 @@
           }
         ],
         "next": 1,
-        "inflight": null,
+        "inflight": 1,
         "receipts": [
           "1568637910297743451"
         ]
