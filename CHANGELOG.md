@@ -5,6 +5,7 @@ Zombie mode on Project Outbreak, the 2IC back beside "I'm the 2IC", and AI logis
 
 ### AI commanders
 
+- Ready for Better Battle Buddies' surrender (from BBB 0.1.11): a soldier of an AI commander's squad who gives up (cut off, pinned, out of spare magazines or badly wounded, with an enemy close) drops his weapons and leaves his squad, which counts him as lost and is reinforced as for a death, and he neither holds nor contests a base. Squad retreats stay the AI commander's. With the BBB this version ships with, nothing changes.
 - The experimental 2IC and "I'm the 2IC" are both back as choices on the Experimental tab's 2IC row (off, 2IC, I'm the 2IC). In 0.5.11 "I'm the 2IC" replaced the 2IC. **2IC** (`-acr2IC 1`): while you command, the AI runs only the squads nobody leads, and the buying, logistics and FOBs stay yours, with its FOB suggestions. **I'm the 2IC** (now `-acr2IC 2`): the AI commander runs your side as if nobody commanded, and you keep every command power and your squads. A host who set `-acr2IC 1` for "I'm the 2IC" in 0.5.11 now sets `2`.
 
 - An AI commander with all the squads it may field still buys a service truck it needs. Service trucks don't count toward the squad limit, but the limit was checked first, so a side at full strength that lost its only fuel or repair truck went without one until it lost a squad.
