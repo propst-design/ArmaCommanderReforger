@@ -128,6 +128,45 @@ class ACR_FobSupply
   return store.GetMaxResourceValue();
  }
 
+ // The CP store is the representative of the HQ's resource encapsulator (vanilla
+ // SCR_ResourceEncapsulator): its value and max mirror the HQ's native child crates, and
+ // SetResourceValue fills or drains those crates. Raising only the store's max made the depot
+ // bonus a label (the crates still held 1000, and any crate change reset the max). The bonus goes
+ // on the last crate instead: generation fills crates first to last and consumption drains last to
+ // first, so that crate holds what is above the others' share and empties first when it shrinks.
+ static void SetCapacity(SCR_ResourceContainer store, float capacity)
+ {
+  if (!store) return;
+  SCR_ResourceEncapsulator encapsulator = store.GetResourceEncapsulator();
+  SCR_ResourceContainerQueueBase queue;
+  if (encapsulator) queue = encapsulator.GetContainerQueue();
+  SCR_ResourceContainer last;
+  if (queue && queue.GetContainerCount() > 0) last = queue.GetContainerAt(queue.GetContainerCount() - 1);
+  if (!last)
+  {
+   if (store.GetMaxResourceValue() != capacity) store.SetMaxResourceValue(capacity);
+   if (store.GetResourceValue() > capacity) store.SetResourceValue(capacity);
+   return;
+  }
+  float keep = Math.Min(store.GetResourceValue(), capacity);
+  float size = Math.Max(0, capacity - (encapsulator.GetAggregatedMaxResourceValue() - last.GetMaxResourceValue()));
+  bool changed;
+  // Shrinking: drain the excess first, through the encapsulator (it comes out of the last crate).
+  if (store.GetResourceValue() > keep) changed = store.SetResourceValue(keep);
+  if (Math.AbsFloat(last.GetMaxResourceValue() - size) >= 0.5)
+  {
+   last.SetMaxResourceValue(size);
+   // SetMaxResourceValue doesn't clamp the crate; anything over its new size is put back below.
+   if (last.GetResourceValue() > size) last.SetResourceValueUnsafe(size);
+   if (last.GetComponent()) last.GetComponent().Replicate();
+   changed = true;
+  }
+  if (store.GetResourceValue() < keep) store.SetResourceValue(keep);
+  float total = encapsulator.GetAggregatedMaxResourceValue();
+  if (Math.AbsFloat(store.GetMaxResourceValue() - total) >= 0.5) changed = store.SetMaxResourceValue(total);
+  if (changed && store.GetComponent()) store.GetComponent().Replicate();
+ }
+
  static ACR_Base Nearby(string faction, vector position)
  {
   foreach (ACR_Base base : ACR_Base.s_All)

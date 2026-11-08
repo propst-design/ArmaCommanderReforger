@@ -534,9 +534,7 @@ class ACR_Structures : Managed
   int capacity = ACR_FobSupply.CAPACITY;
   if (depot) capacity += ACR_LogisticsRules.DepotBonus();
   SCR_ResourceContainer store = ACR_Logistics.SupplyContainer(base.m_FobSupply);
-  if (!store) return;
-  if (store.GetMaxResourceValue() != capacity) store.SetMaxResourceValue(capacity);
-  if (store.GetResourceValue() > capacity) store.SetResourceValue(capacity);
+  ACR_FobSupply.SetCapacity(store, capacity);
  }
 
  // A completed relay composition must still contain its working antenna.

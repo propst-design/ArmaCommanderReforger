@@ -161,6 +161,31 @@ class ACR_TestStructures
   return total;
  }
 
+ // The CP store is one balance: its value and max equal its native crates' totals, and those
+ // crates hold the expected capacity. A store without an encapsulator only needs the max.
+ static bool CratesMatch(SCR_ResourceContainer store, float capacity)
+ {
+  if (!store || Math.AbsFloat(store.GetMaxResourceValue() - capacity) >= 0.5) return false;
+  SCR_ResourceEncapsulator crates = store.GetResourceEncapsulator();
+  if (!crates) return true;
+  return Math.AbsFloat(crates.GetAggregatedMaxResourceValue() - capacity) < 0.5 && Math.AbsFloat(crates.GetAggregatedResourceValue() - store.GetResourceValue()) < 0.5;
+ }
+
+ static string Crates(SCR_ResourceContainer store)
+ {
+  if (!store) return "no store";
+  string text = string.Format("store %1 / %2", store.GetResourceValue(), store.GetMaxResourceValue());
+  SCR_ResourceEncapsulator crates = store.GetResourceEncapsulator();
+  if (!crates || !crates.GetContainerQueue()) return text + ", no crates";
+  SCR_ResourceContainerQueueBase queue = crates.GetContainerQueue();
+  for (int i = 0; i < queue.GetContainerCount(); i++)
+  {
+   SCR_ResourceContainer box = queue.GetContainerAt(i);
+   if (box) text += string.Format(" [%1/%2]", box.GetResourceValue(), box.GetMaxResourceValue());
+  }
+  return text;
+ }
+
  static void CheckSupplies(ACR_Manager manager, ACR_Base fob)
  {
   ACR_TestRegress.Check("FOB: native command post storage capacity", NativeCapacity(s_HQ) == 1000, NativeCapacity(s_HQ).ToString());
@@ -519,6 +544,15 @@ class ACR_TestStructures
    ACR_TestRegress.Check("FOB: building UI sees paid stock after resource update", consumer && consumer.GetAggregatedResourceValue() == 1000 && consumer.GetAggregatedMaxResourceValue() == 3000, supplyDetail);
    ACR_TestRegress.Check("logistics: completed depot expands actual FOB capacity", ACR_FobSupply.CapacityOf(s_Fob) == 3000, ACR_FobSupply.CapacityOf(s_Fob).ToString());
    ACR_TestRegress.Check("logistics: multiple depots do not stack storage bonuses", s_Depot && s_ExtraDepot && manager.m_Structures.CountActive(ACR_EStructure.DEPOT, "US") == 2 && ACR_FobSupply.CapacityOf(s_Fob) == 3000, "");
+   // The CP store mirrors the HQ's native crates (an encapsulator): the bonus must be real storage
+   // there, not just a raised max on the store (7 Nov: filled to max it held 1000 of 3000).
+   SCR_ResourceContainer depotStore = ACR_Logistics.SupplyContainer(s_Fob.m_FobSupply);
+   depotStore.SetResourceValue(2000);
+   string ordered = ACR_FobSupply.Order(manager, "US", s_Fob);
+   ACR_FobSupply.Advance(s_Fob, 60000);
+   bool topped = depotStore.IncreaseResourceValue(50);
+   ACR_TestRegress.Check("logistics: depot FOB really stores more than 1000 (paid delivery, top-up)", s_Fob.m_iSupplyDelivery == 0 && ACR_FobSupply.Stock(s_Fob.m_FobSupply) == 2550 && topped && CratesMatch(depotStore, 3000),
+    string.Format("'%1', stock %2, %3", ordered, ACR_FobSupply.Stock(s_Fob.m_FobSupply), Crates(depotStore)));
    ACR_Options.Set("acrFobServices", "supplies");
    SCR_ResourceContainer serviceStore = ACR_Logistics.SupplyContainer(s_Fob.m_FobSupply);
    serviceStore.SetResourceValue(20);
@@ -545,7 +579,9 @@ class ACR_TestStructures
   }
   if (tick == 23)
   {
+   SCR_ResourceContainer lostStore = ACR_Logistics.SupplyContainer(s_Fob.m_FobSupply);
    ACR_TestRegress.Check("logistics: depot loss restores capacity and removes excess stock", ACR_FobSupply.CapacityOf(s_Fob) == 1000 && ACR_FobSupply.Stock(s_Fob.m_FobSupply) == 1000, "");
+   ACR_TestRegress.Check("logistics: depot loss shrinks the HQ's native crates back to 1000", CratesMatch(lostStore, 1000) && ACR_FobSupply.Stock(s_Fob.m_FobSupply) == 1000, Crates(lostStore));
    ACR_FobSupply.Advance(s_Fob, 60000);
    ACR_TestRegress.Check("logistics: paid delivery waits for space after depot loss", s_Fob.m_iSupplyDelivery == 500 && ACR_FobSupply.Stock(s_Fob.m_FobSupply) == 1000, "");
    ACR_Logistics.SupplyContainer(s_Fob.m_FobSupply).SetResourceValue(0);
@@ -637,7 +673,7 @@ class ACR_TestStructures
    ACR_TestRegress.Check("structures: pad gone with its helipad", last.Faction() == "", last.Faction());
    ACR_TestRegress.Check("FOB: supply provider removed with command post", s_Fob && !s_Fob.m_FobSupply && s_Fob.m_iSupplyDelivery == 0, "");
    ACR_TestSapperLive.Final();
-   ACR_TestRegress.Complete("structures", 86 + ACR_TestLogisticsRules.CHECKS + ACR_TestFobRelay.CHECKS + ACR_TestFobBuild.CHECKS + ACR_TestFobSlots.CHECKS + ACR_TestFobUpgrades.CHECKS + ACR_TestFobDefences.CHECKS + ACR_TestFobIntel.CHECKS + ACR_TestFobPatrol.CHECKS + ACR_TestSapperDemo.CHECKS + ACR_TestFobDesign.CHECKS + ACR_TestFobBuiltRace.CHECKS + ACR_TestSapperLive.CHECKS);
+   ACR_TestRegress.Complete("structures", 92 + ACR_TestLogisticsRules.CHECKS + ACR_TestFobRelay.CHECKS + ACR_TestFobBuild.CHECKS + ACR_TestFobSlots.CHECKS + ACR_TestFobUpgrades.CHECKS + ACR_TestFobDefences.CHECKS + ACR_TestFobIntel.CHECKS + ACR_TestFobPatrol.CHECKS + ACR_TestSapperDemo.CHECKS + ACR_TestFobDesign.CHECKS + ACR_TestFobBuiltRace.CHECKS + ACR_TestSapperLive.CHECKS);
   }
  }
 
