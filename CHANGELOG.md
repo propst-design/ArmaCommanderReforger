@@ -11,6 +11,7 @@
 
 ### FOBs and logistics
 
+- A truck of supplies for your FOB (#107, in every mode, zombies or not): park a construction truck beside the HQ of one of your built FOBs and use the game's own **Unload supplies** on it, and the load goes into the FOB's store, the one FOB building spends. Until now a FOB's store only filled through the 20 RP supply order; a truck's load could be built with but never put into a FOB. So you can buy a construction truck (from about 21 RP, arrives with 1000 supplies, refills slowly at your deployment bases) and run it out, which costs less than the order but can be ambushed on the road. Supplies can't be taken back out of a FOB into a truck, and a FOB whose HQ is destroyed takes nothing. Unloading next to a FOB's supply depot no longer drops the load into the depot's own crates, where nothing could use it. A FOB with an empty store says how to fill it.
 - A FOB with a supply depot really holds 3,000 supplies. The depot raised the FOB's storage limit on paper, but the supplies sit in the HQ's own crates, which still held 1,000 between them, so the FOB never stored more than before. The crates now grow to the depot's capacity, and the FOB goes back to 1,000 if the depot is lost.
 
 ### Zombies

@@ -260,12 +260,97 @@ class ACR_TestStructures
   ACR_TestRegress.Check("FOB: full store refuses delivery without charge", manager.m_Bases.GetRP("US") == beforeFull && fob.m_iSupplyDelivery == 0, "");
   SCR_ResourceConsumer loader = ACR_Logistics.SupplyContainer(s_Construction).GetComponent().GetConsumer(EResourceGeneratorID.VEHICLE_LOAD, EResourceType.SUPPLIES);
   ACR_TestRegress.Check("FOB: paid store forbids native truck loading", loader && !store.IsAllowed(loader), "");
+  CheckUnload(fob, store);
   CheckArsenal(fob, store);
   // An emptied truck inside the FOB must stay empty across real logistics ticks.
   manager.m_Logistics.Use(s_Construction, manager.m_Logistics.StockOf(s_Construction));
-  s_Construction.SetOrigin(fob.GetOrigin() + Vector(0, 0, 18));
+  // Beside the HQ, within vanilla's 12 m unload reach (CheckUnloadTransfer at tick 18).
+  s_Construction.SetOrigin(fob.GetOrigin() + Vector(7, 0, -7));
   s_EmptyTruckStock = manager.m_Logistics.StockOf(s_Construction);
   if (built) SCR_EntityHelper.DeleteEntityAndChildren(built);
+ }
+
+ // #107: a construction truck driven into the FOB's ring unloads into the store the way vanilla's
+ // "Unload supplies" does (truck consumer and VEHICLE_UNLOAD generator); not from outside the
+ // ring, and not into a FOB whose HQ is gone.
+ static void CheckUnload(ACR_Base fob, SCR_ResourceContainer store)
+ {
+  SCR_ResourceContainer cargo = ACR_Logistics.SupplyContainer(s_Construction);
+  SCR_ResourceGenerator unloader;
+  SCR_ResourceConsumer taker;
+  if (cargo)
+  {
+   unloader = cargo.GetComponent().GetGenerator(EResourceGeneratorID.VEHICLE_UNLOAD, EResourceType.SUPPLIES);
+   taker = cargo.GetComponent().GetConsumer(EResourceGeneratorID.VEHICLE_UNLOAD, EResourceType.SUPPLIES);
+  }
+  vector was = s_Construction.GetOrigin();
+  vector inRing = fob.GetOrigin() + Vector(0, 0, 18);
+  s_Construction.SetOrigin(fob.GetOrigin() + Vector(fob.m_fRadius + 40, 0, 0));
+  bool outside = unloader && store.IsAllowed(unloader);
+  s_Construction.SetOrigin(inRing);
+  fob.m_bHqLost = true;
+  bool lost = unloader && store.IsAllowed(unloader);
+  fob.m_bHqLost = false;
+  bool inside = unloader && store.IsAllowed(unloader);
+  ACR_TestRegress.Check("FOB: truck outside the ring can't unload into the store", unloader && !outside, string.Format("unloader %1", unloader != null));
+  ACR_TestRegress.Check("FOB: no unloading into a FOB whose HQ is gone", unloader && !lost, "");
+  string why = "";
+  if (unloader)
+  {
+   FactionAffiliationComponent truckSide = unloader.GetComponent().GetFactionAffiliationComponent();
+   string side = "none";
+   if (truckSide && truckSide.GetAffiliatedFaction()) side = truckSide.GetAffiliatedFaction().GetFactionKey();
+   why = string.Format("takes %1, truck side %2, truck at %3 m, cargo %4", ACR_FobSupply.TakesFrom(fob.m_FobSupply, store, unloader), side, vector.DistanceXZ(s_Construction.GetOrigin(), fob.GetOrigin()), unloader.GetOwner());
+  }
+  ACR_TestRegress.Check("FOB: truck in the ring may unload into the store", inside, why);
+  s_Construction.SetOrigin(was);
+ }
+
+ // #107: the transfer itself, as vanilla's unload action does it, once the truck has stood in the
+ // FOB's ring for a while (a moved truck's cargo box catches up a frame later, and the resource
+ // grid finds containers from the box). The truck goes back to empty and the store to its value.
+ static void CheckUnloadTransfer(ACR_Manager manager, ACR_Base fob)
+ {
+  SCR_ResourceContainer store = ACR_Logistics.SupplyContainer(fob.m_FobSupply);
+  SCR_ResourceContainer cargo = ACR_Logistics.SupplyContainer(s_Construction);
+  if (!store || !cargo) { ACR_TestRegress.Check("FOB: unloading moves supplies from truck to store", false, "no store or cargo"); return; }
+  SCR_ResourceGenerator unloader = cargo.GetComponent().GetGenerator(EResourceGeneratorID.VEHICLE_UNLOAD, EResourceType.SUPPLIES);
+  SCR_ResourceConsumer taker = cargo.GetComponent().GetConsumer(EResourceGeneratorID.VEHICLE_UNLOAD, EResourceType.SUPPLIES);
+  SCR_ResourceContainer crate = ACR_FobSupply.CommandPostStore(s_Depot);
+  ACR_TestRegress.Check("FOB: a depot's own crates refuse a truck's unload", unloader && crate && crate != store && !crate.IsAllowed(unloader), string.Format("crate %1", crate != null));
+  float stored = store.GetResourceValue();
+  // Room in the store: its native crates hold 1000 whatever the depot bonus says (probe below).
+  store.SetResourceValue(500);
+  float start = store.GetResourceValue();
+  manager.m_Logistics.AddStock(s_Construction, 200 / ACR_Logistics.SUPPLIES_PER_LOAD_CONSTRUCTION);
+  float before = cargo.GetResourceValue();
+  string reason = "no unloader";
+  if (unloader && taker)
+  {
+   SCR_ResourceGenerationResponse room = unloader.RequestAvailability(200);
+   reason = typename.EnumToString(EResourceReason, room.GetReason());
+   if (room.GetReason() == EResourceReason.SUFFICIENT)
+   {
+    taker.RequestConsumtion(200);
+    unloader.RequestGeneration(200);
+   }
+  }
+  float after = store.GetResourceValue();
+  string where = "";
+  if (unloader && unloader.GetContainerQueue())
+  {
+   SCR_ResourceContainerQueueBase queue = unloader.GetContainerQueue();
+   for (int q = 0; q < queue.GetContainerCount(); q++)
+   {
+    SCR_ResourceContainer box = queue.GetContainerAt(q);
+    if (box) where += string.Format(" [%1 %2/%3 store=%4]", FilePath.StripPath(box.GetOwner().GetPrefabData().GetPrefabName()), box.GetResourceValue(), box.GetMaxResourceValue(), box == store);
+   }
+  }
+  ACR_TestRegress.Check("FOB: unloading moves supplies from truck to store", before == 200 && after == start + 200 && cargo.GetResourceValue() == 0, string.Format("store %1 -> %2, truck %3 -> %4, %5", start, after, before, cargo.GetResourceValue(), reason + where));
+  manager.m_Logistics.Use(s_Construction, manager.m_Logistics.StockOf(s_Construction));
+  store.SetResourceValue(store.GetMaxResourceValue());
+  PrintFormat("[ACR] SUPPLY probe: FOB store filled to max holds %1 of %2 (depot bonus)", store.GetResourceValue(), store.GetMaxResourceValue());
+  store.SetResourceValue(stored);
  }
 
  // #156: a built ammo dump's arsenal takes gear on the FOB's store; one outside the FOB's ring
@@ -553,6 +638,7 @@ class ACR_TestStructures
    bool topped = depotStore.IncreaseResourceValue(50);
    ACR_TestRegress.Check("logistics: depot FOB really stores more than 1000 (paid delivery, top-up)", s_Fob.m_iSupplyDelivery == 0 && ACR_FobSupply.Stock(s_Fob.m_FobSupply) == 2550 && topped && CratesMatch(depotStore, 3000),
     string.Format("'%1', stock %2, %3", ordered, ACR_FobSupply.Stock(s_Fob.m_FobSupply), Crates(depotStore)));
+   CheckUnloadTransfer(manager, s_Fob);
    ACR_Options.Set("acrFobServices", "supplies");
    SCR_ResourceContainer serviceStore = ACR_Logistics.SupplyContainer(s_Fob.m_FobSupply);
    serviceStore.SetResourceValue(20);
@@ -673,7 +759,7 @@ class ACR_TestStructures
    ACR_TestRegress.Check("structures: pad gone with its helipad", last.Faction() == "", last.Faction());
    ACR_TestRegress.Check("FOB: supply provider removed with command post", s_Fob && !s_Fob.m_FobSupply && s_Fob.m_iSupplyDelivery == 0, "");
    ACR_TestSapperLive.Final();
-   ACR_TestRegress.Complete("structures", 92 + ACR_TestLogisticsRules.CHECKS + ACR_TestFobRelay.CHECKS + ACR_TestFobBuild.CHECKS + ACR_TestFobSlots.CHECKS + ACR_TestFobUpgrades.CHECKS + ACR_TestFobDefences.CHECKS + ACR_TestFobIntel.CHECKS + ACR_TestFobPatrol.CHECKS + ACR_TestSapperDemo.CHECKS + ACR_TestFobDesign.CHECKS + ACR_TestFobBuiltRace.CHECKS + ACR_TestSapperLive.CHECKS);
+   ACR_TestRegress.Complete("structures", 97 + ACR_TestLogisticsRules.CHECKS + ACR_TestFobRelay.CHECKS + ACR_TestFobBuild.CHECKS + ACR_TestFobSlots.CHECKS + ACR_TestFobUpgrades.CHECKS + ACR_TestFobDefences.CHECKS + ACR_TestFobIntel.CHECKS + ACR_TestFobPatrol.CHECKS + ACR_TestSapperDemo.CHECKS + ACR_TestFobDesign.CHECKS + ACR_TestFobBuiltRace.CHECKS + ACR_TestSapperLive.CHECKS);
   }
  }
 

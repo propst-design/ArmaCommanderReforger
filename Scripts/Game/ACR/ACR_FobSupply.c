@@ -232,6 +232,44 @@ class ACR_FobSupply
   return true;
  }
 
+ // #107 (Jacob, 7 Nov: buy a truck of supplies, in every mode): a truck driven into the FOB's ring
+ // may unload into the store with vanilla's "Unload supplies" (the truck's VEHICLE_UNLOAD
+ // generator). Unloading only ever adds to the FOB's owner, so whose truck it is doesn't matter;
+ // taking supplies back out (VEHICLE_LOAD) stays forbidden. A contested FOB still takes a
+ // delivery (it just can't spend it); a FOB whose HQ is gone takes nothing. Only the CP store
+ // itself: a depot's own crates are native containers ACA never spends from, so a load
+ // unloaded into them would be lost.
+ static bool TakesFrom(IEntity provider, notnull SCR_ResourceContainer container, notnull SCR_ResourceInteractor interactor)
+ {
+  if (container != ACR_Logistics.SupplyContainer(provider)) return false;
+  SCR_ResourceGenerator generator = SCR_ResourceGenerator.Cast(interactor);
+  if (!generator || generator.GetIdentifier() != EResourceGeneratorID.VEHICLE_UNLOAD) return false;
+  IEntity owner = interactor.GetOwner();
+  if (!owner) return false;
+  // The truck itself, not its cargo box (a part's position lags a moved truck by a frame).
+  IEntity truck = owner.GetRootParent();
+  if (!Vehicle.Cast(truck)) return false;
+  ACR_Base base = AtProvider(provider);
+  if (!base || base.m_bHqLost) return false;
+  return vector.DistanceXZ(truck.GetOrigin(), base.GetOrigin()) <= base.m_fRadius;
+ }
+
+ // Any other container inside a built FOB (a supply depot's crates, which vanilla lets a truck
+ // unload into) refuses a truck's load: ACA builds and serves only from the CP store, so it would
+ // be lost there. Park beside the HQ instead (vanilla unload reaches 12 m).
+ static bool Strands(notnull SCR_ResourceContainer container, notnull SCR_ResourceInteractor interactor)
+ {
+  SCR_ResourceGenerator generator = SCR_ResourceGenerator.Cast(interactor);
+  if (!generator || generator.GetIdentifier() != EResourceGeneratorID.VEHICLE_UNLOAD) return false;
+  IEntity owner = container.GetOwner();
+  if (!owner || Vehicle.Cast(owner.GetRootParent())) return false;
+  vector at = owner.GetOrigin();
+  foreach (ACR_Base base : ACR_Base.s_All)
+   if (base.m_bBuilt && !base.m_bRetired && base.m_FobSupply && vector.DistanceXZ(at, base.GetOrigin()) <= base.m_fRadius)
+    return container != ACR_Logistics.SupplyContainer(base.m_FobSupply);
+  return false;
+ }
+
  static bool SpendBuild(IEntity provider, int cost)
  {
   if (!Replication.IsServer() || cost < 0) return false;
@@ -269,7 +307,7 @@ class ACR_FobSupply
   if (!body || ACR_Logistics.Health(body) <= 0 || vector.DistanceXZ(body.GetOrigin(), base.GetOrigin()) > base.m_fRadius) return "Move inside the FOB to build";
   SCR_CampaignBuildingManagerComponent building = SCR_CampaignBuildingManagerComponent.Cast(GetGame().GetGameMode().FindComponent(SCR_CampaignBuildingManagerComponent));
   if (!building) return "Construction unavailable";
-  if (Stock(base.m_FobSupply) <= 0) return "Order construction supplies first";
+  if (Stock(base.m_FobSupply) <= 0) return "Order construction supplies first, or unload a construction truck by the HQ";
   building.EnterEditorMode(pc.GetPlayerId(), base.m_FobSupply, true, true);
   return "FOB construction opened";
  }
@@ -329,6 +367,7 @@ class ACR_FobSupply
  {
   string detail = string.Format("\nFOB supplies: %1 / %2", Stock(base.m_FobSupply), CapacityOf(base));
   if (base.m_bHqLost) detail += "\nHQ DESTROYED: offline until an Establish FOB order rebuilds it";
+  else if (Stock(base.m_FobSupply) <= 0) detail += "\nOrder supplies, or park a construction truck by the HQ and unload it";
   if (base.m_iSupplyDelivery > 0)
   {
    string state = "";
@@ -352,8 +391,9 @@ modded class SCR_CampaignBuildingManagerComponent
 
 // CP stock remains native/replicated and visible, but cannot be extracted by
 // trucks or vanilla generators. Its paid construction adapter and the FOB's own
-// arsenals (ACR_FobSupply.ServesFrom) may connect; ACR services debit the same
-// container explicitly.
+// arsenals (ACR_FobSupply.ServesFrom) may connect, and trucks may unload into it
+// (ACR_FobSupply.TakesFrom), never into a depot's crates (Strands); ACR services debit the
+// same container explicitly.
 modded class SCR_ResourceContainer
 {
  override bool IsAllowed(notnull SCR_ResourceInteractor interactor)
@@ -362,8 +402,9 @@ modded class SCR_ResourceContainer
   if (provider != GetOwner() && provider && provider.FindComponent(ACR_FobProviderComponent))
   {
    if (interactor.GetOwner() == provider) return SCR_ResourceConsumer.Cast(interactor) != null;
-   return ACR_FobSupply.ServesFrom(provider, interactor) && super.IsAllowed(interactor);
+   return (ACR_FobSupply.ServesFrom(provider, interactor) || ACR_FobSupply.TakesFrom(provider, this, interactor)) && super.IsAllowed(interactor);
   }
+  if (ACR_FobSupply.Strands(this, interactor)) return false;
   return super.IsAllowed(interactor);
  }
 }
