@@ -27,6 +27,9 @@ class ACR_RequisitionEntry
  bool m_bObserverTeam; // the built-in forward observer team (ACR_FireMissions)
  bool m_bRare;        // set automatically: aircraft, armour, mortar team, support helicopters keep a fixed stock
  int m_iSupportHeli;  // support helicopter for a helipad (ACR_HeliStation): 1 gunship, 2 door gunners, 3 a pack's attack helicopter
+ bool m_bExtra;       // deck builder: a kitted catalogue card that isn't in today's list (ACR_DeckCatalog.Extras)
+ bool m_bCustom;      // deck builder: a player's own team (ACR_DeckCatalog.CustomEntry)
+ bool m_bBoard;       // the group rides in the entry's vehicle (a custom team with a transport)
 
  ACR_EFormation m_eFormation; // independent of display names
  ref array<ResourceName> m_aSoldiers; // native templates retained for reinforcement

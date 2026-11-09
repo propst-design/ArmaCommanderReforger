@@ -250,7 +250,7 @@ class ACR_Setup
   string rows;
   bool generated = Current("layout").StartsWith("gen:");
   // The map preview sits right under the battlefield and its seed (25 Oct: it was last, a page away).
-  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "shared", "holdguns", "declutter", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
+  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
   foreach (string key : keys)
   {
    if (key == "seed" && !generated && Current("quickstart") == "off") continue;
@@ -264,6 +264,13 @@ class ACR_Setup
     else rows += string.Format("map\tShow the layout on the map (%1 bases)\n", s_PreviewNames.Count());
     continue;
    }
+   // Deck builder (#106): the editor opens on this player's own screen (client side).
+   if (key == "deckeditor")
+   {
+    if (Current("decks") != "0") rows += "deckeditor\tBuild decks and hand one in\n";
+    continue;
+   }
+   if ((key == "deckpoints" || key == "deckwest" || key == "deckeast") && Current("decks") == "0") continue;
    if (key == "undo")
    {
     int moves = ACR_Generator.MoveCount();
@@ -323,6 +330,10 @@ class ACR_Setup
   if (key == "doctrinewest") return "Blue AI doctrine";
   if (key == "doctrineeast") return "Red AI doctrine";
   if (key == "doctrineadapt") return "AI doctrines adapt";
+  if (key == "decks") return "Decks";
+  if (key == "deckpoints") return "Deck points";
+  if (key == "deckwest") return "Blue deck";
+  if (key == "deckeast") return "Red deck";
   if (key == "companywest") return "Blue company";
   if (key == "companyeast") return "Red company";
   if (key == "unitcap") return "AI squad cap";
@@ -427,6 +438,10 @@ class ACR_Setup
   else if (key == "doctrinewest" || key == "doctrineeast") values = {"", "random", "balanced", "blitz", "firepower", "fortress", "raider"};
   else if (key == "doctrineadapt") values = {"1", "0"};
   else if (key == "companywest" || key == "companyeast") values = {"", "mechanized", "weapons", "engineers", "recon"};
+  else if (key == "decks") values = {"1", "0"};
+  else if (key == "deckpoints") values = {"", "50", "75", "100", "150", "200", "300", "0"};
+  else if (key == "deckwest") values = ACR_Decks.RowValues(ACR_FactionSelection.West());
+  else if (key == "deckeast") values = ACR_Decks.RowValues(ACR_FactionSelection.East());
   else if (key == "unitcap") values = {"", "4", "6", "8", "12", "16", "24"};
   else if (key == "aibuild") values = {"0", "10", "15", "25"};
   else if (key == "capscale") values = {"0", "1"};
@@ -462,6 +477,10 @@ class ACR_Setup
   if (key == "zombiemode") return "acrZombieMode";
   if (key == "outbreak") return "acrOutbreak";
   if (key == "threat") return "acrThreat";
+  if (key == "decks") return "acrDecks";
+  if (key == "deckpoints") return "acrDeckPoints";
+  if (key == "deckwest") return "acrDeckWest";
+  if (key == "deckeast") return "acrDeckEast";
   if (key == "pricing") return "acrPricing";
   if (key == "ai") return "acrAI";
   if (key == "doctrinewest") return "acrDoctrineWest";
@@ -557,6 +576,7 @@ class ACR_Setup
    if (key == "aibuild") return "0";
    if (key == "capscale") return "0";
    if (key == "aicommander") return "new";
+   if (key == "decks") return "1";
    if (Experimental(key)) return "0";
   }
   if (key == "threat" && value == "") return "normal";
@@ -584,6 +604,9 @@ class ACR_Setup
    if (key == "doctrinewest") return ACR_AIDoctrine.FollowsRow(ACR_FactionSelection.West());
    if (key == "doctrineeast") return ACR_AIDoctrine.FollowsRow(ACR_FactionSelection.East());
    if (key == "companywest" || key == "companyeast") return ACR_DoctrineKits.CompanyName("rifle");
+   if (key == "deckpoints") return "by threat (" + ACR_DeckRules.BudgetName(ACR_DeckRules.Budget()) + ")";
+   if (key == "deckwest") return ACR_Decks.RowName(ACR_FactionSelection.West(), "");
+   if (key == "deckeast") return ACR_Decks.RowName(ACR_FactionSelection.East(), "");
    return "scenario default";
   }
   if (key == "layout")
@@ -616,6 +639,12 @@ class ACR_Setup
    return doctrine.m_sName;
   }
   if (key == "companywest" || key == "companyeast") return ACR_DoctrineKits.CompanyName(value);
+  if (key == "decks" && value == "0") return "off (the whole list, as before)";
+  if (key == "decks") return "on (each side buys from its deck)";
+  if (key == "deckpoints" && value == "0") return "unlimited";
+  if (key == "deckpoints") return value;
+  if (key == "deckwest") return ACR_Decks.RowName(ACR_FactionSelection.West(), value);
+  if (key == "deckeast") return ACR_Decks.RowName(ACR_FactionSelection.East(), value);
   if (key == "income") return "x" + value;
   if (key == "pockets" && value == "few") return "a few pockets (whole/half map)";
   if (key == "pockets" && value == "many") return "many pockets (whole/half map)";
@@ -824,7 +853,7 @@ class ACR_SetupClient
    if (now - s_fHintAt > 15000)
    {
     s_fHintAt = now;
-    SCR_HintManagerComponent.ShowCustomHint("Waiting for the host or an admin to set up the match and press Start. " + s_sInfo, "AC: Actual", 14, true);
+    SCR_HintManagerComponent.ShowCustomHint("Waiting for the host or an admin to set up the match and press Start. F3: build your deck and hand it in. " + s_sInfo, "AC: Actual", 14, true);
    }
    return;
   }
@@ -912,11 +941,17 @@ class ACR_SetupClient
  // "Show the layout on the map": the game's own full-screen map menu (works without a body).
  static void OpenPreviewMap()
  {
-  if (s_Dialog) { s_Dialog.Close(); s_Dialog = null; }
-  GetGame().GetMenuManager().OpenMenu(ChimeraMenuPreset.MapMenu);
+  OpenMap();
   string hint = "The planned layout. Press Escape or Return to match setup to go back.";
   if (s_sRows.Contains("Show and edit")) hint = "Click a CP, then its destination or Delete selected CP. HQs can only be moved. Undo layout edits restores moves and deletions; New seed rolls a different layout (edits belong to one seed). Markers show RP value and hidden sites. Press Escape or Return to match setup to go back.";
   SCR_HintManagerComponent.ShowCustomHint(hint, "AC: Actual", 12, true);
+ }
+
+ // The game's own full-screen map menu over the setup view (the layout preview, the deck editor).
+ static void OpenMap()
+ {
+  if (s_Dialog) { s_Dialog.Close(); s_Dialog = null; }
+  GetGame().GetMenuManager().OpenMenu(ChimeraMenuPreset.MapMenu);
  }
 
  static void Request(string key)
@@ -1114,6 +1149,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
   if (key.StartsWith("about")) return Tab(key.Substring(5, key.Length() - 5));
   if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "aibuild" || key == "capscale") return 1;
   if (key == "pricing" || key == "startrp" || key == "income" || key == "companywest" || key == "companyeast") return 2;
+  if (key == "decks" || key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return 2;
   if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "fobrelay" || key == "depotcapacity" || key == "servicecost" || key == "rpservice") return 3;
   if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "baseworks") return 4;
   if (ACR_Setup.Experimental(key)) return 5;
@@ -1278,6 +1314,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
   if (key.StartsWith("tab:")) { ShowTab(key.Substring(4, key.Length() - 4).ToInt()); return; }
   if (key == "next_page") { m_iPage = (m_iPage + 1) % m_iPages; Fill(m_sRows, m_sInfo); return; }
   if (key == "map") { ACR_SetupClient.OpenPreviewMap(); return; }
+  if (key == "deckeditor") { ACR_DeckClient.OpenFromSetup(); return; }
   ACR_SetupClient.Request(key);
  }
 

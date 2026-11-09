@@ -39,6 +39,7 @@ class ACR_TestHarness : Managed
  static const int MODE_RECREW = 121; // a driver who bailed is put back (120: order voices, parked)
  static const int MODE_MORTARGIVEUP = 122; // a mortar that can't reach its base isn't sent there again
  static const int MODE_CONTENTPACK = 145; // #108 a content pack plugged into ACR_ContentSocket (138-144 left for open branches)
+ static const int MODE_DECK = 290; // the deck builder (#106)
  static const int MODE_CREWAUDIT = 270; // every bought vehicle gets its full crew, no riders (6 Nov)
  static const int MODE_FACEOFF = 271; // the drive watch's queue and back-up checks go by the vehicle's own lane (7 Nov soak)
  static const int MODE_ROADHOPS = 137; // #86 a vehicle drives through road hops (134-136 left for open branches)
@@ -169,6 +170,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrContentPackWinterTest", flag)) mode = MODE_CONTENTPACK;
   if (System.GetCLIParam("acrCrewAuditTest", flag)) mode = MODE_CREWAUDIT;
   if (System.GetCLIParam("acrFaceOffTest", flag)) mode = MODE_FACEOFF;
+  if (System.GetCLIParam("acrDeckTest", flag)) mode = MODE_DECK;
   if (System.GetCLIParam("acrRoadHopsTest", flag)) mode = MODE_ROADHOPS;
   if (System.GetCLIParam("acrRoadHopsOffTest", flag)) mode = MODE_ROADHOPS;
   if (System.GetCLIParam("acrRTSOverlayTest", flag)) mode = MODE_RTSOVERLAY;
@@ -349,6 +351,7 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_CONTENTPACK) { ACR_TestContentPack.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_CREWAUDIT) { ACR_TestCrewAudit.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_FACEOFF) { ACR_TestFaceOff.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_DECK) { ACR_TestDecks.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_ROADHOPS) { ACR_TestRoadHops.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RTSOVERLAY) { ACR_TestRTSOverlay.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_INTELMARKS) { ACR_TestIntelMarkers.Run(this, m_Ticks); return; }

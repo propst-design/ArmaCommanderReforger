@@ -151,6 +151,7 @@ rblane|-acrRoadblockLaneTest 1|420
 roadsiting|-acrRoadSitingTest 1|120
 buildride|-acrBuildRideTest 1|540
 variety|-acrVarietyTest 1|60
+deck|-acrDeckTest 1|90
 mapdeclutter|-acrMapDeclutterTest 1|60
 mapdecluttershots|-acrMapDeclutterShotsTest 1|240
 minesiting|-acrMineSitingTest 1|120

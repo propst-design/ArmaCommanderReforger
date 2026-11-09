@@ -89,6 +89,8 @@ class ACR_BaseSystem : Managed
   if (settings) data.m_iRP = settings.m_iStartingRP;
   if (ACR_Manager.StartRPOption() > 0) data.m_iRP = ACR_Manager.StartRPOption();
   ACR_FactionCatalog.BuildRequisitions(factionKey, settings, data.m_aRequisitions);
+  // Deck builder (#106): the side's deck decides which of them it can buy.
+  ACR_Decks.Apply(factionKey, settings, data.m_aRequisitions);
   ACR_FactionCatalog.BuildGarrisonPool(factionKey, settings, data.m_aGarrison);
   // Only prefabs that load: an empty row, a typo or a mod that isn't loaded spawned nothing, and
   // the next tick counted the missing men as lost for good (audit 31 Oct).

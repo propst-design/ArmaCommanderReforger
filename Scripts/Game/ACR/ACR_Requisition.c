@@ -399,6 +399,8 @@ class ACR_Requisition : Managed
    SetUnitFaction(spawned, faction);
    purchase.m_Group = spawned;
    spawned.SetCustomName(name, 0);
+   // A custom team with its own transport gets in (ACR_DeckCatalog.CustomEntry).
+   if (vehicle && purchase.m_Entry && purchase.m_Entry.m_bBoard) m_Manager.m_PendingBoarding.Set(spawned, vehicle);
   }
   if (!passengers.IsEmpty())
   {
