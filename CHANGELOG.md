@@ -1,5 +1,7 @@
 # Changelog
-## 0.5.12 — unreleased
+## 0.5.13 — unreleased
+
+## 0.5.12 — released
 
 Zombie mode on Project Outbreak, the 2IC back beside "I'm the 2IC", and AI logistics fixes. Needs Better Battle Buddies 0.1.10. The zombie modes need the **Project Outbreak** mod; without it nothing changes. A compat add-on, **AC: Actual - Zombies**, follows separately.
 
