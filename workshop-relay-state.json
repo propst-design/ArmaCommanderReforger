@@ -42,8 +42,11 @@
             "flags": 4
           }
         ],
-        "next": 0,
-        "inflight": 0
+        "next": 1,
+        "inflight": null,
+        "receipts": [
+          "1569452213892423773"
+        ]
       },
       "delivered": {
         "0.5.7": [
