@@ -11,7 +11,9 @@ param(
  [string]$World,
  [string]$InstalledRoot,
  # Log line that proves the add-on started (maps: a generated base; content packs: plugged in).
- [string]$Signal
+ [string]$Signal,
+ # Extra server options for the check, e.g. '-acrSetup 0' (plain options only).
+ [ValidatePattern('^[-A-Za-z0-9 ]*$')][string]$ServerArgs
 )
 $ErrorActionPreference = 'Stop'
 if (Get-Process ArmaReforgerServer -ErrorAction SilentlyContinue) { throw 'A server is running. Wait for its test/session to finish before preparing a release.' }
@@ -50,6 +52,7 @@ if ($Mod -eq 'ACA') {
 New-Item -ItemType Directory -Path $ReportDirectory -Force | Out-Null
 $profile = Join-Path $ReportDirectory 'profile'
 $arguments = '-server "' + $serverWorld + '" -addonsDir "' + $dirs + '" -addons ' + $ids[$Mod] + ' -profile "' + $profile + '" -maxFPS 60 -noBackend'
+if ($ServerArgs) { $arguments += ' ' + $ServerArgs }
 Write-Host "Checking $Mod in isolation (usually under one minute)..."
 $process = Start-Process -FilePath $ServerPath -ArgumentList $arguments -WorkingDirectory (Split-Path $ServerPath -Parent) -WindowStyle Hidden -PassThru
 $started = Get-Date

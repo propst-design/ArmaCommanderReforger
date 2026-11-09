@@ -57,6 +57,9 @@ SPECS['PACK-ZOMBIES'] = dict(folder='ACAOutbreak', title='Arma Commander Actual 
                              guid='AC230926CC000004', dirs=['Missions'],
                              files=['LICENSE.md', 'README.md', 'CHANGELOG.md'],
                              world='{AC230926CC000401}Missions/ACR_Zombies_Everon.conf',
+                             # The scenario opens on the setup screen and nests are placed at Start:
+                             # skip setup so the header's zombie level is applied and logged.
+                             serverArgs='-acrSetup 0',
                              signal=r'\[ACR\] ZOMBIES many: ')
 
 
@@ -407,6 +410,8 @@ class Console:
             args += ['-AddonId', spec['guid'], '-World', spec['world'], '-InstalledRoot', self.addon_dirs()]
         if 'signal' in spec:
             args += ['-Signal', spec['signal']]
+        if 'serverArgs' in spec:
+            args += ['-ServerArgs', spec['serverArgs']]
         subprocess.run(args, check=True, stdout=sys.stderr)
         self.verify_manifest(parent)
         write_json(parent / 'STARTUP-CHECK.json', dict(
