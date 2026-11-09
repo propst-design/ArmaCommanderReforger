@@ -74,41 +74,10 @@
         "0.1.6",
         "0.1.7",
         "0.1.8",
-        "0.1.9"
+        "0.1.9",
+        "0.1.10"
       ],
-      "pending": {
-        "version": "0.1.10",
-        "messages": [
-          {
-            "content": "<@&1562228542274797608>\nBetter Battle Buddies — 0.1.10\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 1/2 · relay bae89fd244ab4e32:1\n\n0.1.10\r\n\r\nSquad leaders who run their squad's fight and vehicle commanders who run the gun. Works with AC: Actual 0.5.12.\r\n\r\nNEW\r\n\r\n- Squad leaders run their squad's fire. A man who hasn't spotted the enemy his squad is fighting is told where it is and looks there. When a second enemy group shows up on another side, the leader puts a fireteam's fire on it while the machine gunners stay on the main threat, and calls the group out. Options: -bbbSquadCue 0 and -bbbSquadFire 0 (or the Battle Buddies settings tab, Squad tactics).\r\n- The squad leader picks who helps a casualty. In a fight the machine gunner, the leader, the AT gunner (while enemy armour is about) and a short-handed flank team stay on their jobs and the nearest of the rest goes; if nobody else can, the nearest man still goes. Option: -bbbSquadJobs 0.\r\n- The squad leader draws the teams that bound. Fire and manoeuvre and flanking now split the squad into the left and right halves of the line to the enemy, keep a gunner with his assistant, let the machine gunner's half cover first, and leave the fireteam watching a flank out of the bounds. Option: -bbbSquadTeams 0.\r\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [
-                "1562228542274797608"
-              ],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "Better Battle Buddies — 0.1.10\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 2/2 · relay bae89fd244ab4e32:2\n\n- Vehicle crews fight as a crew: the commander (or the driver, if there is no commander) puts together what everyone aboard and his squad nearby can see and gives the gunner the most dangerous target, laying him onto it if he can't see it yet, and calls it out. In a test with a rifleman plinking at a LAV-25 and a squad off to the side, the gunner put 97% of his rounds on the squad instead of 70%. Option: -bbbCrewLeader 0 (or the Battle Buddies settings tab, Vehicles and crews).\r\n\r\nBETTER\r\n\r\n- Casualties dragged to cover are taken a few metres behind it instead of being left at its open edge, when the way is clear and the spot really hides them. Needs ACE Carrying, as drags always have. Option: -bbbDragDeep 0 brings back the old stopping point.\r\n\r\nFIXED\r\n\r\n- Commanders stay in their vehicles when a fight starts. The game counts a LAV-25's (or a mod tank's) commander seat as a passenger seat and unloaded it on contact; the crew of an armed vehicle now keep their seats while riders in the back still get out.\r\n- No more script error (Math.RandomFloat: invalid parameters) from a weapon whose fire mode has no shot length.",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          }
-        ],
-        "next": 2,
-        "inflight": null,
-        "receipts": [
-          "1569449690397806722",
-          "1569449703681302739"
-        ]
-      },
+      "pending": null,
       "delivered": {
         "0.1.6": [
           "1564098960505966683",
@@ -129,6 +98,10 @@
         ],
         "0.1.9": [
           "1568637958737895545"
+        ],
+        "0.1.10": [
+          "1569449690397806722",
+          "1569449703681302739"
         ]
       }
     },
