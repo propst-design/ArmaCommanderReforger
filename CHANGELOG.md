@@ -1,6 +1,10 @@
 # Changelog
 ## 0.5.13 — unreleased
 
+### AI commanders
+
+- Ready for Better Battle Buddies' surrender (from BBB 0.1.11): a soldier of an AI commander's squad who gives up (cut off, pinned, out of spare magazines or badly wounded, with an enemy close) drops his weapons and leaves his squad, which counts him as lost and is reinforced as for a death, and he neither holds nor contests a base. Squad retreats stay the AI commander's. With the BBB this version ships with, nothing changes.
+
 ## 0.5.12 — released
 
 Zombie mode on Project Outbreak, the 2IC back beside "I'm the 2IC", and AI logistics fixes. Needs Better Battle Buddies 0.1.10. The zombie modes need the **Project Outbreak** mod; without it nothing changes. A compat add-on, **AC: Actual - Zombies**, follows separately.
