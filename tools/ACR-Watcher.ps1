@@ -452,7 +452,7 @@ function Invoke-Request($file) {
     $world = 'Worlds/ACR_TestRange.ent'
     if ($config.World) { $world = $config.World }
     $game = Find-Game
-    $gameArgs = '-addonsDir "' + $AddonsDir + '" -addons AC230926A0010001 -profile "' + $ProfileDir + '" -noSplash -noBackend -world "' + $world + '" ' + $config.Flags
+    $gameArgs = '-addonsDir "' + $AddonsDir + '" -addons AC230926A0010001 -profile "' + $ProfileDir + '" -noSplash -noBackend -acrIntro 0 -world "' + $world + '" ' + $config.Flags
     Write-Host "[$time] Running '$preset'..." -ForegroundColor Cyan
     $started = Get-Date
     $proc = Start-Process -FilePath $game -ArgumentList $gameArgs -WorkingDirectory (Split-Path $game -Parent) -PassThru

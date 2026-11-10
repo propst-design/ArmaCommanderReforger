@@ -24,6 +24,7 @@ modded class SCR_KeybindSetting
     category.m_KeyBindingEntries.Insert(Entry("ACR_RTSFollow", "RTS camera: follow the selected squad", "click"));
     category.m_KeyBindingEntries.Insert(Entry("ACR_TwoICPanel", "2IC panel (map, with the 2IC on)", "click"));
     category.m_KeyBindingEntries.Insert(Entry("ACR_KeyHints", "Key reminders on/off", "click"));
+    category.m_KeyBindingEntries.Insert(Entry("ACR_IntroSkip", "Skip the mission intro", "click"));
     m_KeybindConfig.m_KeyBindingCategories.Insert(category);
    }
   }

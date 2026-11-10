@@ -27,6 +27,7 @@ class ACR_StaticInit
   ACR_Containment.ACR_InitStatics();
   ACR_Evac.ACR_InitStatics();
   ACR_Airdrop.ACR_InitStatics();
+  ACR_Intro.ACR_InitStatics();
   ACR_ContentSocket.ACR_InitStatics();
   ACR_Defenders.ACR_InitStatics();
   ACR_DoctrineKits.ACR_InitStatics();
