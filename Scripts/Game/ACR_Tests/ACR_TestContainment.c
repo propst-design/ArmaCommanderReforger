@@ -65,7 +65,7 @@ class ACR_TestContainment
    detail += string.Format(" %1(%2)", post.m_sName, post.m_iReserve);
   }
   Check("containment: the outbreak starts as one nest, ground zero", ACR_Containment.On() && nests == 1 && s_Zero != null, string.Format("on %1, nests %2:%3", ACR_Containment.On(), nests, detail));
-  if (!s_Zero) { ACR_TestRegress.Complete("containment", 13); return; }
+  if (!s_Zero) { ACR_TestRegress.Complete("containment", 14); return; }
   bool clear = true;
   foreach (ACR_Base base : ACR_Base.s_All)
    if (!base.m_sOwner.IsEmpty() && !base.m_bPocket && !base.m_bRetired && vector.DistanceXZ(base.GetOrigin(), s_Zero.m_vPos) < ACR_Outbreak.HQ_CLEAR) clear = false;
@@ -181,9 +181,21 @@ class ACR_TestContainment
   int reserve = s_Zero.m_iReserve;
   int sent = ACR_Outbreak.CounterAttack(at, "Test town", null, "US");
   bool counter;
+  ACR_DefenderPost horde;
   foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
-   if (post.m_Nest && post.m_Nest.m_bRoaming && post.m_Nest.m_bCounter && post.m_Nest.m_vGoal == at) counter = true;
+   if (post.m_Nest && post.m_Nest.m_bRoaming && post.m_Nest.m_bCounter && post.m_Nest.m_vGoal == at) { counter = true; horde = post; }
   Check("counterattack: a place taken near a nest has the dead come for it", sent >= 1 && counter, string.Format("sent %1, counter horde %2, ground zero had %3", sent, counter, reserve));
+  // #241: messages name the town, never the horde's label ("Zombies counterattacking ...").
+  string arrived = "none";
+  if (horde)
+  {
+   vector was = horde.m_vPos;
+   horde.m_vPos = at;
+   arrived = ACR_Outbreak.Place(horde);
+   horde.m_vPos = was;
+  }
+  string zero = ACR_Outbreak.Place(s_Zero);
+  Check("zombies: messages name the town, not the horde or nest label", arrived == "Test town" && zero == ACR_Containment.GroundZero(), string.Format("counter horde at its town: %1; ground zero: %2", arrived, zero));
   int again = ACR_Outbreak.CounterAttack(at, "Test town", null, "US");
   Check("counterattack: once per place, not again straight away", again == 0, string.Format("%1", again));
  }
@@ -192,7 +204,7 @@ class ACR_TestContainment
  {
   int level = ACR_Containment.LevelForTest();
   Check("containment: how far it has spread is worked out and reported", level >= 1, string.Format("level %1, %2 zombies", level, ACR_Outbreak.Total()));
-  ACR_TestRegress.Complete("containment", 13);
+  ACR_TestRegress.Complete("containment", 14);
  }
 
  protected static void Spawn(ACR_Manager manager, string name, vector at, float distance)

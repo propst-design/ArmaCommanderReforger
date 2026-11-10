@@ -381,6 +381,18 @@ class ACR_Outbreak
   else post.m_sName = string.Format("Zombies %1", ACR_Manager.Grid(post.m_vPos));
  }
 
+ // Where a nest or horde is, for messages and as the goal of the hordes it draws (never its label,
+ // #241): the town it holds, the town a horde has reached, the town it's in, else a grid.
+ static string Place(ACR_DefenderPost post)
+ {
+  ACR_ZombieNest nest = post.m_Nest;
+  if (nest && !nest.m_bRoaming && !nest.m_sBase.IsEmpty()) return nest.m_sBase;
+  if (nest && nest.m_bRoaming && !nest.m_sGoal.IsEmpty() && vector.DistanceXZ(post.m_vPos, nest.m_vGoal) < 400) return nest.m_sGoal;
+  foreach (ACR_Base base : ACR_Base.s_All)
+   if (!base.m_bRetired && !base.m_bHidden && vector.DistanceXZ(post.m_vPos, base.GetOrigin()) < base.m_fRadius + 200) return base.m_sName;
+  return ACR_Manager.Grid(post.m_vPos);
+ }
+
  // A nest's next horde: ground zero sends them sooner (ACR_Containment).
  protected static float NestHordeGap(ACR_ZombieNest nest)
  {
@@ -721,21 +733,22 @@ class ACR_Outbreak
    PrintFormat("[ACR] ZOMBIES %1 cleared", post.m_sName);
    // Containment pays the sides that cleared it (ACR_Containment.Bounty).
    int bounty = ACR_Containment.Bounty(post);
+   string place = Place(post);
    array<string> sides = {ACR_FactionSelection.West(), ACR_FactionSelection.East()};
    foreach (string side : sides)
    {
     if (!SideNear(manager, side, post.m_vPos, STAY_RANGE + 200)) continue;
-    string line = string.Format("%1 cleared", post.m_sName);
+    string line = string.Format("Zombies cleared at %1", place);
     int paid = ACR_Containment.Give(manager, side, bounty);
-    if (paid > 0) line = string.Format("%1 cleared: +%2 RP", post.m_sName, paid);
-    if (paid > 0) PrintFormat("[ACR] CONTAIN %1 paid %2 RP for clearing %3", side, paid, post.m_sName);
+    if (paid > 0) line = string.Format("Zombies cleared at %1: +%2 RP", place, paid);
+    if (paid > 0) PrintFormat("[ACR] CONTAIN %1 paid %2 RP for clearing %3", side, paid, place);
     ACR_Intel intel = manager.IntelFor(side);
     if (intel) intel.AddFeed(GetGame().GetWorld().GetWorldTime(), line, post.m_vPos);
    }
    string clearedBy = "";
    foreach (string near : sides) if (clearedBy.IsEmpty() && SideNear(manager, near, post.m_vPos, STAY_RANGE + 200)) clearedBy = near;
    ACR_Defenders.Remove(post);
-   if (!clearedBy.IsEmpty()) CounterAttack(post.m_vPos, post.m_sName, null, clearedBy);
+   if (!clearedBy.IsEmpty()) CounterAttack(post.m_vPos, place, null, clearedBy);
    return;
   }
   if (nest.m_Raid)
