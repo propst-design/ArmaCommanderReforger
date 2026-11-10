@@ -1552,7 +1552,18 @@ class ACR_TestRegress
   ACR_Options.Set("acrIntroMusic", "off");
   bool silent = ACR_Intro.MusicOption() == "";
   ACR_Options.Unset("acrIntroMusic");
-  Check("mission intro: on by default, off with -acrIntro 0, music option falls back and turns off", onByDefault && off && silent && music == ACR_Intro.DEFAULT_MUSIC, string.Format("default %1, off %2, silent %3, music %4", onByDefault, off, silent, music));
+  string zombieMusic = ACR_Intro.MusicOption(true);
+  ACR_Options.Set("acrIntroMusic", "off");
+  bool zombieOwn = ACR_Intro.MusicOption(true) == ACR_Intro.ZOMBIE_MUSIC;
+  ACR_Options.Unset("acrIntroMusic");
+  ACR_Options.Set("acrIntroMusicZombies", "off");
+  bool zombieSilent = ACR_Intro.MusicOption(true) == "" && ACR_Intro.MusicOption() == ACR_Intro.DEFAULT_MUSIC;
+  ACR_Options.Unset("acrIntroMusicZombies");
+  bool tracks = music == ACR_Intro.DEFAULT_MUSIC && zombieMusic == ACR_Intro.ZOMBIE_MUSIC && zombieOwn && zombieSilent;
+  // Jacob: Cliffhanger for the main modes, Lost As Shit with zombies; 15 s at most, the strike inside the orbit.
+  tracks = tracks && music.EndsWith(":SOUND_CLIFFHANGER") && zombieMusic.EndsWith(":SOUND_LOST_AS_SHIT");
+  bool timed = ACR_Intro.ORBIT_S + ACR_Intro.ZOOM_S <= 15.0 && ACR_Intro.STRIKE_S < ACR_Intro.ORBIT_S - 3.0 && ACR_Intro.FADE_S <= ACR_Intro.ZOOM_S;
+  Check("mission intro: on by default, off with -acrIntro 0, music options (main and zombies) fall back and turn off apart, 15 s cap", onByDefault && off && silent && tracks && timed, string.Format("default %1, off %2, silent %3, music %4, zombies %5 own %6 silent %7, timed %8", onByDefault, off, silent, music, zombieMusic, zombieOwn, zombieSilent, timed));
  }
 
  static void ServiceAtCapCheck(ACR_Manager manager)

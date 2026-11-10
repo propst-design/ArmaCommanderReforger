@@ -8,16 +8,25 @@
 // else sees, local widgets and local music. Skippable (Space / Enter: ACR_IntroSkip); a commander who
 // opens the command map or the RTS camera ends it at once, and it waits up to WAIT_S for the map,
 // a menu or the death fade to close before it starts (else it is dropped).
-// Options: -acrIntro 0 turns it off; -acrIntroMusic picks the sound ("{GUID}path.acp:EVENT", or off).
+// Options: -acrIntro 0 turns it off; -acrIntroMusic picks the sound ("{GUID}path.acp:EVENT", or off);
+// -acrIntroMusicZombies does the same for matches with zombies (ACR_Outbreak.On).
+// Jacob, 10 Nov 2026: main modes play "Cliffhanger", zombie matches "Lost As Shit" (both vanilla tracks,
+// played through ACA's Sounds/Music/ACR_IntroMusic.acp; no audio of ours shipped). 15 s at most from
+// start to handover; the music fades out over the end of the zoom and stops at the handover (a skip or
+// any early end stops it at once): it never plays on into the match. Zombie matches add a light strike
+// across the title on an onset in the music (STRIKE_S), then the word ZOMBIES.
 class ACR_Intro : Managed
 {
- static const float ORBIT_S = 16.0;     // the orbit
- static const float ZOOM_S = 4.0;       // the flight into the player's head
+ static const float ORBIT_S = 11.0;     // the orbit
+ static const float ZOOM_S = 4.0;       // the flight into the player's head; ORBIT_S + ZOOM_S <= 15
+ static const float FADE_S = 3.0;       // the music fades out over the last FADE_S
+ static const float STRIKE_S = 4.6;     // zombie matches: the strike, on an onset 4.6 s into Lost As Shit
  static const float WAIT_S = 20.0;      // how long a received intro waits for the map or a menu to close
  static const float ORBIT_RADIUS = 85.0;
  static const float ORBIT_HEIGHT = 32.0;
- static const float ORBIT_DEGREES = 110.0;
- static const string DEFAULT_MUSIC = "{71AA761577272A1B}Sounds/Music/Campaign/Music_Campaign.acp:SOUND_FOREST";
+ static const float ORBIT_DEGREES = 80.0;
+ static const string DEFAULT_MUSIC = "{C2C5BC05AC9625CD}Sounds/Music/ACR_IntroMusic.acp:SOUND_CLIFFHANGER";
+ static const string ZOMBIE_MUSIC = "{C2C5BC05AC9625CD}Sounds/Music/ACR_IntroMusic.acp:SOUND_LOST_AS_SHIT";
 
  // Server: players who already had theirs this match.
  protected static ref array<int> s_Sent;
@@ -46,11 +55,15 @@ class ACR_Intro : Managed
   return value != "0" && value != "false" && value != "off";
  }
 
- // "" = no music.
- static string MusicOption()
+ // "" = no music. Zombie matches have their own option and default.
+ static string MusicOption(bool zombies = false)
  {
   string value;
-  if (!ACR_Options.Get("acrIntroMusic", value) || value == "") return DEFAULT_MUSIC;
+  if (zombies)
+  {
+   if (!ACR_Options.Get("acrIntroMusicZombies", value) || value == "") return ZOMBIE_MUSIC;
+  }
+  else if (!ACR_Options.Get("acrIntroMusic", value) || value == "") return DEFAULT_MUSIC;
   string lower = value;
   lower.ToLower();
   if (lower == "0" || lower == "off" || lower == "none") return "";
@@ -92,8 +105,10 @@ class ACR_Intro : Managed
     if (line != "") line += "  |  ";
     line += where;
    }
-   PrintFormat("[ACR] INTRO sent player=%1 side=%2 hq=%3", id, key, where);
-   pc.ACR_SendIntro(at, line, MusicOption());
+   bool zombies = ACR_Outbreak.On();
+   string music = MusicOption(zombies);
+   PrintFormat("[ACR] INTRO sent player=%1 side=%2 hq=%3 zombies=%4 music=%5", id, key, where, zombies, music);
+   pc.ACR_SendIntro(at, line, music, zombies);
   }
  }
 
@@ -107,24 +122,31 @@ class ACR_Intro : Managed
  protected IEntity m_Body;
  protected CameraBase m_Camera;
  protected CameraBase m_PreviousCamera;
+ protected bool m_bZombies;
  protected AudioHandle m_Music = AudioHandle.Invalid;
+ protected bool m_bFading;
  protected Widget m_Root;
  protected ImageWidget m_Black;
  protected ImageWidget m_BarTop;
  protected ImageWidget m_BarBottom;
+ protected ImageWidget m_Flash;   // zombies: the white flash of the strike
+ protected ImageWidget m_Streak;  // zombies: the bolt of light sweeping across the title
+ protected ImageWidget m_Glow;    // zombies: the soft halo around the bolt
  protected TextWidget m_Title;
  protected TextWidget m_Subtitle;
+ protected TextWidget m_Zombies;
  protected TextWidget m_Line;
  protected TextWidget m_Hint;
 
  // The server's RPC (ACR_PlayerController.ACR_IntroOwner).
- static void Receive(vector centre, string line, string music)
+ static void Receive(vector centre, string line, string music, bool zombies)
  {
   if (s_Local || s_bLocalDone) return;
   s_Local = new ACR_Intro();
   s_Local.m_vCentre = centre;
   s_Local.m_sLine = line;
   s_Local.m_sMusic = music;
+  s_Local.m_bZombies = zombies;
   s_Local.m_fReceived = GetGame().GetWorld().GetWorldTime();
   Print("[ACR] INTRO received");
  }
@@ -179,6 +201,13 @@ class ACR_Intro : Managed
 
   float t = (now - m_fStart) / 1000.0;
   if (t >= ORBIT_S + ZOOM_S) { Stop("done"); return; }
+  // The music fades out as the camera comes down to the player. The engine's fade time is in ms, like
+  // every time in a sound project; Finish stops the sound at the handover whatever the fade did.
+  if (!m_bFading && t >= ORBIT_S + ZOOM_S - FADE_S)
+  {
+   m_bFading = true;
+   if (m_sMusic != "") AudioSystem.TerminateSoundFadeOut(m_Music, true, FADE_S * 1000.0);
+  }
   vector transform[4];
   if (t < ORBIT_S) Orbit(t, transform);
   else Zoom((t - ORBIT_S) / ZOOM_S, transform);
@@ -313,19 +342,35 @@ class ACR_Intro : Managed
    ACR_Hud.Remove(m_Root); // made through ACR_Hud.CreateLayer: untrack it too
    m_Root = null;
   }
-  // The music plays on into the match, as it did in Arma 2; a skip cuts it.
-  if (m_sMusic != "" && m_fStart >= 0 && GetGame().GetWorld() && (GetGame().GetWorld().GetWorldTime() - m_fStart) / 1000.0 < ORBIT_S + ZOOM_S) AudioSystem.TerminateSound(m_Music);
+  // The music never plays on into the match (Jacob): the handover, a skip or any early end stops it.
+  if (m_sMusic != "" && m_fStart >= 0) AudioSystem.TerminateSound(m_Music);
+  m_Music = AudioHandle.Invalid;
  }
 
  // ---------------------------------------------------------------- the screen
- protected ImageWidget Black(WorkspaceWidget ws, float top, float bottom)
+ protected ImageWidget Panel(WorkspaceWidget ws, Color color, float top, float bottom, int z)
  {
-  ImageWidget image = ImageWidget.Cast(ws.CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.BLEND | WidgetFlags.STRETCH | WidgetFlags.IGNORE_CURSOR, new Color(0, 0, 0, 1), 0, m_Root));
+  ImageWidget image = ImageWidget.Cast(ws.CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.BLEND | WidgetFlags.STRETCH | WidgetFlags.IGNORE_CURSOR, color, 0, m_Root));
   if (!image) return null;
   FrameSlot.SetAnchorMin(image, 0, top);
   FrameSlot.SetAnchorMax(image, 1, bottom);
   FrameSlot.SetOffsets(image, 0, 0, 0, 0);
+  image.SetZOrder(z);
   return image;
+ }
+
+ protected ImageWidget Black(WorkspaceWidget ws, float top, float bottom)
+ {
+  return Panel(ws, new Color(0, 0, 0, 1), top, bottom, 0);
+ }
+
+ // Places a panel at x0..x1, y0..y1 (fractions of the screen; it may run off either edge).
+ protected static void Place(ImageWidget image, float x0, float y0, float x1, float y1)
+ {
+  if (!image) return;
+  FrameSlot.SetAnchorMin(image, x0, y0);
+  FrameSlot.SetAnchorMax(image, x1, y1);
+  FrameSlot.SetOffsets(image, 0, 0, 0, 0);
  }
 
  protected TextWidget Text(WorkspaceWidget ws, ResourceName layout, float y, int size)
@@ -357,12 +402,29 @@ class ACR_Intro : Managed
   // A raw TextWidget has no font: use the game's styled text layouts (as the death fade does).
   m_Title = Text(ws, "{0D7FF083FDE39877}UI/layouts/WidgetLibrary/TextWidgets/Text_Heading4.layout", 0.44, 72);
   m_Subtitle = Text(ws, "{0D7FF083FDE39877}UI/layouts/WidgetLibrary/TextWidgets/Text_Heading4.layout", 0.53, 30);
-  m_Line = Text(ws, "{B537936D5B7E2BA1}UI/layouts/WidgetLibrary/TextWidgets/Text_BodySmall.layout", 0.6, 18);
+  float lineY = 0.6;
+  if (m_bZombies) lineY = 0.73;
+  m_Line = Text(ws, "{B537936D5B7E2BA1}UI/layouts/WidgetLibrary/TextWidgets/Text_BodySmall.layout", lineY, 18);
   m_Hint = Text(ws, "{B537936D5B7E2BA1}UI/layouts/WidgetLibrary/TextWidgets/Text_BodySmall.layout", 0.95, 14);
   if (m_Title) m_Title.SetText("ARMA  COMMANDER");
   if (m_Subtitle) m_Subtitle.SetText("A C T U A L");
   if (m_Line) m_Line.SetText(m_sLine);
   if (m_Hint) m_Hint.SetText("Space: skip");
+  if (!m_bZombies) return;
+  // Zombie matches: the word under the logo, a bolt of light that sweeps across the logo, its halo,
+  // and a white flash over everything at the moment of the strike.
+  m_Zombies = Text(ws, "{0D7FF083FDE39877}UI/layouts/WidgetLibrary/TextWidgets/Text_Heading4.layout", 0.635, 96);
+  if (m_Zombies)
+  {
+   m_Zombies.SetText("Z O M B I E S");
+   m_Zombies.SetColor(new Color(0.78, 0.06, 0.04, 1));
+  }
+  m_Glow = Panel(ws, new Color(0.75, 0.88, 1, 1), 0.36, 0.58, 3);
+  m_Streak = Panel(ws, new Color(1, 1, 1, 1), 0.38, 0.56, 4);
+  m_Flash = Panel(ws, new Color(0.92, 0.96, 1, 1), 0, 1, 5);
+  if (m_Glow) m_Glow.SetOpacity(0);
+  if (m_Streak) m_Streak.SetOpacity(0);
+  if (m_Flash) m_Flash.SetOpacity(0);
  }
 
  // 0 before a, rising to 1 by b, holding, falling from c to 0 at d.
@@ -387,10 +449,38 @@ class ACR_Intro : Managed
   if (t > ORBIT_S) bars = Math.Clamp(1.0 - (t - ORBIT_S) / (ZOOM_S * 0.6), 0, 1);
   if (m_BarTop) m_BarTop.SetOpacity(bars);
   if (m_BarBottom) m_BarBottom.SetOpacity(bars);
-  float title = Ramp(t, 1.5, 3.5, 10.5, 13.0);
-  if (m_Title) m_Title.SetOpacity(title);
-  if (m_Subtitle) m_Subtitle.SetOpacity(Ramp(t, 2.3, 4.3, 10.5, 13.0));
-  if (m_Line) m_Line.SetOpacity(Ramp(t, 3.5, 5.0, 10.5, 13.0) * 0.85);
+  // Titles: in over the first seconds, out before the orbit ends (all inside the 15 s).
+  float out0 = ORBIT_S - 2.6;
+  float out1 = ORBIT_S - 1.0;
+  if (m_Title) m_Title.SetOpacity(Ramp(t, 1.0, 2.4, out0, out1));
+  if (m_Subtitle) m_Subtitle.SetOpacity(Ramp(t, 1.6, 3.0, out0, out1));
+  float lineIn = 2.6;
+  if (m_bZombies) lineIn = STRIKE_S + 0.9;
+  if (m_Line) m_Line.SetOpacity(Ramp(t, lineIn, lineIn + 1.2, out0, out1) * 0.85);
   if (m_Hint) m_Hint.SetOpacity(Ramp(t, 1.0, 2.0, ORBIT_S, ORBIT_S + 1.0) * 0.6);
+  if (m_bZombies) DrawStrike(t, out0, out1);
+ }
+
+ // Zombie matches, around STRIKE_S: the bolt sweeps left to right across the logo in 0.3 s and lands on
+ // the beat, the screen flashes white and dies away, and ZOMBIES is there as the flash clears.
+ protected void DrawStrike(float t, float out0, float out1)
+ {
+  float d = t - STRIKE_S;
+  // The sweep: -0.3 .. 0 s, the bolt's centre from off the left edge to off the right.
+  float sweep = (d + 0.3) / 0.3;
+  float x = -0.1 + 1.2 * Math.Clamp(sweep, 0, 1);
+  float streak = 0;
+  if (sweep > 0 && sweep < 1) streak = 1;
+  else if (d >= 0 && d < 0.25) streak = 1.0 - d / 0.25;
+  Place(m_Streak, x - 0.012, 0.38, x + 0.012, 0.56);
+  Place(m_Glow, x - 0.07, 0.36, x + 0.07, 0.58);
+  if (m_Streak) m_Streak.SetOpacity(streak);
+  if (m_Glow) m_Glow.SetOpacity(streak * 0.35);
+  // The flash: up to 0.85 over the last 60 ms of the sweep, gone 0.7 s later.
+  float flash = 0;
+  if (d > -0.06 && d < 0) flash = (d + 0.06) / 0.06 * 0.85;
+  else if (d >= 0 && d < 0.7) flash = 0.85 * (1.0 - d / 0.7) * (1.0 - d / 0.7);
+  if (m_Flash) m_Flash.SetOpacity(flash);
+  if (m_Zombies) m_Zombies.SetOpacity(Ramp(t, STRIKE_S, STRIKE_S + 0.12, out0, out1));
  }
 }

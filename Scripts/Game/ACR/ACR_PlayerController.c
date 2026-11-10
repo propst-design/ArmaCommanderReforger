@@ -431,14 +431,14 @@ modded class SCR_PlayerController
  }
 
  // ---------------------------------------------------------------- mission intro (ACR_Intro)
- void ACR_SendIntro(vector centre, string line, string music)
+ void ACR_SendIntro(vector centre, string line, string music, bool zombies)
  {
-  Rpc(ACR_IntroOwner, centre, line, music);
+  Rpc(ACR_IntroOwner, centre, line, music, zombies);
  }
  [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
- protected void ACR_IntroOwner(vector centre, string line, string music)
+ protected void ACR_IntroOwner(vector centre, string line, string music, bool zombies)
  {
-  ACR_Intro.Receive(centre, line, music);
+  ACR_Intro.Receive(centre, line, music, zombies);
  }
 
  // ---------------------------------------------------------------- setup phase (ACR_Setup)

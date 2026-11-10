@@ -1,0 +1,100 @@
+AudioClass {
+ sounds {
+  SoundClass {
+   id 1033
+   name "SOUND_LOST_AS_SHIT"
+   version 5
+   tl 256 0
+   ins {
+    ConnectionsClass connections {
+     id 64
+     links {
+      ConnectionClass connection {
+       id 2052
+       port 65
+      }
+     }
+    }
+   }
+   outState 3083
+   outStatePort 4107
+  }
+  SoundClass {
+   id 5129
+   name "SOUND_CLIFFHANGER"
+   version 5
+   tl 256 256
+   ins {
+    ConnectionsClass connections {
+     id 64
+     links {
+      ConnectionClass connection {
+       id 6148
+       port 65
+      }
+     }
+    }
+   }
+   outState 3083
+   outStatePort 4107
+  }
+ }
+ mixers {
+  MixerClass {
+   id 3083
+   name "OutputState"
+   version 4
+   tl 512 0
+   res "{AF08E302CF8BA2E6}Sounds/FinalMix_UI_Music.afm"
+   ins {
+    ConnectionsClass connections {
+     id 4107
+     links {
+      ConnectionClass connection {
+       id 1033
+       port 65
+      }
+      ConnectionClass connection {
+       id 5129
+       port 65
+      }
+     }
+    }
+   }
+   pi {
+    1 0
+   }
+   path "{AF08E302CF8BA2E6}Sounds/FinalMix_UI_Music.afm"
+   inputs {
+    "Music" "UI"
+   }
+  }
+ }
+ banks_local {
+  BankLocalClass {
+   id 2052
+   name "Lost As Shit"
+   version 7
+   tl -256 0
+   Volume -8
+   Samples {
+    AudioBankSampleClass Sample {
+     Filename "{D9BBAA82A51B8B9C}Sounds/Music/Campaign/Samples/Layers/MU_LostAsShit_Full.snd"
+    }
+   }
+  }
+  BankLocalClass {
+   id 6148
+   name "Cliffhanger"
+   version 7
+   tl -256 256
+   Volume -16
+   Samples {
+    AudioBankSampleClass Sample {
+     Filename "{4B01DB429C6640D9}Sounds/Music/KS/Samples/MU_Cliffhanger.snd"
+    }
+   }
+  }
+ }
+ version 1
+}
