@@ -257,6 +257,7 @@ class ACR_Evac
   }
   FactionAffiliationComponent affiliation = FactionAffiliationComponent.Cast(man.FindComponent(FactionAffiliationComponent));
   if (affiliation) affiliation.SetAffiliatedFactionByKey("CIV");
+  ACR_CivilianSocket.Get().Register(man); // the sides' civilian rings (ACR_Intel.CivilianActivity)
   return man;
  }
 

@@ -2521,13 +2521,16 @@ modded class SCR_PlayerController
    string label = m_ACR_Data.m_ZoneLabels[i];
    // "~": a mortar team's range ring, labelled at the tube.
    bool range = label.StartsWith("~");
-   if (range) label = label.Substring(1, label.Length() - 1);
+   // "%": civilians seen in that square (ACR_Intel.CivilianZones), violet.
+   bool civilians = ACR_Intel.IsCivilianZone(label);
+   if (range || civilians) label = label.Substring(1, label.Length() - 1);
    marker.m_Label = label;
    vector pos = m_ACR_Data.m_ZonePositions[i];
    marker.SetWorldPos(pos[0], pos[2]);
    marker.RefreshStyle();
    Color color = new Color(1, 0.2, 0.15, 1);
    if (range) color = new Color(0.55, 0.8, 1, 1);
+   if (civilians) color = new Color(0.78, 0.6, 1, 1);
    if (marker.GetRootWidget()) marker.ACR_SetColor(color);
   }
  }

@@ -282,6 +282,7 @@ class ACR_Intel : Managed
   if (m_iTicks % 2 == 0) PlayerSightings(players, now);
   else TrackVehicles(players, now);
   if (m_iTicks % 4 == 1) SpotFobs(players, now);
+  if (m_iTicks % 5 == 3) CivilianActivity(players, now);
   // Forget the stale and the dead.
   array<IEntity> stale = {};
   foreach (IEntity enemy, float when : m_SeenTime)
@@ -302,6 +303,122 @@ class ACR_Intel : Managed
    array<string> old = {};
    foreach (string key, float when : m_Reported) if (now - when > REPORT_AGAIN_MS) old.Insert(key);
    foreach (string done : old) m_Reported.Remove(done);
+  }
+ }
+
+ // ---------------------------------------------------------------- civilian activity
+ // Civilians are never contacts (FriendlyTo keeps them out). A commander still wants to know where
+ // the townsfolk are, so a hostile marker in a town isn't taken for them and a fire mission isn't
+ // called on a busy square. Deliberately vague: civilians near our eyes are counted per CIV_CELL
+ // square, and the map shows a violet ring over the square with a rough size, never a pin or a
+ // heading. One whose faction turns hostile (an Outbreak bite, a mission's insurgent) leaves the
+ // count and is reported as a contact by the normal paths once one of ours sees it.
+ // Map only: the AI commander, fire missions, QRFs, the forecast and BBB never read it.
+ static const float CIV_CELL = 250;          // m: the square a count is kept for
+ static const float CIV_SIGHT = 300;         // m from a squad leader or player of ours (no sight line: it's vague)
+ static const float CIV_MEMORY_MS = 180000;  // a square is shown this long after its last count
+ static const string CIV_ZONE = "%";         // zone label prefix: a civilian ring (clients draw it violet)
+ protected ref map<int, int> m_CivCount = new map<int, int>(); // cell -> civilians at the last count
+ protected ref map<int, float> m_CivSeen = new map<int, float>(); // cell -> when
+
+ protected void CivilianActivity(array<int> players, float now)
+ {
+  array<IEntity> civilians = {};
+  ACR_CivilianSocket.Get().Civilians(civilians);
+  map<int, int> counts = new map<int, int>();
+  if (!civilians.IsEmpty())
+  {
+   array<vector> eyes = {};
+   array<float> reach = {};
+   foreach (ACR_Squad squad : m_Manager.m_Squads)
+   {
+    if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction || !squad.GetAnchor()) continue;
+    eyes.Insert(squad.GetAnchor().GetOrigin());
+    reach.Insert(CIV_SIGHT);
+   }
+   foreach (int id : players)
+   {
+    IEntity body = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
+    if (!body || !ACR_Respawn.IsAlive(body) || FactionKeyOf(body) != m_sFaction) continue;
+    eyes.Insert(body.GetOrigin());
+    reach.Insert(CIV_SIGHT);
+   }
+   foreach (ACR_Base base : ACR_Base.s_All)
+   {
+    if (!base || base.m_sOwner != m_sFaction) continue;
+    eyes.Insert(base.GetOrigin());
+    reach.Insert(base.m_fRadius + SENTRY_RANGE);
+   }
+   foreach (IEntity civilian : civilians)
+   {
+    string key = FactionKeyOf(civilian);
+    if (!key.IsEmpty() && !FriendlyTo(m_sFaction, key)) continue; // hostile now: a contact, not a civilian
+    vector at = civilian.GetOrigin();
+    foreach (int e, vector eye : eyes)
+    {
+     if (vector.DistanceXZ(eye, at) > reach[e]) continue;
+     int cell = CivCell(at);
+     counts.Set(cell, counts.Get(cell) + 1);
+     break;
+    }
+   }
+  }
+  foreach (int counted, int n : counts)
+  {
+   m_CivCount.Set(counted, n);
+   m_CivSeen.Set(counted, now);
+  }
+  array<int> stale = {};
+  foreach (int known, float when : m_CivSeen) if (now - when > CIV_MEMORY_MS) stale.Insert(known);
+  foreach (int gone : stale)
+  {
+   m_CivSeen.Remove(gone);
+   m_CivCount.Remove(gone);
+  }
+ }
+
+ static int CivCell(vector at)
+ {
+  int gx = at[0] / CIV_CELL;
+  int gz = at[2] / CIV_CELL;
+  return gx * 1000 + gz;
+ }
+
+ static vector CivCellMiddle(int cell)
+ {
+  int gx = cell / 1000;
+  int gz = cell - gx * 1000;
+  return Vector((gx + 0.5) * CIV_CELL, 0, (gz + 0.5) * CIV_CELL);
+ }
+
+ // How many, said loosely on purpose.
+ static string CivAmount(int count)
+ {
+  if (count <= 3) return "a few";
+  if (count <= 9) return "some";
+  return "many";
+ }
+
+ int CivilianCells() { return m_CivCount.Count(); }
+
+ static bool IsCivilianZone(string label) { return label.StartsWith(CIV_ZONE); }
+
+ // The side's civilian rings for the map (ACR_MapFeed.BuildZones): labels change at most once a minute.
+ static void CivilianZones(string faction, notnull array<vector> positions, notnull array<float> radii, notnull array<string> labels)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager) return;
+  ACR_Intel intel = manager.IntelFor(faction);
+  if (!intel) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  foreach (int cell, int count : intel.m_CivCount)
+  {
+   positions.Insert(CivCellMiddle(cell));
+   radii.Insert(CIV_CELL * 0.6);
+   string label = CIV_ZONE + "Civilians seen: " + CivAmount(count);
+   int minutes = (now - intel.m_CivSeen.Get(cell)) / 60000;
+   if (minutes > 0) label += string.Format(", %1 min ago", minutes);
+   labels.Insert(label);
   }
  }
 

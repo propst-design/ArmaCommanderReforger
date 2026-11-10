@@ -49,6 +49,10 @@
 
 - AI drivers judge "one of ours in the way" by their own lane. The stuck watch took any stopped vehicle of ours within 25 m on the side toward the destination for one it was queueing behind, and any within 10 m on the other side for one it mustn't back into, whichever way the vehicle faced, so a truck parked beside it counted, and two trucks nose to nose each waited for the other. In the Airbase motor pool on Everon, Humvee 1 was stopped from backing up by "a vehicle right behind" 64 times in 80 minutes. Now only a vehicle in front of its nose and in its lane makes a driver wait, and only one right behind its tail stops a back-up. Nose to nose, the newer of the two gives way and backs up while the older one waits.
 
+### Civilians
+
+- Civilians on the map: where your soldiers, players or bases have civilians around them, your map shows a thin violet ring over that part of town, "Civilians seen: a few / some / many", with how long ago if it's old news. They are not the red "Civilians (n)" towns holding out from the dead. It's vague on purpose: no pins and no headings, and anyone who turns hostile drops out of it and shows as an enemy once your people see them. Civilians come from the **Civil Population** mod through its compat add-on (update the add-on with this version), or from anything else that registers them with ACA. The rings hide with the map's zones layer. AI commanders don't use them.
+
 ## 0.5.12 — released
 
 Zombie mode on Project Outbreak, the 2IC back beside "I'm the 2IC", and AI logistics fixes. Needs Better Battle Buddies 0.1.10. The zombie modes need the **Project Outbreak** mod; without it nothing changes. A compat add-on, **AC: Actual - Zombies**, follows separately.
