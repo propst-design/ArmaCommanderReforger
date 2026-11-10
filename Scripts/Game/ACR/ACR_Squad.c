@@ -2629,7 +2629,7 @@ class ACR_Squad : Managed
   m_aDriverBails.Insert(now);
   if (m_aDriverBails.Count() < BAIL_LIMIT) return;
   m_aDriverBails.Clear();
-  m_fStuckAt = now;
+  MarkStuck(m_OwnVehicle, now);
   PrintFormat("[ACR] CREW %1: its driver keeps getting out (%2 times in %3 min), taken as stuck", m_Name, BAIL_LIMIT, (int)(BAIL_WINDOW_MS / 60000));
  }
  protected ref map<IEntity, int> m_CrewSeats = new map<IEntity, int>();
@@ -3794,6 +3794,22 @@ class ACR_Squad : Managed
  protected float m_fBoardingSince = -1;
  protected vector m_vUnstickFrom;
  float m_fStuckAt = -1000000; // world time the squad last gave up on a stuck vehicle (AI re-crewing waits)
+ // Where its vehicle was when it last gave up stuck, and how many times running it gave up within
+ // STUCK_SAME_SPOT_M of that spot. ACR_Rides.StuckLately keeps a repeat offender out of the taxi
+ // pool longer, and frees it at once when it is that far from the spot again.
+ vector m_vStuckSpot;
+ int m_iStuckRepeats;
+ static const float STUCK_SAME_SPOT_M = 40;
+ // Gave up on a stuck vehicle at 'now' (m_fStuckAt). vehicle: where it is; null keeps the last spot.
+ void MarkStuck(IEntity vehicle, float now)
+ {
+  vector at = m_vStuckSpot;
+  if (vehicle) at = vehicle.GetOrigin();
+  if (m_iStuckRepeats > 0 && vector.DistanceXZ(at, m_vStuckSpot) < STUCK_SAME_SPOT_M) m_iStuckRepeats++;
+  else m_iStuckRepeats = 1;
+  m_vStuckSpot = at;
+  m_fStuckAt = now;
+ }
  protected bool m_bUnsticking;
  protected ref ACR_SquadUnstick m_UnstickListener; // told by BBB_Unstick when backing out is over
  protected bool m_bResumeOnFoot;
@@ -4118,7 +4134,7 @@ class ACR_Squad : Managed
     Halt("Stuck, holding");
     m_iUnsticks = 0;
     m_iReroutes = 0;
-    m_fStuckAt = now;
+    MarkStuck(vehicle, now);
     PrintFormat("[ACR] DRIVE %1: stuck, holding position (armed vehicle)", m_Name);
     return;
    }
@@ -4323,7 +4339,7 @@ class ACR_Squad : Managed
   m_StallVehicle = null;
   m_iUnsticks = 0;
   m_iReroutes = 0;
-  m_fStuckAt = now;
+  MarkStuck(vehicle, now);
   if (vehicle) ACR_Transport.SanitizeVehicleHorn(vehicle, true);
   PrintFormat("[ACR] DRIVE %1: stuck, crew stays aboard and holds", m_Name);
  }

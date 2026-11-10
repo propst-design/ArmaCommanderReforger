@@ -1305,6 +1305,7 @@ class ACR_TestRegress
    foreach (ACR_Squad squad : manager.m_Squads) if (squad.GetName() == "Regress Truck") crew = squad;
    Check("vehicle crew keeps its unit name", crew != null && crew.m_OwnVehicle != null, string.Format("found %1", crew != null));
    if (crew) Check("idle truck crew can give rides", manager.m_Rides && manager.m_Rides.WhyNotTaxi(crew, "US").IsEmpty(), manager.m_Rides.WhyNotTaxi(crew, "US"));
+   if (crew && crew.m_OwnVehicle && manager.m_Rides) StuckTaxiCheck(manager, crew);
    if (crew && crew.m_OwnVehicle) VehicleDoorsCheck(crew.m_OwnVehicle);
   }
   // After-action report (5 Oct): kills/losses, bases, RP tallied per side.
@@ -1712,6 +1713,39 @@ class ACR_TestRegress
    foreach (AIAgent cancelledAgent : cancelledAgents) if (ACR_Transport.VehicleOf(cancelledAgent.GetControlledEntity())) cancelledSeated++;
   }
   Check("Halt cancels delayed Get In seating", cancelled && cancelled.OrderState() == ACR_EOrderState.HOLD && cancelledSeated == 0, string.Format("%1 passengers", cancelledSeated));
+ }
+
+ // A truck that gave up stuck is no taxi for a while, longer each time at the same spot, and a
+ // taxi again once it is clear of that spot (AI soak 7 Nov: 81 rides to four stuck trucks).
+ // Works on the stuck bookkeeping only; the truck itself stays where it is.
+ static void StuckTaxiCheck(ACR_Manager manager, ACR_Squad crew)
+ {
+  float keptAt = crew.m_fStuckAt;
+  vector keptSpot = crew.m_vStuckSpot;
+  int keptRepeats = crew.m_iStuckRepeats;
+  float now = GetGame().GetWorld().GetWorldTime();
+  vector here = crew.m_OwnVehicle.GetOrigin();
+  crew.m_iStuckRepeats = 0;
+  crew.MarkStuck(crew.m_OwnVehicle, now);
+  string justStuck = manager.m_Rides.WhyNotTaxi(crew, "US");
+  crew.MarkStuck(crew.m_OwnVehicle, now);
+  int repeats = crew.m_iStuckRepeats;
+  crew.m_fStuckAt = now - 15 * 60000;
+  string twiceAfter15 = manager.m_Rides.WhyNotTaxi(crew, "US");
+  crew.m_iStuckRepeats = 1;
+  string onceAfter15 = manager.m_Rides.WhyNotTaxi(crew, "US");
+  crew.m_fStuckAt = now;
+  crew.m_iStuckRepeats = 2;
+  crew.m_vStuckSpot = here + Vector(60, 0, 0);
+  string clearOfSpot = manager.m_Rides.WhyNotTaxi(crew, "US");
+  crew.m_fStuckAt = keptAt;
+  crew.m_vStuckSpot = keptSpot;
+  crew.m_iStuckRepeats = keptRepeats;
+  Check("stuck truck: no taxi right after giving up", justStuck == "stuck lately", justStuck);
+  Check("stuck truck: a repeat at the same spot counts", repeats == 2, string.Format("%1 repeats", repeats));
+  Check("stuck truck: twice at one spot still waits after 15 min", twiceAfter15 == "stuck lately", twiceAfter15);
+  Check("stuck truck: once is free again after 15 min", onceAfter15.IsEmpty(), onceAfter15);
+  Check("stuck truck: free at once when clear of the spot", clearOfSpot.IsEmpty(), clearOfSpot);
  }
 
  static void VehicleDoorsCheck(IEntity vehicle)
