@@ -8,6 +8,7 @@
 ### Zombies
 
 - A contained outbreak (`-acrOutbreak contain`) keeps getting worse while nobody contains it. It used to stall after its first spread: each horde took half its nest, and the town it settled in only grew back to that size, so hordes halved town by town (32, then 16, then 8), and a nest that wasn't completely full waited 25 minutes before trying again. Now hordes are at least 15 zombies, a town the dead take grows back to at least 30 so it can send one on, and nests grow back twice as fast. Left alone, the outbreak gains strength every 15 minutes (up to six times), so every nest grows back and spreads faster, and both sides are told. Clearing a nest knocks it back a step (ground zero two). The spread report goes past "out of control" to levels 4 and 5. Still no timer and no way to lose; the zombie cap still limits the total, and zombies still only come out near soldiers.
+- Zombie messages name the town again. After a counterattack, the survivor, bounty and counterattack lines could use the horde's label as the place ("survivors holed up at Zombies counterattacking Le Moule"); they now read "Le Moule", and a cleared nest reads "Zombies cleared at Le Moule".
 
 ## 0.5.12 — released
 
