@@ -14,6 +14,9 @@
 //    night; players race them for it.
 //  - Bounties: clearing a nest pays the sides near it RP_PER_ZOMBIE per zombie it could hold, ground
 //    zero RP_GROUND_ZERO (ACR_Outbreak.PackedUp). Both sides hear how far it has spread (Level).
+//  - Escalation (#240): left alone it gains a stage every 15 min and every nest regrows and spreads
+//    faster; hordes are 15+ and the towns they settle regrow to 30+, so the spread doesn't thin out
+//    town by town. Clearing nests knocks it back (Escalate, Cleared).
 class ACR_SurvivorSite : Managed
 {
  vector m_vPos;
@@ -41,12 +44,25 @@ class ACR_Containment
  static const float FIRST_HORDE_MAX = 600000;
  static const int START_SITES = 2;         // towns round ground zero with survivors at the start
  static const float START_REACH = 3000;
+ // Escalation (#240; Jacob: "push them", nests 15-40, hordes 15+): while it isn't contained the
+ // outbreak gains a stage every ESCALATE_MS; each stage makes every nest regrow and spread
+ // STAGE_PACE faster. Clearing a settled nest knocks it back a stage (ground zero two) and restarts
+ // the clock. No timer the sides must beat and no fail state: the pressure only rises.
+ static const float ESCALATE_MS = 900000;  // a stage more every 15 min
+ static const int STAGE_MAX = 6;
+ static const float STAGE_PACE = 0.25;     // each stage: +25 % regrowth and spread (stage 6: x2.5)
+ static const int HORDE_FLOOR = 15;        // a horde is at least this many ...
+ static const int NEST_FLOOR = 30;         // ... so a settled nest regrows to at least this many
+ static const float NEST_GROW_MS = 150000; // a nest gets one back this often at stage 0 (night: a third)
+ static const float RETRY_MS = 60000;      // a nest not ready when its horde is due looks again this soon
 
  protected static bool s_bOn;
  protected static string s_sGroundZero;
  protected static ref array<ref ACR_SurvivorSite> s_aSites;
  protected static int s_iSeconds;
  protected static int s_iLevel;
+ protected static int s_iStage;
+ protected static float s_fStageAt;
  static int s_iRescued;   // survivors rescued this match, any side (tests)
  static int s_iLost;      // survivors the dead took (tests)
  static int s_iSitesMade; // sites made (tests)
@@ -63,6 +79,8 @@ class ACR_Containment
   s_aSites.Clear();
   s_iSeconds = 0;
   s_iLevel = -1;
+  s_iStage = 0;
+  s_fStageAt = 0;
   s_iRescued = 0;
   s_iLost = 0;
   s_iSitesMade = 0;
@@ -101,6 +119,7 @@ class ACR_Containment
   post.m_Nest.m_iSize = GZ_MAX;
   if (post.m_iReserve < GZ_MAX) post.m_Nest.m_fGrowAt = now + GZ_GROW_MS;
   post.m_Nest.m_fHordeAt = now + Math.RandomFloat(FIRST_HORDE_MIN, FIRST_HORDE_MAX);
+  s_fStageAt = now + ESCALATE_MS;
   post.m_sName = string.Format("Ground zero at %1", town.m_sName);
   PrintFormat("[ACR] CONTAIN ground zero at %1 (%2), %3 zombies", town.m_sName, ACR_Manager.Grid(town.GetOrigin()), post.m_iReserve);
   array<string> sides1 = Sides();
@@ -158,6 +177,50 @@ class ACR_Containment
  static int SiteCount() { return s_aSites.Count(); }
 
  static int LevelForTest() { return s_iLevel; }
+
+ // ---------------------------------------------------------------- escalation (#240)
+
+ static int Stage() { return s_iStage; }
+
+ // How much faster than stage 0 nests regrow and spread (1 off containment).
+ static float Pace()
+ {
+  if (!s_bOn) return 1;
+  return 1 + s_iStage * STAGE_PACE;
+ }
+
+ // A nest or horde of 'post' was cleared (ACR_Outbreak.PackedUp): a settled nest knocks the
+ // outbreak back a stage, ground zero two; a horde caught on the road doesn't.
+ static void Cleared(ACR_DefenderPost post)
+ {
+  if (!s_bOn || !post.m_Nest || post.m_Nest.m_bRoaming) return;
+  int back = 1;
+  if (post.m_Nest.m_bGroundZero) back = 2;
+  int was = s_iStage;
+  s_iStage = Math.Max(0, s_iStage - back);
+  s_fStageAt = GetGame().GetWorld().GetWorldTime() + ESCALATE_MS;
+  if (s_iStage != was) PrintFormat("[ACR] CONTAIN stage %1 (was %2): %3 cleared", s_iStage, was, ACR_Outbreak.Place(post));
+ }
+
+ // Every minute while any nest or horde is left: one stage more once the clock runs out.
+ protected static void Escalate(int level)
+ {
+  if (level <= 0 || s_iStage >= STAGE_MAX) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (now < s_fStageAt) return;
+  s_iStage++;
+  s_fStageAt = now + ESCALATE_MS;
+  PrintFormat("[ACR] CONTAIN stage %1: nests regrow and spread x%2", s_iStage, Pace());
+  array<string> sides8 = Sides();
+  foreach (string side : sides8) Feed(side, "The outbreak is gaining strength: the dead multiply and spread faster. Clear their nests to push it back", vector.Zero);
+ }
+
+ // Runs the clock out (tests).
+ static void EscalateForTest()
+ {
+  s_fStageAt = 0;
+  Escalate(Math.Max(1, s_iLevel));
+ }
 
  static ACR_SurvivorSite SiteAt(int i) { return s_aSites[i]; }
 
@@ -278,7 +341,7 @@ class ACR_Containment
  }
 
  // How far it has spread, told to both sides when that changes: 0 contained, 1 one town,
- // 2 spreading (2-4 nests or hordes), 3 out of control (5+).
+ // 2 spreading (2-4 nests or hordes), 3 out of control (5-7), 4 (8-11), 5 (12+).
  protected static void Level(ACR_Manager manager)
  {
   int nests;
@@ -289,10 +352,14 @@ class ACR_Containment
    if (post.m_Nest.m_bRoaming) hordes++;
    else nests++;
   }
-  int level = 3;
-  if (nests + hordes == 0) level = 0;
-  else if (nests + hordes == 1) level = 1;
-  else if (nests + hordes <= 4) level = 2;
+  int count = nests + hordes;
+  int level = 5;
+  if (count == 0) level = 0;
+  else if (count == 1) level = 1;
+  else if (count <= 4) level = 2;
+  else if (count <= 7) level = 3;
+  else if (count <= 11) level = 4;
+  Escalate(level);
   if (level == s_iLevel) return;
   bool first = s_iLevel < 0;
   s_iLevel = level;
@@ -300,8 +367,8 @@ class ACR_Containment
   string line = string.Format("Outbreak spreading: %1 nests, %2 hordes on the move, about %3 dead walking", nests, hordes, ACR_Outbreak.Total());
   if (level == 0) line = "The outbreak is contained: no nests left";
   else if (level == 1) line = "The outbreak is down to one nest";
-  else if (level == 3) line = string.Format("Outbreak out of control: %1 nests, %2 hordes on the move, about %3 dead walking", nests, hordes, ACR_Outbreak.Total());
-  PrintFormat("[ACR] CONTAIN level %1: %2 nests, %3 hordes, %4 zombies", level, nests, hordes, ACR_Outbreak.Total());
+  else if (level >= 3) line = string.Format("Outbreak out of control (level %1): %2 nests, %3 hordes on the move, about %4 dead walking", level, nests, hordes, ACR_Outbreak.Total());
+  PrintFormat("[ACR] CONTAIN level %1: %2 nests, %3 hordes, %4 zombies, stage %5", level, nests, hordes, ACR_Outbreak.Total(), s_iStage);
   array<string> sides7 = Sides();
   foreach (string side : sides7) Feed(side, line, vector.Zero);
  }

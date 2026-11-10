@@ -5,6 +5,10 @@
 
 - Ready for Better Battle Buddies' surrender (from BBB 0.1.11): a soldier of an AI commander's squad who gives up (cut off, pinned, out of spare magazines or badly wounded, with an enemy close) drops his weapons and leaves his squad, which counts him as lost and is reinforced as for a death, and he neither holds nor contests a base. Squad retreats stay the AI commander's. With the BBB this version ships with, nothing changes.
 
+### Zombies
+
+- A contained outbreak (`-acrOutbreak contain`) keeps getting worse while nobody contains it. It used to stall after its first spread: each horde took half its nest, and the town it settled in only grew back to that size, so hordes halved town by town (32, then 16, then 8), and a nest that wasn't completely full waited 25 minutes before trying again. Now hordes are at least 15 zombies, a town the dead take grows back to at least 30 so it can send one on, and nests grow back twice as fast. Left alone, the outbreak gains strength every 15 minutes (up to six times), so every nest grows back and spreads faster, and both sides are told. Clearing a nest knocks it back a step (ground zero two). The spread report goes past "out of control" to levels 4 and 5. Still no timer and no way to lose; the zombie cap still limits the total, and zombies still only come out near soldiers.
+
 ## 0.5.12 — released
 
 Zombie mode on Project Outbreak, the 2IC back beside "I'm the 2IC", and AI logistics fixes. Needs Better Battle Buddies 0.1.10. The zombie modes need the **Project Outbreak** mod; without it nothing changes. A compat add-on, **AC: Actual - Zombies**, follows separately.

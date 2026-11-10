@@ -5,7 +5,8 @@
 // sends a horde and the town it goes for gets survivors; a US team at a site rescues them and the
 // US side gets RP; a horde reaching survivors with nobody there takes them; an AI commander sends
 // a squad to a site; ground zero's bounty and the RP cap; a town taken near a nest is counterattacked
-// (once per place); the spread is reported.
+// (once per place); the spread is reported; messages name towns (#241); left alone it escalates and
+// hordes stay 15+ (#240).
 class ACR_TestContainment
 {
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
@@ -65,7 +66,7 @@ class ACR_TestContainment
    detail += string.Format(" %1(%2)", post.m_sName, post.m_iReserve);
   }
   Check("containment: the outbreak starts as one nest, ground zero", ACR_Containment.On() && nests == 1 && s_Zero != null, string.Format("on %1, nests %2:%3", ACR_Containment.On(), nests, detail));
-  if (!s_Zero) { ACR_TestRegress.Complete("containment", 14); return; }
+  if (!s_Zero) { ACR_TestRegress.Complete("containment", 16); return; }
   bool clear = true;
   foreach (ACR_Base base : ACR_Base.s_All)
    if (!base.m_sOwner.IsEmpty() && !base.m_bPocket && !base.m_bRetired && vector.DistanceXZ(base.GetOrigin(), s_Zero.m_vPos) < ACR_Outbreak.HQ_CLEAR) clear = false;
@@ -204,7 +205,24 @@ class ACR_TestContainment
  {
   int level = ACR_Containment.LevelForTest();
   Check("containment: how far it has spread is worked out and reported", level >= 1, string.Format("level %1, %2 zombies", level, ACR_Outbreak.Total()));
-  ACR_TestRegress.Complete("containment", 14);
+  // #240: left alone it escalates (faster regrowth and spread), and the spread doesn't halve:
+  // a nest of 30 sends 15, one of 29 waits, ground zero's hordes are 15+.
+  int stage = ACR_Containment.Stage();
+  ACR_Containment.EscalateForTest();
+  float pace = ACR_Containment.Pace();
+  Check("containment: left alone, the outbreak gains a stage and speeds up", ACR_Containment.Stage() == stage + 1 && pace > 1, string.Format("stage %1 -> %2, pace %3", stage, ACR_Containment.Stage(), pace));
+  ACR_DefenderPost town = new ACR_DefenderPost();
+  town.m_Nest = new ACR_ZombieNest();
+  town.m_iReserve = 30;
+  int thirty = ACR_Outbreak.HordeCount(town);
+  town.m_iReserve = 29;
+  int under = ACR_Outbreak.HordeCount(town);
+  int zeroReserve = s_Zero.m_iReserve;
+  s_Zero.m_iReserve = ACR_Containment.GZ_HORDE_MIN;
+  int fromZero = ACR_Outbreak.HordeCount(s_Zero);
+  s_Zero.m_iReserve = zeroReserve;
+  Check("containment: hordes are 15 or more, and a town nest sends one from 30", thirty == ACR_Containment.HORDE_FLOOR && under == 0 && fromZero >= ACR_Containment.HORDE_FLOOR, string.Format("30 -> %1, 29 -> %2, ground zero at %3 -> %4", thirty, under, ACR_Containment.GZ_HORDE_MIN, fromZero));
+  ACR_TestRegress.Complete("containment", 16);
  }
 
  protected static void Spawn(ACR_Manager manager, string name, vector at, float distance)

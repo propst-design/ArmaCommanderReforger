@@ -394,12 +394,35 @@ class ACR_Outbreak
  }
 
  // A nest's next horde: ground zero sends them sooner (ACR_Containment).
+ // Containment's stage speeds every nest up (ACR_Containment.Pace, 1 otherwise).
  protected static float NestHordeGap(ACR_ZombieNest nest)
  {
-  if (!nest.m_bGroundZero) return HordeGap();
+  if (!nest.m_bGroundZero) return HordeGap() / ACR_Containment.Pace();
   float gap = ACR_Containment.GZ_HORDE_MS;
   if (s_bNight) gap = gap / 3;
-  return gap * Math.RandomFloat(0.7, 1.3);
+  return gap * Math.RandomFloat(0.7, 1.3) / ACR_Containment.Pace();
+ }
+
+ // Whether a settled nest has enough to send a horde, and how many go (0: not ready).
+ // Containment (#240): ground zero from GZ_HORDE_MIN, other nests from twice HORDE_FLOOR, and a
+ // horde is never under HORDE_FLOOR, so the spread doesn't halve town by town. Otherwise a full
+ // nest of HORDE_MIN or more sends half.
+ static int HordeCount(ACR_DefenderPost post)
+ {
+  ACR_ZombieNest nest = post.m_Nest;
+  int least = ACR_Containment.HORDE_FLOOR;
+  if (nest.m_bGroundZero)
+  {
+   if (post.m_iReserve < ACR_Containment.GZ_HORDE_MIN) return 0;
+   return Math.Max(least, post.m_iReserve / 2);
+  }
+  if (ACR_Containment.On())
+  {
+   if (post.m_iReserve < least * 2) return 0;
+   return Math.Max(least, post.m_iReserve / 2);
+  }
+  if (post.m_iReserve < HORDE_MIN || post.m_iReserve < nest.m_iSize) return 0;
+  return post.m_iReserve / 2;
  }
 
  protected static float HordeGap()
@@ -588,9 +611,11 @@ class ACR_Outbreak
 
  protected static float NestGrowGap(ACR_ZombieNest nest)
  {
-  if (!nest.m_bGroundZero) return GrowGap();
-  if (s_bNight) return ACR_Containment.GZ_GROW_MS / 3;
-  return ACR_Containment.GZ_GROW_MS;
+  float gap = GrowGap();
+  if (nest.m_bGroundZero) gap = ACR_Containment.GZ_GROW_MS;
+  else if (ACR_Containment.On()) gap = ACR_Containment.NEST_GROW_MS;
+  if (s_bNight && (nest.m_bGroundZero || ACR_Containment.On())) gap = gap / 3;
+  return gap / ACR_Containment.Pace();
  }
 
  protected static float GrowGap()
@@ -615,12 +640,13 @@ class ACR_Outbreak
   }
   if (now >= nest.m_fHordeAt)
   {
-   nest.m_fHordeAt = now + NestHordeGap(nest);
    vector goal;
    string goalName;
-   bool ready = post.m_iReserve >= HORDE_MIN && post.m_iReserve >= nest.m_iSize;
-   if (nest.m_bGroundZero) ready = post.m_iReserve >= ACR_Containment.GZ_HORDE_MIN;
-   if (ready && PickGoal(post.m_vPos, goal, goalName)) SendHorde(post, post.m_iReserve / 2, goal, goalName);
+   int count = HordeCount(post);
+   bool sent = count > 0 && PickGoal(post.m_vPos, goal, goalName) && SendHorde(post, count, goal, goalName);
+   nest.m_fHordeAt = now + NestHordeGap(nest);
+   // Containment (#240): a nest not ready yet looks again soon instead of waiting a whole gap.
+   if (!sent && ACR_Containment.On()) nest.m_fHordeAt = now + ACR_Containment.RETRY_MS;
   }
   return false;
  }
@@ -691,7 +717,12 @@ class ACR_Outbreak
   nest.m_Raid = null;
   nest.m_sBase = baseName;
   nest.m_iSize = Math.Max(nest.m_iSize, post.m_iReserve);
-  nest.m_fHordeAt = GetGame().GetWorld().GetWorldTime() + HordeGap();
+  // Containment (#240): a town the dead take regrows to at least NEST_FLOOR, enough to send a full
+  // horde on, so the spread doesn't thin out town by town.
+  if (ACR_Containment.On()) nest.m_iSize = Math.Min(NEST_MAX, Math.Max(nest.m_iSize, ACR_Containment.NEST_FLOOR));
+  float now = GetGame().GetWorld().GetWorldTime();
+  nest.m_fHordeAt = now + NestHordeGap(nest);
+  if (post.m_iReserve < nest.m_iSize && nest.m_fGrowAt <= 0) nest.m_fGrowAt = now + NestGrowGap(nest);
   string was = post.m_sName;
   Name(post);
   ACR_NestDressing.Add(post.m_vPos);
@@ -747,6 +778,7 @@ class ACR_Outbreak
    }
    string clearedBy = "";
    foreach (string near : sides) if (clearedBy.IsEmpty() && SideNear(manager, near, post.m_vPos, STAY_RANGE + 200)) clearedBy = near;
+   ACR_Containment.Cleared(post);
    ACR_Defenders.Remove(post);
    if (!clearedBy.IsEmpty()) CounterAttack(post.m_vPos, place, null, clearedBy);
    return;
@@ -798,6 +830,8 @@ class ACR_Outbreak
   {
    if (sent >= most) break;
    int count = Math.Max(4, Math.Round(from.m_iReserve * share));
+   // Containment (#240): a counterattack is a horde too, 15 or more where the nest can spare them.
+   if (ACR_Containment.On()) count = Math.Max(count, Math.Min(ACR_Containment.HORDE_FLOOR, from.m_iReserve - 5));
    if (!SendHorde(from, count, at, name, raid)) continue;
    foreach (ACR_DefenderPost horde : ACR_Defenders.s_Posts)
     if (horde.m_Nest && horde.m_Nest.m_bRoaming && horde.m_Nest.m_vGoal == at && !horde.m_Nest.m_bCounter) { horde.m_Nest.m_bCounter = true; horde.m_sName = string.Format("Zombies counterattacking %1", name); }
