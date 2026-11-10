@@ -33,6 +33,19 @@ class ACR_Intel : Managed
  static const int KIND_ARMED = 2;
  static const int KIND_ARMOUR = 3;
  static const int KIND_AIR = 4;
+ // Map only (ACR_MapFeed.BuildIntel -> clients): a zombie contact. The server's contacts keep
+ // KIND_INFANTRY, so the AI commander, fire missions, QRFs and the forecast read them as before.
+ // Before this a horde was drawn as hostile infantry, and Outbreak dresses its zombies in civilian
+ // clothes: players went to "an enemy squad" and found what looked like townsfolk (#107 feedback).
+ static const int KIND_ZOMBIE = 5;
+
+ // A contact made of Outbreak's zombies (contacts are built per AI group, so one body is enough).
+ static bool IsZombieContact(ACR_Contact contact)
+ {
+  if (!contact) return false;
+  if (contact.m_Body) return ACR_Outbreak.IsZombie(contact.m_Body);
+  return !contact.m_Bodies.IsEmpty() && ACR_Outbreak.IsZombie(contact.m_Bodies[0]);
+ }
 
  // Intentional gameplay abstraction (Jacob, 5 Oct): ownership of a base lets
  // its side report intruders without a living sentry or a line-of-sight check.
@@ -852,7 +865,7 @@ class ACR_Intel : Managed
  // Size mark over a foot contact's symbol, from the men seen: team, squad, platoon.
  static int EchelonOf(int kind, int count)
  {
-  if (kind != KIND_INFANTRY || count < 2) return EMilitarySymbolAmplifier.NONE;
+  if ((kind != KIND_INFANTRY && kind != KIND_ZOMBIE) || count < 2) return EMilitarySymbolAmplifier.NONE;
   if (count <= 4) return EMilitarySymbolAmplifier.TEAM;
   if (count <= 12) return EMilitarySymbolAmplifier.SQUAD;
   return EMilitarySymbolAmplifier.PLATOON;
@@ -907,6 +920,7 @@ class ACR_Intel : Managed
   if (kind == KIND_ARMOUR) return "armour";
   if (kind == KIND_ARMED) return "armed vehicle";
   if (kind == KIND_VEHICLE) return "vehicle";
+  if (kind == KIND_ZOMBIE) return ACR_Outbreak.Describe(count);
   if (count == 1) return "1 soldier";
   return count.ToString() + " infantry";
  }
@@ -939,7 +953,7 @@ class ACR_Intel : Managed
    string spotter = contact.m_sSpotter;
    if (spotter.IsEmpty()) spotter = "Contact";
    string what = Describe(contact.m_iKind, contact.m_iCount);
-   if (ACR_Outbreak.IsZombie(contact.m_Body))
+   if (IsZombieContact(contact))
    {
     what = ACR_Outbreak.Describe(contact.m_iCount);
     ACR_Outbreak.Sighted(m_sFaction, contact.m_Pos, contact.m_iCount);

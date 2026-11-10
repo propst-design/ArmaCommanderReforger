@@ -699,17 +699,26 @@ class ACR_MapFeed
   string sig = "";
   foreach (ACR_Contact contact : intel.m_Contacts)
   {
+   // Zombies go out as their own kind with no unit icon: an empty hostile frame labelled
+   // "N zombies", not an infantry symbol (ACR_Intel.KIND_ZOMBIE).
+   int kind = contact.m_iKind;
+   int icons = contact.m_iIcons;
+   if (ACR_Intel.IsZombieContact(contact))
+   {
+    kind = ACR_Intel.KIND_ZOMBIE;
+    icons = 0;
+   }
    frame.m_ContactPos.Insert(contact.m_Pos);
-   frame.m_ContactKinds.Insert(contact.m_iKind);
+   frame.m_ContactKinds.Insert(kind);
    frame.m_ContactCounts.Insert(contact.m_iCount);
    int age = (now - contact.m_fSeen) / 1000;
    frame.m_ContactAges.Insert(age);
    int heading = Math.Round(contact.m_fHeading);
    frame.m_ContactDetails.Insert(contact.m_sKey.Hash());
-   frame.m_ContactDetails.Insert(contact.m_iIcons);
+   frame.m_ContactDetails.Insert(icons);
    frame.m_ContactDetails.Insert(heading);
    int seen = contact.m_fSeen / 1000;
-   sig += P(contact.m_Pos) + contact.m_iKind.ToString() + "," + contact.m_iCount.ToString() + "," + seen.ToString() + "," + contact.m_iIcons.ToString() + "," + heading.ToString() + ";";
+   sig += P(contact.m_Pos) + kind.ToString() + "," + contact.m_iCount.ToString() + "," + seen.ToString() + "," + icons.ToString() + "," + heading.ToString() + ";";
   }
   int feedBytes;
   foreach (int i, string line : intel.m_Feed)
