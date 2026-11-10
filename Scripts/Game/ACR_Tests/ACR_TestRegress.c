@@ -1548,9 +1548,9 @@ class ACR_TestRegress
   ACR_Options.Set("acrIntro", "0");
   bool off = !ACR_Intro.On() && ACR_Setup.Current("intro") == "0";
   ACR_Options.Unset("acrIntro");
-  string music = ACR_Intro.Music();
+  string music = ACR_Intro.MusicOption();
   ACR_Options.Set("acrIntroMusic", "off");
-  bool silent = ACR_Intro.Music() == "";
+  bool silent = ACR_Intro.MusicOption() == "";
   ACR_Options.Unset("acrIntroMusic");
   Check("mission intro: on by default, off with -acrIntro 0, music option falls back and turns off", onByDefault && off && silent && music == ACR_Intro.DEFAULT_MUSIC, string.Format("default %1, off %2, silent %3, music %4", onByDefault, off, silent, music));
  }

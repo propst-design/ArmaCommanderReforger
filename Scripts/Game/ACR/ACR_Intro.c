@@ -47,7 +47,7 @@ class ACR_Intro : Managed
  }
 
  // "" = no music.
- static string Music()
+ static string MusicOption()
  {
   string value;
   if (!ACR_Options.Get("acrIntroMusic", value) || value == "") return DEFAULT_MUSIC;
@@ -86,14 +86,14 @@ class ACR_Intro : Managed
     where = hq.m_sName;
    }
    string line = "";
-   if (key != "") line = ACR_PlayerSide.DisplayName(key);
+   if (key != "") line = ACR_FactionSelection.DisplayName(key);
    if (where != "")
    {
     if (line != "") line += "  |  ";
     line += where;
    }
    PrintFormat("[ACR] INTRO sent player=%1 side=%2 hq=%3", id, key, where);
-   pc.ACR_SendIntro(at, line, Music());
+   pc.ACR_SendIntro(at, line, MusicOption());
   }
  }
 
@@ -147,8 +147,8 @@ class ACR_Intro : Managed
 
  protected static bool Busy(SCR_PlayerController pc)
  {
-  SCR_MapEntity map = SCR_MapEntity.GetMapInstance();
-  if (map && map.IsOpen()) return true;
+  SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
+  if (mapEntity && mapEntity.IsOpen()) return true;
   if (ACR_RTSCameraManager.IsActive()) return true;
   if (ACR_SetupClient.IsActive()) return true;
   if (pc.ACR_DeathTransitionActive()) return true;
