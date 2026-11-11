@@ -321,6 +321,10 @@ function Remove-KnownNoise($text) {
     # Vanilla failed-move report (NodeErrorOnce in SCR_AIProcessFailedMovementResult), e.g. when a
     # built composition cuts the navmesh under a group still walking (Everon long soak 23 Oct).
     $text = [regex]::Replace($text, "SCRIPT\s+\(E\): Virtual Machine Exception\s+Reason: Failed move from[^\r\n]*(?:\r?\n(?!\d\d:\d\d:)[^\r\n]*)*?SCR_AIProcessFailedMovementResult\.c", 'vanilla AI failed-move report (ignored)')
+    # Vanilla SCR_AIGetInNearestWaypointParameters: GetInNearestVehicle.bt reads the group's current
+    # waypoint, which is no longer the get-in one when a new order replaced it mid-activity; the node
+    # errors and the activity ends (Everon pak: long soak 11 Nov stopped the classic arm at 64 min).
+    $text = [regex]::Replace($text, "SCRIPT\s+\(E\): Virtual Machine Exception\s+Reason: Wrong class of provided Waypoint![^\r\n]*(?:\r?\n(?!\d\d:\d\d:)[^\r\n]*)*?GetInNearestVehicle\.bt", 'vanilla AI get-in-nearest waypoint exception (ignored)')
     # Vanilla SCR_AIGetFireTimes: RandomFloat(0.1, m_fShotSpan * 1.9) when the shot span is 0.
     $text = [regex]::Replace($text, "SCRIPT\s+\(E\): Math\.RandomFloat: invalid parameters min = 0\.100000 max = 0\.000000", 'vanilla AI fire-time warning (ignored)')
     # Vanilla SCR_AILookAtThreatSystemLogic: RandomFloat(x, coefficient * x) with its default coefficient 1
