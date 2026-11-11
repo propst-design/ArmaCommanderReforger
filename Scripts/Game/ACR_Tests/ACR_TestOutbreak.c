@@ -226,7 +226,37 @@ class ACR_TestOutbreak
   Check("zombies: the setup screen has a Zombies row", ACR_Setup.Rows().Contains("zombies\t"), "");
   // A dedicated server draws no blood or fire; the garbage it spawns (replicated) shows it dressed them.
   Check("zombies: nest sites are dressed (garbage piles from the server)", ACR_NestDressing.s_iPiles * 2 >= atBases + country, string.Format("%1 piles for %2 nests", ACR_NestDressing.s_iPiles, atBases + country));
+  NestLook(atBases + country);
   if (!s_Nest) Finish();
+ }
+
+ // The nests' landmark (ACR_NestDressing): burnt-out cars laid here too (collision), remains, every
+ // site burning at a tier; a cleared site goes out and burns again when the dead come back. The smoke
+ // and fire themselves are client-only (untested here).
+ protected static void NestLook(int nests)
+ {
+  SCR_BaseGameMode mode = SCR_BaseGameMode.Cast(GetGame().GetGameMode());
+  int live, wrecks;
+  string detail = "";
+  ACR_DefenderPost other;
+  foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
+  {
+   if (!post.m_Nest || post.m_Nest.m_bRoaming) continue;
+   int tier = mode.ACR_NestSiteTier(post.m_vPos);
+   if (tier > 0) live++;
+   detail += string.Format(" %1:t%2", post.m_iReserve, tier);
+   if (post != s_Nest && !other) other = post;
+  }
+  Check("zombies: every nest site burns, by size", live == nests, string.Format("%1 of %2 live:%3", live, nests, detail));
+  Check("zombies: burnt-out cars and remains round the nests", ACR_NestDressing.s_iWrecks >= nests && ACR_NestDressing.s_iRemains >= nests, string.Format("%1 wrecks, %2 remains for %3 nests", ACR_NestDressing.s_iWrecks, ACR_NestDressing.s_iRemains, nests));
+  if (!other) return;
+  int before = mode.ACR_NestSiteTier(other.m_vPos);
+  int wrecksBefore = ACR_NestDressing.s_iWrecks;
+  ACR_NestDressing.Cleared(other.m_vPos);
+  int cleared = mode.ACR_NestSiteTier(other.m_vPos);
+  ACR_NestDressing.Add(other.m_vPos, other.m_Nest.m_iSize);
+  int again = mode.ACR_NestSiteTier(other.m_vPos);
+  Check("zombies: a cleared nest goes out, and burns again when the dead come back (no second dressing)", before > 0 && cleared == -before && again == before && ACR_NestDressing.s_iWrecks == wrecksBefore, string.Format("tier %1 -> %2 -> %3, wrecks %4 -> %5", before, cleared, again, wrecksBefore, ACR_NestDressing.s_iWrecks));
  }
 
  protected static void Approach(ACR_Manager manager)

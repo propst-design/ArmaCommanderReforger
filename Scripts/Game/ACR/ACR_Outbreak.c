@@ -370,7 +370,7 @@ class ACR_Outbreak
   nest.m_fHordeAt = GetGame().GetWorld().GetWorldTime() + HordeGap();
   post.m_Nest = nest;
   Name(post);
-  ACR_NestDressing.Add(at);
+  ACR_NestDressing.Add(at, size);
   return post;
  }
 
@@ -726,7 +726,7 @@ class ACR_Outbreak
   if (post.m_iReserve < nest.m_iSize && nest.m_fGrowAt <= 0) nest.m_fGrowAt = now + NestGrowGap(nest);
   string was = post.m_sName;
   Name(post);
-  ACR_NestDressing.Add(post.m_vPos);
+  ACR_NestDressing.Add(post.m_vPos, nest.m_iSize);
   PrintFormat("[ACR] ZOMBIES %1 settles: %2 (%3)", was, post.m_sName, post.m_iReserve);
  }
 
@@ -780,6 +780,7 @@ class ACR_Outbreak
    string clearedBy = "";
    foreach (string near : sides) if (clearedBy.IsEmpty() && SideNear(manager, near, post.m_vPos, STAY_RANGE + 200)) clearedBy = near;
    ACR_Containment.Cleared(post);
+   ACR_NestDressing.Cleared(post.m_vPos);
    ACR_Defenders.Remove(post);
    if (!clearedBy.IsEmpty()) CounterAttack(post.m_vPos, place, null, clearedBy);
    return;
