@@ -2552,6 +2552,7 @@ class ACR_Squad : Managed
     PrintFormat("[ACR] TACTICS %1: arrived, taking positions", m_Name);
    }
   }
+  HoldRetryWatch(now);
   DriveWatch(now, contact);
   CheckTacticalDismount(now, contact);
  }
@@ -2629,7 +2630,7 @@ class ACR_Squad : Managed
   m_aDriverBails.Insert(now);
   if (m_aDriverBails.Count() < BAIL_LIMIT) return;
   m_aDriverBails.Clear();
-  m_fStuckAt = now;
+  NoteStuck(m_OwnVehicle, now);
   PrintFormat("[ACR] CREW %1: its driver keeps getting out (%2 times in %3 min), taken as stuck", m_Name, BAIL_LIMIT, (int)(BAIL_WINDOW_MS / 60000));
  }
  protected ref map<IEntity, int> m_CrewSeats = new map<IEntity, int>();
@@ -3794,6 +3795,24 @@ class ACR_Squad : Managed
  protected float m_fBoardingSince = -1;
  protected vector m_vUnstickFrom;
  float m_fStuckAt = -1000000; // world time the squad last gave up on a stuck vehicle (AI re-crewing waits)
+ vector m_vStuckPos;          // where its vehicle stood then (zero: not known)
+ static const float STUCK_RETRY_MS = 600000; // a vehicle that gave up stuck isn't sent on a ride for this long...
+ static const float STUCK_LEFT_M = 50;       // ...unless it has since moved this far from where it gave up
+
+ // Gave up stuck lately and still stands about where it did: sending it on a ride ends the same way.
+ bool StuckHere(IEntity vehicle, float now)
+ {
+  if (now - m_fStuckAt >= STUCK_RETRY_MS) return false;
+  if (!vehicle || m_vStuckPos == vector.Zero) return true;
+  return vector.DistanceXZ(vehicle.GetOrigin(), m_vStuckPos) < STUCK_LEFT_M;
+ }
+
+ protected void NoteStuck(IEntity vehicle, float now)
+ {
+  m_fStuckAt = now;
+  m_vStuckPos = vector.Zero;
+  if (vehicle) m_vStuckPos = vehicle.GetOrigin();
+ }
  protected bool m_bUnsticking;
  protected ref ACR_SquadUnstick m_UnstickListener; // told by BBB_Unstick when backing out is over
  protected bool m_bResumeOnFoot;
@@ -4118,8 +4137,8 @@ class ACR_Squad : Managed
     Halt("Stuck, holding");
     m_iUnsticks = 0;
     m_iReroutes = 0;
-    m_fStuckAt = now;
-    PrintFormat("[ACR] DRIVE %1: stuck, holding position (armed vehicle)", m_Name);
+    NoteStuck(vehicle, now);
+    PrintFormat("[ACR] DRIVE %1: stuck, holding position (armed vehicle) at %2", m_Name, DriveSpot(vehicle));
     return;
    }
    if (m_iReroutes < REROUTE_TRIES && Reroute(vehicle))
@@ -4137,7 +4156,7 @@ class ACR_Squad : Managed
   // Never reverse into a vehicle right behind: plan again from here instead.
   if (VehicleNear(vehicle, false, QUEUE_BEHIND))
   {
-   PrintFormat("[ACR] DRIVE %1: stuck, a vehicle right behind, planning again instead of backing up (try %2)", m_Name, m_iUnsticks);
+   PrintFormat("[ACR] DRIVE %1: stuck, a vehicle right behind, planning again instead of backing up (try %2) at %3", m_Name, m_iUnsticks, DriveSpot(vehicle));
    m_StallPos = vehicle.GetOrigin();
    m_fStallSince = now;
    if (!m_sOrderPrefab.IsEmpty())
@@ -4149,6 +4168,48 @@ class ACR_Squad : Managed
    return;
   }
   BeginUnstick(vehicle, driver);
+ }
+
+ // Every living member of the squad is in this vehicle.
+ protected bool CrewAboard(IEntity vehicle)
+ {
+  if (!vehicle) return false;
+  array<AIAgent> agents = {};
+  GetAgents(agents);
+  int alive, aboard;
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (!body || !ACR_Respawn.IsAlive(body)) continue;
+   alive++;
+   if (ACR_Transport.VehicleOf(body) == vehicle) aboard++;
+  }
+  return alive > 0 && aboard == alive;
+ }
+
+ // Where a vehicle stopped, for the DRIVE lines (AI driving study, 10 Nov): the 6 Nov logs had no
+ // position, so holds couldn't be split into bridges, towns, hills and off-road. Grid, metres from
+ // the nearest road, a deck (bridge, overpass: well above the ground), pitch, and the nearest base.
+ static string DriveSpot(IEntity vehicle)
+ {
+  if (!vehicle) return "?";
+  vector at = vehicle.GetOrigin();
+  string road = "no road within 100 m";
+  ChimeraAIWorld aiWorld = ChimeraAIWorld.Cast(GetGame().GetAIWorld());
+  RoadNetworkManager roads;
+  if (aiWorld) roads = aiWorld.GetRoadNetworkManager();
+  if (roads)
+  {
+   BaseRoad nearest;
+   float off;
+   roads.GetClosestRoad(at, nearest, off);
+   if (nearest && off < 6) road = "on a road";
+   else if (nearest && off < 100) road = string.Format("%1 m off the road", (int)off);
+  }
+  string deck = "";
+  if (at[1] - GetGame().GetWorld().GetSurfaceY(at[0], at[2]) > 2.5) deck = ", on a deck or bridge";
+  vector angles = vehicle.GetAngles();
+  return string.Format("%1 (%2%3, pitch %4, %5)", ACR_Manager.Grid(at), road, deck, (int)Math.AbsFloat(angles[0]), ACR_CivilianSocket.PlaceName(at));
  }
 
  // Another ACA vehicle within range, ahead of this one (toward its target) and nearly stopped, or
@@ -4231,7 +4292,7 @@ class ACR_Squad : Managed
   {
    m_bMoveFailRerouted = true;
    m_iReroutes++;
-   PrintFormat("[ACR] DRIVE %1: move failed (%2), crew stays aboard, falling back to road hops", m_Name, why);
+   PrintFormat("[ACR] DRIVE %1: move failed (%2), crew stays aboard, falling back to road hops at %3", m_Name, why, DriveSpot(vehicle));
    return;
   }
   // The engine reports a stuck vehicle about once a second: say it once per order.
@@ -4303,7 +4364,7 @@ class ACR_Squad : Managed
   foreach (vector leg : legs) m_aRoute.Insert(leg);
   m_Route = order;
   NextLeg();
-  PrintFormat("[ACR] DRIVE %1: stuck, re-routed over the roads (%2 hops)", m_Name, legs.Count());
+  PrintFormat("[ACR] DRIVE %1: stuck, re-routed over the roads (%2 hops) at %3", m_Name, legs.Count(), DriveSpot(vehicle));
   return true;
  }
 
@@ -4312,6 +4373,10 @@ class ACR_Squad : Managed
  protected void StuckHold(IEntity vehicle, float now)
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
+  // Saved to try again later (HoldRetryWatch). Not a ride: it ends with this hold, its riders walk on.
+  bool ride = manager && manager.m_Rides && (manager.m_Rides.RideOf(this) || manager.m_Rides.Unloading(this));
+  ACR_OrderSnapshot retry = null;
+  if (!ride && !HasPlayer()) retry = OrderToRetry();
   if (manager)
   {
    array<ACR_Squad> riders = {};
@@ -4319,13 +4384,88 @@ class ACR_Squad : Managed
    foreach (ACR_Squad rider : riders) if (rider != this && !rider.HasPlayer()) rider.DismountNow();
   }
   Halt("Stuck, holding");
+  // The same trip as last time counts its retries on; a new destination starts again.
+  if (retry && vector.DistanceXZ(retry.m_Target, m_vHoldRetryGoal) > STUCK_LEFT_M) m_iHoldRetries = 0;
+  m_HoldRetryOrder = null;
+  if (retry && m_iHoldRetries < HOLD_RETRIES)
+  {
+   m_HoldRetryOrder = retry;
+   m_vHoldRetryGoal = retry.m_Target;
+   m_iHoldRetrySerial = m_iOrderSerial;
+  }
   m_iStuckCount++;
   m_StallVehicle = null;
   m_iUnsticks = 0;
   m_iReroutes = 0;
-  m_fStuckAt = now;
+  NoteStuck(vehicle, now);
   if (vehicle) ACR_Transport.SanitizeVehicleHorn(vehicle, true);
-  PrintFormat("[ACR] DRIVE %1: stuck, crew stays aboard and holds", m_Name);
+  PrintFormat("[ACR] DRIVE %1: stuck, crew stays aboard and holds at %2", m_Name, DriveSpot(vehicle));
+ }
+
+ // A soft vehicle that gave up tries again (AI driving study, 10 Nov). "Stuck, holding" used to last
+ // until someone gave it a new order: 62 of 139 stuck episodes in Jacob's 6 Nov game ended there, a
+ // truck parked for good on the road it had stalled on. After HOLD_RETRY_MS, out of contact, its trip
+ // is issued again from where it stands (the game plans afresh; DriveWatch backs up and re-routes as
+ // before), at most HOLD_RETRIES times for the same destination. Any new order ends the wait. Armed
+ // vehicles still hold and fight; rides don't retry (riders already walked on).
+ static const float HOLD_RETRY_MS = 180000;
+ static const int HOLD_RETRIES = 2;
+ protected ref ACR_OrderSnapshot m_HoldRetryOrder;
+ protected vector m_vHoldRetryGoal;
+ protected int m_iHoldRetrySerial;
+ int m_iHoldRetries;
+
+ static bool HoldRetryDue(float now, float stuckAt, int retriesDone)
+ {
+  return retriesDone < HOLD_RETRIES && now - stuckAt >= HOLD_RETRY_MS;
+ }
+
+ // The trip in hand: its final destination when it is on road legs (Reroute), else the order.
+ protected ACR_OrderSnapshot OrderToRetry()
+ {
+  ResourceName prefab = m_sOrderPrefab;
+  vector goal = m_MoveTarget;
+  float radius = m_fOrderRadius;
+  if (m_Route && !m_aRoute.IsEmpty())
+  {
+   prefab = m_Route.m_sPrefab;
+   radius = m_Route.m_fRadius;
+   goal = m_aRoute[m_aRoute.Count() - 1];
+  }
+  if (prefab.IsEmpty() || goal == vector.Zero) return null;
+  ACR_EOrderState state = OrderState();
+  if (state == ACR_EOrderState.HOLD || state == ACR_EOrderState.NONE) return null;
+  return ACR_OrderSnapshot.Make(prefab, goal, radius, m_Order, state, m_OrderKind);
+ }
+
+ protected void HoldRetryWatch(float now)
+ {
+  if (!m_HoldRetryOrder) return;
+  if (m_iOrderSerial != m_iHoldRetrySerial || HasPlayer())
+  {
+   m_HoldRetryOrder = null; // given another order meanwhile
+   return;
+  }
+  if (!HoldRetryDue(now, m_fStuckAt, m_iHoldRetries)) return;
+  IEntity vehicle = ACR_Transport.CrewedVehicle(this);
+  if (!vehicle || !CrewAboard(vehicle)) return; // its crew isn't all aboard: wait (Recrew or a new order)
+  ChimeraCharacter driver = DriverOf(vehicle);
+  if (!driver || !ACR_Respawn.IsAlive(driver) || FindController(driver) != 0) return;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (manager && manager.IsGunnerDriven(vehicle)) return;
+  if (KnownEnemies(300) > 0 || BBB_Transport.VehicleHitRecently(vehicle, 6000)) return;
+  float fuel = ACR_Logistics.Fuel(vehicle);
+  if (fuel >= 0 && fuel < 0.02) return;
+  if (SCR_AIVehicleUsability.IsVehicleFlipped(vehicle)) return;
+  ACR_OrderSnapshot order = m_HoldRetryOrder;
+  m_HoldRetryOrder = null;
+  m_iHoldRetries++;
+  m_StallVehicle = null;
+  m_iUnsticks = 0;
+  m_iReroutes = 0;
+  // An internal re-issue: the serial stays (a new order from anyone else still shows).
+  RestoreOrder(order);
+  PrintFormat("[ACR] DRIVE %1: stuck hold, trying again (%2 of %3) to %4 from %5", m_Name, m_iHoldRetries, HOLD_RETRIES, ACR_Manager.Grid(order.m_Target), DriveSpot(vehicle));
  }
 
  // A living, conscious member of this squad is getting in or out of a vehicle, or is on foot
@@ -4356,7 +4496,7 @@ class ACR_Squad : Managed
   if (!m_UnstickListener) m_UnstickListener = new ACR_SquadUnstick(this);
   // BBB_Unstick parks the driver's AI and reverses (inputs applied every frame).
   BBB_Unstick.Begin(vehicle, driver, steer, m_UnstickListener);
-  PrintFormat("[ACR] DRIVE %1: stuck, backing up (try %2)", m_Name, m_iUnsticks);
+  PrintFormat("[ACR] DRIVE %1: stuck, backing up (try %2) at %3", m_Name, m_iUnsticks, DriveSpot(vehicle));
  }
 
  // Backing out is over (BBB_Unstick has given the driver his AI back).
@@ -4383,7 +4523,7 @@ class ACR_Squad : Managed
  // carries on to its destination on foot; otherwise it takes cover where it is.
  protected void Bail(IEntity vehicle, string why, bool resume)
  {
-  PrintFormat("[ACR] DRIVE %1: %2, crew bails out", m_Name, why);
+  PrintFormat("[ACR] DRIVE %1: %2, crew bails out at %3", m_Name, why, DriveSpot(vehicle));
   if (vehicle) ACR_Transport.SanitizeVehicleHorn(vehicle, true);
   // Handbrake on: from Reforger 1.9 the automatic gearbox drops a driverless vehicle into neutral, and an
   // abandoned truck rolled 40 m downhill into the BTR its crew had just bailed out from (pak:mannersevade).

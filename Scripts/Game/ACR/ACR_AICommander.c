@@ -6265,6 +6265,8 @@ class ACR_AICommander : Managed
  protected bool RecrewFits(ACR_Squad squad, IEntity vehicle, bool driverless, float now, bool nearEnemy = false)
  {
   if (ACR_Logistics.Health(vehicle) < 0.25 || (!driverless && !ACR_Vehicles.IsEmpty(vehicle))) return false;
+  // On its side or roof: nobody gets in and out of a wreck it can't drive (nothing rights one yet).
+  if (SCR_AIVehicleUsability.IsVehicleFlipped(vehicle)) return false;
   // Run dry (the game's AI gets out of a car with no fuel): wait for the fuel truck, not in and
   // out again (Jacob's 27 Oct game: a Humvee crew left, got back in and left again three times).
   float fuel = ACR_Logistics.Fuel(vehicle);

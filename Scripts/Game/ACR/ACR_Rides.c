@@ -184,10 +184,15 @@ class ACR_Rides : Managed
   if (squad.HasGunner(vehicle) && (!carriersToo || CargoSeats(vehicle) < CARRIER_SEATS)) return "a fighting vehicle (manned gun)";
   if (ACR_Logistics.ServiceOf(vehicle) != 0) return "service vehicle"; // ammo/repair/fuel trucks have their own job
   if (!CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent))) return "not a ground vehicle";
+  if (SCR_AIVehicleUsability.IsVehicleFlipped(vehicle)) return "on its side or roof";
   ChimeraCharacter driver = ACR_Squad.DriverOf(vehicle);
   if (!driver || !ACR_Respawn.IsAlive(driver)) return "no driver";
   if (ACR_Squad.FindController(driver) != 0) return "a player is driving";
   if (m_Manager.IsGunnerDriven(vehicle)) return "driven from the gun";
+  // Gave up stuck lately and hasn't moved since: its "Stuck, holding" reads as idle below. Jacob's 6 Nov
+  // Chernarus game: 17 of 76 AI rides went to a truck that had given up stuck minutes before, one Ural
+  // six times in 26 min, and each ride ended "stuck, holds" again with its riders still waiting.
+  if (squad.StuckHere(vehicle, GetGame().GetWorld().GetWorldTime())) return "stuck, gave up driving there lately";
   // Idle, holding or defending somewhere, or heading home from an earlier ride.
   ACR_EOrderState state = squad.OrderState();
   if (state == ACR_EOrderState.HOLD || state == ACR_EOrderState.DEFEND || state == ACR_EOrderState.RETURN) return "";
@@ -328,12 +333,10 @@ class ACR_Rides : Managed
  int CountIdleTransports(string faction, bool handedOnly = false)
  {
   int count;
-  float now = GetGame().GetWorld().GetWorldTime();
   foreach (ACR_Squad squad : m_Manager.m_Squads)
   {
    if (handedOnly && !squad.m_bAICommanded) continue;
-   if (now - squad.m_fStuckAt < 600000) continue; // gave up stuck lately: it won't be coming
-   if (!IsFreeTransport(squad, faction)) continue;
+   if (!IsFreeTransport(squad, faction)) continue; // (a truck that gave up stuck lately isn't: WhyNotTaxi)
    if (FreeSeats(ACR_Transport.CrewedVehicle(squad)) >= 4) count++;
   }
   return count;
