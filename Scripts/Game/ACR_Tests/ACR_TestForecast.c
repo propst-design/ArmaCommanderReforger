@@ -103,11 +103,18 @@ class ACR_TestForecast
 
  static void CheckOption()
  {
-  bool offByDefault = !ACR_DefenceForecast.On();
+  // Acting on it by default from 0.5.13 (#232); 1 only logs; 0 or the classic commander turns it off.
+  bool actsByDefault = ACR_DefenceForecast.On() && ACR_DefenceForecast.Acts();
   ACR_Options.Set("acrDefenceForecast", "1");
-  bool on = ACR_DefenceForecast.On();
+  bool logs = ACR_DefenceForecast.On() && !ACR_DefenceForecast.Acts();
+  ACR_Options.Set("acrDefenceForecast", "0");
+  bool off = !ACR_DefenceForecast.On();
   ACR_Options.Unset("acrDefenceForecast");
-  ACR_TestRegress.Check("forecast: off by default, -acrDefenceForecast 1 turns it on", offByDefault && on && !ACR_DefenceForecast.On(), "");
+  ACR_Options.Set("acrAICommander", "classic");
+  bool classicOff = !ACR_DefenceForecast.On() && !ACR_Squad.CoveredFallBackOn() && ACR_AICommander.AllocatorMode() == 0;
+  ACR_Options.Unset("acrAICommander");
+  bool restored = ACR_DefenceForecast.Acts() && ACR_Squad.CoveredFallBackOn() && ACR_AICommander.AllocatorMode() == 2;
+  ACR_TestRegress.Check("forecast: acts by default, 1 logs, 0 or -acrAICommander classic (also allocator, fall-back) turns it off", actsByDefault && logs && off && classicOff && restored, string.Format("default %1, log %2, off %3, classic off %4, back %5", actsByDefault, logs, off, classicOff, restored));
  }
 
  // Two live bases at least 800 m apart (a lane can run between them).

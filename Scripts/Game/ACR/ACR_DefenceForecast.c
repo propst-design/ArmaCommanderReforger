@@ -2,7 +2,8 @@
 // and potential attack vectors"). Step 1 of the defence rework (design: docs/handoff/ai-allocator-
 // design.md, "Defence: read the attack before it lands"): a forecast, built only from what the side
 // knows, logged and shown in AC:A Think so it can be judged before anything acts on it.
-// -acrDefenceForecast 1 turns it on (off by default).
+// -acrDefenceForecast 1 logs it, 2 (the default from 0.5.13, #232) also acts on it; 0 or -acrAICommander
+// classic turns it off.
 //
 // Today the commander only counts enemies already inside THREAT_DISTANCE of a base. The forecast looks
 // further out, per base of ours:
@@ -156,8 +157,9 @@ class ACR_DefenceForecast : Managed
  void ACR_DefenceForecast(string faction) { m_sFaction = faction; }
 
  // 0 off (default), 1 forecast + log + Think, 2 the AI commander also acts on it.
- static bool On() { return ACR_LogisticsRules.Choice("acrDefenceForecast", "0") != "0"; }
- static bool Acts() { return ACR_LogisticsRules.Choice("acrDefenceForecast", "0").ToInt() >= 2; }
+ // 2 by default (#232), 0 with the classic commander (ACR_AIRework).
+ static bool On() { return ACR_LogisticsRules.Choice("acrDefenceForecast", ACR_AIRework.Default("2")) != "0"; }
+ static bool Acts() { return ACR_LogisticsRules.Choice("acrDefenceForecast", ACR_AIRework.Default("2")).ToInt() >= 2; }
 
  // Firm: worth defending ahead now. A base firm last tick keeps it on the lower bars.
  static bool IsFirm(ACR_BaseForecast entry, bool wasFirm)

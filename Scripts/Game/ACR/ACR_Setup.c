@@ -250,7 +250,7 @@ class ACR_Setup
   string rows;
   bool generated = Current("layout").StartsWith("gen:");
   // The map preview sits right under the battlefield and its seed (25 Oct: it was last, a page away).
-  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "shared", "holdguns", "declutter", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "strategy", "allocator", "forecast", "coveredfallback", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
+  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "shared", "holdguns", "declutter", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
   foreach (string key : keys)
   {
    if (key == "seed" && !generated && Current("quickstart") == "off") continue;
@@ -346,11 +346,8 @@ class ACR_Setup
   if (key == "fortify") return "Fortify orders";
   if (key == "fortifyai") return "AI commanders fortify";
   if (key == "baseworks") return "Fortify a whole base";
+  if (key == "aicommander") return "AI commander";
   // Experimental tab (Jacob, 5 Nov): features shipped off until they have been played.
-  if (key == "strategy") return "AI lanes (one main push)";
-  if (key == "allocator") return "AI job allocator";
-  if (key == "forecast") return "AI defence forecast";
-  if (key == "coveredfallback") return "AI covered fall-back";
   if (key == "periodjets") return "Period jets (no RHS)";
   if (key == "squadtactics") return "AI squad tactics in objectives";
   if (key == "pullover") return "Pull over before getting out";
@@ -363,17 +360,13 @@ class ACR_Setup
  // The Experimental tab's rows: off by default, on/off unless Values says more.
  static bool Experimental(string key)
  {
-  return key == "strategy" || key == "allocator" || key == "forecast" || key == "coveredfallback" || key == "periodjets" || key == "squadtactics" || key == "pullover" || key == "evadearmour" || key == "fieldsoffire" || key == "twoic";
+  return key == "periodjets" || key == "squadtactics" || key == "pullover" || key == "evadearmour" || key == "fieldsoffire" || key == "twoic";
  }
 
  // What a row does, shown under the rows when it is pointed at or focused (ACR_SetupDialog.OnRowFocus).
  // Two short lines at most: the text under the rows doesn't wrap.
  static string Help(string key)
  {
-  if (key == "strategy") return "After a short land-rush each AI commander picks one corridor\nand pushes down it: a main and a supporting attack, flanks after.";
-  if (key == "allocator") return "Weighs every attack, grab, defence and reserve job together.\nObserves: only logs what it would change. Gives out: it decides.";
-  if (key == "forecast") return "Reads intel to forecast where the next attack will come from.\nDefends on it: defenders and screens go first; 2IC warns players.";
-  if (key == "coveredfallback") return "A squad the AI pulls back under fire bounds back in covered\nhalves instead of going to ground in the open.";
   if (key == "periodjets") return "Without RHS: recon flights and bomb runs show period jets\n(RF-4C, Su-17, A-10, Su-25) with engine sound and falling bombs.";
   if (key == "squadtactics") return "AI squads use Better Battle Buddies' squad tactics (flank, bound,\nsearch) inside a base they attack or defend, never leaving it.";
   if (key == "pullover") return "A squad told to get out on a road first has its driver pull\nonto the verge. Under fire it gets out where it stands.";
@@ -451,7 +444,8 @@ class ACR_Setup
   else if (key == "rpservice") values = {"0", "3", "5"};
   else if (key == "mines" || key == "fortify" || key == "baseworks") values = {"1", "0"};
   else if (key == "minesreal" || key == "minesai" || key == "fortifyai") values = {"0", "1"};
-  else if (key == "allocator" || key == "forecast" || key == "twoic") values = {"0", "1", "2"};
+  else if (key == "aicommander") values = {"new", "classic"};
+  else if (key == "twoic") values = {"0", "1", "2"};
   else if (Experimental(key)) values = {"0", "1"};
   return values;
  }
@@ -496,10 +490,7 @@ class ACR_Setup
   if (key == "fortify") return "acrFortify";
   if (key == "fortifyai") return "acrFortifyAI";
   if (key == "baseworks") return "acrBaseWorks";
-  if (key == "strategy") return "acrAIStrategy";
-  if (key == "allocator") return "acrAIAllocator";
-  if (key == "forecast") return "acrDefenceForecast";
-  if (key == "coveredfallback") return "acrCoveredFallBack";
+  if (key == "aicommander") return "acrAICommander";
   if (key == "periodjets") return "acrPeriodJets";
   if (key == "squadtactics") return "acrSquadTactics";
   if (key == "pullover") return "acrPullOver";
@@ -565,6 +556,7 @@ class ACR_Setup
    if (key == "minesreal" || key == "minesai" || key == "fortifyai") return "0";
    if (key == "aibuild") return "0";
    if (key == "capscale") return "0";
+   if (key == "aicommander") return "new";
    if (Experimental(key)) return "0";
   }
   if (key == "threat" && value == "") return "normal";
@@ -662,10 +654,8 @@ class ACR_Setup
   if (key == "capscale") return "off";
   if (key == "declutter" && value == "0") return "off (the classic map)";
   if (key == "declutter") return "on";
-  if (key == "allocator" && value == "1") return "observes only (log, Think)";
-  if (key == "allocator" && value == "2") return "gives out the jobs";
-  if (key == "forecast" && value == "1") return "log only";
-  if (key == "forecast" && value == "2") return "defends on it";
+  if (key == "aicommander" && value == "classic") return "classic (before 0.5.13)";
+  if (key == "aicommander") return "new (lanes, allocator, forecast)";
   if (key == "evadearmour" && value == "1") return "on (needs BBB's setting too)";
   if (key == "twoic" && value == "1") return "2IC: runs the squads nobody leads";
   if (key == "twoic" && value == "2") return "I'm the 2IC: the AI commands";
@@ -1122,7 +1112,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
  {
   // A row's description line goes with its row.
   if (key.StartsWith("about")) return Tab(key.Substring(5, key.Length() - 5));
-  if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "aibuild" || key == "capscale") return 1;
+  if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "aibuild" || key == "capscale") return 1;
   if (key == "pricing" || key == "startrp" || key == "income" || key == "companywest" || key == "companyeast") return 2;
   if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "fobrelay" || key == "depotcapacity" || key == "servicecost" || key == "rpservice") return 3;
   if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "baseworks") return 4;

@@ -17,7 +17,8 @@ class ACR_TestForecastDefend
  static const float SENT_LEAST = 20;       // s defenders are sent at least this long before the ring
  static const float WAY_SLACK = 45;        // degrees: the screen watches the enemy's way within this
  static const int SCREEN_WAIT = 200;       // s for the screen to get out before the attack starts anyway
- static const int GIVE_UP = 240;           // s after the attack starts with nobody at the ring
+ static const int GIVE_UP = 360;           // s after the attack starts with nobody at the ring
+ static const int JUDGE_WAIT = 60;         // s past the ring for the self-check to judge it
  static const int DEFENCE_TICK = 5;        // s between the commander's defence ticks (a strategic tick is 15)
 
  static int s_iStep;
@@ -205,8 +206,10 @@ class ACR_TestForecastDefend
   if (inside && s_fRingAt < 0) s_fRingAt = tick;
   // Past the ring: until the self-check has judged it (someone has to see them inside), or a minute.
   bool judged = forecast && forecast.m_iHits + forecast.m_iWrongWay + forecast.m_iUnforecast > 0;
-  if (s_fRingAt >= 0 && (judged || tick - s_fRingAt >= 60)) s_iStep = 3;
-  else if (tick - s_iAttackTick >= GIVE_UP) s_iStep = 3;
+  // The give-up clock is for an attack that never reaches the ring: one that does always gets its wait
+  // (exp4 runs, 5 Nov: ring at t=216 was cut at t=240 before the self-check saw it inside).
+  if (s_fRingAt >= 0 && (judged || tick - s_fRingAt >= JUDGE_WAIT)) s_iStep = 3;
+  else if (s_fRingAt < 0 && tick - s_iAttackTick >= GIVE_UP) s_iStep = 3;
  }
 
  // What our side knows and forecasts, every 10 s (reading a failed run).

@@ -74,7 +74,7 @@ class ACR_Options
  static void Log()
  {
   string line;
-  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIAHidden", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrHoldGuns", "acrMapDeclutter", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC"};
+  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIAHidden", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrHoldGuns", "acrMapDeclutter", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAICommander", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC"};
   foreach (string name : names)
   {
    string value;
@@ -124,6 +124,8 @@ class ACR_MissionHeader : SCR_MissionHeader
  string m_sAcrPricing;
  [Attribute("", UIWidgets.EditBox, "AI commanders: both, none or a faction key (-acrAI)")]
  string m_sAcrAI;
+ [Attribute("", UIWidgets.EditBox, "AI commander: new (default: lanes, job allocator, defence forecast, covered fall-back) or classic (as before 0.5.13) (-acrAICommander)")]
+ string m_sAcrAICommander;
  [Attribute("", UIWidgets.EditBox, "Blue side AI doctrine: random, balanced, blitz, firepower, fortress or raider (-acrDoctrineWest)")]
  string m_sAcrDoctrineWest;
  [Attribute("", UIWidgets.EditBox, "Red side AI doctrine: random, balanced, blitz, firepower, fortress or raider (-acrDoctrineEast)")]
@@ -246,6 +248,7 @@ class ACR_MissionHeader : SCR_MissionHeader
   Text(values, "acrThreat", m_sAcrThreat);
   Text(values, "acrPricing", m_sAcrPricing);
   Text(values, "acrAI", m_sAcrAI);
+  Text(values, "acrAICommander", m_sAcrAICommander);
   Text(values, "acrDoctrineWest", m_sAcrDoctrineWest);
   Text(values, "acrDoctrineEast", m_sAcrDoctrineEast);
   Text(values, "acrDoctrineAdapt", m_sAcrDoctrineAdapt);
