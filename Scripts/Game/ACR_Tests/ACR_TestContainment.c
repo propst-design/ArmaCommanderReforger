@@ -7,7 +7,8 @@
 // a US truck parked on it gets them aboard, and brought to the US HQ they pay on delivery; a horde
 // reaching civilians with nobody there takes them; an AI commander sets an XP and sends a free
 // truck (kept out of rides meanwhile); airdrops: a pallet lands in the open, its side recovers it,
-// the other side can steal one, the AI sends a squad for one; ground zero's bounty and the RP cap; a town taken near a nest is counterattacked
+// the other side can steal one, the AI sends a squad for one; a truce (TvTvZ) is made, spares bases and pallets, is broken
+// with a warning, and an AI answers an offer; ground zero's bounty and the RP cap; a town taken near a nest is counterattacked
 // (once per place); the spread is reported; messages name towns (#241); left alone it escalates and
 // hordes stay 15+ (#240).
 class ACR_TestContainment
@@ -15,7 +16,7 @@ class ACR_TestContainment
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const ResourceName HELI = "{70BAEEFC2D3FEE64}Prefabs/Vehicles/Helicopters/UH1H/UH1H.et";
- static const int EXPECTED = 25;
+ static const int EXPECTED = 29;
  protected static ACR_DefenderPost s_Zero;
  protected static ref ACR_EvacPoint s_Evac; // ref: a finished XP leaves the list
  protected static IEntity s_Heli;
@@ -55,6 +56,9 @@ class ACR_TestContainment
   if (second == 104) PalletChecks(manager);
   if (second == 106) AIPalletSetup(manager);
   if (second == 118) AIPallet(manager);
+  if (second == 120) TruceMake();
+  if (second == 122) TruceBreak();
+  if (second == 124) TruceAI(manager);
   if (second == 130) Spread();
  }
 
@@ -305,6 +309,57 @@ class ACR_TestContainment
   string name = "none";
   if (squad) name = squad.GetName();
   Check("airdrop: an AI commander sends a squad for a pallet", squad && squad.m_iAITask == ACR_EAITask.PALLET, string.Format("ai %1, squad %2, pallets %3", ai != null, name, ACR_Airdrop.Count()));
+ }
+
+ // Truce (ACR_Truce, TvTvZ): USSR offers, US accepts; the sides are friendly, neither takes the other's
+ // bases or pallets; USSR breaks it with a warning, then the sides are hostile again.
+ protected static void TruceMake()
+ {
+  ACR_Truce.Reset();
+  string offered = ACR_Truce.Offer("USSR");
+  string accepted = ACR_Truce.Offer("US");
+  ACR_Pallet theirs = new ACR_Pallet();
+  theirs.m_sFor = "USSR";
+  ACR_Base hq = ACR_DoctrineKits.HQOf("US");
+  bool spared = hq && ACR_BaseSystem.FriendOfOwner(hq, "USSR");
+  Check("truce: one side offers, the other accepts; friendly, no base capture, no pallet theft", ACR_Truce.Holds() && ACR_Insurgency.Friendly("US", "USSR") && FactionsFriendly() && spared && !ACR_Airdrop.MayTake(theirs, "US"), string.Format("possible %1, '%2' / '%3', friendly %4, factions %5, US HQ spared %6, theft %7", ACR_Truce.Possible(), offered, accepted, ACR_Insurgency.Friendly("US", "USSR"), FactionsFriendly(), spared, ACR_Airdrop.MayTake(theirs, "US")));
+ }
+
+ protected static void TruceBreak()
+ {
+  string reply = ACR_Truce.Refuse("USSR");
+  bool warned = ACR_Truce.State() == ACR_ETruce.BREAKING && ACR_Truce.Holds() && FactionsFriendly();
+  Check("truce: breaking it warns everyone first, still at peace meanwhile", warned, string.Format("'%1', state %2", reply, ACR_Truce.State()));
+  ACR_Truce.EndWarningForTest();
+  ACR_Pallet theirs = new ACR_Pallet();
+  theirs.m_sFor = "USSR";
+  ACR_Base hq = ACR_DoctrineKits.HQOf("US");
+  bool spared = hq && ACR_BaseSystem.FriendOfOwner(hq, "USSR");
+  Check("truce: after the warning the sides are at war again", ACR_Truce.State() == ACR_ETruce.NONE && !ACR_Insurgency.Friendly("US", "USSR") && !FactionsFriendly() && !spared && ACR_Airdrop.MayTake(theirs, "US") && ACR_Truce.s_iBroken == 1, string.Format("state %1, friendly %2, factions %3, spared %4", ACR_Truce.State(), ACR_Insurgency.Friendly("US", "USSR"), FactionsFriendly(), spared));
+ }
+
+ // An AI commander answers an offer: accepts when the dead press it or it is losing, refuses otherwise.
+ protected static void TruceAI(ACR_Manager manager)
+ {
+  ACR_Truce.Reset();
+  ACR_Truce.Offer("USSR");
+  ACR_AICommander ai = manager.FobAICommanderFor("US");
+  bool wants;
+  if (ai) wants = ai.TruceWantsForTest();
+  if (ai) ai.ManageTruceForTest();
+  int state = ACR_Truce.State();
+  bool answered = (wants && state == ACR_ETruce.HOLDS) || (!wants && state == ACR_ETruce.NONE);
+  Check("truce: an AI commander answers an offer by how hard the dead press it", ai && answered, string.Format("ai %1, wants %2, state %3", ai != null, wants, state));
+  ACR_Truce.Reset();
+ }
+
+ protected static bool FactionsFriendly()
+ {
+  FactionManager factions = GetGame().GetFactionManager();
+  if (!factions) return false;
+  Faction us = factions.GetFactionByKey("US");
+  Faction ussr = factions.GetFactionByKey("USSR");
+  return us && ussr && us.IsFactionFriendly(ussr);
  }
 
  protected static void Bounty(ACR_Manager manager)

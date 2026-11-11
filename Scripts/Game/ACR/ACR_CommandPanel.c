@@ -46,6 +46,8 @@ enum ACR_EPanelAction
  MORE_FOLD,
  EVAC,                    // containment: set an evac point (ACR_Evac)
  TWOIC_EVAC,              // ... "I'm the 2IC" runs evacs or leaves them to the commander
+ TRUCE_OFFER,             // TvTvZ truce (ACR_Truce): offer or accept
+ TRUCE_REFUSE,            // ... refuse, withdraw or break
  DEBUG_TOGGLE = 50,
  DEBUG_THINK,             // the AC:A Think card (ACR_Think)
  DEBUG_ACTION = 60,       // + ACR_EDebug (below 100)
@@ -250,6 +252,9 @@ class ACR_CommandPanel : Managed
   m_KeyHintsButton = AddButton(m_MoreSection, "", ACR_EPanelAction.KEY_HINTS);
   // Zombie containment under "I'm the 2IC" (#107): the server answers whether it applies.
   AddButton(m_MoreSection, "2IC runs evacs: on/off", ACR_EPanelAction.TWOIC_EVAC);
+  // TvTvZ truce (#107): the server answers whether one can be had.
+  AddButton(m_MoreSection, "Truce: offer / accept", ACR_EPanelAction.TRUCE_OFFER);
+  AddButton(m_MoreSection, "Truce: refuse / break", ACR_EPanelAction.TRUCE_REFUSE);
   RefreshKeyHints();
   AddExtraRows(m_MoreSection);
   RefreshMore();

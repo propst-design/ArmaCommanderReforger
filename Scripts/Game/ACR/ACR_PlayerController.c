@@ -1732,6 +1732,8 @@ modded class SCR_PlayerController
    case ACR_EPanelAction.QRF: ACR_ToggleCursor(ACR_ECursorMode.QRF); return;
    case ACR_EPanelAction.EVAC: ACR_ToggleCursor(ACR_ECursorMode.EVAC); return;
    case ACR_EPanelAction.TWOIC_EVAC: ACR_Request(ACR_ERequest.TOGGLE_2IC_EVAC); return;
+   case ACR_EPanelAction.TRUCE_OFFER: ACR_Request(ACR_ERequest.TRUCE_OFFER); return;
+   case ACR_EPanelAction.TRUCE_REFUSE: ACR_Request(ACR_ERequest.TRUCE_REFUSE); return;
    case ACR_EPanelAction.MINES_AP: ACR_ToggleCursor(ACR_ECursorMode.MINES_AP); return;
    case ACR_EPanelAction.MINES_AT: ACR_ToggleCursor(ACR_ECursorMode.MINES_AT); return;
    case ACR_EPanelAction.MINES_MIXED: ACR_ToggleCursor(ACR_ECursorMode.MINES_MIXED); return;

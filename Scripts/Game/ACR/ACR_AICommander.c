@@ -1174,6 +1174,7 @@ class ACR_AICommander : Managed
   ManageDangerRoads();
   ManageEvacs();
   ManagePallets();
+  ManageTruce();
   ManageFobBuild();
   ManageFobUpgrades();
   int beforeBuild = m_Manager.m_Bases.GetRP(m_sFaction);
@@ -7627,6 +7628,67 @@ class ACR_AICommander : Managed
  }
  void ManagePalletsForTest() { ManagePallets(); }
  ACR_Squad PalletSquadForTest() { return m_PalletSquad; }
+ // Truce (ACR_Truce, TvTvZ): an AI commander in command of its side accepts an offer, or offers one, when
+ // the dead press its bases or it is losing; it refuses otherwise. It breaks a truce that has held
+ // ACR_Truce.MIN_HOLD_MS once the dead are under control and it is ahead. The 2IC leaves the truce to
+ // the commanding player.
+ protected void ManageTruce()
+ {
+  if (m_bTwoICAll || m_bHandedOnly || !ACR_Truce.Possible()) return;
+  bool pressed = DeadPress();
+  int standing = Standing();
+  int state = ACR_Truce.State();
+  if (state == ACR_ETruce.OFFERED && ACR_Truce.By() != m_sFaction)
+  {
+   string reply;
+   if (pressed || standing < 0) reply = ACR_Truce.Offer(m_sFaction);
+   else reply = ACR_Truce.Refuse(m_sFaction);
+   Say(string.Format("[ACR] AI %1: truce offer answered (dead pressing %2, standing %3): %4", m_sFaction, pressed, standing, reply));
+   return;
+  }
+  if (state == ACR_ETruce.NONE && pressed && standing <= 0)
+  {
+   string offered = ACR_Truce.Offer(m_sFaction);
+   if (offered == "Truce offered") Say(string.Format("[ACR] AI %1: offers a truce (dead pressing, standing %2)", m_sFaction, standing));
+   return;
+  }
+  if (state == ACR_ETruce.HOLDS && ACR_Truce.HeldMs() >= ACR_Truce.MIN_HOLD_MS && !pressed && standing > 0 && ACR_Containment.LevelForTest() <= 1)
+  {
+   ACR_Truce.Break(m_sFaction);
+   Say(string.Format("[ACR] AI %1: breaks the truce (dead under control, standing %2)", m_sFaction, standing));
+  }
+ }
+
+ // The dead press us: zombies in or near a base of ours, or the outbreak out of control (level 3+).
+ protected bool DeadPress()
+ {
+  if (ACR_Containment.On() && ACR_Containment.LevelForTest() >= 3) return true;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || base.m_sOwner != m_sFaction) continue;
+   if (ACR_Containment.ZombiesNear(base.GetOrigin(), base.m_fRadius + 300)) return true;
+  }
+  return false;
+ }
+
+ // Bases held against the other living side: +1 ahead (two more), -1 losing (two fewer), 0 even.
+ protected int Standing()
+ {
+  int ours;
+  int theirs;
+  array<string> sides = ACR_Containment.Sides();
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || base.m_sOwner.IsEmpty() || !sides.Contains(base.m_sOwner)) continue;
+   if (base.m_sOwner == m_sFaction) ours++;
+   else theirs++;
+  }
+  if (ours >= theirs + 2) return 1;
+  if (ours + 2 <= theirs) return -1;
+  return 0;
+ }
+ void ManageTruceForTest() { ManageTruce(); }
+ bool TruceWantsForTest() { return DeadPress() || Standing() < 0; }
  ACR_Squad EvacTaxiForTest() { return m_EvacTaxi; }
  int EvacPhaseForTest() { return m_iEvacPhase; }
 

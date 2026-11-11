@@ -42,6 +42,15 @@ class ACR_FallBack : Managed
 
 class ACR_BaseSystem : Managed
 {
+ // Soldiers of 'key' at this base neither capture nor contest it: FIA's ally at an FIA pocket
+ // (ACR_Insurgency), or either living side while a TvTvZ truce holds (ACR_Truce, #107).
+ static bool FriendOfOwner(ACR_Base base, string key)
+ {
+  if (key == base.m_sOwner || base.m_sOwner.IsEmpty()) return false;
+  if (!base.m_bPocket && !ACR_Truce.Between(key, base.m_sOwner)) return false;
+  return ACR_Insurgency.Friendly(key, base.m_sOwner);
+ }
+
  static const float CAPTURE_RATE = 0.4;     // score per second per soldier of difference
  static const float CAPTURE_MAX_STEP = 6;   // cap per second (original mod: 2; raised so more troops cap faster)
  static const float SPAWN_RANGE = 400;      // enemies this close deploy the garrison
@@ -280,8 +289,7 @@ class ACR_BaseSystem : Managed
    if (!body) continue; // deleted this tick (e.g. a garrison packed up after a capture)
    string key = m_BodyFactions[i];
    float distance = vector.DistanceXZ(body.GetOrigin(), center);
-   // FIA's ally neither fights nor takes its pockets (ACR_Insurgency).
-   bool friendOfOwner = base.m_bPocket && key != base.m_sOwner && ACR_Insurgency.Friendly(key, base.m_sOwner);
+   bool friendOfOwner = FriendOfOwner(base, key);
    bool inWar = m_BodyInWar[i] || key == base.m_sOwner;
    bool zombie = ACR_Outbreak.IsZombies(key);
    if (zombie && distance <= base.m_fRadius) zombies++;

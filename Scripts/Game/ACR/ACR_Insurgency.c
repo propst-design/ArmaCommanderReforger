@@ -91,7 +91,7 @@ class ACR_Insurgency
   if (a == b) return true;
   if (a == ACR_Pockets.FACTION) return s_aFriends.Contains(b);
   if (b == ACR_Pockets.FACTION) return s_aFriends.Contains(a);
-  return false;
+  return ACR_Truce.Between(a, b); // the TvTvZ truce (#107)
  }
 
  // Server, once the layout is applied (ACR_Skirmish.ApplyOnce): the game's factions, and the ally

@@ -33,6 +33,8 @@ class ACR_Requests : Managed
    case ACR_ERequest.LEAVE_COMMAND: return m_Manager.LeaveCommand(pc);
    case ACR_ERequest.UNLOAD_HERE: return UnloadHere(pc, body);
    case ACR_ERequest.TOGGLE_2IC_EVAC: return TwoICEvac(pc);
+   case ACR_ERequest.TRUCE_OFFER: return Truce(pc, true);
+   case ACR_ERequest.TRUCE_REFUSE: return Truce(pc, false);
   }
   return Order(pc, command, targetId, point);
  }
@@ -47,6 +49,16 @@ class ACR_Requests : Managed
   string line = ACR_Evac.ToggleTwoIC(faction.GetFactionKey());
   PrintFormat("[ACR] EVAC 2IC %1: runs evacs %2", faction.GetFactionKey(), ACR_Evac.TwoICExtracts(faction.GetFactionKey()));
   return line;
+ }
+
+ // TvTvZ truce (ACR_Truce): the commander offers or accepts, or refuses, withdraws or breaks it.
+ protected string Truce(SCR_PlayerController pc, bool offer)
+ {
+  if (!m_Manager.IsCommander(pc.GetPlayerId())) return "Only the commander can do that. Take command first.";
+  Faction faction = SCR_FactionManager.SGetPlayerFaction(pc.GetPlayerId());
+  if (!faction) return "No side";
+  if (offer) return ACR_Truce.Offer(faction.GetFactionKey());
+  return ACR_Truce.Refuse(faction.GetFactionKey());
  }
 
  string ReturnToCommandUnit(SCR_PlayerController pc, ChimeraCharacter body)

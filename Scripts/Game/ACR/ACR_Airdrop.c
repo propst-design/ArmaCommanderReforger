@@ -77,7 +77,8 @@ class ACR_Airdrop
  // Whether 'side' may take this pallet now: its own, or the other side's (TvTvZ: theft).
  static bool MayTake(ACR_Pallet pallet, string side)
  {
-  return true;
+  if (pallet.m_sFor == side) return true;
+  return !ACR_Truce.Holds(); // no theft while a truce holds (ACR_Truce)
  }
 
  // ---------------------------------------------------------------- every second (ACR_Containment.Tick)
@@ -111,7 +112,8 @@ class ACR_Airdrop
   ACR_Base hq = ACR_DoctrineKits.HQOf(side);
   if (!hq) return false;
   IEntity navAgent = ACR_Garrison.AnyAgent();
-  for (int attempt = 0; attempt < 12; attempt++)
+  // 48 tries: an HQ by the coast or among other bases can lose most random spots (12 missed in a test).
+  for (int attempt = 0; attempt < 48; attempt++)
   {
    float angle = Math.RandomFloat(0, Math.PI2);
    float reach = Math.RandomFloat(DROP_MIN, DROP_MAX);
