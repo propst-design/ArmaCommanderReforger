@@ -77,6 +77,7 @@ class ACR_RTSCameraManager : Managed
 	protected Widget m_BottomBar;
 	protected Widget m_UnitActionsRow;
 	protected SCR_ButtonTextComponent m_ExitBtn;
+	protected SCR_ButtonTextComponent m_MapBtn;
 	protected SCR_ButtonTextComponent m_DefendBtn;
 	protected SCR_ButtonTextComponent m_GarrisonBtn;
 	protected SCR_ButtonTextComponent m_GetInBtn;
@@ -178,6 +179,16 @@ class ACR_RTSCameraManager : Managed
 		if (!IsActive()) Close();
 	}
 
+	// F9 or the Map button: straight back to the command map. The camera shuts first (the map would
+	// close it on its next frame anyway); ACR_Manager skips its own F9 on that frame, the camera
+	// having been open at its start, so the map isn't toggled shut again.
+	static void ToMap()
+	{
+		Close();
+		MenuManager menus = GetGame().GetMenuManager();
+		if (menus && !menus.IsAnyMenuOpen()) menus.OpenMenu(ChimeraMenuPreset.MapMenu);
+	}
+
 	static void Close()
 	{
 		s_bOpenPending = false;
@@ -269,7 +280,7 @@ class ACR_RTSCameraManager : Managed
 		CreateUI();
 		if (!m_InteractionLayer) { Cleanup(); return; }
 		GetGame().GetInputManager().ActivateContext("ACR_RTSContext");
-		ShowToast("3D camera: F10 or Esc to leave");
+		ShowToast("3D camera: F9 back to the map, F10 or Esc to leave");
 	}
 
 	// ---------------------------------------------------------------- UI creation
@@ -331,6 +342,7 @@ class ACR_RTSCameraManager : Managed
 		AlignableSlot.SetVerticalAlign(topRight, LayoutVerticalAlign.Center);
 		m_FollowBtn = AddButton(topRight, "Follow  [F]", 10);
 		m_HideBtn = AddButton(topRight, "Hide UI  [H]", 11);
+		m_MapBtn = AddButton(topRight, "Map  [F9]", 12);
 		m_ExitBtn = AddButton(topRight, "Exit  [F10]", 1);
 
 		// The bottom bar: the selection, what it is doing, its orders, the keys.
@@ -351,7 +363,7 @@ class ACR_RTSCameraManager : Managed
 		m_RoadblockBtn = AddButton(m_UnitActionsRow, "Roadblock", 7, true);
 		m_MinesBtn = AddButton(m_UnitActionsRow, "Minefield", 8, true);
 		m_FortifyBtn = AddButton(m_UnitActionsRow, "Fortify", 9, true);
-		TextWidget keys = ACR_TwoICStyle.Text(botCol, "WASD pan  ·  Shift faster  ·  Wheel height  ·  Right-drag turn  ·  Left-click select  ·  Right-click order (Shift: queue)  ·  F follow  ·  H hide UI  ·  F10 leave", ACR_TwoICStyle.Dim(), 14);
+		TextWidget keys = ACR_TwoICStyle.Text(botCol, "WASD pan  ·  Shift faster  ·  Wheel height  ·  Right-drag turn  ·  Left-click select  ·  Right-click order (Shift: queue)  ·  F follow  ·  H hide UI  ·  F9 map  ·  F10 leave", ACR_TwoICStyle.Dim(), 14);
 		if (keys) AlignableSlot.SetPadding(keys, 0, 8, 0, 0);
 
 		// The toast: a dark pill over the lower middle of the scene.
@@ -432,6 +444,9 @@ class ACR_RTSCameraManager : Managed
 		{
 			case 1: // Exit
 				Close();
+				return;
+			case 12: // Back to the map
+				ToMap();
 				return;
 			case 2: // Defend toggle
 				m_iPointCommand = 0;
@@ -1224,6 +1239,11 @@ class ACR_RTSCameraManager : Managed
 		if (input.GetActionTriggered("MenuBack") || input.GetActionTriggered("ACR_RTSCamera"))
 		{
 			Close();
+			return;
+		}
+		if (input.GetActionTriggered("ACR_Map"))
+		{
+			ToMap();
 			return;
 		}
 		if (input.GetActionTriggered("ACR_RTSHideUI")) SetUiHidden(!m_bUiHidden);

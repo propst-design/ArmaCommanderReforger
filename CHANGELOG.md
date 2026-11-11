@@ -51,6 +51,10 @@ Zombie mode on Project Outbreak, the 2IC back beside "I'm the 2IC", and AI logis
 - Contained outbreak (#107): with Project Outbreak loaded, the setup screen's **Outbreak start** row (`-acrOutbreak contain`) starts the zombies in one town, ground zero, far from both sides (the hive in TvZ), instead of nests everywhere. It spreads from there: ground zero refills fast and sends hordes to the towns round it, which nest and spread in turn. A town the dead are coming for has survivors holed up in it, shown on both sides' maps: get any soldier there first, with no zombies on them, and they are rescued for 5 RP each. AI commanders send a squad to rescue them too, one site at a time. If the horde gets there and nobody is there, they join it. Clearing a nest pays the side that cleared it, and both sides hear how far the outbreak has spread. No timer and no way to lose: the zombie cap stops the spread, and clearing every nest contains it.
 - Coming next for zombie mode: a compat add-on, **AC: Actual - Zombies**, published separately once this version is live, and more to come (civilian evacuation, airdrops, a truce with the other side).
 
+### Command and setup
+
+- F9 in the 3D camera (F10) goes straight back to the command map, as it opens the map everywhere else, and the camera's top bar has a Map button beside Exit. Until now F9 did nothing there: the camera had to be left first and the map opened again.
+
 ## 0.5.11 — released
 
 ### AI commanders

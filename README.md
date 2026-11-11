@@ -111,7 +111,7 @@ Open the command map with **F9** (no map item needed) or the game map with **M**
 | F8 | Return to your command unit |
 | F5 | Move the selected squad to the cursor (map) or 35 m ahead |
 | F6 (driver, pilot or commander of a vehicle) | Drop every passenger squad now (a second press within 3 s overrides the "too high/fast" warning) |
-| F10 | RTS 3D camera (H hides its UI, F follows the selected squad, W/A/S/D pans) |
+| F10 | RTS 3D camera (H hides its UI, F follows the selected squad, W/A/S/D pans, F9 goes straight back to the map) |
 | F11 | Second-in-command panel on the map (with `-acr2IC 1`) |
 | W/A/S/D in a turret | Gunner drive with an AI driver (a map order hands control back) |
 | Ping (unbound by default) | Tap to mark where you look, hold to pick a ping |
