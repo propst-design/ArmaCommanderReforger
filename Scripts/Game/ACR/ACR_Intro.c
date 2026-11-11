@@ -47,6 +47,10 @@ class ACR_Intro : Managed
   s_bLocalDone = false;
  }
 
+ // For the srv:intro test: an intro received (waiting or playing) here, and one already had here.
+ static bool HasLocal() { return s_Local != null; }
+ static bool LocalDone() { return s_bLocalDone; }
+
  static bool On()
  {
   string value;
@@ -203,7 +207,7 @@ class ACR_Intro : Managed
   if (t >= ORBIT_S + ZOOM_S) { Stop("done"); return; }
   // The music fades out as the camera comes down to the player. The engine's fade time is in ms, like
   // every time in a sound project; Finish stops the sound at the handover whatever the fade did.
-  if (!m_bFading && t >= ORBIT_S + ZOOM_S - FADE_S)
+  if (!m_bFading && t >= MusicFadeFrom())
   {
    m_bFading = true;
    if (m_sMusic != "") AudioSystem.TerminateSoundFadeOut(m_Music, true, FADE_S * 1000.0);
@@ -450,37 +454,55 @@ class ACR_Intro : Managed
   if (m_BarTop) m_BarTop.SetOpacity(bars);
   if (m_BarBottom) m_BarBottom.SetOpacity(bars);
   // Titles: in over the first seconds, out before the orbit ends (all inside the 15 s).
-  float out0 = ORBIT_S - 2.6;
-  float out1 = ORBIT_S - 1.0;
-  if (m_Title) m_Title.SetOpacity(Ramp(t, 1.0, 2.4, out0, out1));
-  if (m_Subtitle) m_Subtitle.SetOpacity(Ramp(t, 1.6, 3.0, out0, out1));
+  if (m_Title) m_Title.SetOpacity(TitleOpacity(t));
+  if (m_Subtitle) m_Subtitle.SetOpacity(Ramp(t, 1.6, 3.0, TitlesOutFrom(), TitlesOutBy()));
   float lineIn = 2.6;
   if (m_bZombies) lineIn = STRIKE_S + 0.9;
-  if (m_Line) m_Line.SetOpacity(Ramp(t, lineIn, lineIn + 1.2, out0, out1) * 0.85);
+  if (m_Line) m_Line.SetOpacity(Ramp(t, lineIn, lineIn + 1.2, TitlesOutFrom(), TitlesOutBy()) * 0.85);
   if (m_Hint) m_Hint.SetOpacity(Ramp(t, 1.0, 2.0, ORBIT_S, ORBIT_S + 1.0) * 0.6);
-  if (m_bZombies) DrawStrike(t, out0, out1);
- }
-
- // Zombie matches, around STRIKE_S: the bolt sweeps left to right across the logo in 0.3 s and lands on
- // the beat, the screen flashes white and dies away, and ZOMBIES is there as the flash clears.
- protected void DrawStrike(float t, float out0, float out1)
- {
-  float d = t - STRIKE_S;
-  // The sweep: -0.3 .. 0 s, the bolt's centre from off the left edge to off the right.
-  float sweep = (d + 0.3) / 0.3;
-  float x = -0.1 + 1.2 * Math.Clamp(sweep, 0, 1);
-  float streak = 0;
-  if (sweep > 0 && sweep < 1) streak = 1;
-  else if (d >= 0 && d < 0.25) streak = 1.0 - d / 0.25;
+  if (!m_bZombies) return;
+  // Zombie matches, around STRIKE_S: the bolt sweeps across the logo and lands on the beat, the screen
+  // flashes white and dies away, and ZOMBIES is there as the flash clears.
+  float x = StreakX(t);
+  float streak = StreakOpacity(t);
   Place(m_Streak, x - 0.012, 0.38, x + 0.012, 0.56);
   Place(m_Glow, x - 0.07, 0.36, x + 0.07, 0.58);
   if (m_Streak) m_Streak.SetOpacity(streak);
   if (m_Glow) m_Glow.SetOpacity(streak * 0.35);
-  // The flash: up to 0.85 over the last 60 ms of the sweep, gone 0.7 s later.
-  float flash = 0;
-  if (d > -0.06 && d < 0) flash = (d + 0.06) / 0.06 * 0.85;
-  else if (d >= 0 && d < 0.7) flash = 0.85 * (1.0 - d / 0.7) * (1.0 - d / 0.7);
-  if (m_Flash) m_Flash.SetOpacity(flash);
-  if (m_Zombies) m_Zombies.SetOpacity(Ramp(t, STRIKE_S, STRIKE_S + 0.12, out0, out1));
+  if (m_Flash) m_Flash.SetOpacity(FlashOpacity(t));
+  if (m_Zombies) m_Zombies.SetOpacity(ZombiesOpacity(t));
+ }
+
+ // ---------------------------------------------------------------- the timeline (t: seconds since start)
+ // Static so the srv:intro test can check them without a screen.
+ static float TitlesOutFrom() { return ORBIT_S - 2.6; }
+ static float TitlesOutBy() { return ORBIT_S - 1.0; }
+ static float MusicFadeFrom() { return ORBIT_S + ZOOM_S - FADE_S; }
+ static float TitleOpacity(float t) { return Ramp(t, 1.0, 2.4, TitlesOutFrom(), TitlesOutBy()); }
+ static float ZombiesOpacity(float t) { return Ramp(t, STRIKE_S, STRIKE_S + 0.12, TitlesOutFrom(), TitlesOutBy()); }
+
+ // The bolt's centre (fraction of the screen width): off the left edge 0.3 s before the strike, off the
+ // right edge on it.
+ static float StreakX(float t)
+ {
+  return -0.1 + 1.2 * Math.Clamp((t - STRIKE_S + 0.3) / 0.3, 0, 1);
+ }
+
+ // Full while it sweeps, fading over 0.25 s after the strike.
+ static float StreakOpacity(float t)
+ {
+  float d = t - STRIKE_S;
+  if (d > -0.3 && d < 0) return 1;
+  if (d >= 0 && d < 0.25) return 1.0 - d / 0.25;
+  return 0;
+ }
+
+ // Up to 0.85 over the last 60 ms of the sweep, gone 0.7 s after the strike.
+ static float FlashOpacity(float t)
+ {
+  float d = t - STRIKE_S;
+  if (d > -0.06 && d < 0) return (d + 0.06) / 0.06 * 0.85;
+  if (d >= 0 && d < 0.7) return 0.85 * (1.0 - d / 0.7) * (1.0 - d / 0.7);
+  return 0;
  }
 }

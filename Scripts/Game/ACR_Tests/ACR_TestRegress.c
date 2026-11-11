@@ -1537,9 +1537,6 @@ class ACR_TestRegress
   }
  }
 
- // 7 Nov: a side at its squad cap still buys a service truck it needs (trucks don't count against
- // the cap; the cap check came first, so a full side that lost its fuel truck went without). The
- // last check of the run: the truck it buys stays.
  // Mission intro (ACR_Intro): on by default, -acrIntro 0 / the setup row turns it off; the music option
  // falls back to the default, and off means none. A srv: run has no players, so nothing is sent.
  static void IntroOptionCheck()
@@ -1566,6 +1563,9 @@ class ACR_TestRegress
   Check("mission intro: on by default, off with -acrIntro 0, music options (main and zombies) fall back and turn off apart, 15 s cap", onByDefault && off && silent && tracks && timed, string.Format("default %1, off %2, silent %3, music %4, zombies %5 own %6 silent %7, timed %8", onByDefault, off, silent, music, zombieMusic, zombieOwn, zombieSilent, timed));
  }
 
+ // 7 Nov: a side at its squad cap still buys a service truck it needs (trucks don't count against
+ // the cap; the cap check came first, so a full side that lost its fuel truck went without). The
+ // last check of the run: the truck it buys stays.
  static void ServiceAtCapCheck(ACR_Manager manager)
  {
   ACR_FactionSettings us = ACR_FactionSettings.Find("US");
