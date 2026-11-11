@@ -1147,12 +1147,13 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
   return "Battlefield";
  }
 
- // The tab a row belongs to; rows nobody sorted yet land on the first tab, where they are seen.
+ // The tab a row belongs to; rows nobody sorted yet land on the first tab, where they are seen
+ // (the mission intro row sits there on purpose: Command is full at 13 rows, 11 Nov).
  static int Tab(string key)
  {
   // A row's description line goes with its row.
   if (key.StartsWith("about")) return Tab(key.Substring(5, key.Length() - 5));
-  if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "intro" || key == "aibuild" || key == "capscale") return 1;
+  if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "aibuild" || key == "capscale") return 1;
   if (key == "pricing" || key == "startrp" || key == "income" || key == "companywest" || key == "companyeast") return 2;
   if (key == "decks" || key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return 2;
   if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "fobrelay" || key == "depotcapacity" || key == "servicecost" || key == "rpservice") return 3;
