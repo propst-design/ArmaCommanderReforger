@@ -48,6 +48,7 @@
 
 ### Vehicles
 
+- Squads riding an AI truck get out only once it has stopped. A ride counted as arrived 60 m from its drop-off and put the riders out right away, still at speed, so the truck could run over its own passengers and hit whatever stood beside the road as they climbed out. Now it stops first (onto the verge with Pull over before getting out on, else braking where it is), the riders get out, and it waits, brakes on, until they have stepped clear before it drives off. Riders given a new order aboard also wait for the stop. A squad that bails out under fire still jumps out at once, but the truck now stops for them instead of driving off through them.
 - AI drivers judge "one of ours in the way" by their own lane. The stuck watch took any stopped vehicle of ours within 25 m on the side toward the destination for one it was queueing behind, and any within 10 m on the other side for one it mustn't back into, whichever way the vehicle faced, so a truck parked beside it counted, and two trucks nose to nose each waited for the other. In the Airbase motor pool on Everon, Humvee 1 was stopped from backing up by "a vehicle right behind" 64 times in 80 minutes. Now only a vehicle in front of its nose and in its lane makes a driver wait, and only one right behind its tail stops a back-up. Nose to nose, the newer of the two gives way and backs up while the older one waits.
 
 ### Civilians
