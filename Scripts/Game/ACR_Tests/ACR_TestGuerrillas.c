@@ -7,6 +7,9 @@
 // back and gone when they pack up; a
 // house cell deploys round its building holding its fire; traffic on a far road draws a waiting
 // ambush there.
+// Depots (#96 part 3, ACR_Depots): a depot pocket parks a technical; it drives out with a crew of
+// two to a road 300 m off, strikes and drives home, where the crew stands down; a crew that loses
+// its vehicle walks to the nearest cell and joins it.
 class ACR_TestGuerrillas
 {
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
@@ -15,6 +18,11 @@ class ACR_TestGuerrillas
  protected static vector s_vOldSite;
  protected static IEntity s_Heap;
  protected static IEntity s_Gun;
+ protected static ref ACR_Depot s_Depot;
+ protected static vector s_vDepotTarget;
+ protected static int s_iJoinBefore;
+ protected static bool s_bWalked;
+ protected static IEntity s_Lost;
 
  static void Run(int second)
  {
@@ -49,6 +57,17 @@ class ACR_TestGuerrillas
   if (second == 58) Approach(manager, "House Bait", s_House.m_Cell.m_vKillZone, 300);
   if (second == 62) HoldFire(manager, "House Bait");
   if (second == 77) HouseDeployed();
+  if (second == 80) DepotMade(manager);
+  if (!s_Depot) return;
+  if (second == 83) CrewMounts(manager);
+  if (second == 145) Struck(manager);
+  if (second == 205) Home(manager);
+  if (second == 206) ACR_Depots.Launch(s_Depot, s_vDepotTarget);
+  if (second == 209) LoseIt(manager);
+  if (second == 210) DropIt();
+  if (second >= 210 && second < 224 && s_Depot.m_iState == ACR_Depots.WALK) s_bWalked = true;
+  if (second == 217) Walking(manager);
+  if (second == 224) Joined(manager);
  }
 
  protected static void Placement(ACR_Manager manager)
@@ -235,7 +254,6 @@ class ACR_TestGuerrillas
   int men;
   if (group) men = group.GetAgentsCount();
   Check("guerrillas: a house cell deploys round its building, holding its fire", group != null && men > 0 && CombatMode(group) == EAIGroupCombatMode.HOLD_FIRE, string.Format("%1 men, combat mode %2", men, typename.EnumToString(EAIGroupCombatMode, CombatMode(group))));
-  Finish();
  }
 
  protected static void Check(string name, bool ok, string detail)
@@ -243,9 +261,138 @@ class ACR_TestGuerrillas
   ACR_TestRegress.Check(name, ok, detail);
  }
 
+ // ---------------------------------------------------------------- depots (#96 part 3)
+
+ // A pocket (or an open base made one) as a depot with its technical; a road about 300 m off.
+ protected static void DepotMade(ACR_Manager manager)
+ {
+  // One the match made (ACR_Depots.Apply), else a pocket (or an open base made one) made a depot.
+  ACR_Base pocket;
+  if (!ACR_Depots.s_aDepots.IsEmpty()) s_Depot = ACR_Depots.s_aDepots[0];
+  if (s_Depot) pocket = s_Depot.m_Base;
+  foreach (ACR_Base base : ACR_Base.s_All) if (!pocket && base.m_bPocket) pocket = base;
+  if (!pocket)
+  {
+   foreach (ACR_Base open : ACR_Base.s_All) if (!pocket && ACR_FIAGrowth.SpreadableBase(open)) pocket = open;
+   if (pocket) ACR_Pockets.Add(pocket, 4);
+  }
+  if (pocket && !s_Depot) s_Depot = ACR_Depots.MakeDepot(pocket);
+  bool parked = s_Depot && !s_Depot.m_aVehicles.IsEmpty() && vector.DistanceXZ(s_Depot.m_aVehicles[0].GetOrigin(), pocket.GetOrigin()) <= pocket.m_fRadius + 60;
+  string vehicle = "none";
+  if (s_Depot && !s_Depot.m_aVehicles.IsEmpty()) vehicle = ACR_Vehicles.NameOf(s_Depot.m_aVehicles[0]);
+  Check("guerrillas: a depot pocket parks an FIA technical in its yard", parked, string.Format("pocket %1, technical %2", pocket != null, vehicle));
+  if (!s_Depot)
+  {
+   Finish();
+   return;
+  }
+  vector yard = ACR_Depots.Yard(s_Depot);
+  for (int i = 0; i < 12; i++)
+  {
+   float angle = i * 30 * Math.DEG2RAD;
+   vector road, dir;
+   float width;
+   if (!ACR_Minefields.Snap(yard + Vector(Math.Cos(angle) * 300, 0, Math.Sin(angle) * 300), 80, road, dir, width)) continue;
+   if (vector.DistanceXZ(road, yard) < 200) continue;
+   s_vDepotTarget = road;
+   break;
+  }
+  if (s_vDepotTarget == vector.Zero)
+  {
+   Check("guerrillas: the technical drives to its target and strikes", false, "no road 300 m from the depot");
+   Finish();
+   s_Depot = null;
+   return;
+  }
+  ACR_Depots.s_fStrikeMsForTest = 5000;
+  ACR_Depots.Launch(s_Depot, s_vDepotTarget);
+ }
+
+ protected static int Aboard(IEntity vehicle)
+ {
+  array<IEntity> crew = {};
+  ACR_PendingPurchase.Occupants(vehicle, crew);
+  return crew.Count();
+ }
+
+ protected static void CrewMounts(ACR_Manager manager)
+ {
+  int aboard = 0;
+  if (s_Depot.m_Out) aboard = Aboard(s_Depot.m_Out);
+  Check("guerrillas: the technical's crew of two mounts it", s_Depot.m_iState == ACR_Depots.OUT && aboard == ACR_Depots.CREW, string.Format("state %1, %2 aboard", s_Depot.m_iState, aboard));
+ }
+
+ protected static void Struck(ACR_Manager manager)
+ {
+  float d = -1;
+  if (s_Depot.m_Out) d = vector.DistanceXZ(s_Depot.m_Out.GetOrigin(), s_vDepotTarget);
+  Check("guerrillas: the technical drives to its target and strikes", s_Depot.m_fArrivedAt > 0, string.Format("state %1, %2 m from the target", s_Depot.m_iState, (int)d));
+ }
+
+ protected static void Home(ACR_Manager manager)
+ {
+  IEntity vehicle;
+  if (!s_Depot.m_aVehicles.IsEmpty()) vehicle = s_Depot.m_aVehicles[0];
+  float d = -1;
+  if (vehicle) d = vector.DistanceXZ(vehicle.GetOrigin(), ACR_Depots.Yard(s_Depot));
+  Check("guerrillas: the technical drives home and its crew stands down", s_Depot.m_iState == ACR_Depots.IDLE && !s_Depot.m_Crew && vehicle && d <= ACR_Depots.HOME + 20 && Aboard(vehicle) == 0, string.Format("state %1, %2 m from the yard", s_Depot.m_iState, (int)d));
+ }
+
+ // Out again, then its technical gone under it: the crew on foot.
+ protected static void LoseIt(ACR_Manager manager)
+ {
+  IEntity vehicle = s_Depot.m_Out;
+  if (!vehicle || !s_Depot.m_Crew) return;
+  array<AIAgent> agents = {};
+  s_Depot.m_Crew.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   ChimeraCharacter body = ChimeraCharacter.Cast(agent.GetControlledEntity());
+   if (body && body.IsInVehicle()) body.GetCompartmentAccessComponent().GetOutVehicle(EGetOutType.TELEPORT, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
+  }
+  // Gone a second later, once they're out (deleting it with them aboard takes them too).
+  s_Lost = vehicle;
+ }
+
+ protected static void DropIt()
+ {
+  if (!s_Lost) return;
+  s_Depot.m_aVehicles.RemoveItem(s_Lost);
+  SCR_EntityHelper.DeleteEntityAndChildren(s_Lost);
+  s_Lost = null;
+ }
+
+ protected static void Walking(ACR_Manager manager)
+ {
+  if (s_Depot.m_WalkTo) s_iJoinBefore = s_Depot.m_WalkTo.m_iReserve;
+  // Put them there (the walk itself is a vanilla move order).
+  if (s_Depot.m_iState == ACR_Depots.WALK && s_Depot.m_Crew)
+  {
+   array<AIAgent> agents = {};
+   s_Depot.m_Crew.GetAgents(agents);
+   foreach (AIAgent agent : agents)
+   {
+    IEntity body = agent.GetControlledEntity();
+    if (body) body.SetOrigin(ACR_Manager.Ground(s_Depot.m_vWalkTo + Vector(3, 0, 0)));
+   }
+  }
+ }
+
+ protected static void Joined(ACR_Manager manager)
+ {
+  bool joined = s_Depot.m_iState == ACR_Depots.IDLE && !s_Depot.m_Crew;
+  int after = -1;
+  if (s_Depot.m_WalkTo) after = s_Depot.m_WalkTo.m_iReserve;
+  string to = "the depot";
+  if (s_Depot.m_WalkTo) to = s_Depot.m_WalkTo.m_sName;
+  Check("guerrillas: a crew that loses its technical walks to the nearest cell and joins it", s_bWalked && joined && (!s_Depot.m_WalkTo || after > s_iJoinBefore), string.Format("walked %1, to %2, reserve %3 -> %4, state %5", s_bWalked, to, s_iJoinBefore, after, s_Depot.m_iState));
+  ACR_Depots.s_fStrikeMsForTest = 0;
+  Finish();
+ }
+
  protected static void Finish()
  {
-  ACR_TestRegress.Complete("guerrillas", 17);
+  ACR_TestRegress.Complete("guerrillas", 22);
  }
 
  protected static EAIGroupCombatMode CombatMode(SCR_AIGroup group)

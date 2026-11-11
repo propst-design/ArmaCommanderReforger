@@ -23,6 +23,14 @@
 - Zombie messages name the town again. After a counterattack, the survivor, bounty and counterattack lines could use the horde's label as the place ("survivors holed up at Zombies counterattacking Le Moule"); they now read "Le Moule", and a cleared nest reads "Zombies cleared at Le Moule".
 - Zombies on the map look like zombies. A zombie contact was drawn with the hostile-infantry symbol and labelled "infantry squad", and Project Outbreak's zombies wear civilian clothes, so players heading for an enemy squad found what looked like townsfolk. The map now shows an empty hostile frame labelled "N zombies" with its size; the AI commander, fire missions and BBB treat zombie contacts as before.
 
+### Insurgency
+
+- FIA grows (#96): with guerrillas on (`-acrGuerrillas`), each hideout gathers recruits over time (slower with a held base within 1.5 km, none within 800 m) and spends them: topping up its cells, raising new ones, sending saboteurs, crewing technicals and, once it has enough, spreading: an open town nobody has held for ten minutes and nobody is near becomes a new FIA pocket. "Few" spreads to at most two towns a match, "many" to four. Killing civilians pushes FIA against the side that did it.
+- IEDs (#96): FIA plants roadside bombs on the roads a side it is against uses most, with a two-man team watching from 80-200 m. They set it off under that side's vehicles and let other traffic pass; the road is then marked dangerous for the side hit. Shoot the triggerman first, or walk up to the charge and disarm it; AI squads sweep a charge on a road they know is dangerous. A bomb nobody sets off is lifted after 40 minutes.
+- Sabotage raids (#96): small FIA teams walk to a built FOB or an unmanned roadblock of a side they are against, plant a charge on a 20-second fuse and run; a FOB loses its HQ, a roadblock is blown down. Guarded targets are left alone; raids are three times as likely at night.
+- Technicals (#96): some FIA pockets are depots with a technical or two (UAZ with PKM or UK-59, sometimes a BRDM-2). A crew drives out against that side's traffic on the roads nearby or to a cell under attack, strikes and drives home. A crew that loses its technical walks to the nearest cell and joins it.
+- Intel rings (#96): a side that wipes out a cell, an IED team or a raid gets an "FIA activity" ring on its map where the hideout behind it lies; more leads from the same hideout tighten the ring. Finding the hideout itself still takes men there.
+
 ## 0.5.12 — released
 
 Zombie mode on Project Outbreak, the 2IC back beside "I'm the 2IC", and AI logistics fixes. Needs Better Battle Buddies 0.1.10. The zombie modes need the **Project Outbreak** mod; without it nothing changes. A compat add-on, **AC: Actual - Zombies**, follows separately.

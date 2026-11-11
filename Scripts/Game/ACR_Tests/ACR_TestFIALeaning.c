@@ -89,6 +89,11 @@ class ACR_TestFIALeaning
   if (fiaBase) ACR_Insurgency.OnBuildingDown(fiaBase.GetOrigin(), us);
   float nearFIA = before - side.m_fStanding;
   ACR_TestRegress.Check("fialeaning: taking a pocket and destroying buildings cost, more near FIA", pocket && Math.AbsFloat(plain - ACR_Insurgency.BUILDING) < 0.01 && Math.AbsFloat(nearFIA - ACR_Insurgency.BUILDING_NEAR) < 0.01, string.Format("pocket %1, building %2, near FIA %3", pocket, plain, nearFIA));
+  // #96 part 1: killing civilians (the Civil Population socket's report) costs too.
+  before = side.m_fStanding;
+  ACR_Insurgency.OnCivilianKilled(us);
+  float civilian = before - side.m_fStanding;
+  ACR_TestRegress.Check("fialeaning: killing civilians costs standing", Math.AbsFloat(civilian - ACR_Insurgency.CIVILIAN) < 0.01, string.Format("cost %1", civilian));
  }
 
  protected static void Friendly(ACR_Manager manager)
@@ -146,7 +151,7 @@ class ACR_TestFIALeaning
   bool climbed = Math.AbsFloat(red.m_fStanding - redBefore - (ACR_Insurgency.RECOVER_PER_MIN - land)) < 0.01;
   bool held = Math.AbsFloat(blue.m_fStanding - Math.Max(0, blueBefore - landBlue)) < 0.01;
   ACR_TestRegress.Check("fialeaning: restraint climbs back, a recent offence doesn't", climbed && held, string.Format("red %1 -> %2 (land %3), blue %4 -> %5", redBefore, red.m_fStanding, land, blueBefore, blue.m_fStanding));
-  ACR_TestRegress.Complete("fialeaning", 10);
+  ACR_TestRegress.Complete("fialeaning", 11);
  }
 
  protected static int NearPockets(string side)

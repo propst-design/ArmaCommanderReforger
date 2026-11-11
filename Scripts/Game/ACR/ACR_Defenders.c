@@ -29,6 +29,8 @@ class ACR_DefenderPost : Managed
  float m_fMannedAt;
  ref ACR_GuerrillaCell m_Cell;    // an FIA guerrilla cell (ACR_Guerrillas): its own spring and pull-back
  ref ACR_ZombieNest m_Nest;       // a zombie nest (ACR_Outbreak): out while anyone is near them, grows back
+ ref ACR_IED m_IED;               // an IED's team (ACR_IED, #96): the triggerman out while a target is near
+ ref ACR_Raid m_Raid;             // a sabotage team (ACR_Raid, #96): never deploys for an enemy, walks to its target
 }
 
 class ACR_Defenders
@@ -82,6 +84,8 @@ class ACR_Defenders
     bool stay;
     if (post.m_Cell) stay = ACR_Guerrillas.StayOut(manager, post);
     else if (post.m_Nest) stay = ACR_Outbreak.StayOut(manager, post);
+    else if (post.m_IED) stay = ACR_IED.StayOut(manager, post);
+    else if (post.m_Raid) stay = ACR_Raid.StayOut(manager, post);
     else stay = EnemyWithin(manager, post.m_sFaction, post.m_vPos, post.m_fSpawnRange + DESPAWN_RANGE - SPAWN_RANGE);
     if (manager.m_Bases.GuardsAlive(post.m_Group) > 0 && stay)
     {
@@ -98,12 +102,15 @@ class ACR_Defenders
     PrintFormat("[ACR] DEFENDERS %1 packed up: %2 came back, %3 in reserve", post.m_sName, back, post.m_iReserve);
     if (post.m_Cell && !post.m_bGone) ACR_Guerrillas.PackedUp(post);
     if (post.m_Nest && !post.m_bGone) ACR_Outbreak.PackedUp(manager, post, where);
+    if (post.m_IED && !post.m_bGone) ACR_IED.PackedUp(post);
+    if (post.m_Raid && !post.m_bGone) ACR_Raid.PackedUp(post);
    }
    if (post.m_bGone)
    {
     s_Posts.RemoveOrdered(i);
     continue;
    }
+   if (post.m_Raid) continue; // ACR_Raid brings its team out itself
    float range = post.m_fSpawnRange;
    bool comeOut;
    if (post.m_Nest)
@@ -117,7 +124,12 @@ class ACR_Defenders
     if (!ACR_Guerrillas.Ready(post)) continue;
     range = ACR_Guerrillas.Range(post);
    }
-   if (post.m_iReserve <= 0 || (!comeOut && !EnemyWithin(manager, post.m_sFaction, post.m_vPos, range, post.m_Cell != null))) continue;
+   if (post.m_IED)
+   {
+    if (!ACR_IED.Ready(post)) continue;
+    range = ACR_IED.RANGE;
+   }
+   if (post.m_iReserve <= 0 || (!comeOut && !EnemyWithin(manager, post.m_sFaction, post.m_vPos, range, post.m_Cell != null || post.m_IED != null))) continue;
    float spread = 8;
    array<ResourceName> picks = null;
    if (post.m_Nest)
@@ -138,6 +150,7 @@ class ACR_Defenders
    else if (post.m_fGarrisonArea > 0 && ACR_Garrison.AssignArea(post.m_Group, post.m_Group.GetLeaderAgent(), post.m_vPos, post.m_fGarrisonArea, post.m_iReserve) > 0) ACR_Guerrillas.Order(post.m_Group, ACR_Squad.WP_GARRISON, post.m_vPos, post.m_fGarrisonArea, true);
    post.m_iReserve = 0;
    if (post.m_Cell) ACR_Guerrillas.Deployed(manager, post);
+   if (post.m_IED) ACR_IED.Deployed(manager, post);
   }
  }
 
@@ -340,7 +353,8 @@ class ACR_Defenders
    if (key.IsEmpty() || ACR_Insurgency.Friendly(key, faction) || (cell && ACR_Insurgency.Spared(key))) continue;
    if (vector.DistanceXZ(player.GetOrigin(), pos) <= range) return true;
   }
-  return false;
+  // FIA saboteurs (#96): built positions' defenders deploy against them.
+  return ACR_Raid.RaiderWithin(faction, pos, range);
  }
 
  static void Reset()
