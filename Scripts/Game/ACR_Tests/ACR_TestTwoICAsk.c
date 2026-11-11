@@ -7,7 +7,7 @@
 // commander in command the requests end.
 class ACR_TestTwoICAsk
 {
- static const int CHECKS = 9;
+ static const int CHECKS = 11;
  static int s_iStep;
  static int s_iStepAt;
  static int s_iHold;
@@ -87,6 +87,30 @@ class ACR_TestTwoICAsk
    if (still) holder = still.m_Squad;
    bool stays = still && still.m_iState == ACR_ETwoICState.HOLDING && holder && holder.GetAnchor() && vector.DistanceXZ(holder.GetAnchor().GetOrigin(), s_vHold) < 80;
    ACR_TestRegress.Check("twoicask: a holding squad stays on the spot across the 2IC's strategy ticks", stays, Describe(still));
+   // The forecast's guard (pn44): a live Hold at a base covers the side it holds, not the far side.
+   ACR_Base near;
+   float nearDist = float.MAX;
+   foreach (ACR_Base b : ACR_Base.s_All)
+   {
+    if (!b || b.m_bRetired) continue;
+    float bd = vector.DistanceXZ(b.GetOrigin(), s_vHold);
+    if (bd < nearDist)
+    {
+     nearDist = bd;
+     near = b;
+    }
+   }
+   if (near)
+   {
+    vector c = near.GetOrigin();
+    float side = Math.Atan2(s_vHold[0] - c[0], s_vHold[2] - c[2]) * Math.RAD2DEG;
+    bool inReach = nearDist <= near.m_fRadius + ACR_TwoICRequests.TAKE_RADIUS;
+    bool middle = nearDist < ACR_TwoICRequests.HOLD_MIDDLE;
+    bool thisSide = ACR_TwoICRequests.HoldingAt("US", near, side, 60);
+    bool farSide = ACR_TwoICRequests.HoldingAt("US", near, side + 180, 60);
+    ACR_TestRegress.Check("twoicask: a live Hold at a base covers the side it holds (no forecast advice there again), not the far side", thisSide == inReach && farSide == (inReach && middle), string.Format("%1 %2 m away (reach %3), this side %4, far side %5", near.m_sName, (int)nearDist, inReach, thisSide, farSide));
+   }
+   else ACR_TestRegress.Skip("twoicask: a live Hold at a base covers the side it holds (no forecast advice there again), not the far side", "no base on the range");
    // Released.
    string released = ACR_TwoICRequests.ActOn(manager, still, ACR_TwoICRequests.ACT_RELEASE);
    ACR_TwoICLine line = ACR_TwoIC.Find("US", s_iHold);
@@ -150,12 +174,34 @@ class ACR_TestTwoICAsk
    for (int i = 0; i < 3; i++) ACR_TwoICRequests.AskFor(manager, "US", 8, "Other", ACR_ETwoICAsk.SUPPORT, far);
    string fourth = ACR_TwoICRequests.AskFor(manager, "US", 8, "Other", ACR_ETwoICAsk.SUPPORT, far);
    ACR_TestRegress.Check("twoicask: a player gets at most 3 live requests", fourth.Contains("3 requests") && ACR_TwoICRequests.LiveCount("US") == 3, string.Format("'%1', %2 live", fourth, ACR_TwoICRequests.LiveCount("US")));
+   // The line text: the asking player, the place (before the flood below may drop the ended line).
+   ACR_TwoICLine asked = ACR_TwoIC.Find("US", s_iHold);
+   ACR_TestRegress.Check("twoicask: a request's line says who asked and where", asked && asked.m_sText.StartsWith("Tester: hold ") && asked.m_iPlayer == 7 && asked.m_iKind == ACR_ETwoICLine.REQUEST, string.Format("'%1' player %2", TextOf(asked), PlayerOf(asked)));
+   // pn44 (7 Nov): reports pushed live requests out of the channel, and their Cancel with them.
+   // 30 reports later each live request still has its line and Cancel, and Cancel still ends it.
+   array<int> otherIds = {};
+   ACR_TwoICRequests.LiveIdsForTest("US", 8, otherIds);
+   int lastReport;
+   for (int f = 0; f < 30; f++) lastReport = ACR_TwoIC.Say("US", ACR_ETwoICLine.REPORT, string.Format("Flood report %1", f));
+   int keptCount;
+   foreach (int keptId : otherIds)
+   {
+    ACR_TwoICLine keptLine = ACR_TwoIC.Find("US", keptId);
+    if (keptLine && (keptLine.m_iActions & ACR_TwoICRequests.ACT_CANCEL) != 0) keptCount++;
+   }
+   int lines = ACR_TwoIC.Count("US");
+   bool lastKept = ACR_TwoIC.Find("US", lastReport) != null;
+   ACR_TwoICRequest first = null;
+   if (!otherIds.IsEmpty()) first = ACR_TwoICRequests.Find(otherIds[0]);
+   string cancel = "-";
+   if (first) cancel = ACR_TwoICRequests.ActOn(manager, first, ACR_TwoICRequests.ACT_CANCEL);
+   ACR_TwoICLine firstLine = null;
+   if (!otherIds.IsEmpty()) firstLine = ACR_TwoIC.Find("US", otherIds[0]);
+   bool ended = firstLine && firstLine.m_sStatus == "Cancelled" && ACR_TwoICRequests.LiveCount("US") == 2;
+   ACR_TestRegress.Check("twoicask: live requests keep their line and Cancel through 30 reports (the channel drops old reports instead), and Cancel still ends one", otherIds.Count() == 3 && keptCount == 3 && lines <= ACR_TwoIC.CHANNEL_LINES + 3 && lastKept && ended, string.Format("%1 requests found, %2 kept with Cancel, %3 lines, cancel '%4', ended %5, newest report kept %6", otherIds.Count(), keptCount, lines, cancel, ended, lastKept));
    // The AI commander takes the side: the requests end.
    ACR_TwoICRequests.Tick("US", ai, false);
    ACR_TestRegress.Check("twoicask: with the AI commander in command the requests end", ACR_TwoICRequests.LiveCount("US") == 0, string.Format("%1 live", ACR_TwoICRequests.LiveCount("US")));
-   // The line text: the asking player, the place.
-   ACR_TwoICLine asked = ACR_TwoIC.Find("US", s_iHold);
-   ACR_TestRegress.Check("twoicask: a request's line says who asked and where", asked && asked.m_sText.StartsWith("Tester: hold ") && asked.m_iPlayer == 7 && asked.m_iKind == ACR_ETwoICLine.REQUEST, string.Format("'%1' player %2", TextOf(asked), PlayerOf(asked)));
    ACR_Options.Unset("acr2IC");
    ACR_TwoIC.ResetForTest();
    ACR_TestRegress.Complete("twoicask", CHECKS);

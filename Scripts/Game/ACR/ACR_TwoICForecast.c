@@ -69,6 +69,9 @@ class ACR_TwoICForecast
    if (forecast.Demand(entry.m_Base) <= 0 || LiveFor(faction, entry.m_Base)) continue;
    ACR_ForecastWay lead = entry.LeadWay();
    if (!lead || Dismissed(faction, entry.m_Base, lead.m_fBearing, now)) continue;
+   // That edge is held on a live request already: pn44 (7 Nov) advised the same base again 15 s
+   // after each Accept, and three Accepts made three Hold requests there. Another way in still is.
+   if (ACR_TwoICRequests.HoldingAt(faction, entry.m_Base, lead.m_fBearing, CHANGED_ANGLE)) continue;
    Advise(faction, ai, entry, lead);
   }
  }

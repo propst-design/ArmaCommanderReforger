@@ -62,6 +62,7 @@ class ACR_TwoICRequests
  static const float TAKE_RADIUS = 150;  // m round a base's circle: "Take this base" means that base
  static const float RETRY_MS = 20000;
  static const float DROP_MS = 120000;   // a "can't yet" nobody keeps queued is dropped
+ static const float HOLD_MIDDLE = 25;   // m: a hold this near a base's middle faces every way (HoldingAt)
  protected static ref array<ref ACR_TwoICRequest> s_Live;
  protected static ref map<int, float> s_mLastAsk;
  // Called by ACR_StaticInit at game start (static initializer budget: HANDBOOK Pitfalls).
@@ -300,6 +301,14 @@ class ACR_TwoICRequests
   return null;
  }
 
+ // A player's live requests, oldest first (tests).
+ static void LiveIdsForTest(string faction, int playerId, notnull array<int> ids)
+ {
+  ids.Clear();
+  foreach (ACR_TwoICRequest r : s_Live)
+   if (r.m_sFaction == faction && r.m_iPlayer == playerId) ids.Insert(r.m_iId);
+ }
+
  // The newest live request (tests).
  static ACR_TwoICRequest Last()
  {
@@ -313,6 +322,25 @@ class ACR_TwoICRequests
   foreach (ACR_TwoICRequest r : s_Live)
    if (r.m_sFaction == faction) count++;
   return count;
+ }
+
+ // A live Hold request of the side at this base (within its circle and TAKE_RADIUS round it) on the
+ // side 'bearing' faces (degrees from the base, within 'angle'; a hold near the middle faces every
+ // way): an accepted forecast's, or a player's own "Hold this" there.
+ static bool HoldingAt(string faction, ACR_Base base, float bearing, float angle)
+ {
+  if (!base) return false;
+  vector centre = base.GetOrigin();
+  foreach (ACR_TwoICRequest r : s_Live)
+  {
+   if (r.m_sFaction != faction || r.m_iKind != ACR_ETwoICAsk.HOLD || !r.Live()) continue;
+   float d = vector.DistanceXZ(r.m_vPos, centre);
+   if (d > base.m_fRadius + TAKE_RADIUS) continue;
+   if (d < HOLD_MIDDLE) return true;
+   float side = Math.Atan2(r.m_vPos[0] - centre[0], r.m_vPos[2] - centre[2]) * Math.RAD2DEG;
+   if (ACR_DefenceForecast.AngleBetween(side, bearing) <= angle) return true;
+  }
+  return false;
  }
 
  // The base a "Take this base" means: the nearest whose circle, and TAKE_RADIUS round it, holds pos.

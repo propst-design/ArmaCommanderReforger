@@ -84,7 +84,8 @@ class ACR_TwoICPanelData : Managed
 
 class ACR_TwoIC
 {
- static const int CHANNEL_LINES = 12; // kept per side
+ static const int CHANNEL_LINES = 12; // kept per side, besides the lines with buttons (Trim)
+ static const int LINES_MAX = 40;     // at most, lines with buttons included
  static const int SMALL_FORCE = 4;    // fewer squads: a small force (grabs only, half holds)
  static const int SHARE_MAX = 30;     // the panel's reserve share, as the setting's (ACR_AICommander.BuildShare)
  static const int ROW_2IC = 1;        // the 2IC runs it
@@ -140,10 +141,33 @@ class ACR_TwoIC
   line.m_sStatus = status;
   line.m_fAt = GetGame().GetWorld().GetWorldTime();
   lines.Insert(line);
-  while (lines.Count() > CHANNEL_LINES) lines.RemoveOrdered(0);
+  Trim(lines);
   Bump(faction);
   PrintFormat("[ACR] 2IC %1 channel: %2 %3", faction, text, status);
   return line.m_iId;
+ }
+
+ // Past CHANNEL_LINES the oldest line without buttons goes; a line that still has them (a live
+ // request, a suggestion, a forecast) stays until it ends, so its Cancel or Release stays reachable.
+ // pn44 (7 Nov): three "hold" requests scrolled out within minutes and stayed live for the whole
+ // match with no button left to cancel them, filling the player's MAX_PER_PLAYER. LINES_MAX caps a
+ // channel that is all buttons. The newest line is never the one dropped (its buttons come next).
+ static void Trim(notnull array<ref ACR_TwoICLine> lines)
+ {
+  while (lines.Count() > CHANNEL_LINES)
+  {
+   int drop = -1;
+   for (int i = 0; i < lines.Count() - 1 && drop < 0; i++)
+   {
+    if (lines[i].m_iActions == 0) drop = i;
+   }
+   if (drop < 0)
+   {
+    if (lines.Count() <= LINES_MAX) return;
+    drop = 0;
+   }
+   lines.RemoveOrdered(drop);
+  }
  }
 
  static void Report(string faction, string text)
