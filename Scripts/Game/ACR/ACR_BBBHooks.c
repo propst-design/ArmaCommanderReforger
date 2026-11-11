@@ -146,6 +146,24 @@ class ACR_BBBHooks : BBB_Hooks
 
  override bool LeaveAlone(IEntity vehicle) { return m_Manager.IsGunnerDriven(vehicle); }
 
+ // BBB's scripted driver (BBB_Drive, -bbbDriver, off by default) may drive our AI squads' long moves.
+ // Not: a squad a player is in or commands (native command, gunner drive), one getting away from an
+ // enemy or out of fire (DriveOut/Evade: its own short manoeuvre), or a vehicle near one of our
+ // roadblocks (the game's driver takes the chicane at lane speed, ACR_Squad.LaneSpeed). DriveWatch
+ // waits while BBB drives (BBB_PilotHold.Driving) and takes over again after a hand-back.
+ static const float SCRIPTED_DRIVER_LANE_M = 120;
+ override bool AllowScriptedDriving(SCR_AIGroup group, IEntity vehicle)
+ {
+  ACR_Squad squad = SquadOf(group);
+  if (!squad) return true;
+  if (squad.HasPlayer() || squad.m_Commander != 0) return false;
+  ACR_EOrderState state = squad.OrderState();
+  if (state == ACR_EOrderState.COMMANDED || state == ACR_EOrderState.DRIVEN || squad.Evading()) return false;
+  Faction faction = squad.GetFaction();
+  if (vehicle && faction && ACR_Roadblocks.OwnNear(vehicle.GetOrigin(), faction.GetFactionKey(), SCRIPTED_DRIVER_LANE_M)) return false;
+  return true;
+ }
+
  override bool AllowRelaxedMarch(SCR_AIGroup group)
  {
   ACR_Squad squad = SquadOf(group);

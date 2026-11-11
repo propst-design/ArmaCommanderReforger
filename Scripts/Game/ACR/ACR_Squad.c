@@ -5335,6 +5335,7 @@ class ACR_Squad : Managed
  static const float EVADE_CLEAR_MS = 15000;
  static const float EVADE_MAX_MS = 60000;
  protected ref ACR_OrderSnapshot m_Evade;
+ bool Evading() { return m_Evade != null; } // getting away (evasion or driving out of fire)
  protected float m_fEvadeStart;
  protected float m_fEvadeClearAt;
  protected vector m_vEvadeThreat;

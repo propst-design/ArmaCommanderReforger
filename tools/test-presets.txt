@@ -237,6 +237,12 @@ restart|-acrRestartTest 1|200
 stallwait|-acrStallWaitTest 1|130
 recrew|-acrRecrewTest 1|120
 mortargiveup|-acrMortarGiveUpTest 1|100
+driveroutes|-acrDriveRoutesTest 1|480
+driveroutesbbb|-acrDriveRoutesBBBTest 1|480
+driveroutesev|-acrDriveRoutesTest 1|500|Worlds/ACR_Everon.ent
+driveroutesevbbb|-acrDriveRoutesBBBTest 1|500|Worlds/ACR_Everon.ent
+driveroutesch|-acrDriveRoutesTest 1|500|Worlds/ACR_ChernarusMinus.ent
+driverouteschbbb|-acrDriveRoutesBBBTest 1|500|Worlds/ACR_ChernarusMinus.ent
 roadhops|-acrRoadHopsTest 1|500
 roadhopsoff|-acrRoadHopsOffTest 1|500
 keyhints|-acrKeyHintsTest 1|60|Worlds/ACR_Everon.ent

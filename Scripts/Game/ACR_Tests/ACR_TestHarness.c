@@ -46,6 +46,7 @@ class ACR_TestHarness : Managed
  static const int MODE_INTRO = 275; // the mission intro: timeline, music fade, once per match, skip (server-capable)
  static const int MODE_COUNTERBATTERY = 274; // mortars heard firing: rings, counter-battery fire, displacing (271-273 left for open branches)
  static const int MODE_AMMORUN = 273; // squads low on ammo: the truck when safe, else back to a base (271-272 left for open branches)
+ static const int MODE_DRIVEROUTES = 296; // BBB scripted driver vs the game's, same road routes (Phase 1 kill test)
  static const int MODE_ROADHOPS = 137; // #86 a vehicle drives through road hops (134-136 left for open branches)
  static const int MODE_RIDE = 18;
  static const int MODE_LOGISTICS = 19;
@@ -180,6 +181,8 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrStopStartTest", flag)) mode = MODE_STOPSTART;
   if (System.GetCLIParam("acrAmmoRunTest", flag)) mode = MODE_AMMORUN;
   if (System.GetCLIParam("acrDeckTest", flag)) mode = MODE_DECK;
+  if (System.GetCLIParam("acrDriveRoutesTest", flag)) mode = MODE_DRIVEROUTES;
+  if (System.GetCLIParam("acrDriveRoutesBBBTest", flag)) mode = MODE_DRIVEROUTES;
   if (System.GetCLIParam("acrRoadHopsTest", flag)) mode = MODE_ROADHOPS;
   if (System.GetCLIParam("acrRoadHopsOffTest", flag)) mode = MODE_ROADHOPS;
   if (System.GetCLIParam("acrRTSOverlayTest", flag)) mode = MODE_RTSOVERLAY;
@@ -366,6 +369,7 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_STOPSTART) { ACR_TestStopStart.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_AMMORUN) { ACR_TestAmmoRun.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_DECK) { ACR_TestDecks.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_DRIVEROUTES) { ACR_TestDriveRoutes.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_ROADHOPS) { ACR_TestRoadHops.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RTSOVERLAY) { ACR_TestRTSOverlay.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_INTELMARKS) { ACR_TestIntelMarkers.Run(this, m_Ticks); return; }
