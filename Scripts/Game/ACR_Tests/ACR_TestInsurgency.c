@@ -4,11 +4,21 @@
 // still FIA's enemy. A US loss to FIA on a road marks a dangerous road on the US map with a feed
 // line; a supply run past it waits; a free US combat squad is sent to clear it, and there with
 // no contact the road is cleared and the squad freed.
+// IEDs (#96 part 2, ACR_IED): a wired charge with nobody there until an enemy comes; its team
+// comes out for a Red car; the Blue (allied) car over it passes, the Red car sets it off and the
+// road is marked for Red; a second team with its triggerman shot runs and the charge doesn't go
+// off under the car; the game's Disarm leaves it dead; an old charge with nobody near is lifted.
 class ACR_TestInsurgency
 {
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
  protected static ACR_DefenderPost s_Cell;
  protected static vector s_vRoad;
+ static const ResourceName RED_CAR = "{259EE7B78C51B624}Prefabs/Vehicles/Wheeled/UAZ469/UAZ469.et";
+ static const ResourceName BLUE_CAR = "{4A71F755A4513227}Prefabs/Vehicles/Wheeled/M998/M1025.et";
+ protected static ref ACR_IED s_IED;
+ protected static ref ACR_IED s_IED2;
+ protected static ref ACR_IED s_IED3;
+ protected static ref array<vector> s_aUsed;
 
  static void Run(int second)
  {
@@ -25,6 +35,20 @@ class ACR_TestInsurgency
   // The AI commander is off here: its road clearing ticks each second while the sweeper waits.
   if (second > 45 && second < 110) Quiet(manager);
   if (second == 110) Cleared(manager);
+  if (second == 112) PlantFirst(manager);
+  if (!s_IED) return;
+  if (second == 128) AlliedPasses(manager);
+  if (second == 131) EnemySetsOff(manager);
+  if (second == 134) RedCarOn(manager);
+  if (second == 137) EnemyBlown(manager);
+  if (second == 138) PlantSecond(manager);
+  if (!s_IED2) return;
+  if (second == 152) ShootTriggerman(manager);
+  if (second == 155) CarSaved(manager);
+  if (second == 158) DisarmIt(manager);
+  if (second == 160) Disarmed(manager);
+  if (second == 161) PlantOld(manager);
+  if (second == 164) Lifted(manager);
  }
 
  protected static void Allegiance(ACR_Manager manager)
@@ -125,7 +149,6 @@ class ACR_TestInsurgency
   string detail = string.Format("%1 roads left", ACR_Insurgency.s_aRoads.Count());
   if (road && sweeper && sweeper.GetAnchor()) detail += string.Format(", sweeper %1 m off, %2 enemies known, quiet for %3 s, task %4", (int)vector.DistanceXZ(sweeper.GetAnchor().GetOrigin(), road.m_vPos), sweeper.KnownEnemies(300), (int)((GetGame().GetWorld().GetWorldTime() - road.m_fQuietSince) / 1000), typename.EnumToString(ACR_EAITask, sweeper.m_iAITask));
   ACR_TestRegress.Check("insurgency: there with no contact, the road is cleared and the squad freed", ACR_Insurgency.s_aRoads.IsEmpty() && freed, detail);
-  ACR_TestRegress.Complete("insurgency", 8);
  }
 
  protected static void Spawn(ACR_Manager manager, string name, vector at, float distance)
@@ -134,5 +157,166 @@ class ACR_TestInsurgency
   manager.m_sSpawningFaction = ACR_FactionSelection.West();
   manager.SpawnUnit(name, FIRE_TEAM, "", false, "", spot, spot);
   manager.m_sSpawningFaction = "";
+ }
+ // ---------------------------------------------------------------- IEDs (#96 part 2)
+
+ // A road site for a charge with a triggerman's place, 900 m from every soldier and from the
+ // charges before it.
+ protected static vector FreeRoad(ACR_Manager manager)
+ {
+  foreach (vector site : ACR_Guerrillas.s_aRoads)
+  {
+   bool clear = !ACR_IED.HostileNear(ACR_FactionSelection.East(), site, 900) && !ACR_IED.HostileNear(ACR_FactionSelection.West(), site, 900);
+   foreach (vector used : s_aUsed) if (vector.DistanceXZ(used, site) < 900) clear = false;
+   if (!clear) continue;
+   vector road, dir, trigger;
+   float width;
+   if (!ACR_Minefields.Snap(site, 40, road, dir, width) || !ACR_IED.TriggerSite(road, dir, width, trigger)) continue;
+   s_aUsed.Insert(site);
+   return site;
+  }
+  return vector.Zero;
+ }
+
+ protected static ACR_IED PlantAt(ACR_Manager manager)
+ {
+  vector site = FreeRoad(manager);
+  if (site == vector.Zero) return null;
+  return ACR_IED.Plant(site, ACR_Pockets.FACTION, null);
+ }
+
+ // A crewed car of 'faction' on the road 'distance' m from the charge (along it).
+ protected static void Car(ACR_Manager manager, string name, string faction, ResourceName prefab, ACR_IED ied, float distance)
+ {
+  vector road, dir;
+  float width;
+  vector at = ied.m_vPos;
+  if (ACR_Minefields.Snap(ied.m_vPos, 40, road, dir, width)) at = ACR_Manager.Ground(road + dir * distance);
+  manager.m_sSpawningFaction = faction;
+  manager.SpawnUnit(name, "", prefab, true, "", at, at);
+  manager.m_sSpawningFaction = "";
+ }
+
+ protected static IEntity VehicleOf(ACR_Manager manager, string name)
+ {
+  foreach (ACR_Squad squad : manager.m_Squads) if (squad.GetName().Contains(name)) return ACR_Transport.CrewedVehicle(squad);
+  return null;
+ }
+
+ // The car put down at 'at', still: over the charge, or off it.
+ protected static void Put(IEntity vehicle, vector at)
+ {
+  if (!vehicle) return;
+  vector mat[4];
+  vehicle.GetWorldTransform(mat);
+  mat[3] = ACR_Manager.Ground(at) + Vector(0, 0.8, 0);
+  vehicle.SetWorldTransform(mat);
+  Physics physics = vehicle.GetPhysics();
+  if (physics)
+  {
+   physics.SetVelocity(vector.Zero);
+   physics.SetAngularVelocity(vector.Zero);
+  }
+ }
+
+ protected static void PlantFirst(ACR_Manager manager)
+ {
+  s_aUsed = {};
+  ACR_IED.Reset();
+  s_IED = PlantAt(manager);
+  if (!s_IED)
+  {
+   ACR_TestRegress.Abort("insurgency", "no road for an IED");
+   return;
+  }
+  float off = vector.DistanceXZ(s_IED.m_vTrigger, s_IED.m_vPos);
+  ACR_TestRegress.Check("insurgency: an IED is a wired charge on the road, its triggerman's place 80-200 m off, nobody out yet", s_IED.m_Charge && s_IED.m_bWired && s_IED.m_Post && !s_IED.m_Post.m_Group && off >= ACR_IED.TRIGGER_NEAR - 5 && off <= ACR_IED.TRIGGER_FAR + 15, string.Format("charge %1, wired %2, %3 m off, out %4", s_IED.m_Charge != null, s_IED.m_bWired, (int)off, s_IED.m_Post.m_Group != null));
+  Car(manager, "Red Car", ACR_FactionSelection.East(), RED_CAR, s_IED, 250);
+  Car(manager, "Blue Car", ACR_FactionSelection.West(), BLUE_CAR, s_IED, -250);
+ }
+
+ // The team is out for the Red car; the Blue (allied) car stands on the charge.
+ protected static void AlliedPasses(ACR_Manager manager)
+ {
+  bool teamOut = s_IED.m_Post.m_Group != null;
+  IEntity blue = VehicleOf(manager, "Blue Car");
+  Put(blue, s_IED.m_vPos);
+  ACR_TestRegress.Check("insurgency: an enemy car near brings the IED team out", teamOut, string.Format("team out %1, blue car %2", teamOut, blue != null));
+ }
+
+ protected static void EnemySetsOff(ACR_Manager manager)
+ {
+  IEntity blue = VehicleOf(manager, "Blue Car");
+  bool passed = !s_IED.m_bFired && s_IED.m_Charge != null;
+  ACR_TestRegress.Check("insurgency: an allied car over the IED passes safely", passed && blue != null, string.Format("fired %1, blue car %2", s_IED.m_bFired, blue != null));
+  Put(blue, s_IED.m_vPos + Vector(0, 0, 60));
+ }
+
+ protected static void RedCarOn(ACR_Manager manager)
+ {
+  Put(VehicleOf(manager, "Red Car"), s_IED.m_vPos);
+ }
+
+ protected static void EnemyBlown(ACR_Manager manager)
+ {
+  bool marked;
+  foreach (ACR_DangerRoad road : ACR_Insurgency.s_aRoads) if (road.m_sSide == ACR_FactionSelection.East() && vector.DistanceXZ(road.m_vPos, s_IED.m_vPos) < 50) marked = true;
+  ACR_TestRegress.Check("insurgency: the enemy car sets the IED off and the road is marked for its side", s_IED.m_bFired && marked, string.Format("fired %1, Red danger road %2, red car %3", s_IED.m_bFired, marked, VehicleOf(manager, "Red Car") != null));
+ }
+
+ protected static void PlantSecond(ACR_Manager manager)
+ {
+  s_IED2 = PlantAt(manager);
+  if (!s_IED2)
+  {
+   ACR_TestRegress.Abort("insurgency", "no road for a second IED");
+   return;
+  }
+  Car(manager, "Lone Truck", ACR_FactionSelection.East(), RED_CAR, s_IED2, 250);
+ }
+
+ // The triggerman shot before the car comes: his mate runs; the car on the charge then lives.
+ protected static void ShootTriggerman(ACR_Manager manager)
+ {
+  IEntity man = ACR_IED.Triggerman(s_IED2.m_Post);
+  if (man) SCR_EntityHelper.DeleteEntityAndChildren(man);
+  GetGame().GetCallqueue().CallLater(PutSecondCar, 1500, false);
+ }
+
+ protected static void PutSecondCar()
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (manager && s_IED2) Put(VehicleOf(manager, "Lone Truck"), s_IED2.m_vPos);
+ }
+
+ protected static void CarSaved(ACR_Manager manager)
+ {
+  ACR_TestRegress.Check("insurgency: shooting the triggerman first saves the car (his mate runs)", s_IED2.m_bRan && !s_IED2.m_bFired && s_IED2.m_Charge != null, string.Format("ran %1, fired %2, car %3", s_IED2.m_bRan, s_IED2.m_bFired, VehicleOf(manager, "Lone Truck") != null));
+ }
+
+ // As the game's Disarm action: the charge loses its fuze.
+ protected static void DisarmIt(ACR_Manager manager)
+ {
+  SCR_ExplosiveChargeComponent charge = ACR_SapperDemo.ChargeComponent(s_IED2.m_Charge);
+  if (charge) charge.DisarmCharge();
+ }
+
+ protected static void Disarmed(ACR_Manager manager)
+ {
+  ACR_TestRegress.Check("insurgency: Disarm leaves the IED dead", s_IED2.m_bDisarmed && !s_IED2.m_Charge && !s_IED2.m_bFired, string.Format("disarmed %1, charge %2", s_IED2.m_bDisarmed, s_IED2.m_Charge != null));
+ }
+
+ protected static void PlantOld(ACR_Manager manager)
+ {
+  s_IED3 = PlantAt(manager);
+  ACR_IED.s_fLiftMs = 1000;
+ }
+
+ protected static void Lifted(ACR_Manager manager)
+ {
+  ACR_IED.s_fLiftMs = 0;
+  bool lifted = s_IED3 && s_IED3.m_bDisarmed && !s_IED3.m_Charge;
+  ACR_TestRegress.Check("insurgency: an IED left long with nobody near is lifted", lifted, string.Format("planted %1, lifted %2", s_IED3 != null, lifted));
+  ACR_TestRegress.Complete("insurgency", 15);
  }
 }

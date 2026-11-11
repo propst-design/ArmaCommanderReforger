@@ -120,4 +120,20 @@ class ACR_Pockets
   }
   PrintFormat("[ACR] POCKETS %1 of %2 wanted, %3 m from starting bases:%4", picked.Count(), wanted, (int)clearance, names);
  }
+
+ // A pocket made during the match (ACR_FIAGrowth.Spread: an empty neutral base FIA moved into).
+ // Hidden until found like the start's pockets: what the sides learnt of the empty base is
+ // forgotten; FIA's friends know it at once.
+ static void Add(ACR_Base base, int garrison)
+ {
+  base.m_sOwner = FACTION;
+  base.m_bPocket = true;
+  base.m_fScore = 100;
+  base.m_sCapturer = "";
+  base.m_bContested = false;
+  base.m_iGarrison = garrison;
+  base.m_iGarrisonLeft = garrison;
+  base.m_aDetectedBy.Clear();
+  ACR_Insurgency.TellFriends(base);
+ }
 }

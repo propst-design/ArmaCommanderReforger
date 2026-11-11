@@ -255,6 +255,11 @@ class ACR_Manager : Managed
   ACR_DoctrineKits.Reset();
   ACR_Think.Reset();
   ACR_Insurgency.Reset();
+  ACR_FIAGrowth.Reset();
+  ACR_IED.Reset();
+  ACR_Raid.Reset();
+  ACR_FIAIntel.Reset();
+  ACR_Depots.Reset();
   // Setup screen choices are per match (Jacob, 31 Oct), and a rotation reads its own header.
   ACR_Options.ClearSet();
   ACR_Options.ForgetHeader();

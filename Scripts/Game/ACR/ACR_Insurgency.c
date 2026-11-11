@@ -21,7 +21,7 @@
 //    base near a pocket, or destroys buildings (more near FIA); it climbs back slowly after 5 min
 //    with no offence, up to 80. The allegiance sets the start (its ally 85, a hostile side 35).
 //    Commanders see their tier in the panel's command line and get a feed line when it changes.
-//    Civilian harm is meant to count too once civilians exist (#49).
+//    Killing civilians (with the Civil Population socket, ACR_CivilianSocket) costs standing too.
 //  - Hideouts (ACR_Guerrillas): a side that fights one has found it: a feed line, and it is
 //    marked like a dangerous road (no time limit, supply runs don't wait for it) so the side's AI
 //    sends a squad to clear it. Destroying one costs standing (HIDEOUT_TAKEN). FIA's friends
@@ -192,6 +192,7 @@ class ACR_Insurgency
  static const float TIP_AGAIN_MS = 300000; // about the same squad
  static const float HIDEOUT_TAKEN = 10;    // a hideout destroyed, for each side with men there
  static const float HIDEOUT_TAKEN_REACH = 600;
+ static const float CIVILIAN = 2;          // a civilian killed (Civil Population socket, ACR_CivilianSocket)
  static ref array<ref ACR_FIASide> s_aSides;
  protected static ref array<string> s_aFriends;
  // Called by ACR_StaticInit at game start (static initializer budget: HANDBOOK Pitfalls).
@@ -305,6 +306,19 @@ class ACR_Insurgency
   ACR_Intel intel;
   if (manager) intel = manager.IntelFor(side);
   if (intel) intel.AddFeed(now, line);
+ }
+
+ // A pocket made during the match (ACR_Pockets.Add): FIA's friends know it at once, as at Befriend.
+ static void TellFriends(ACR_Base base)
+ {
+  foreach (string friend : s_aFriends) if (!base.m_aDetectedBy.Contains(friend)) base.m_aDetectedBy.Insert(friend);
+ }
+
+ // A civilian killed by someone of 'by' (ACR_CivilianSocket.CivilianKilled; #96: part 2 planned it).
+ static void OnCivilianKilled(string by)
+ {
+  if (!s_bLeaning || !SideOf(by)) return;
+  Change(by, -CIVILIAN, "civilians killed", true);
  }
 
  // An FIA man killed by 'by' (ACR_Report): less where a cell sprang an ambush on them.

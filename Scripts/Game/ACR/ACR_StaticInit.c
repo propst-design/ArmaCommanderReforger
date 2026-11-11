@@ -31,6 +31,11 @@ class ACR_StaticInit
   ACR_FactionCatalog.ACR_InitStatics();
   ACR_FactionSelection.ACR_InitStatics();
   ACR_FactionSettings.ACR_InitStatics();
+  ACR_FIAGrowth.ACR_InitStatics();
+  ACR_IED.ACR_InitStatics();
+  ACR_Raid.ACR_InitStatics();
+  ACR_FIAIntel.ACR_InitStatics();
+  ACR_Depots.ACR_InitStatics();
   ACR_FireMissions.ACR_InitStatics();
   ACR_FobBuild.ACR_InitStatics();
   ACR_FobSiting.ACR_InitStatics();
