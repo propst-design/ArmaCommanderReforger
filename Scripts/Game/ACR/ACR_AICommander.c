@@ -5127,7 +5127,8 @@ class ACR_AICommander : Managed
  protected ref array<string> m_aThink = {};
  void Say(string line)
  {
-  Print(line);
+  // PrintFormat, not Print: Print of a variable logs it as "string line = '...'".
+  PrintFormat("%1", line);
   string text = line;
   if (text.StartsWith("[ACR] AI ")) text = text.Substring(9, text.Length() - 9);
   if (text.StartsWith(m_sFaction + ": ")) text = text.Substring(m_sFaction.Length() + 2, text.Length() - m_sFaction.Length() - 2);
