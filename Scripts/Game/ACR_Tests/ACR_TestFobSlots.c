@@ -122,7 +122,15 @@ class ACR_TestFobSlots
 		ACR_FobSlots.Advance(fob, 15.0); // 15*2 = 30s (Light duration)
 		manager.m_Structures.ACR_TestForceTick();
 		float repairRateT1 = ACR_Structures.RepairFraction(slotRepair.m_Entity);
-		bool yawOk = slotRepair.m_Entity && Math.AbsFloat(slotRepair.m_Entity.GetYawPitchRoll()[0] - ACR_FobSlots.SlotYaw(ACR_FobSlots.SLOT_REPAIR)) < 1.0 && Math.AbsFloat(slotRepair.m_Entity.GetYawPitchRoll()[1]) < 1.0;
+		// Faces its slot; on a slope it follows the ground as a floored piece does (ACR_GroundTilt FLOOR,
+		// at most 5 deg since 6 Nov), so pitch and roll are only held to that cap, not to level.
+		float floorFull, floorShare, floorCap;
+		ACR_GroundTilt.FollowCurve(ACR_GroundTilt.FLOOR, floorFull, floorShare, floorCap);
+		bool yawOk = slotRepair.m_Entity && Math.AbsFloat(slotRepair.m_Entity.GetYawPitchRoll()[0] - ACR_FobSlots.SlotYaw(ACR_FobSlots.SLOT_REPAIR)) < 1.0 && Math.AbsFloat(slotRepair.m_Entity.GetYawPitchRoll()[1]) <= floorCap + 0.1 && Math.AbsFloat(slotRepair.m_Entity.GetYawPitchRoll()[2]) <= floorCap + 0.1;
+		int maintT1State = slotRepair.m_eState;
+		int maintT1Tier = slotRepair.m_iTier;
+		vector maintYpr;
+		if (slotRepair.m_Entity) maintYpr = slotRepair.m_Entity.GetYawPitchRoll();
 		bool maintT1Ok = (slotRepair.m_eState == ACR_EFobSlotState.BUILT && slotRepair.m_iTier == 0 && repairRateT1 == 0.15 && yawOk);
 
 		string maintT2 = ACR_FobSlots.OrderUpgradeBase(manager, "US", fob, ACR_FobSlots.SLOT_REPAIR, why);
@@ -131,7 +139,7 @@ class ACR_TestFobSlots
 		float repairRateT2 = ACR_Structures.RepairFraction(slotRepair.m_Entity);
 		bool maintT2Ok = (slotRepair.m_eState == ACR_EFobSlotState.BUILT && slotRepair.m_iTier == 1 && repairRateT2 == 0.21);
 		bool maintMaxRefused = (ACR_FobSlots.OrderUpgradeBase(manager, "US", fob, ACR_FobSlots.SLOT_REPAIR, why) == "" && why.Contains("already built"));
-		ACR_TestRegress.Check("fobslots: tiered maintenance builds light (15%) then upgrades to heavy (21%)", maintT1Ok && maintT2Ok && maintMaxRefused, "");
+		ACR_TestRegress.Check("fobslots: tiered maintenance builds light (15%) then upgrades to heavy (21%)", maintT1Ok && maintT2Ok && maintMaxRefused, string.Format("light: '%1' state %2 tier %3 rate %4 yaw ok, tilt within %7 deg: %5 (ypr %6); ", maintT1, maintT1State, maintT1Tier, repairRateT1, yawOk, maintYpr, floorCap) + string.Format("heavy: '%1' state %2 tier %3 rate %4; max refused %5 (%6)", maintT2, slotRepair.m_eState, slotRepair.m_iTier, repairRateT2, maintMaxRefused, why));
 
 		// 18. Tiered upgrade for barracks: Small (275, +11) -> Large (200, +19)
 		if (store) store.SetResourceValue(500);
