@@ -1,12 +1,14 @@
 // -acrStallWaitTest 1 (server-capable, ~90 s): #53. A gun truck on a move order whose gunner
 // stands outside it (AI off, BBB's gunner replacement held off so nobody re-seats him) and whose
 // driver doesn't drive. The stall clock waits for him: no back-up in 40 s, five times the 8 s
-// limit. Once he is back aboard, the truck that still doesn't move is taken as stuck as before.
+// limit. Then the test wakes him and lets BBB seat him again; once he is back aboard, the truck
+// that still doesn't move is taken as stuck as before.
 class ACR_TestStallWait
 {
  static ACR_Squad s_Squad;
  static IEntity s_Vehicle;
  static bool s_bBoarding;
+ static ChimeraCharacter s_Gunner;
 
  // The driver's AI off: on a move order, the truck doesn't move.
  static void Freeze(IEntity vehicle)
@@ -67,6 +69,7 @@ class ACR_TestStallWait
    if (s_Squad) s_Vehicle = ACR_Transport.CrewedVehicle(s_Squad);
    if (!s_Vehicle) { ACR_TestRegress.Abort("stallwait", "the truck or its crew is missing"); return; }
    BBB_VehicleHelpers.s_bGunnerReplace = false;
+   s_Gunner = null;
    array<AIAgent> agents = {};
    s_Squad.GetAgents(agents);
    foreach (AIAgent agent : agents)
@@ -76,6 +79,7 @@ class ACR_TestStallWait
     gunner.GetCompartmentAccessComponent().GetOutVehicle(EGetOutType.TELEPORT, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
     AIControlComponent gunnerAI = AIControlComponent.Cast(gunner.FindComponent(AIControlComponent));
     if (gunnerAI && gunnerAI.IsAIActivated()) gunnerAI.DeactivateAI();
+    s_Gunner = gunner;
    }
    s_Squad.MoveTo(h.Ground("1700 0 2800"));
    Freeze(s_Vehicle);
@@ -88,7 +92,11 @@ class ACR_TestStallWait
   {
    bool waited = s_bBoarding && s_Squad.UnstickTries() == 0 && !s_Squad.IsUnsticking() && s_Squad.m_Order != "Stuck, holding";
    ACR_TestRegress.Check("stall: a truck waiting for its own gunner to get in isn't taken as stuck (#53)", waited, State());
-   // Let BBB seat him again: from now on the truck is simply stuck.
+   // Let BBB seat him again: from now on the truck is simply stuck. His AI first: the test parked
+   // it, and since BBB 1ec44c3 (#49) BBB never seats or wakes a man whose AI someone else parked.
+   AIControlComponent parkedAI;
+   if (s_Gunner) parkedAI = AIControlComponent.Cast(s_Gunner.FindComponent(AIControlComponent));
+   if (parkedAI && !parkedAI.IsAIActivated()) parkedAI.ActivateAI();
    BBB_VehicleHelpers.s_bGunnerReplace = true;
   }
   if (tick == 85)
