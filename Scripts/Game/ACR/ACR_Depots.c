@@ -24,7 +24,8 @@ class ACR_Depot : Managed
  ACR_DefenderPost m_WalkTo;  // on foot: the cell or hideout they join
  vector m_vWalkTo;
  vector m_vYard;
- bool m_bNudged;             // re-ordered once after sitting still at the start (vanilla AI sometimes never sets off)             // where its first technical was parked: home for every trip
+ int m_iNudges;              // re-orders while it sits in the yard (vanilla AI's move sometimes fails: "Failed move")
+ float m_fNudgedAt;             // where its first technical was parked: home for every trip
  float m_fEmptySince;        // the technical out stood empty since (its crew got out to fight, or can't drive it)
 }
 
@@ -44,6 +45,8 @@ class ACR_Depots
  static const int TECH_COST = 4;
  static const int CREW = 2;
  static const float EMPTY_MS = 30000;
+ static const float NUDGE_MS = 20000;
+ static const int NUDGES = 3;
  static float s_fStrikeMsForTest;         // tests shorten the strike (0: STRIKE_MS)
  static ref array<ref ACR_Depot> s_aDepots;
  protected static ref array<ResourceName> s_aTechnicals; // FIA's armed UAZs, from its catalog
@@ -238,7 +241,8 @@ class ACR_Depots
   depot.m_fStateAt = GetGame().GetWorld().GetWorldTime();
   depot.m_fArrivedAt = 0;
   depot.m_fEmptySince = 0;
-  depot.m_bNudged = false;
+  depot.m_iNudges = 0;
+  depot.m_fNudgedAt = depot.m_fStateAt;
   ACR_Guerrillas.SetCombatMode(crew, EAIGroupCombatMode.FIRE_AT_WILL);
   ACR_Guerrillas.Order(crew, ACR_Squad.WP_MOVE, target, 30, false);
   PrintFormat("[ACR] DEPOTS %1: a technical drives out for %2 (%3 m)", depot.m_Base.m_sName, ACR_Manager.Grid(target), (int)vector.DistanceXZ(vehicle.GetOrigin(), target));
@@ -306,6 +310,14 @@ class ACR_Depots
    lost = now - depot.m_fEmptySince >= EMPTY_MS;
   }
   else if (!lost) depot.m_fEmptySince = 0;
+  // Out of a sound technical that never left the yard (no way there): they stand down, the
+  // technical stays parked.
+  if (lost && depot.m_Out && ACR_Logistics.Health(depot.m_Out) > 0 && vector.DistanceXZ(depot.m_Out.GetOrigin(), Yard(depot)) <= HOME)
+  {
+   PrintFormat("[ACR] DEPOTS %1: the technical never got going, its crew stands down", depot.m_Base.m_sName);
+   EndRaid(manager, depot);
+   return;
+  }
   if (lost)
   {
    Walk(depot);
@@ -315,9 +327,10 @@ class ACR_Depots
   if (s_fStrikeMsForTest > 0) strike = s_fStrikeMsForTest;
   if (depot.m_iState == OUT)
   {
-   if (!depot.m_bNudged && depot.m_fArrivedAt <= 0 && now - depot.m_fStateAt >= 20000 && vector.DistanceXZ(depot.m_Out.GetOrigin(), Yard(depot)) < 20)
+   if (depot.m_iNudges < NUDGES && depot.m_fArrivedAt <= 0 && now - depot.m_fNudgedAt >= NUDGE_MS && vector.DistanceXZ(depot.m_Out.GetOrigin(), Yard(depot)) < 20)
    {
-    depot.m_bNudged = true;
+    depot.m_iNudges++;
+    depot.m_fNudgedAt = now;
     ACR_Guerrillas.Order(depot.m_Crew, ACR_Squad.WP_MOVE, depot.m_vTarget, 30, false);
     PrintFormat("[ACR] DEPOTS %1: the technical hasn't set off, ordered again", depot.m_Base.m_sName);
    }

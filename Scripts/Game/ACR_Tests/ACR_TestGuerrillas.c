@@ -51,6 +51,9 @@ class ACR_TestGuerrillas
    GunLeft();
    Away(manager, "Guerrilla Bait");
   }
+  // Again: with the reworked commander (#232) the bait gets reinforced, and a man joining late
+  // would stand at the kill zone.
+  if (second == 45 || second == 48) Away(manager, "Guerrilla Bait");
   if (second == 57) MovedOn();
   if (second == 58) FollowsTraffic();
   if (!s_House) return;
@@ -185,7 +188,11 @@ class ACR_TestGuerrillas
  protected static void Away(ACR_Manager manager, string name)
  {
   ACR_Squad squad = Squad(manager, name);
-  if (!squad) return;
+  if (!squad)
+  {
+   PrintFormat("[ACR] GUERRILLAS test: no squad %1 to send away", name);
+   return;
+  }
   vector home = vector.Zero;
   foreach (ACR_Base base : ACR_Base.s_All) if (base.m_sOwner == "US" && !base.m_bPocket) home = base.GetOrigin();
   if (home == vector.Zero) return;
@@ -196,6 +203,7 @@ class ACR_TestGuerrillas
    IEntity man = agent.GetControlledEntity();
    if (man) man.SetOrigin(ACR_Manager.Ground(home + Vector(i * 2, 0, 0)));
   }
+  PrintFormat("[ACR] GUERRILLAS test: %1 sent home, %2 agents", name, agents.Count());
  }
 
  protected static void HoldFire(ACR_Manager manager, string name)
@@ -286,16 +294,32 @@ class ACR_TestGuerrillas
    Finish();
    return;
   }
+  // Along the road from the yard, so the technical can drive there (a road picked by direction
+  // alone can be one vanilla AI finds no route to: its crew gets out).
   vector yard = ACR_Depots.Yard(s_Depot);
-  for (int i = 0; i < 12; i++)
+  vector start, startDir;
+  float width;
+  if (ACR_Minefields.Snap(yard, 100, start, startDir, width))
   {
-   float angle = i * 30 * Math.DEG2RAD;
-   vector road, dir;
-   float width;
-   if (!ACR_Minefields.Snap(yard + Vector(Math.Cos(angle) * 300, 0, Math.Sin(angle) * 300), 80, road, dir, width)) continue;
-   if (vector.DistanceXZ(road, yard) < 200) continue;
-   s_vDepotTarget = road;
-   break;
+   for (int side = 0; side < 2 && s_vDepotTarget == vector.Zero; side++)
+   {
+    vector at = start;
+    vector dir = startDir;
+    if (side == 1) dir = startDir * -1;
+    for (int step = 0; step < 40; step++)
+    {
+     vector next, nextDir;
+     if (!ACR_Minefields.Snap(at + dir * 10, 15, next, nextDir, width)) break;
+     if (vector.Dot(nextDir, dir) < 0) nextDir = nextDir * -1;
+     at = next;
+     dir = nextDir;
+     if (vector.DistanceXZ(at, yard) >= 250)
+     {
+      s_vDepotTarget = at;
+      break;
+     }
+    }
+   }
   }
   if (s_vDepotTarget == vector.Zero)
   {
