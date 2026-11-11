@@ -249,7 +249,7 @@ class ACR_TestOutbreak
   }
   Check("zombies: every nest site burns, by size", live == nests, string.Format("%1 of %2 live:%3", live, nests, detail));
   Check("zombies: burnt-out cars and remains round the nests", ACR_NestDressing.s_iWrecks >= nests && ACR_NestDressing.s_iRemains >= nests, string.Format("%1 wrecks, %2 remains for %3 nests", ACR_NestDressing.s_iWrecks, ACR_NestDressing.s_iRemains, nests));
-  if (!other) return;
+  if (!other) { Check("zombies: a cleared nest goes out, and burns again when the dead come back", false, "no second nest"); return; }
   int before = mode.ACR_NestSiteTier(other.m_vPos);
   int wrecksBefore = ACR_NestDressing.s_iWrecks;
   ACR_NestDressing.Cleared(other.m_vPos);
@@ -381,7 +381,7 @@ class ACR_TestOutbreak
 
  protected static void Finish()
  {
-  ACR_TestRegress.Complete("zombies", 20);
+  ACR_TestRegress.Complete("zombies", 23);
  }
 
  protected static ACR_Squad Squad(ACR_Manager manager, string name)
