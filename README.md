@@ -79,8 +79,8 @@ Ukrainian forces mod), and you can make your own **custom cards**: a team of you
 soldiers, two to twelve men, optionally with its own ride. Press **F3** on the map, or during
 match setup, to open the deck builder: decks are saved in your profile, **Copy code** and
 **Paste code** share them, and **Hand in** offers one for the match. The host's **Blue deck** /
-**Red deck** rows pick what each side plays: left on auto, a side plays the latest deck handed in
-for it, else the standard deck; **AI picks** has the side's AI commander build its own from its
+**Red deck** rows pick what each side plays (any player's handed-in deck is listed there): left on
+auto, a side plays the latest deck the host handed in for it, else the standard deck; **AI picks** has the side's AI commander build its own from its
 company and doctrine. A buy list fixed by the
 mission overrides any deck, and the **Decks** row turns them off.
 

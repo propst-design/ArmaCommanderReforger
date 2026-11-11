@@ -3,10 +3,12 @@
 // the AI's deck fits its budget with its minimums and utilities, is the same for the same match
 // seed and differs between seeds (the standard deck is never trimmed); custom cards are priced and checked from the faction's own
 // soldiers; a handed-in deck becomes the faction's buy list with its custom card; decks off leaves
-// today's list. Logs every faction's standard deck in points (to calibrate the budget).
+// today's list; only the host's hand-in decides a side's deck on auto (a player's is an offer the row
+// picks), none after Start, and FIA doesn't follow Blue's row; a custom team riding a rare vehicle has
+// no more than its stock and shares it. Logs every faction's standard deck in points (to calibrate the budget).
 class ACR_TestDecks
 {
- static const int CHECKS = 10;
+ static const int CHECKS = 13;
 
  static void Run(ACR_TestHarness h, int tick)
  {
@@ -163,7 +165,7 @@ class ACR_TestDecks
   handed.m_aCards.Insert(plain[0].m_sName);
   handed.m_aCards.Insert("A Card No Mod Has");
   handed.m_aCustom.Insert(mine);
-  string answer = ACR_Decks.Submit(0, handed.ToText());
+  string answer = ACR_Decks.Accept(0, handed.ToText(), true, false);
   ACR_Manager manager = ACR_Manager.GetInstance();
   manager.m_Bases.ForgetFactions();
   ACR_FactionData data = manager.m_Bases.GetFaction(west);
@@ -173,6 +175,52 @@ class ACR_TestDecks
   foreach (ACR_RequisitionEntry kept : data.m_aRequisitions)
    if (!kept.m_bCustom && !ACR_DeckRules.Locked(kept) && kept.m_sName != plain[0].m_sName) onlyDeck = false;
   ACR_TestRegress.Check("deck: a handed-in deck is the buy list: its card, its custom team, the locked trucks", hasCustom && hasFirst && onlyDeck && answer.Contains("A Card No Mod Has"), string.Format("%1 | %2 | applied: %3", answer, Names(data.m_aRequisitions), ACR_Decks.Applied(west)));
+
+  // 8. Ownership (review of #238): a player's deck is an offer. On auto the host's deck still
+  // decides; the row picks the player's. Nothing is taken after Start.
+  ACR_DeckData offered = new ACR_DeckData();
+  offered.m_sFaction = west;
+  offered.m_sName = "Test Offer";
+  offered.m_aCards.Insert(plain[plain.Count() - 1].m_sName);
+  string offerAnswer = ACR_Decks.Accept(77, offered.ToText(), false, false);
+  ACR_DeckSubmission autoSub;
+  string autoKind = ACR_Decks.Resolve(west, autoSub);
+  bool hostStill = autoKind == "deck" && autoSub && autoSub.m_iPlayer == 0;
+  ACR_DeckSubmission offerSub;
+  foreach (ACR_DeckSubmission each : ACR_Decks.Submitted()) if (each.m_iPlayer == 77) offerSub = each;
+  bool rowPicks;
+  if (offerSub)
+  {
+   ACR_Options.Set(ACR_Decks.OptionFor(west), "sub:" + offerSub.m_iSerial.ToString());
+   ACR_DeckSubmission picked;
+   rowPicks = ACR_Decks.Resolve(west, picked) == "deck" && picked == offerSub;
+   ACR_Options.Unset(ACR_Decks.OptionFor(west));
+  }
+  ACR_TestRegress.Check("deck: a player's hand-in is an offer: auto keeps the host's deck, the deck row picks the offer", hostStill && rowPicks && offerAnswer.Contains("Offered to the host"), string.Format("%1 | auto %2 | row %3", offerAnswer, autoKind, rowPicks));
+  int countBefore = ACR_Decks.Submitted().Count();
+  string lateAnswer = ACR_Decks.Accept(0, offered.ToText(), true, true);
+  bool fiaOwn = ACR_Decks.OptionFor("FIA") == "" || ACR_FactionSelection.West() == "FIA" || ACR_FactionSelection.East() == "FIA";
+  ACR_TestRegress.Check("deck: no hand-in after Start; FIA has no deck row of its own side's", ACR_Decks.Submitted().Count() == countBefore && lateAnswer.Contains("has started") && fiaOwn, lateAnswer);
+
+  // 9. A custom team riding a rare vehicle (fixed stock) is rare with no more than the ride's stock,
+  // and its purchases take the ride card's stock (ACR_Requisition.RideOf).
+  ACR_RequisitionEntry rareRide;
+  foreach (ACR_RequisitionEntry rv : plain) if (ACR_DeckCatalog.IsTransport(rv) && rv.m_bRare) { rareRide = rv; break; }
+  if (!rareRide)
+   ACR_TestRegress.Check("deck: a custom team on a rare ride keeps the ride's stock (no rare ride in this list)", true, "");
+  else
+  {
+   ACR_CustomCard carried = mine.Copy();
+   carried.m_sName = "Test Carried Team";
+   carried.m_sTransport = rareRide.m_sName;
+   string carriedError;
+   ACR_RequisitionEntry carriedEntry = ACR_DeckCatalog.CustomEntry(west, carried, pool, plain, stepped, carriedError);
+   ACR_FactionData rideData = new ACR_FactionData();
+   rideData.m_aRequisitions.Insert(rareRide);
+   if (carriedEntry) rideData.m_aRequisitions.Insert(carriedEntry);
+   bool rareOk = carriedEntry && carriedEntry.m_bRare && !carriedEntry.m_bStepped && carriedEntry.m_iStock <= rareRide.m_iStock && carriedEntry.m_iRemaining <= rareRide.m_iRemaining && ACR_Requisition.RideOf(rideData, carriedEntry) == rareRide;
+   ACR_TestRegress.Check("deck: a custom team on a rare ride is rare, within the ride's stock, and shares it", rareOk, string.Format("%1: %2", rareRide.m_sName, carriedError));
+  }
 
   // 7. Decks off: today's list.
   ACR_Options.Set("acrDecks", "0");

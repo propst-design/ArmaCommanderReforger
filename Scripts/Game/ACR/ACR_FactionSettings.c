@@ -30,6 +30,7 @@ class ACR_RequisitionEntry
  bool m_bExtra;       // deck builder: a kitted catalogue card that isn't in today's list (ACR_DeckCatalog.Extras)
  bool m_bCustom;      // deck builder: a player's own team (ACR_DeckCatalog.CustomEntry)
  bool m_bBoard;       // the group rides in the entry's vehicle (a custom team with a transport)
+ string m_sRide;      // deck builder: the vehicle card a custom team rides in; each purchase takes one of its stock
 
  ACR_EFormation m_eFormation; // independent of display names
  ref array<ResourceName> m_aSoldiers; // native templates retained for reinforcement

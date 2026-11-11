@@ -261,6 +261,15 @@ class ACR_DeckCatalog
    entry.m_bCrewed = true;
    entry.m_bBoard = true;
    entry.m_bArmed = ride.m_bArmed;
+   // Never more of the vehicle than its own card gives: a rare ride (an APC or IFV with a fixed
+   // stock) makes the card rare with the ride's stock, and each purchase also takes one of the ride
+   // card's stock when the deck has it (ACR_Requisition.RideOf).
+   entry.m_sRide = ride.m_sName;
+   if (ride.m_bRare)
+   {
+    entry.m_bRare = true;
+    entry.m_iStock = Math.Min(entry.m_iStock, ride.m_iStock);
+   }
   }
   ACR_Pricing.Setup(entry, stepped);
   return entry;
@@ -300,6 +309,7 @@ class ACR_DeckSubmission
  int m_iSerial;
  int m_iPlayer;
  string m_sPlayer;
+ bool m_bHost;   // handed in by the host or an admin: only these decide a side's deck on auto
  ref ACR_DeckData m_Deck;
 }
 
@@ -331,27 +341,35 @@ class ACR_Decks
   s_iSerial = 0;
  }
 
+ // The side's deck row; "" for a faction that isn't one of the two sides (FIA pockets and guerrillas
+ // play the standard deck, not Blue's choice).
  static string OptionFor(string faction)
  {
   if (faction == ACR_FactionSelection.East()) return "acrDeckEast";
-  return "acrDeckWest";
+  if (faction == ACR_FactionSelection.West()) return "acrDeckWest";
+  return "";
  }
 
  // The side's deck row: "" (auto), "standard", "ai" or "sub:<serial>".
  static string Chosen(string faction)
  {
+  string option = OptionFor(faction);
   string value;
-  if (!ACR_Options.Get(OptionFor(faction), value)) return "";
+  if (option.IsEmpty() || !ACR_Options.Get(option, value)) return "";
   value.TrimInPlace();
   value.ToLower();
   return value;
  }
 
+ // The latest deck the host or an admin handed in for this faction (auto). A player's own deck is an
+ // offer: the host's Blue deck / Red deck row picks it. Sides are picked after match setup, so at
+ // hand-in time nobody but the host can be trusted to speak for a side (a Red player could otherwise
+ // hand Blue, or the AI enemy, a deck of two trucks).
  static ACR_DeckSubmission Latest(string faction)
  {
   ACR_DeckSubmission latest;
   foreach (ACR_DeckSubmission sub : Submitted())
-   if (sub.m_Deck.m_sFaction == faction && (!latest || sub.m_iSerial > latest.m_iSerial)) latest = sub;
+   if (sub.m_bHost && sub.m_Deck.m_sFaction == faction && (!latest || sub.m_iSerial > latest.m_iSerial)) latest = sub;
   return latest;
  }
 
@@ -373,7 +391,7 @@ class ACR_Decks
    submission = null;
   }
   if (chosen == "standard" || chosen == "ai") return chosen;
-  // Auto: the latest deck a player handed in for this faction, else the standard deck. The AI's own
+  // Auto: the latest deck the host or an admin handed in for this faction, else the standard deck. The AI's own
   // deck only when the row asks for it ("AI picks"): it changes what an AI side can buy, so it is a
   // choice, not the default.
   submission = Latest(faction);
@@ -684,9 +702,17 @@ class ACR_Decks
  // player hears at once what won't come with it.
  static string Submit(int playerId, string text)
  {
+  return Accept(playerId, text, ACR_Manager.IsHostOrAdmin(playerId), ACR_Setup.Started());
+ }
+
+ // host: the host or an admin handed it in; started: match setup is over.
+ static string Accept(int playerId, string text, bool host, bool started)
+ {
   ACR_DeckData deck = ACR_DeckData.FromText(text);
   if (!deck) return "That isn't a deck code";
   if (!ACR_DeckRules.Enabled()) return "Decks are off for this match";
+  // Hand-ins are cleared when a match ends (ACR_Manager.Stop), so one made after Start would never apply.
+  if (started) return "The match has started: hand a deck in during match setup";
   if (deck.m_sFaction != ACR_FactionSelection.West() && deck.m_sFaction != ACR_FactionSelection.East())
    return string.Format("%1 doesn't play in this match", deck.m_sFaction);
   ACR_FactionSettings settings = ACR_FactionSettings.Find(deck.m_sFaction);
@@ -705,10 +731,12 @@ class ACR_Decks
   for (int i = all.Count() - 1; i >= 0; i--)
    if (all[i].m_iPlayer == playerId && all[i].m_Deck.m_sFaction == deck.m_sFaction) all.RemoveOrdered(i);
   while (all.Count() >= MAX_SUBMITTED) all.RemoveOrdered(0);
+  ACR_DeckSubmission before = Latest(deck.m_sFaction);
   ACR_DeckSubmission sub = new ACR_DeckSubmission();
   s_iSerial++;
   sub.m_iSerial = s_iSerial;
   sub.m_iPlayer = playerId;
+  sub.m_bHost = host;
   sub.m_sPlayer = GetGame().GetPlayerManager().GetPlayerName(playerId);
   if (sub.m_sPlayer.IsEmpty()) sub.m_sPlayer = "Player " + playerId.ToString();
   sub.m_Deck = deck;
@@ -716,8 +744,9 @@ class ACR_Decks
   PrintFormat("[ACR] DECK handed in by %1 for %2: %3 (%4 cards, %5 points)", sub.m_sPlayer, deck.m_sFaction, deck.m_sName, cards, points);
   string result = string.Format("%1 handed in for %2: %3 cards, %4/%5 points.", deck.m_sName, deck.m_sFaction, cards, points, ACR_DeckRules.BudgetName(budget));
   if (budget > 0 && points > budget) result += " Over budget: the dearest cards are dropped.";
-  if (ACR_Setup.Started()) result += " The match has started: it applies from the next match setup.";
-  else if (Chosen(deck.m_sFaction) != "" && Chosen(deck.m_sFaction) != "sub:" + sub.m_iSerial.ToString()) result += " The host's deck row picks which deck the side plays.";
+  if (!host) result += " Offered to the host: the setup screen's deck row picks which deck the side plays.";
+  else if (Chosen(deck.m_sFaction) != "") result += " The deck row picks which deck the side plays.";
+  else if (before && before.m_iPlayer != playerId) result += string.Format(" It replaces %1's deck for %2.", before.m_sPlayer, deck.m_sFaction);
   return result + note;
  }
 

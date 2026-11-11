@@ -7,6 +7,7 @@ class ACR_PendingPurchase : Managed
  string m_sName;
  int m_iPaid;
  ACR_RequisitionEntry m_Entry;
+ ACR_RequisitionEntry m_Ride; // a custom team's ride card: one of its stock went with this purchase
  string m_sError;
  bool m_bRefunded;
  float m_fDeadline;
