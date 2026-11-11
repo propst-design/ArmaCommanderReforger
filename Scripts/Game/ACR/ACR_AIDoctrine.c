@@ -72,6 +72,7 @@ class ACR_AIDoctrine : Managed
  float m_fRideDistance = 900;   // m on foot before it asks for a truck
  float m_fAirLiftDistance = 2000; // m before it calls an air lift
  float m_fRefitRatio = 0.5;     // idle squads below this strength walk back to refill
+ float m_fAmmoLow = 45;        // squads under this share (pct) of their starting magazines go for ammo (ACR_AmmoRuns)
 
  // Fire missions (ACR_FireMissions, AI-led sides)
  float m_fFireMissionGap = 1;   // x the wait between observer calls and mortar free fire
@@ -127,6 +128,7 @@ class ACR_AIDoctrine : Managed
   blitz.m_fRideDistance = 600;
   blitz.m_fAirLiftDistance = 1700;
   blitz.m_fRefitRatio = 0.35;
+  blitz.m_fAmmoLow = 35;
   blitz.m_fFireMissionGap = 1.25;
   blitz.m_fVehicleWeight = 2.2;
   blitz.m_iTransports = 1;
@@ -155,6 +157,7 @@ class ACR_AIDoctrine : Managed
   firepower.m_fFireBaseSeconds = 360;
   firepower.m_fPocketScore = 2;
   firepower.m_fRefitRatio = 0.55;
+  firepower.m_fAmmoLow = 50;
   firepower.m_fFireMissionGap = 0.6;
   firepower.m_fObserverWeight = 3;
   firepower.m_bSupportsFirst = true;
@@ -196,6 +199,7 @@ class ACR_AIDoctrine : Managed
   fortress.m_fRideDistance = 1100;
   fortress.m_fAirLiftDistance = 2400;
   fortress.m_fRefitRatio = 0.6;
+  fortress.m_fAmmoLow = 50;
   fortress.m_fFireMissionGap = 0.8;
   fortress.m_fObserverWeight = 1.5;
   fortress.m_fRushMinutes = 5;
@@ -226,6 +230,7 @@ class ACR_AIDoctrine : Managed
   raider.m_fPocketScore = 3.5;
   raider.m_fRideDistance = 800;
   raider.m_fAirLiftDistance = 1500;
+  raider.m_fAmmoLow = 40;
   raider.m_fFireMissionGap = 1.25;
   raider.m_fVehicleWeight = 0.7;
   raider.m_fSmallTeamWeight = 2.5;

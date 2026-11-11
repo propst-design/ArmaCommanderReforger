@@ -1394,6 +1394,7 @@ class ACR_AICommander : Managed
    if (task != ACR_EAITask.FREE && task != ACR_EAITask.POSTED && task != ACR_EAITask.ATTACK && task != ACR_EAITask.DEFEND) continue;
    if (task == ACR_EAITask.DEFEND && (OnRequest(candidate) || candidate == m_FobEscort || !candidate.m_AITarget)) continue;
    if (!candidate.IsCombatUnit() || IsRetreating(candidate) || IsReconTeam(candidate) || IsScreen(candidate)) continue;
+   if ((task == ACR_EAITask.FREE || task == ACR_EAITask.POSTED) && AmmoShortForAttack(candidate)) continue; // rearms first (ManageAmmoRuns)
    pool.Insert(candidate);
   }
   // Squads flown to their attack (MySquads leaves air-lifted squads out): in, and locked below, or
@@ -3141,7 +3142,7 @@ class ACR_AICommander : Managed
    if (overrun && squad.StrengthRatio() < HoldRatio() && squad.KnownEnemies(300) > 0)
     FallBack(squad, "defence of " + held.m_sName + " overrun", held);
    else if (squad.m_iAmmoPct >= 0 && squad.m_iAmmoPct < OUT_OF_AMMO && squad.KnownEnemies(300) > 0)
-    FallBack(squad, "out of ammo", held);
+    FallBack(squad, "out of ammo", held, true);
   }
   array<ACR_Squad> free = {};
   MySquads(free, true, true); // a threatened base calls squads on their way to a posting too
@@ -3657,6 +3658,7 @@ class ACR_AICommander : Managed
   bool counterDue = m_CounterTarget && m_CounterTarget.m_sOwner != m_sFaction && GetGame().GetWorld().GetWorldTime() < m_fCounterUntil && !IsAttacking(m_CounterTarget);
   array<ACR_Squad> free = {};
   MySquads(free, true);
+  DropAmmoShort(free); // shot nearly dry: it rearms first (ManageAmmoRuns), or it would fall back at once
   // Keep a reserve once the force is big enough, at a secure base behind the front (not the
   // HQ unless nothing else fits: Jacob 14 Oct, reserves at the HQ took too long to respond).
   array<ACR_Squad> all = {};
@@ -4731,10 +4733,18 @@ class ACR_AICommander : Managed
   else squad.RouteTo(destination, ACR_Squad.WP_MOVE, -1, "Moving", 0);
  }
 
- // A beaten squad breaks contact and falls back to the nearest own base.
- protected void FallBack(ACR_Squad squad, string why, ACR_Base except = null)
+ // A beaten squad breaks contact and falls back to the nearest own base; one out of ammo (forAmmo,
+ // ammo runs on) to the nearest that can restock it, unless that is FALLBACK_REARM_EXTRA farther
+ // (ManageAmmoRuns takes it on from wherever it gets to).
+ static const float FALLBACK_REARM_EXTRA = 1000;
+ protected void FallBack(ACR_Squad squad, string why, ACR_Base except = null, bool forAmmo = false)
  {
   ACR_Base refuge = NearestOwnBase(PositionOf(squad), except);
+  if (forAmmo && ACR_AmmoRuns.On())
+  {
+   ACR_Base rearm = NearestRearmBase(PositionOf(squad), except);
+   if (rearm && (!refuge || vector.DistanceXZ(PositionOf(squad), rearm.GetOrigin()) <= vector.DistanceXZ(PositionOf(squad), refuge.GetOrigin()) + FALLBACK_REARM_EXTRA)) refuge = rearm;
+  }
   squad.SetAITask(ACR_EAITask.FREE);
   if (m_ReserveSquad == squad) m_ReserveSquad = null;
   m_RetreatingUntil.Set(squad, GetGame().GetWorld().GetWorldTime() + RETREAT_COOLDOWN_MS);
@@ -5152,7 +5162,7 @@ class ACR_AICommander : Managed
    else if (ACR_Transport.CrewedVehicle(member)) vehiclesNoGunner++;
    else remnants++;
   }
-  attacks += string.Format(" | line %1, depleted %2, refitting %3, remnants %4, unarmed vehicles %5", line, depleted, m_Refitting.Count(), remnants, vehiclesNoGunner);
+  attacks += string.Format(" | line %1, depleted %2, refitting %3, remnants %4, unarmed vehicles %5, ammo runs %6", line, depleted, m_Refitting.Count(), remnants, vehiclesNoGunner, m_AmmoRuns.Count());
   int visible;
   foreach (ACR_Base base : ACR_Base.s_All)
    if (base.m_sOwner != m_sFaction && !base.m_sOwner.IsEmpty() && Visible(base)) visible++;
@@ -5211,6 +5221,7 @@ class ACR_AICommander : Managed
     if (squad) refit += string.Format(" %1 (%2 s)", squad.GetName(), (int)Math.Max(0, (until - now) / 1000));
    lines.Insert("refitting:" + refit);
   }
+  ThinkAmmoRuns(lines);
  }
 
  protected void UpdateAttacks()
@@ -5254,7 +5265,7 @@ class ACR_AICommander : Managed
     // Shot dry: pull back to rearm instead of charging with empty rifles.
     if (squad.m_iAmmoPct >= 0 && squad.m_iAmmoPct < OUT_OF_AMMO)
     {
-     FallBack(squad, "out of ammo");
+     FallBack(squad, "out of ammo", null, true);
      attack.Remove(s);
     }
    }
@@ -6735,6 +6746,7 @@ class ACR_AICommander : Managed
    // others wait until they pass a base.
    if (!inside)
    {
+    if (m_AmmoRuns.Contains(squad)) continue; // walking back to rearm: that base refills it too
     // Re-sending the walk every tick reset the squad's waypoint recovery, so an unreachable
     // walk never ended until the 15-min limit (Everon 26 Oct: 200 dropped waypoints).
     if (refitting && (now >= giveUpAt || squad.GaveUpUnreachable()))
@@ -7248,7 +7260,12 @@ class ACR_AICommander : Managed
  protected int NeedsOf(ACR_Squad squad)
  {
   int need;
-  if (squad.m_iAmmoPct >= 0 && squad.m_iAmmoPct < LOW_AMMO) need |= ACR_EService.AMMO;
+  // Ammo runs on (ManageAmmoRuns): the squad's own line and its dry men; else the old fixed line.
+  if (ACR_AmmoRuns.On())
+  {
+   if (AmmoLow(squad)) need |= ACR_EService.AMMO;
+  }
+  else if (squad.m_iAmmoPct >= 0 && squad.m_iAmmoPct < LOW_AMMO) need |= ACR_EService.AMMO;
   if (squad.m_iAvgHpPct < LOW_HEALTH) need |= ACR_EService.MEDICAL;
   IEntity vehicle = ACR_Transport.CrewedVehicle(squad);
   if (vehicle)
@@ -7270,7 +7287,13 @@ class ACR_AICommander : Managed
   array<ACR_Squad> done = {};
   foreach (ACR_Squad jobCrew, ACR_Squad jobClient : m_ServiceJobs)
   {
-   if (!jobCrew || !jobClient || !m_Manager.m_Squads.Contains(jobCrew) || !m_Manager.m_Squads.Contains(jobClient) || NeedsOf(jobClient) == 0 || jobCrew.OrderState() == ACR_EOrderState.HOLD)
+   if (!jobCrew || !jobClient || !m_Manager.m_Squads.Contains(jobCrew) || !m_Manager.m_Squads.Contains(jobClient))
+   {
+    done.Insert(jobCrew);
+    continue;
+   }
+   if (AmmoJob(jobCrew, jobClient)) continue; // an ammo run lets its truck go itself (TickTruckRun)
+   if (NeedsOf(jobClient) == 0 || jobCrew.OrderState() == ACR_EOrderState.HOLD)
    {
     done.Insert(jobCrew);
     continue;
@@ -7304,6 +7327,7 @@ class ACR_AICommander : Managed
   foreach (ACR_Squad snubbed, float snubUntil : m_ServiceSnub)
    if (!snubbed || !m_Manager.m_Squads.Contains(snubbed) || nowMs >= snubUntil) snubGone.Insert(snubbed);
   foreach (ACR_Squad unsnubbed : snubGone) m_ServiceSnub.Remove(unsnubbed);
+  ManageAmmoRuns(logistics, nowMs);
   array<ACR_Squad> walkers = {};
   foreach (ACR_Squad walker, float giveUp : m_ResupplyGiveUp) walkers.Insert(walker);
   foreach (ACR_Squad walker : walkers)
@@ -7319,8 +7343,15 @@ class ACR_AICommander : Managed
   foreach (ACR_Squad squad : mine)
   {
    int need = NeedsOf(squad);
+   // The ammo of the squads ammo runs may take is theirs (ManageAmmoRuns); the trucks here see to the rest.
+   bool ammoRun = m_AmmoRuns.Contains(squad);
+   if (ACR_AmmoRuns.On() && (ammoRun || AmmoRunCandidate(squad)))
+   {
+    m_iNeeds |= need & ACR_EService.AMMO; // still buys a truck when the side has none
+    need &= ~ACR_EService.AMMO;
+   }
    // Walking back for replacements (ReinforceDepleted) is a resupply with no service need.
-   if (squad.m_iAITask == ACR_EAITask.RESUPPLY && need == 0 && !m_Refitting.Contains(squad))
+   if (squad.m_iAITask == ACR_EAITask.RESUPPLY && need == 0 && !m_Refitting.Contains(squad) && !ammoRun)
    {
     squad.SetAITask(ACR_EAITask.FREE);
     Say(string.Format("[ACR] AI %1: %2 resupplied", m_sFaction, squad.GetName()));
@@ -7406,6 +7437,531 @@ class ACR_AICommander : Managed
    m_ParkSentTo.Set(idleCrew, spot);
    Say(string.Format("[ACR] AI %1: %2 to %3 (%4)", m_sFaction, idleCrew.GetName(), goal.m_sName, ACR_Logistics.ServiceName(serviceMask)));
   }
+ }
+
+ // ---------------------------------------------------------------- ammo runs
+ // (ACR_AmmoRuns.) A squad low on ammo has the ammo truck meet it where that is safe, walks back to a
+ // quiet base of ours that can restock it, or carries on and looks again later: each costed, picked
+ // with ACR_Variety. One truck serves one squad at a time (m_ServiceJobs); at most a share of the
+ // combat squads are away at once, except the shot dry. A holder's post waits for it (NoteLeftPost,
+ // ReturnToPosts); others are free for their next job when the run is over.
+ // Safe for a truck, by the side's own picture: the squad knows of no enemy within AMMO_CONTACT_M,
+ // the side has seen none within AMMO_SEEN_M of the meeting point, no base of ours there is contested
+ // or under attack, no enemy base within AMMO_FRONT_M, and no FIA ambush on the way (DangerOnTheWay).
+ // Checked again every tick while the truck drives: a run that turns unsafe lets the truck go.
+ static const float AMMO_CONTACT_M = 400;
+ static const float AMMO_SEEN_M = 500;
+ static const float AMMO_FRONT_M = 400;
+ static const float AMMO_MEET_ROAD_M = 150;   // the truck meets it on a road this close, else where it stands
+ static const float AMMO_MEET_M = 45;         // the truck counts as there within this of the meeting point
+ static const float AMMO_SERVE_M = 40;        // and hands out to every man of the squad within this of it
+ static const float AMMO_BASE_REACH = 5000;
+ static const float AMMO_TRUCK_MS = 420000;   // a truck that hasn't got there by then is let go
+ static const float AMMO_SERVE_MS = 60000;    // at the truck this long: what could be handed out has been
+ static const float AMMO_GATHER_MS = 30000;   // inside the base: the stragglers get this long to come in
+ static const float AMMO_SETTLE_MS = 10000;   // the magazines are handed out over a few seconds
+ static const float AMMO_CONTACT_MS = 90000;  // inside the base with enemies near: it waits this long, then fights
+ static const float AMMO_LOOK_MS = 120000;    // carrying on, or a truck that failed it: it looks again after this
+ static const float AMMO_SKIP_MS = 900000;    // a base it couldn't get to is left out this long
+ protected ref map<ACR_Squad, ref ACR_AmmoRun> m_AmmoRuns = new map<ACR_Squad, ref ACR_AmmoRun>();
+ protected ref map<ACR_Squad, float> m_AmmoLookAt = new map<ACR_Squad, float>();
+ protected ref map<ACR_Squad, float> m_AmmoNoTruckUntil = new map<ACR_Squad, float>();
+ protected ref map<ACR_Squad, float> m_AmmoToppedAt = new map<ACR_Squad, float>();
+ protected ref map<ACR_Squad, int> m_AmmoToppedPct = new map<ACR_Squad, int>();
+ protected ref map<ACR_Squad, ACR_Base> m_AmmoSkipBase = new map<ACR_Squad, ACR_Base>();
+ protected ref map<ACR_Squad, float> m_AmmoSkipAt = new map<ACR_Squad, float>();
+
+ ACR_AmmoRun AmmoRunOf(ACR_Squad squad)
+ {
+  ACR_AmmoRun run;
+  if (squad) m_AmmoRuns.Find(squad, run);
+  return run;
+ }
+
+ // The ammo run holding this truck (TickTruckRun lets it go, not ManageLogistics).
+ protected bool AmmoJob(ACR_Squad crew, ACR_Squad client)
+ {
+  ACR_AmmoRun run = AmmoRunOf(client);
+  return run && run.m_Crew == crew;
+ }
+
+ // Its line: the doctrine's, varied per squad (seeded).
+ protected float AmmoLine(ACR_Squad squad)
+ {
+  return ACR_AmmoRuns.Line(m_Doctrine.m_fAmmoLow, string.Format("ammo %1 %2", m_sFaction, squad.GetName()));
+ }
+
+ protected bool AmmoLow(ACR_Squad squad)
+ {
+  return ACR_AmmoRuns.Low(squad.m_iAmmoPct, squad.m_iDryPct, AmmoLine(squad));
+ }
+
+ // Shot nearly dry: not sent on a new attack (ammo runs on), as ACR_Qrf leaves it off a QRF.
+ protected bool AmmoShortForAttack(ACR_Squad squad)
+ {
+  return squad && squad.m_iAmmoPct >= 0 && squad.m_iAmmoPct < ACR_AmmoRuns.ATTACK_MIN && ACR_AmmoRuns.On();
+ }
+
+ protected void DropAmmoShort(array<ACR_Squad> squads)
+ {
+  for (int i = squads.Count() - 1; i >= 0; i--)
+   if (AmmoShortForAttack(squads[i])) squads.RemoveOrdered(i);
+ }
+
+ protected bool AmmoHolder(ACR_Squad squad)
+ {
+  return squad.m_iAITask == ACR_EAITask.DEFEND || squad.m_iAITask == ACR_EAITask.FORTIFY;
+ }
+
+ // Who may go on a run: free, posted, defending or holding a position, no player, not riding,
+ // not in an assault, not walking back for replacements (that refill restocks it too).
+ protected bool AmmoRunCandidate(ACR_Squad squad)
+ {
+  if (!squad || squad.HasPlayer() || squad.m_Commander != 0 || squad.m_bMortar || squad.Aircraft() || !Ours(squad)) return false;
+  if (squad == m_FobBuilder || squad == m_FobEscort || OnRequest(squad) || InAssault(squad) || m_Refitting.Contains(squad)) return false;
+  IEntity crewed = ACR_Transport.CrewedVehicle(squad);
+  if (crewed && ACR_Logistics.ServiceOf(crewed) != 0) return false;
+  if (m_Manager.m_Rides && (m_Manager.m_Rides.RideOf(squad) || m_Manager.m_Rides.Unloading(squad))) return false;
+  int task = squad.m_iAITask;
+  return task == ACR_EAITask.FREE || task == ACR_EAITask.POSTED || task == ACR_EAITask.DEFEND || task == ACR_EAITask.FORTIFY;
+ }
+
+ // A truck crew free to drive out.
+ protected bool AmmoCrewFree(ACR_Squad crew)
+ {
+  if (!crew || crew.HasPlayer() || crew.m_Commander != 0 || !Ours(crew) || m_ServiceJobs.Contains(crew) || StuckLately(crew)) return false;
+  if (crew.OrderState() == ACR_EOrderState.BUILD_FOB || crew.m_iAITask == ACR_EAITask.BUILD_FOB) return false;
+  return !IsAssistingFobUpgrade(crew);
+ }
+
+ // Why a truck can't be sent to 'meet' for this squad ("" = it can).
+ protected string TruckUnsafe(ACR_Squad squad, vector meet)
+ {
+  if (squad.KnownEnemies(AMMO_CONTACT_M) > 0) return "in contact";
+  array<vector> seen = {};
+  SeenEnemiesNear(meet, AMMO_SEEN_M, seen);
+  if (!seen.IsEmpty()) return "enemies seen near";
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || base.m_sOwner != m_sFaction) continue;
+   if (vector.DistanceXZ(meet, base.GetOrigin()) > base.m_fRadius + 150) continue;
+   if (base.m_bContested || ThreatTo(base) > 0) return base.m_sName + " under attack";
+  }
+  ACR_Base enemy = NearestEnemyBase(meet);
+  if (enemy && vector.DistanceXZ(meet, enemy.GetOrigin()) < AMMO_FRONT_M) return "at the door of " + enemy.m_sName;
+  return "";
+ }
+
+ protected float FrontRiskAt(vector point)
+ {
+  ACR_Base enemy = NearestEnemyBase(point);
+  if (!enemy) return 0;
+  return ACR_AmmoRuns.FrontRisk(vector.DistanceXZ(point, enemy.GetOrigin()));
+ }
+
+ // A base of ours that can restock a squad now: replacements allowed there (its relay standing),
+ // not contested, nobody attacking it.
+ protected bool RearmBase(ACR_Base base)
+ {
+  return base && !base.m_bRetired && base.m_sOwner == m_sFaction && ACR_LogisticsRules.CanReinforce(base) && !base.m_bContested && ThreatTo(base) == 0;
+ }
+
+ // The nearest one (FallBack "out of ammo": no weighing under fire).
+ protected ACR_Base NearestRearmBase(vector point, ACR_Base except = null)
+ {
+  ACR_Base best;
+  float bestDistance = AMMO_BASE_REACH;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (base == except || !RearmBase(base)) continue;
+   float d = vector.DistanceXZ(point, base.GetOrigin());
+   if (d < bestDistance) { bestDistance = d; best = base; }
+  }
+  return best;
+ }
+
+ protected bool AmmoSkips(ACR_Squad squad, ACR_Base base, float now)
+ {
+  ACR_Base skipped;
+  float at;
+  if (!m_AmmoSkipBase.Find(squad, skipped) || skipped != base || !m_AmmoSkipAt.Find(squad, at)) return false;
+  return now - at < AMMO_SKIP_MS;
+ }
+
+ protected void ManageAmmoRuns(ACR_Logistics logistics, float now)
+ {
+  if (!ACR_AmmoRuns.On())
+  {
+   if (!m_AmmoRuns.IsEmpty()) EndAllAmmoRuns("ammo runs turned off");
+   return;
+  }
+  array<ACR_Squad> running = {};
+  foreach (ACR_Squad runner, ACR_AmmoRun r : m_AmmoRuns) running.Insert(runner);
+  foreach (ACR_Squad squad : running) TickAmmoRun(squad, logistics, now);
+  // New runs, the lowest first.
+  array<ACR_Squad> mine = {};
+  MySquads(mine, false);
+  int combat;
+  foreach (ACR_Squad member : mine)
+   if (member.IsCombatUnit()) combat++;
+  int cap = ACR_Variety.Share(combat, ACR_AmmoRuns.RUN_SHARE, "ammo runs " + m_sFaction);
+  if (cap < 1) cap = 1;
+  array<ACR_Squad> low = {};
+  foreach (ACR_Squad candidate : mine)
+  {
+   if (m_AmmoRuns.Contains(candidate) || !AmmoRunCandidate(candidate) || !AmmoLow(candidate)) continue;
+   float lookAt;
+   if (m_AmmoLookAt.Find(candidate, lookAt) && now < lookAt) continue;
+   float toppedAt;
+   int toppedPct;
+   if (m_AmmoToppedAt.Find(candidate, toppedAt) && m_AmmoToppedPct.Find(candidate, toppedPct) && ACR_AmmoRuns.ToppedHolds(now, toppedAt, toppedPct, candidate.m_iAmmoPct)) continue;
+   low.Insert(candidate);
+  }
+  for (int i = 1; i < low.Count(); i++)
+  {
+   ACR_Squad current = low[i];
+   int j = i - 1;
+   while (j >= 0)
+   {
+    if (low[j].m_iAmmoPct <= current.m_iAmmoPct) break;
+    low[j + 1] = low[j];
+    j--;
+   }
+   low[j + 1] = current;
+  }
+  foreach (ACR_Squad squad : low)
+  {
+   bool dry = squad.m_iAmmoPct < OUT_OF_AMMO;
+   if (!dry && m_AmmoRuns.Count() >= cap) continue;
+   StartAmmoRun(squad, logistics, now);
+  }
+ }
+
+ // The choice for one squad low on ammo: the truck, a base, or carrying on.
+ protected void StartAmmoRun(ACR_Squad squad, ACR_Logistics logistics, float now)
+ {
+  vector at = PositionOf(squad);
+  bool holder = AmmoHolder(squad);
+  bool dry = squad.m_iAmmoPct < OUT_OF_AMMO;
+  float line = AmmoLine(squad);
+  float shortfall = ACR_AmmoRuns.Shortfall(squad.m_iAmmoPct, squad.m_iDryPct, line);
+  int alive = squad.CountAlive();
+  if (alive < 1) alive = 1;
+  // The truck: the cheapest free ammo or arsenal truck within SERVICE_REACH of a meeting point on a road near it.
+  vector meet = at;
+  vector road;
+  if (BBB_Terrain.RoadPointNear(at, AMMO_MEET_ROAD_M, road)) meet = road;
+  string danger = TruckUnsafe(squad, meet);
+  float noTruckUntil;
+  if (danger.IsEmpty() && m_AmmoNoTruckUntil.Find(squad, noTruckUntil) && now < noTruckUntil) danger = "its last truck failed it";
+  ACR_Squad crew;
+  IEntity truck;
+  float truckCost = -1;
+  if (danger.IsEmpty())
+  {
+   array<IEntity> stations = {};
+   logistics.Stations(m_sFaction, ACR_EService.AMMO, stations);
+   foreach (IEntity station : stations)
+   {
+    if (logistics.IsPoint(station)) continue;
+    ACR_Squad stationCrew = CrewOf(station);
+    if (!AmmoCrewFree(stationCrew)) continue;
+    float drive = vector.DistanceXZ(station.GetOrigin(), meet);
+    if (drive > SERVICE_REACH || DangerOnTheWay(stationCrew, meet)) continue;
+    float cost = ACR_AmmoRuns.TruckCost(drive, vector.DistanceXZ(at, meet), FrontRiskAt(meet), logistics.StockOf(station) / alive);
+    if (truckCost < 0 || cost < truckCost) { truckCost = cost; crew = stationCrew; truck = station; }
+   }
+  }
+  // The bases. A defender stays with its defence unless it is shot dry (the truck may still come).
+  array<ACR_Base> bases = {};
+  array<float> baseCosts = {};
+  if (squad.m_iAITask != ACR_EAITask.DEFEND || dry)
+  {
+   array<ResourceName> missing = {};
+   squad.GetMissing(missing);
+   bool wounded = squad.m_iAvgHpPct < LOW_HEALTH;
+   foreach (ACR_Base base : ACR_Base.s_All)
+   {
+    if (!RearmBase(base) || AmmoSkips(squad, base, now)) continue;
+    float dist = vector.DistanceXZ(at, base.GetOrigin());
+    if (dist > AMMO_BASE_REACH) continue;
+    float front = FrontRiskAt(base.GetOrigin());
+    if (DefenceThreat(base) > 0) front = 1; // an attack on it is forecast
+    bool ride = m_Manager.m_Rides && dist > m_Doctrine.m_fRideDistance;
+    bases.Insert(base);
+    baseCosts.Insert(ACR_AmmoRuns.BaseCost(Math.Max(0, dist - base.m_fRadius), ride, holder, missing.Count(), wounded, front));
+   }
+  }
+  // Option refs: -2 carry on, -1 the truck, 0.. a base.
+  array<float> costs = {};
+  array<int> refs = {};
+  costs.Insert(ACR_AmmoRuns.WaitCost(shortfall));
+  refs.Insert(-2);
+  if (crew)
+  {
+   costs.Insert(truckCost);
+   refs.Insert(-1);
+  }
+  foreach (int b, float baseCost : baseCosts)
+  {
+   costs.Insert(baseCost);
+   refs.Insert(b);
+  }
+  int minute = (int)(now / 60000);
+  int pick = ACR_AmmoRuns.Pick(costs, string.Format("ammo run %1 %2 %3", m_sFaction, squad.GetName(), minute));
+  string noTruck = "";
+  if (!danger.IsEmpty()) noTruck = " (no truck: " + danger + ")";
+  else if (!crew) noTruck = " (no truck free)";
+  if (pick < 0 || refs[pick] == -2)
+  {
+   m_AmmoLookAt.Set(squad, now + AMMO_LOOK_MS);
+   Say(string.Format("[ACR] AI %1: %2 low on ammo (%3 pct, line %4) carries on for now%5", m_sFaction, squad.GetName(), squad.m_iAmmoPct, (int)line, noTruck));
+   return;
+  }
+  ACR_AmmoRun run = new ACR_AmmoRun();
+  run.m_fStartedAt = now;
+  run.m_iFromTask = squad.m_iAITask;
+  run.m_iStartPct = squad.m_iAmmoPct;
+  if (holder) NoteLeftPost(squad);
+  squad.SetAITask(ACR_EAITask.RESUPPLY);
+  squad.SetMode(ACR_EMoveMode.FAST);
+  m_AmmoLookAt.Remove(squad);
+  if (refs[pick] == -1)
+  {
+   run.m_Crew = crew;
+   run.m_vMeet = meet;
+   run.m_fGiveUpAt = now + AMMO_TRUCK_MS;
+   m_AmmoRuns.Set(squad, run);
+   m_ServiceJobs.Set(crew, squad);
+   crew.SetMode(ACR_EMoveMode.FAST);
+   crew.RouteTo(ACR_Manager.Ground(meet), ACR_Squad.WP_MOVE, -1, "Resupplying " + squad.GetName(), 0);
+   if (vector.DistanceXZ(at, meet) > 15) squad.RouteTo(ACR_Manager.Ground(meet), ACR_Squad.WP_MOVE, -1, "Meeting the ammo truck", 0);
+   else squad.Halt("Waiting for the ammo truck");
+   Say(string.Format("[ACR] AI %1: %2 low on ammo (%3 pct, line %4) calls the ammo truck: %5 meets it at %6, %7 m out", m_sFaction, squad.GetName(), squad.m_iAmmoPct, (int)line, crew.GetName(), ACR_Manager.Grid(meet), (int)vector.DistanceXZ(truck.GetOrigin(), meet)));
+   return;
+  }
+  ACR_Base target = bases[refs[pick]];
+  run.m_Base = target;
+  run.m_vMeet = target.GetOrigin();
+  run.m_fGiveUpAt = now + REFIT_GIVE_UP_MS;
+  m_AmmoRuns.Set(squad, run);
+  float away = vector.DistanceXZ(at, target.GetOrigin());
+  Say(string.Format("[ACR] AI %1: %2 low on ammo (%3 pct, line %4) goes back to %5 to rearm, %6 m%7", m_sFaction, squad.GetName(), squad.m_iAmmoPct, (int)line, target.m_sName, (int)away, noTruck));
+  if (away > target.m_fRadius) Travel(squad, ACR_Manager.Ground(target.GetOrigin()), false, 0);
+  else TickBaseRun(squad, run, logistics, now);
+ }
+
+ protected void TickAmmoRun(ACR_Squad squad, ACR_Logistics logistics, float now)
+ {
+  ACR_AmmoRun run = AmmoRunOf(squad);
+  if (!run) return;
+  if (!m_Manager.m_Squads.Contains(squad) || squad.CountAlive() <= 0 || squad.HasPlayer() || !Ours(squad))
+  {
+   EndAmmoRun(squad, "", false, now);
+   return;
+  }
+  // Taken for something else meanwhile (a defence, a player's order): the run is over.
+  if (squad.m_iAITask != ACR_EAITask.RESUPPLY)
+  {
+   EndAmmoRun(squad, "taken for another job", false, now);
+   return;
+  }
+  if (ACR_AmmoRuns.Done(squad.m_iAmmoPct, squad.m_iDryPct))
+  {
+   EndAmmoRun(squad, string.Format("rearmed (%1 -> %2 pct)", run.m_iStartPct, squad.m_iAmmoPct), false, now);
+   return;
+  }
+  if (run.m_Crew) TickTruckRun(squad, run, logistics, now);
+  else TickBaseRun(squad, run, logistics, now);
+ }
+
+ protected void TickTruckRun(ACR_Squad squad, ACR_AmmoRun run, ACR_Logistics logistics, float now)
+ {
+  ACR_Squad crew = run.m_Crew;
+  IEntity truck;
+  if (crew) truck = ACR_Transport.CrewedVehicle(crew);
+  ACR_Squad serving;
+  bool booked = crew && m_ServiceJobs.Find(crew, serving) && serving == squad;
+  string lost = "";
+  if (!crew || !truck || !m_Manager.m_Squads.Contains(crew) || ACR_Logistics.Health(truck) <= 0) lost = "the truck was lost";
+  else if (!booked || crew.HasPlayer() || crew.m_Commander != 0) lost = "the truck was taken off the job";
+  else if (StuckLately(crew) || crew.GaveUpUnreachable()) lost = "the truck can't get there";
+  else if (run.m_fArrivedAt <= 0 && now >= run.m_fGiveUpAt) lost = "the truck never came";
+  else if (logistics.StockOf(truck) < 1) lost = "the truck ran dry";
+  else lost = TruckUnsafe(squad, run.m_vMeet);
+  if (!lost.IsEmpty())
+  {
+   // The truck goes back to the supply point (ManageLogistics); the squad looks again at once,
+   // trucks left out a while: a base, or carrying on.
+   ReleaseAmmoTruck(crew, squad);
+   m_AmmoRuns.Remove(squad);
+   m_AmmoNoTruckUntil.Set(squad, now + AMMO_LOOK_MS);
+   squad.SetAITask(ACR_EAITask.FREE);
+   Say(string.Format("[ACR] AI %1: %2's ammo truck called off (%3)", m_sFaction, squad.GetName(), lost));
+   if (AmmoRunCandidate(squad) && AmmoLow(squad)) StartAmmoRun(squad, logistics, now);
+   return;
+  }
+  Physics physics = truck.GetPhysics();
+  bool stopped = !physics || physics.GetVelocity().Length() <= ACR_Logistics.SERVICE_MAX_SPEED;
+  if (run.m_fArrivedAt <= 0)
+  {
+   if (vector.DistanceXZ(truck.GetOrigin(), run.m_vMeet) > AMMO_MEET_M || !stopped) return;
+   run.m_fArrivedAt = now;
+  }
+  // There: the men gather at the truck, and it hands out to all of them, not only at its tailgate.
+  if (!run.m_bGathered)
+  {
+   run.m_bGathered = true;
+   if (vector.DistanceXZ(PositionOf(squad), truck.GetOrigin()) > 12) squad.RouteTo(ACR_Manager.Ground(truck.GetOrigin()), ACR_Squad.WP_MOVE, -1, "Rearming at the ammo truck", 0);
+  }
+  logistics.ServeSquadAt(truck, squad, AMMO_SERVE_M);
+  if (now - run.m_fArrivedAt < AMMO_SERVE_MS) return;
+  EndAmmoRun(squad, string.Format("rearmed at the ammo truck as far as it could (%1 -> %2 pct)", run.m_iStartPct, squad.m_iAmmoPct), squad.m_iAmmoPct < ACR_AmmoRuns.DONE_PCT, now);
+ }
+
+ protected void TickBaseRun(ACR_Squad squad, ACR_AmmoRun run, ACR_Logistics logistics, float now)
+ {
+  ACR_Base base = run.m_Base;
+  bool inside = base && vector.DistanceXZ(PositionOf(squad), base.GetOrigin()) <= base.m_fRadius;
+  string lost = "";
+  if (!RearmBase(base)) lost = "it can't restock it now";
+  else if (!inside && (now >= run.m_fGiveUpAt || squad.GaveUpUnreachable())) lost = "it can't get there";
+  if (!lost.IsEmpty())
+  {
+   m_AmmoSkipBase.Set(squad, base);
+   m_AmmoSkipAt.Set(squad, now);
+   m_AmmoRuns.Remove(squad);
+   squad.SetAITask(ACR_EAITask.FREE);
+   string name = "?";
+   if (base) name = base.m_sName;
+   Say(string.Format("[ACR] AI %1: %2's walk back to %3 for ammo called off (%4)", m_sFaction, squad.GetName(), name, lost));
+   if (AmmoRunCandidate(squad) && AmmoLow(squad)) StartAmmoRun(squad, logistics, now);
+   return;
+  }
+  if (!inside) return; // on its way (Travel: on foot, or a ride)
+  if (run.m_fArrivedAt <= 0) run.m_fArrivedAt = now;
+  if (run.m_fServedAt > 0)
+  {
+   if (now - run.m_fServedAt < AMMO_SETTLE_MS) return;
+   EndAmmoRun(squad, string.Format("restocked at %1 as far as it could (%2 -> %3 pct)", base.m_sName, run.m_iStartPct, squad.m_iAmmoPct), squad.m_iAmmoPct < ACR_AmmoRuns.DONE_PCT, now);
+   return;
+  }
+  // No restock with enemies near (as the commander's Reinforce, Jacob 4 Oct): it waits, then fights.
+  if (m_Manager.m_Requisition.InContact(squad) != "")
+  {
+   if (run.m_fContactSince <= 0) run.m_fContactSince = now;
+   if (now - run.m_fContactSince < AMMO_CONTACT_MS) return;
+   m_AmmoLookAt.Set(squad, now + AMMO_LOOK_MS);
+   EndAmmoRun(squad, string.Format("enemies at %1, it fights on", base.m_sName), false, now);
+   return;
+  }
+  run.m_fContactSince = 0;
+  // The stragglers come in first (only the men inside the circle are restocked).
+  if (MenInside(squad, base) < squad.CountAlive() && now - run.m_fArrivedAt < AMMO_GATHER_MS) return;
+  int served = m_Manager.m_Requisition.RestockAmmo(squad, base);
+  int vehicles = ServiceAmmoVehicles(squad, base);
+  run.m_fServedAt = now;
+  Say(string.Format("[ACR] AI %1: %2 restocked at %3: %4 men, %5 vehicles", m_sFaction, squad.GetName(), base.m_sName, served, vehicles));
+ }
+
+ protected int MenInside(ACR_Squad squad, ACR_Base base)
+ {
+  int inside;
+  array<AIAgent> agents = {};
+  squad.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity soldier = agent.GetControlledEntity();
+   if (soldier && ACR_Respawn.IsAlive(soldier) && vector.DistanceXZ(soldier.GetOrigin(), base.GetOrigin()) <= base.m_fRadius) inside++;
+  }
+  return inside;
+ }
+
+ // Its vehicles inside the base: rearmed and repaired at the Reinforce price (ACR_Requisition.ServiceCost).
+ protected int ServiceAmmoVehicles(ACR_Squad squad, ACR_Base base)
+ {
+  if (!ACR_LogisticsRules.CanDeploy(base)) return 0;
+  array<IEntity> vehicles = {};
+  m_Manager.m_Requisition.SquadVehiclesIn(squad, base, vehicles);
+  if (vehicles.IsEmpty()) return 0;
+  int cost;
+  foreach (IEntity vehicle : vehicles) cost += ACR_Requisition.ServiceCost(vehicle);
+  if (cost > 0)
+  {
+   int before = m_Manager.m_Bases.GetRP(m_sFaction);
+   if (Purse() - BuildKeep() < cost || !m_Manager.m_Bases.Spend(m_sFaction, cost)) return 0;
+   m_Manager.LogSpend(null, m_sFaction, before, "rearmed and repaired " + squad.GetName());
+  }
+  return m_Manager.m_Requisition.ServiceVehicles(vehicles);
+ }
+
+ protected void ReleaseAmmoTruck(ACR_Squad crew, ACR_Squad client)
+ {
+  ACR_Squad serving;
+  if (crew && m_ServiceJobs.Find(crew, serving) && serving == client) EndServiceJob(crew);
+ }
+
+ // topped: the refill couldn't bring it back to DONE_PCT; no new run for a while (ToppedHolds).
+ protected void EndAmmoRun(ACR_Squad squad, string why, bool topped, float now)
+ {
+  ACR_AmmoRun run = AmmoRunOf(squad);
+  m_AmmoRuns.Remove(squad);
+  if (run && run.m_Crew) ReleaseAmmoTruck(run.m_Crew, squad);
+  if (!squad) return;
+  if (topped)
+  {
+   m_AmmoToppedAt.Set(squad, now);
+   m_AmmoToppedPct.Set(squad, squad.m_iAmmoPct);
+  }
+  if (squad.m_iAITask == ACR_EAITask.RESUPPLY && !m_Refitting.Contains(squad)) squad.SetAITask(ACR_EAITask.FREE);
+  if (!why.IsEmpty()) Say(string.Format("[ACR] AI %1: %2 %3", m_sFaction, squad.GetName(), why));
+ }
+
+ protected void EndAllAmmoRuns(string why)
+ {
+  float now = GetGame().GetWorld().GetWorldTime();
+  array<ACR_Squad> running = {};
+  foreach (ACR_Squad runner, ACR_AmmoRun r : m_AmmoRuns) running.Insert(runner);
+  foreach (ACR_Squad squad : running) EndAmmoRun(squad, why, false, now);
+  m_AmmoRuns.Clear();
+ }
+
+ protected void ForgetAmmo(ACR_Squad squad)
+ {
+  ACR_AmmoRun run = AmmoRunOf(squad);
+  if (run && run.m_Crew) ReleaseAmmoTruck(run.m_Crew, squad);
+  m_AmmoRuns.Remove(squad);
+  m_AmmoLookAt.Remove(squad);
+  m_AmmoNoTruckUntil.Remove(squad);
+  m_AmmoToppedAt.Remove(squad);
+  m_AmmoToppedPct.Remove(squad);
+  m_AmmoSkipBase.Remove(squad);
+  m_AmmoSkipAt.Remove(squad);
+ }
+
+ protected void ThinkAmmoRuns(notnull array<string> lines)
+ {
+  if (m_AmmoRuns.IsEmpty()) return;
+  string text;
+  foreach (ACR_Squad squad, ACR_AmmoRun run : m_AmmoRuns)
+  {
+   if (!squad || !run) continue;
+   if (run.m_Crew) text += string.Format(" %1 (truck %2)", squad.GetName(), run.m_Crew.GetName());
+   else if (run.m_Base) text += string.Format(" %1 (to %2)", squad.GetName(), run.m_Base.m_sName);
+  }
+  lines.Insert("ammo runs:" + text);
+ }
+
+ // Tests.
+ float AmmoLineForTest(ACR_Squad squad) { return AmmoLine(squad); }
+ string TruckUnsafeForTest(ACR_Squad squad, vector meet) { return TruckUnsafe(squad, meet); }
+ bool ServiceJobForTest(ACR_Squad crew, ACR_Squad client) { ACR_Squad serving; return m_ServiceJobs.Find(crew, serving) && serving == client; }
+ void AttackPoolForTest(array<ACR_Squad> result) { MySquads(result, true); DropAmmoShort(result); }
+ bool AmmoShortForAttackForTest(ACR_Squad squad) { return AmmoShortForAttack(squad); }
+ void ForgetAmmoForTest(ACR_Squad squad)
+ {
+  ForgetAmmo(squad);
+  if (squad && squad.m_iAITask == ACR_EAITask.RESUPPLY) squad.SetAITask(ACR_EAITask.FREE);
  }
 
  // The supply point's truck park (ACR_Logistics.ParkSpot), worked out once per supply point: a
@@ -9713,6 +10269,7 @@ class ACR_AICommander : Managed
   int task = squad.m_iAITask;
   if (task == ACR_EAITask.DEFEND) return "holding" + at;
   if (task == ACR_EAITask.POSTED) return "posted" + at;
+  if (m_AmmoRuns.Contains(squad)) return "rearming";
   if (task == ACR_EAITask.RESUPPLY || m_Refitting.Contains(squad)) return "refitting";
   if (task == ACR_EAITask.BUILD_FOB) return "building a FOB";
   if (task == ACR_EAITask.ROADBLOCK) return "on a roadblock";
@@ -10237,6 +10794,7 @@ class ACR_AICommander : Managed
   m_ReinforceRetryAt.Remove(squad);
   m_Refitting.Remove(squad);
   ForgetRefit(squad);
+  ForgetAmmo(squad);
   m_ForwardAt.Remove(squad);
   m_Trips.Remove(squad);
   if (m_ReserveSquad == squad) m_ReserveSquad = null;
@@ -10248,7 +10806,7 @@ class ACR_AICommander : Managed
  {
   foreach (ACR_AIAttack attack : m_Attacks)
    if (attack.m_Squads.Contains(squad)) return true;
-  return squad == m_ReserveSquad || IsScreen(squad) || m_Refitting.Contains(squad);
+  return squad == m_ReserveSquad || IsScreen(squad) || m_Refitting.Contains(squad) || m_AmmoRuns.Contains(squad);
  }
 
  protected void ReleaseAll()
@@ -10263,6 +10821,11 @@ class ACR_AICommander : Managed
   m_RefitGaveUpOn.Clear();
   m_RefitGaveUpAt.Clear();
   m_RefitGiveUps.Clear();
+  m_AmmoRuns.Clear();
+  m_AmmoLookAt.Clear();
+  m_AmmoNoTruckUntil.Clear();
+  m_AmmoSkipBase.Clear();
+  m_AmmoSkipAt.Clear();
   m_Trips.Clear();
   m_ReserveSquad = null;
   m_iSaveForEntry = -1;

@@ -560,6 +560,42 @@ class ACR_Logistics : Managed
   }
  }
 
+ // An ammo run (ACR_AICommander.ManageAmmoRuns): the truck stopped where it met a squad hands out to
+ // every man of it within 'range' and its vehicles, not only to those within SERVICE_RANGE of its
+ // tailgate (a squad spreads out where it stops). Returns how many men and vehicles it served.
+ int ServeSquadAt(IEntity station, ACR_Squad squad, float range)
+ {
+  if (!station || !squad) return 0;
+  int flags = ServiceOf(station);
+  if (flags == 0) return 0;
+  if (SCR_ResourceSystemHelper.IsGlobalResourceTypeEnabled()) ReadGameSupplies(station, flags);
+  if (StockOf(station) < 1) return 0;
+  float now = GetGame().GetWorld().GetWorldTime();
+  int served;
+  array<IEntity> vehicles = {};
+  squad.GetVehicles(vehicles);
+  if (squad.m_OwnVehicle && !vehicles.Contains(squad.m_OwnVehicle)) vehicles.Insert(squad.m_OwnVehicle);
+  foreach (IEntity vehicle : vehicles)
+  {
+   if (!vehicle || vehicle == station || vector.DistanceXZ(vehicle.GetOrigin(), station.GetOrigin()) > range) continue;
+   float vehicleBefore = StockOf(station);
+   ServeVehicle(station, flags, vehicle, now);
+   if (StockOf(station) < vehicleBefore) served++;
+  }
+  array<AIAgent> agents = {};
+  squad.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity soldier = agent.GetControlledEntity();
+   if (!soldier || !ACR_Respawn.IsAlive(soldier) || ACR_Transport.VehicleOf(soldier)) continue;
+   if (vector.DistanceXZ(soldier.GetOrigin(), station.GetOrigin()) > range) continue;
+   float before = StockOf(station);
+   ServeSoldier(station, flags, soldier, now, squad.MagazineTarget(soldier));
+   if (StockOf(station) < before) served++;
+  }
+  return served;
+ }
+
  protected void ServeSoldier(IEntity station, int flags, IEntity soldier, float now, int magazineTarget = 6)
  {
   float last;

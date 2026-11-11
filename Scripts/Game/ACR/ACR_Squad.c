@@ -5500,6 +5500,7 @@ class ACR_Squad : Managed
  int m_iFuelPct = -1;
  int m_iStockPct = -1;
  int m_iAvgHpPct = 100;       // average health of the living (for medics)
+ int m_iDryPct;               // share of its armed men nearly out of magazines (ACR_AmmoRuns.DRY_SHARE)
  string m_sServiceName;
  protected ref map<IEntity, float> m_MagazineBaseline = new map<IEntity, float>();
 
@@ -5520,6 +5521,8 @@ class ACR_Squad : Managed
   float have;
   float want;
   int alive;
+  int armed;
+  int dry;
   foreach (AIAgent agent : agents)
   {
    IEntity body = agent.GetControlledEntity();
@@ -5535,7 +5538,16 @@ class ACR_Squad : Managed
    }
    have += Math.Min(magazines, baseline);
    want += baseline;
+   // Nearly dry: a man who started with spares and is down to his last (the squad's average hid
+   // one machine gunner shot out among full riflemen).
+   if (baseline >= 2)
+   {
+    armed++;
+    if (magazines < baseline * ACR_AmmoRuns.DRY_SHARE) dry++;
+   }
   }
+  m_iDryPct = 0;
+  if (armed > 0) m_iDryPct = (int)(100 * dry / (float)armed);
   int slots = Math.Max(full, alive);
   m_iHealthPct = 0;
   if (slots > 0) m_iHealthPct = (int)(100 * health / slots);

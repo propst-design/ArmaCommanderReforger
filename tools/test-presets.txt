@@ -299,6 +299,7 @@ contentpackwinter|-acrContentPackWinterTest 1|120
 crewaudit|-acrCrewAuditTest 1|150
 faceoff|-acrFaceOffTest 1|100
 counterbattery|-acrCounterBatteryTest 1|300
+ammorun|-acrAmmoRunTest 1|540
 quickstartfia|-acrQuickStartFIATest 1|90|Worlds/ACR_Everon.ent
 helidown|-acrHeliDownTest 1|160
 basedefenceskolguyev|-acrBaseDefencesTest 1|120|Worlds/ACR_Kolguyev.ent
