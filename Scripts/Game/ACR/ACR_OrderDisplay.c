@@ -379,6 +379,7 @@ class ACR_OrderDisplay : Managed
  {
   Color red = new Color(1, 0.15, 0.1, 0.95);
   Color reach = new Color(0.55, 0.8, 1, 0.55);
+  Color civilian = new Color(0.72, 0.5, 1, 0.6);
   foreach (int i, vector pos : data.m_ZonePositions)
   {
    int cx, cy, ex, ey;
@@ -391,6 +392,12 @@ class ACR_OrderDisplay : Managed
    if (i < data.m_ZoneLabels.Count() && data.m_ZoneLabels[i].StartsWith("~"))
    {
     Ring(cx, cy, radius, reach.PackToInt(), 2, 96);
+    continue;
+   }
+   // Civilians seen there (ACR_Intel.CivilianZones): thin violet, the NATO civilian colour, never red.
+   if (i < data.m_ZoneLabels.Count() && ACR_Intel.IsCivilianZone(data.m_ZoneLabels[i]))
+   {
+    Ring(cx, cy, radius, civilian.PackToInt(), 2, 64);
     continue;
    }
    Ring(cx, cy, radius, red.PackToInt(), 3, 48);

@@ -678,6 +678,8 @@ class ACR_MapFeed
   ACR_Insurgency.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   ACR_Guerrillas.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   ACR_Containment.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
+  // ...and where its people have seen civilians (violet rings, vague on purpose: ACR_Intel).
+  ACR_Intel.CivilianZones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   // ...and enemy transmissions it picked up (pale rings, ACR_RadioIntercept).
   ACR_RadioIntercept.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   // ...and enemy mortars it heard firing (pale rings, ACR_CounterBattery).

@@ -6,6 +6,7 @@
 //  - Scripted ACA blasts are reported to SCCP as explosions: they are local projectiles, which
 //    SCCP's ammo listener never hears.
 //  - Every civilian death SCCP records goes to ACA's feed of the killer's side.
+//  - SCCP's walkers feed ACA's civilian rings: each side sees roughly where townsfolk are.
 modded class ACR_CivilianSocket
 {
  protected SCCP_Director Director()
@@ -28,6 +29,21 @@ modded class ACR_CivilianSocket
  {
   SCCP_Director director = Director();
   if (director && director.GetThreat()) director.GetThreat().Report(impact, SCCP_Threat.KIND_EXPLOSION);
+ }
+
+ // SCCP's walkers, for the vague civilian rings on each side's map (ACR_Intel.CivilianActivity).
+ // Each zone's civilians (m_aCivs); its parked and moving cars (m_aVehs) are left out.
+ override void Civilians(notnull array<IEntity> into)
+ {
+  super.Civilians(into);
+  SCCP_Director director = Director();
+  if (!director || !director.GetZones()) return;
+  foreach (SCCP_Zone zone : director.GetZones())
+  {
+   if (!zone) continue;
+   foreach (SCCP_Civ civ : zone.m_aCivs)
+    if (civ && civ.m_Ent && ACR_Respawn.IsAlive(civ.m_Ent)) into.Insert(civ.m_Ent);
+  }
  }
 }
 

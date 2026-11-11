@@ -4,6 +4,7 @@
 // Alpha's fire go out as one line in the US feed only. With a compat add-on plugged in (Civil
 // Population), its AI slots must reach the raised active AI limit and a real kill by an Alpha
 // soldier must reach the US feed through the mod; unplugged that is a skip.
+// Also: the civilian shows on the US map as a vague civilian ring, and zombie contacts read as zombies.
 class ACR_TestCivilians
 {
  static const ResourceName CIVILIAN = "{22E43956740A6794}Prefabs/Characters/Factions/CIV/GenericCivilians/Character_CIV_Randomized.et";
@@ -31,6 +32,8 @@ class ACR_TestCivilians
    array<ResourceName> pool = manager.m_Bases.GetFaction("USSR").m_aGarrison;
    if (!pool.IsEmpty()) s_Enemy = ACR_Manager.SpawnPrefab(pool[0], ACR_Manager.Ground(m[3] + m[2] * 70 + m[0] * 10));
    PrintFormat("[ACR] CIVILIANS civilian %1 (%2), control %3, socket '%4'", s_Civilian != null, ACR_Intel.FactionKeyOf(s_Civilian), s_Enemy != null, ACR_CivilianSocket.Get().Name());
+   // the civilian rings: anything that places civilians registers them with the socket
+   ACR_CivilianSocket.Get().Register(s_Civilian);
   }
   ACR_Intel us = manager.IntelFor("US");
   if (tick > 4 && tick <= 16 && us)
@@ -45,6 +48,26 @@ class ACR_TestCivilians
    ACR_TestRegress.Check("civilians: USSR is not friendly to US", !ACR_Intel.FriendlyTo("US", "USSR"));
    ACR_TestRegress.Check("civilians: Alpha's perception reports the Soviet control", s_bEnemySeen);
    ACR_TestRegress.Check("civilians: a civilian in plain view is no contact", s_Civilian && !s_bCivilianSeen);
+
+   // Civilian rings (ACR_Intel.CivilianActivity, every 5 s): the civilian near Alpha is on the US
+   // map as a vague violet ring over its square, not a pin on it.
+   array<vector> ringAt = {};
+   array<float> ringRadius = {};
+   array<string> ringLabel = {};
+   ACR_Intel.CivilianZones("US", ringAt, ringRadius, ringLabel);
+   string ring = "";
+   vector ringPos;
+   foreach (int r, string label : ringLabel)
+    if (ACR_Intel.IsCivilianZone(label)) { ring = label; ringPos = ringAt[r]; break; }
+   PrintFormat("[ACR] CIVILIANS ring '%1' at %2 (cells %3)", ring, ringPos, us.CivilianCells());
+   ACR_TestRegress.Check("civilians: a civilian near Alpha shows as a civilian ring", ring.Contains("Civilians seen: a few"), ring);
+   bool vague = s_Civilian && vector.DistanceXZ(ringPos, ACR_Intel.CivCellMiddle(ACR_Intel.CivCell(s_Civilian.GetOrigin()))) < 1;
+   ACR_TestRegress.Check("civilians: the ring sits on the square's middle, not the civilian", vague, ringPos.ToString());
+
+   // Zombie contacts on the map (ACR_MapFeed): their own kind, labelled and sized as zombies.
+   string zombies = ACR_Intel.DescribeSymbol(0, ACR_Intel.KIND_ZOMBIE, 5) + " / " + ACR_Intel.DescribeSymbol(0, ACR_Intel.KIND_ZOMBIE, 1);
+   bool sized = ACR_Intel.EchelonOf(ACR_Intel.KIND_ZOMBIE, 5) == EMilitarySymbolAmplifier.SQUAD;
+   ACR_TestRegress.Check("civilians: zombie contacts read as zombies on the map", zombies == "5 zombies / 1 zombie" && sized, zombies);
 
    ACR_CivilianSocket socket = ACR_CivilianSocket.Get();
    IEntity shooter = anchor;
@@ -65,7 +88,7 @@ class ACR_TestCivilians
    if (!plug.Plugged())
    {
     ACR_TestRegress.Skip("civilians: compat add-on plugged in", "no civilian mod loaded");
-    Finish(7);
+    Finish(10);
     return;
    }
    AIWorld aiWorld = GetGame().GetAIWorld();
@@ -78,7 +101,7 @@ class ACR_TestCivilians
   {
    string line = FeedLine(us, "Civilian killed by our fire");
    ACR_TestRegress.Check("civilians: a real kill reaches the killer's feed through the mod", !line.IsEmpty(), line);
-   Finish(9);
+   Finish(12);
   }
  }
 

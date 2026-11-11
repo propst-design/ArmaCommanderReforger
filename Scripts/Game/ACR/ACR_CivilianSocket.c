@@ -2,7 +2,8 @@
 // a compat add-on that depends on both mods plugs in with `modded class ACR_CivilianSocket` and
 // overrides the hooks below. Unplugged, every hook does nothing and ACA plays as before.
 //  - ACA -> mod: AiHeadroom (room in the active AI limit), OnStrike (scripted blasts the mod's
-//    civilians can't hear: ACA support projectiles are local copies on each client).
+//    civilians can't hear: ACA support projectiles are local copies on each client), Civilians
+//    (where its walkers are, for the vague civilian rings on each side's map: ACR_Intel).
 //  - ACA -> mod: Evacuees (Containment #107: the mod's civilians round a town ACA evacuates).
 //  - mod -> ACA: CivilianKilled, a feed line to the killer's side ("civilian killed near ...").
 //    The other side isn't told: that would hand it the killer's position for free.
@@ -38,6 +39,33 @@ class ACR_CivilianSocket : Managed
  // evac point), so the mod should stop driving them. Returns how many. Unplugged: none, and ACA
  // spawns its own vanilla civilians for the town.
  int Evacuees(vector at, float radius, int most, notnull array<IEntity> people) { return 0; }
+
+ // Every civilian on foot the server knows of, for the sides' vague civilian-activity rings
+ // (ACR_Intel.CivilianActivity). A compat add-on calls super, then adds the mod's own walkers.
+ // Called by each side's intel every few seconds: keep it a plain list walk, no queries.
+ void Civilians(notnull array<IEntity> into)
+ {
+  for (int i = m_Registered.Count() - 1; i >= 0; i--)
+  {
+   IEntity registered = m_Registered[i];
+   if (!registered || !ACR_Respawn.IsAlive(registered))
+   {
+    m_Registered.Remove(i);
+    continue;
+   }
+   into.Insert(registered);
+  }
+ }
+
+ // ---------------------------------------------------------------- called by anything that places civilians
+
+ // A civilian placed by something other than a plugged-in mod (a mission, ACA's own villages, a test).
+ // Dead or deleted ones drop out on the next Civilians() call.
+ void Register(IEntity civilian)
+ {
+  if (civilian && !m_Registered.Contains(civilian)) m_Registered.Insert(civilian);
+ }
+ protected ref array<IEntity> m_Registered = new array<IEntity>();
 
  // ---------------------------------------------------------------- called by the mod
 

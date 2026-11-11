@@ -189,7 +189,7 @@ modded class SCR_PlayerController
   {
    foreach (int z, ACR_UnitMarker zone : m_ACR_ZoneMarkers)
    {
-    if (z < m_ACR_Data.m_ZoneLabels.Count() && m_ACR_Data.m_ZoneLabels[z].StartsWith("~")) ACR_Park(zone);
+    if (z < m_ACR_Data.m_ZoneLabels.Count() && (m_ACR_Data.m_ZoneLabels[z].StartsWith("~") || ACR_Intel.IsCivilianZone(m_ACR_Data.m_ZoneLabels[z]))) ACR_Park(zone);
    }
   }
   if (ACR_MapLayers.Off(ACR_MapLayers.VEHICLES))
@@ -541,7 +541,7 @@ modded class SCR_PlayerController
  int ACR_LayerKindForTest(RplId groupId) { return ACR_MapLayers.KindOf(ACR_GroupIcons(groupId)); }
 }
 
-// Zones off: the mortar teams' range rings go; a fire mission's danger area stays.
+// Zones off: the mortar teams' range rings and the civilian rings go; a fire mission's danger area stays.
 modded class ACR_OrderDisplay
 {
  override protected void DrawZones(SCR_MapEntity mapEntity, ACR_MapData data)
@@ -554,7 +554,7 @@ modded class ACR_OrderDisplay
   Color red = new Color(1, 0.15, 0.1, 0.95);
   foreach (int i, vector pos : data.m_ZonePositions)
   {
-   if (i < data.m_ZoneLabels.Count() && data.m_ZoneLabels[i].StartsWith("~")) continue;
+   if (i < data.m_ZoneLabels.Count() && (data.m_ZoneLabels[i].StartsWith("~") || ACR_Intel.IsCivilianZone(data.m_ZoneLabels[i]))) continue;
    int cx, cy, ex, ey;
    mapEntity.WorldToScreen(pos[0], pos[2], cx, cy, true);
    mapEntity.WorldToScreen(pos[0] + data.m_ZoneRadii[i], pos[2], ex, ey, true);

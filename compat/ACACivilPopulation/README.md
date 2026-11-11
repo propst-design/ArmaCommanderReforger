@@ -8,10 +8,13 @@ Arma Commander Actual (AC230926A0010001). Load it with both mods; each mod runs 
 - ACA's scripted bomb runs, battery rounds and cook-offs scare civilians like real explosions.
 - A civilian killed by a side's fire shows in that side's command feed ("Civilian killed by our
   fire near <base>"). The other side isn't told.
+- Each side's map shows roughly where civilians are around its soldiers, players and bases: a violet
+  "Civilians seen: a few / some / many" ring over that part of town, never a pin.
 
 ## Trying it (experimental)
 
 ACA has the socket this add-on plugs into from 0.5.9; without this add-on it does nothing.
+The civilian rings need ACA 0.5.13 or later: this version of the add-on won't load with an older ACA.
 
 1. Copy this `ACACivilPopulation` folder into your Workbench addons folder, beside `ArmaCommanderReforger`
    (the launchers look for it there; ACA's own release builds leave `compat/` out).
