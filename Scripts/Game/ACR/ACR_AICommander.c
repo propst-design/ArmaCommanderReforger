@@ -2131,6 +2131,7 @@ class ACR_AICommander : Managed
    if (freeOnly && IsScreen(squad)) continue; // out front watching a way in: ManageScreens
    if (freeOnly && !committedToo && Committed(squad)) continue; // on its way to a posting: see the trips note
    if (freeOnly && Remounting(squad)) continue; // a crew getting back into its vehicle: Recrew
+   if (freeOnly && squad.Unflipping()) continue; // righting its overturned vehicle (ACR_Squad.UnflipWatch)
    result.Insert(squad);
   }
  }
@@ -6265,6 +6266,8 @@ class ACR_AICommander : Managed
  protected bool RecrewFits(ACR_Squad squad, IEntity vehicle, bool driverless, float now, bool nearEnemy = false)
  {
   if (ACR_Logistics.Health(vehicle) < 0.25 || (!driverless && !ACR_Vehicles.IsEmpty(vehicle))) return false;
+  // On its side or roof: the crew rights it first (ACR_Squad.UnflipWatch), not in and out of a wreck.
+  if (squad.Unflipping() || SCR_AIVehicleUsability.IsVehicleFlipped(vehicle)) return false;
   // Run dry (the game's AI gets out of a car with no fuel): wait for the fuel truck, not in and
   // out again (Jacob's 27 Oct game: a Humvee crew left, got back in and left again three times).
   float fuel = ACR_Logistics.Fuel(vehicle);

@@ -220,6 +220,11 @@ class ACR_TestVehicles : Managed
  vector m_LoneStart;
 
  bool m_bLoneOut;
+ // Flip Truck: tipped onto its roof far from the fight; its crew rights it with vanilla's unflip
+ // waypoint and gets back in (ACR_Squad.UnflipWatch, 10 Nov).
+ ACR_Squad m_FlipSquad;
+ IEntity m_FlipVehicle;
+ bool m_bFlipped;
 
  // A frozen driver lets a truck roll on a slope, which reads as moving (a frozen truck rolled
  // 20-95 m after its second back-up, 29 Oct): held still between back-ups.
@@ -299,6 +304,30 @@ class ACR_TestVehicles : Managed
    manager.SpawnUnit("Lone Truck", "", gunTruck, true, "", h.Ground("1300 0 2530"), h.Ground("1305 0 2535"));
    manager.SpawnUnit("Soft Truck", "", "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et", true, "", h.Ground("1375 0 2775"), h.Ground("1380 0 2780"));
    manager.SpawnUnit("Parked Truck", "", "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et", true, "", h.Ground("1180 0 2480"), h.Ground("1185 0 2485"));
+   manager.SpawnUnit("Flip Truck", "", "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et", true, "", h.Ground("1450 0 3000"), h.Ground("1455 0 3005"));
+  }
+  if (h.m_Ticks == 20)
+  {
+   m_FlipSquad = h.NamedSquad(manager, "Flip Truck");
+   if (m_FlipSquad) m_FlipVehicle = ACR_Transport.CrewedVehicle(m_FlipSquad);
+   if (m_FlipVehicle)
+   {
+    m_FlipSquad.Halt("Holding position");
+    vector angles = m_FlipVehicle.GetAngles();
+    angles[2] = 175;
+    vector lift = "0 2 0";
+    m_FlipVehicle.SetOrigin(m_FlipVehicle.GetOrigin() + lift);
+    m_FlipVehicle.SetAngles(angles);
+    m_FlipVehicle.Update();
+    Physics flipPhys = m_FlipVehicle.GetPhysics();
+    if (flipPhys) { flipPhys.SetVelocity(vector.Zero); flipPhys.SetAngularVelocity(vector.Zero); }
+    PrintFormat("[ACR] STALL flip truck tipped over at t=%1", h.m_Ticks);
+   }
+  }
+  if (m_FlipVehicle && h.m_Ticks > 20 && h.m_Ticks % 5 == 0)
+  {
+   if (SCR_AIVehicleUsability.IsVehicleFlipped(m_FlipVehicle)) m_bFlipped = true;
+   PrintFormat("[ACR] STALL t=%1 flip: flipped=%2 order='%3' unflips=%4 %5", h.m_Ticks, SCR_AIVehicleUsability.IsVehicleFlipped(m_FlipVehicle), m_FlipSquad.m_Order, m_FlipSquad.m_iUnflips, StallState(m_FlipSquad, m_FlipVehicle, m_FlipVehicle.GetOrigin()));
   }
   if (h.m_Ticks == 14)
   {
@@ -356,7 +385,11 @@ class ACR_TestVehicles : Managed
    // An empty tank: the crew gets out as vanilla has it (ACR_Squad.OnGroupMoveFailed leaves it be).
    ACR_TestRegress.Check("stall: an out-of-fuel truck's crew gets out", m_bLoneOut, StallState(m_LoneSquad, m_LoneVehicle, m_LoneStart));
    ACR_TestRegress.Check("stall: a parked unarmed truck under fire drives out with its crew aboard", m_bParkedOut, StallState(m_ParkedSquad, m_ParkedVehicle, m_ParkedStart));
-   ACR_TestRegress.Complete("stall", 7);
+   bool righted = m_bFlipped && m_FlipSquad && m_FlipSquad.m_iUnflips > 0 && !SCR_AIVehicleUsability.IsVehicleFlipped(m_FlipVehicle);
+   string flipState = "no flip truck";
+   if (m_FlipSquad) flipState = string.Format("was flipped %1, unflips %2, %3", m_bFlipped, m_FlipSquad.m_iUnflips, StallState(m_FlipSquad, m_FlipVehicle, vector.Zero));
+   ACR_TestRegress.Check("stall: an overturned truck's crew rights it (vanilla unflip waypoint)", righted, flipState);
+   ACR_TestRegress.Complete("stall", 8);
   }
   if (h.m_Ticks == 172) Print("[ACR] TEST COMPLETE");
   if (!m_StuckSquad || h.m_Ticks <= 14) return;

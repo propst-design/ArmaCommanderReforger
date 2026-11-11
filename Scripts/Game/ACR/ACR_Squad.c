@@ -2552,6 +2552,7 @@ class ACR_Squad : Managed
     PrintFormat("[ACR] TACTICS %1: arrived, taking positions", m_Name);
    }
   }
+  UnflipWatch(now, contact);
   DriveWatch(now, contact);
   CheckTacticalDismount(now, contact);
  }
@@ -3966,7 +3967,7 @@ class ACR_Squad : Managed
 
  protected void DriveWatch(float now, bool contact)
  {
-  if (m_bUnsticking || !m_Group) return;
+  if (m_bUnsticking || !m_Group || m_iUnflipStage > 0) return;
   IEntity vehicle = ACR_Transport.CrewedVehicle(this);
   if (!vehicle) return;
   if (!CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent))) return;
@@ -4167,6 +4168,156 @@ class ACR_Squad : Managed
    return;
   }
   BeginUnstick(vehicle, driver);
+ }
+
+ // A vehicle on its side or roof (vanilla: pitch or roll past 45 degrees). Nothing righted one: vanilla
+ // only does on an explicit Unflip waypoint, which nobody issued, so the crew backed up, gave up and
+ // held beside it for the rest of the match (AI driving study, 10 Nov). Out of contact the crew now
+ // gets that waypoint (they push it back over), boards again and goes back to its order. A new order
+ // from anyone else ends it; so does UNFLIP_GIVE_UP_MS in either step, then it holds as stuck.
+ static const ResourceName WP_UNFLIP = "{158B09C431AA2D91}Prefabs/AI/Waypoints/AIWaypoint_UnflipVehicle.et";
+ static const float UNFLIP_GIVE_UP_MS = 120000;
+ static const float UNFLIP_REST_MS = 300000;  // after giving up: not tried again for this long
+ static const float UNFLIP_CREW_RANGE = 150;  // the crew must be this close to its vehicle
+ protected ref ACR_OrderSnapshot m_UnflipOrder;
+ protected IEntity m_UnflipVehicle;
+ protected int m_iUnflipStage;   // 0 none, 1 righting it, 2 getting back in
+ protected int m_iUnflipSerial;
+ protected float m_fUnflipSince;
+ protected float m_fNextUnflip;
+ int m_iUnflips;                 // tests: vehicles righted
+ bool Unflipping() { return m_iUnflipStage > 0; }
+
+ protected void UnflipWatch(float now, bool contact)
+ {
+  if (m_iUnflipStage > 0 && (m_iOrderSerial != m_iUnflipSerial || HasPlayer() || !m_UnflipVehicle || ACR_Logistics.Health(m_UnflipVehicle) <= 0))
+  {
+   EndUnflip("given another order, or the vehicle is gone");
+   return;
+  }
+  if (m_iUnflipStage == 1)
+  {
+   if (SCR_AIVehicleUsability.IsVehicleFlipped(m_UnflipVehicle))
+   {
+    if (now - m_fUnflipSince > UNFLIP_GIVE_UP_MS) UnflipGiveUp(now);
+    return;
+   }
+   m_iUnflips++;
+   PrintFormat("[ACR] DRIVE %1: vehicle back on its wheels after %2 s, getting back in", m_Name, (int)((now - m_fUnflipSince) / 1000));
+   if (CrewAboard(m_UnflipVehicle)) { FinishUnflip(); return; }
+   NewOrder();
+   ClearPlans();
+   if (!IssueWaypoint(WP_GET_IN, m_UnflipVehicle.GetOrigin(), -1, true, m_UnflipVehicle)) { EndUnflip("can't get back in"); return; }
+   SetOrder("Getting in", ACR_EOrderState.GET_IN);
+   m_OrderKind = ACR_EOrderKind.GET_IN;
+   TrackBoarding(m_UnflipVehicle);
+   m_iUnflipSerial = m_iOrderSerial;
+   m_iUnflipStage = 2;
+   m_fUnflipSince = now;
+   return;
+  }
+  if (m_iUnflipStage == 2)
+  {
+   if (CrewAboard(m_UnflipVehicle)) FinishUnflip();
+   else if (now - m_fUnflipSince > UNFLIP_GIVE_UP_MS) EndUnflip("the crew didn't get back in");
+   return;
+  }
+  // Not righting anything: is its vehicle over?
+  if (!m_Group || HasPlayer() || now < m_fNextUnflip) return;
+  IEntity vehicle = ACR_Transport.CrewedVehicle(this);
+  if (!vehicle) vehicle = m_OwnVehicle;
+  if (!vehicle || ACR_Logistics.Health(vehicle) <= 0) return;
+  if (!CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent))) return;
+  if (!SCR_AIVehicleUsability.IsVehicleFlipped(vehicle)) return;
+  if (PlayerDrives(vehicle)) return;
+  if (KnownEnemies(300) > 0 || BBB_Transport.VehicleHitRecently(vehicle, 6000)) return; // nobody gets out to push under fire
+  IEntity anchor = GetAnchor();
+  if (!anchor || vector.DistanceXZ(anchor.GetOrigin(), vehicle.GetOrigin()) > UNFLIP_CREW_RANGE) return;
+  Physics phys = vehicle.GetPhysics();
+  if (phys && phys.GetVelocity().Length() > 1) return; // still rolling over
+  Resource resource = Resource.Load(WP_UNFLIP);
+  if (!resource.IsValid()) return;
+  EntitySpawnParams params = new EntitySpawnParams();
+  params.TransformMode = ETransformMode.WORLD;
+  params.Transform[3] = vehicle.GetOrigin();
+  SCR_EntityWaypoint waypoint = SCR_EntityWaypoint.Cast(GetGame().SpawnEntityPrefabLocal(resource, null, params));
+  if (!waypoint) return;
+  waypoint.SetEntity(vehicle);
+  m_UnflipOrder = SnapshotOrder();
+  NewOrder();
+  ClearPlans();
+  if (!AdoptWaypoint(waypoint, WP_UNFLIP, vehicle.GetOrigin(), 7)) { m_UnflipOrder = null; return; }
+  SetOrder("Righting its vehicle", ACR_EOrderState.HOLD);
+  m_UnflipVehicle = vehicle;
+  m_iUnflipSerial = m_iOrderSerial;
+  m_iUnflipStage = 1;
+  m_fUnflipSince = now;
+  PrintFormat("[ACR] DRIVE %1: vehicle on its side or roof, the crew rights it at %2", m_Name, DriveSpot(vehicle));
+ }
+
+ // A player at the wheel (or in its gun, driving it) sorts out his own vehicle.
+ protected bool PlayerDrives(IEntity vehicle)
+ {
+  ChimeraCharacter driver = DriverOf(vehicle);
+  if (driver && FindController(driver) != 0) return true;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  return manager && manager.IsGunnerDriven(vehicle);
+ }
+
+ // Every living member of the squad is in this vehicle.
+ protected bool CrewAboard(IEntity vehicle)
+ {
+  if (!vehicle) return false;
+  array<AIAgent> agents = {};
+  GetAgents(agents);
+  int alive, aboard;
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (!body || !ACR_Respawn.IsAlive(body)) continue;
+   alive++;
+   if (ACR_Transport.VehicleOf(body) == vehicle) aboard++;
+  }
+  return alive > 0 && aboard == alive;
+ }
+
+ // Upright and aboard: back to what it was doing (a hold or no order stays as it is now).
+ protected void FinishUnflip()
+ {
+  ACR_OrderSnapshot order = m_UnflipOrder;
+  m_iUnflipStage = 0;
+  m_UnflipOrder = null;
+  m_UnflipVehicle = null;
+  if (!order || order.m_sPrefab.IsEmpty() || order.m_eState == ACR_EOrderState.HOLD || order.m_eState == ACR_EOrderState.NONE)
+  {
+   Halt("Holding position");
+   PrintFormat("[ACR] DRIVE %1: righted and aboard, holding", m_Name);
+   return;
+  }
+  NewOrder();
+  ClearPlans();
+  RestoreOrder(order);
+  PrintFormat("[ACR] DRIVE %1: righted and aboard, back to '%2'", m_Name, order.m_sLabel);
+ }
+
+ protected void UnflipGiveUp(float now)
+ {
+  IEntity vehicle = m_UnflipVehicle;
+  m_iUnflipStage = 0;
+  m_UnflipOrder = null;
+  m_UnflipVehicle = null;
+  m_fNextUnflip = now + UNFLIP_REST_MS;
+  Halt("Stuck, holding");
+  NoteStuck(vehicle, now);
+  PrintFormat("[ACR] DRIVE %1: couldn't right its vehicle in %2 s, holding at %3", m_Name, (int)(UNFLIP_GIVE_UP_MS / 1000), DriveSpot(vehicle));
+ }
+
+ protected void EndUnflip(string why)
+ {
+  m_iUnflipStage = 0;
+  m_UnflipOrder = null;
+  m_UnflipVehicle = null;
+  PrintFormat("[ACR] DRIVE %1: stopped righting its vehicle (%2)", m_Name, why);
  }
 
  // Where a vehicle stopped, for the DRIVE lines (AI driving study, 10 Nov): the 6 Nov logs had no
