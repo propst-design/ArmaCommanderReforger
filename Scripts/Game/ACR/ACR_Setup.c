@@ -251,7 +251,7 @@ class ACR_Setup
   string rows;
   bool generated = Current("layout").StartsWith("gen:");
   // The map preview sits right under the battlefield and its seed (25 Oct: it was last, a page away).
-  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "shared", "holdguns", "declutter", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
+  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "shared", "holdguns", "declutter", "intro", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
   foreach (string key : keys)
   {
    if (key == "seed" && !generated && Current("quickstart") == "off") continue;
@@ -334,6 +334,7 @@ class ACR_Setup
   if (key == "shared") return "Shared command";
   if (key == "holdguns") return "Gunners stay on held guns";
   if (key == "declutter") return "Calm command map";
+  if (key == "intro") return "Mission intro";
   if (key == "deployment") return "New-unit deployment";
   if (key == "reinforcement") return "Infantry replacements";
   if (key == "fobservices") return "FOB service payment";
@@ -436,6 +437,7 @@ class ACR_Setup
   else if (key == "shared") values = {"1", "0"};
   else if (key == "holdguns") values = {"1", "0"};
   else if (key == "declutter") values = {"1", "0"};
+  else if (key == "intro") values = {"1", "0"};
   else if (key == "deployment") values = {"military", "all", "hq"};
   else if (key == "reinforcement") values = {"settlements", "all", "deployment"};
   else if (key == "fobservices") values = {"supplies", "free"};
@@ -478,6 +480,7 @@ class ACR_Setup
   if (key == "shared") return "acrSharedCommand";
   if (key == "holdguns") return "acrHoldGuns";
   if (key == "declutter") return ACR_MapDeclutter.OPTION;
+  if (key == "intro") return "acrIntro";
   if (key == "deployment") return "acrDeployment";
   if (key == "reinforcement") return "acrReinforcement";
   if (key == "fobservices") return "acrFobServices";
@@ -566,6 +569,7 @@ class ACR_Setup
   if (key == "shared" && value == "") return "1";
   if (key == "holdguns" && value == "") return "1";
   if (key == "declutter" && value == "") return "1";
+  if (key == "intro" && value == "") return "1";
   return value;
  }
 
@@ -1113,7 +1117,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
  {
   // A row's description line goes with its row.
   if (key.StartsWith("about")) return Tab(key.Substring(5, key.Length() - 5));
-  if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "aibuild" || key == "capscale") return 1;
+  if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "intro" || key == "aibuild" || key == "capscale") return 1;
   if (key == "pricing" || key == "startrp" || key == "income" || key == "companywest" || key == "companyeast") return 2;
   if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "fobrelay" || key == "depotcapacity" || key == "servicecost" || key == "rpservice") return 3;
   if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "baseworks") return 4;

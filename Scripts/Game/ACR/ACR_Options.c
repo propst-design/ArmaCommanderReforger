@@ -74,7 +74,7 @@ class ACR_Options
  static void Log()
  {
   string line;
-  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIAHidden", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrHoldGuns", "acrMapDeclutter", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAICommander", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC"};
+  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIAHidden", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrHoldGuns", "acrMapDeclutter", "acrIntro", "acrIntroMusic", "acrIntroMusicZombies", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAICommander", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC"};
   foreach (string name : names)
   {
    string value;
@@ -185,6 +185,13 @@ class ACR_MissionHeader : SCR_MissionHeader
  int m_iAcrHoldGuns;
  [Attribute("-1", UIWidgets.EditBox, "The calm command map: 1 default, 0 the classic map (-acrMapDeclutter)")]
  int m_iAcrMapDeclutter;
+ [Attribute("-1", UIWidgets.EditBox, "Mission intro (orbit of the HQ, title, flight into the player): 1 default, 0 off (-acrIntro)")]
+ int m_iAcrIntro;
+ [Attribute("", UIWidgets.EditBox, "Mission intro music: {GUID}path.acp:EVENT, or off; blank = Cliffhanger (-acrIntroMusic)")]
+ string m_sAcrIntroMusic;
+
+ [Attribute("", UIWidgets.EditBox, "Mission intro music when the match has zombies: {GUID}path.acp:EVENT, or off; blank = Lost As Shit (-acrIntroMusicZombies)")]
+ string m_sAcrIntroMusicZombies;
  [Attribute("-1", UIWidgets.EditBox, "AI commanders lay minefields: 0 default, 1 enables (-acrMinesAI)")]
  int m_iAcrMinesAI;
  [Attribute("-1", UIWidgets.EditBox, "Commander Fortify orders: 1 default, 0 disables (-acrFortify)")]
@@ -278,6 +285,9 @@ class ACR_MissionHeader : SCR_MissionHeader
   Number(values, "acrMinesRealistic", m_iAcrMinesRealistic);
   Number(values, "acrHoldGuns", m_iAcrHoldGuns);
   Number(values, "acrMapDeclutter", m_iAcrMapDeclutter);
+  Number(values, "acrIntro", m_iAcrIntro);
+  Text(values, "acrIntroMusic", m_sAcrIntroMusic);
+  Text(values, "acrIntroMusicZombies", m_sAcrIntroMusicZombies);
   Number(values, "acrMinesAI", m_iAcrMinesAI);
   Number(values, "acrFortify", m_iAcrFortify);
   Number(values, "acrFortifyAI", m_iAcrFortifyAI);

@@ -210,7 +210,7 @@ class ACR_TestRegress
  }
 
  // Checks a full run makes (Skip counts as made). Raise it with every new check.
- static const int EXPECTED = 169; // includes two vehicle-lane, two refit give-up, one service-job-end, one stuck-taxi and one hold-retry check, three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
+ static const int EXPECTED = 170; // includes one mission-intro option check, two vehicle-lane, two refit give-up, one service-job-end, one stuck-taxi and one hold-retry check, three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
  static SCR_AIGroup s_RecoveryGroup;
  static SCR_AIGroup s_BoardingGroup;
  static SCR_AIGroup s_CancelBoardingGroup;
@@ -1531,9 +1531,36 @@ class ACR_TestRegress
    int jobLong = ACR_AICommander.ServiceJobEnd(true, 10, 0, ACR_AICommander.SERVICE_JOB_MAX_MS, ACR_AICommander.SERVICE_JOB_MAX_MS + 1000);
    Check("a service truck's drive-out ends when it is empty, gone, stood still too long or took too long", jobOn == ACR_AICommander.JOB_ON && jobEmpty == ACR_AICommander.JOB_EMPTY && jobGone == ACR_AICommander.JOB_NO_TRUCK && jobStill == ACR_AICommander.JOB_STILL && jobLong == ACR_AICommander.JOB_LONG, string.Format("on %1 empty %2 gone %3 still %4 long %5", jobOn, jobEmpty, jobGone, jobStill, jobLong));
    if (logisticsAI) RefitGiveUpCheck(logisticsAI, bravo);
+   IntroOptionCheck();
    PrintFormat("[ACR] REGRESS invariant errors: %1", ACR_Perf.s_iInvariantErrors);
    Complete("regress", EXPECTED);
   }
+ }
+
+ // Mission intro (ACR_Intro): on by default, -acrIntro 0 / the setup row turns it off; the music option
+ // falls back to the default, and off means none. A srv: run has no players, so nothing is sent.
+ static void IntroOptionCheck()
+ {
+  bool onByDefault = ACR_Intro.On() && ACR_Setup.Current("intro") == "1" && ACR_SetupDialog.Tab("intro") == 1;
+  ACR_Options.Set("acrIntro", "0");
+  bool off = !ACR_Intro.On() && ACR_Setup.Current("intro") == "0";
+  ACR_Options.Unset("acrIntro");
+  string music = ACR_Intro.MusicOption();
+  ACR_Options.Set("acrIntroMusic", "off");
+  bool silent = ACR_Intro.MusicOption() == "";
+  ACR_Options.Unset("acrIntroMusic");
+  string zombieMusic = ACR_Intro.MusicOption(true);
+  ACR_Options.Set("acrIntroMusic", "off");
+  bool zombieOwn = ACR_Intro.MusicOption(true) == ACR_Intro.ZOMBIE_MUSIC;
+  ACR_Options.Unset("acrIntroMusic");
+  ACR_Options.Set("acrIntroMusicZombies", "off");
+  bool zombieSilent = ACR_Intro.MusicOption(true) == "" && ACR_Intro.MusicOption() == ACR_Intro.DEFAULT_MUSIC;
+  ACR_Options.Unset("acrIntroMusicZombies");
+  bool tracks = music == ACR_Intro.DEFAULT_MUSIC && zombieMusic == ACR_Intro.ZOMBIE_MUSIC && zombieOwn && zombieSilent;
+  // Jacob: Cliffhanger for the main modes, Lost As Shit with zombies; 15 s at most, the strike inside the orbit.
+  tracks = tracks && music.EndsWith(":SOUND_CLIFFHANGER") && zombieMusic.EndsWith(":SOUND_LOST_AS_SHIT");
+  bool timed = ACR_Intro.ORBIT_S + ACR_Intro.ZOOM_S <= 15.0 && ACR_Intro.STRIKE_S < ACR_Intro.ORBIT_S - 3.0 && ACR_Intro.FADE_S <= ACR_Intro.ZOOM_S;
+  Check("mission intro: on by default, off with -acrIntro 0, music options (main and zombies) fall back and turn off apart, 15 s cap", onByDefault && off && silent && tracks && timed, string.Format("default %1, off %2, silent %3, music %4, zombies %5 own %6 silent %7, timed %8", onByDefault, off, silent, music, zombieMusic, zombieOwn, zombieSilent, timed));
  }
 
  // 7 Nov: a side at its squad cap still buys a service truck it needs (trucks don't count against

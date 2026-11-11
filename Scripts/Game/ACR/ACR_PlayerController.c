@@ -430,6 +430,17 @@ modded class SCR_PlayerController
   return m_DeathBlackoutRoot.IsVisible() && m_DeathBlackoutImage.IsVisible() && sw > 0 && sh > 0 && w >= sw * 0.99 && h >= sh * 0.99 && tw > 0 && th > 0;
  }
 
+ // ---------------------------------------------------------------- mission intro (ACR_Intro)
+ void ACR_SendIntro(vector centre, string line, string music, bool zombies)
+ {
+  Rpc(ACR_IntroOwner, centre, line, music, zombies);
+ }
+ [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
+ protected void ACR_IntroOwner(vector centre, string line, string music, bool zombies)
+ {
+  ACR_Intro.Receive(centre, line, music, zombies);
+ }
+
  // ---------------------------------------------------------------- setup phase (ACR_Setup)
  void ACR_SendSetup(bool active, bool allowed, string rows, string info)
  {

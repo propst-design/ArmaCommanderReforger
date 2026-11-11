@@ -222,6 +222,7 @@ class ACR_Manager : Managed
  static void Stop()
  {
   ACR_OrganEasterEgg.Reset();
+  ACR_Intro.Reset();
   ACR_RTSCameraManager.Close();
   ACR_Hud.Clear();
   ACR_Skirmish.Reset();
@@ -585,6 +586,7 @@ class ACR_Manager : Managed
   t = ACR_Perf.Lap("aicmd", t);
   if (!m_Respawn) m_Respawn = new ACR_Respawn(this);
   m_Respawn.Tick();
+  ACR_Intro.Tick();
   if (!m_Rides) m_Rides = new ACR_Rides(this);
   m_Rides.Tick();
   t = ACR_Perf.Lap("rides", t);
@@ -1399,6 +1401,7 @@ class ACR_Manager : Managed
   SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
   if (pc && !pc.GetControlledEntity()) pc.ACR_UpdateSetupMap();
   if (pc) pc.ACR_UpdateDeathTransition(0);
+  if (pc) ACR_Intro.Frame(pc);
   if (!pc || !pc.GetControlledEntity())
   {
    ACR_RTSCameraManager.Close();
