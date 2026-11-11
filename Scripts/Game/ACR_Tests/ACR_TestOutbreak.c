@@ -236,7 +236,7 @@ class ACR_TestOutbreak
  protected static void NestLook(int nests)
  {
   SCR_BaseGameMode mode = SCR_BaseGameMode.Cast(GetGame().GetGameMode());
-  int live, wrecks;
+  int live;
   string detail = "";
   ACR_DefenderPost other;
   foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
