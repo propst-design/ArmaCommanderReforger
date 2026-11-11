@@ -85,7 +85,7 @@ class ACR_TestFobBuild
   searchStart = System.GetTickCount();
   bool aiFound = planner.FindFobSite(anyBase, aiSite);
   PrintFormat("[ACR] PERF AI fob site search behind %1: %2 ms (found %3)", anyBase.m_sName, System.GetTickCount() - searchStart, aiFound);
-  ACR_TestRegress.Check("fobbuild: ValidateSite finds valid spot within 50m search", snapped && vector.DistanceXZ(foundSpot, edgeBase) <= 50, why);
+  ACR_TestRegress.Check("fobbuild: ValidateSite finds valid spot within 50m search", snapped && vector.DistanceXZ(foundSpot, edgeBase) <= 50, string.Format("by %1: found %2, %3 m from the probe, '%4'", anyBase.m_sName, snapped, vector.DistanceXZ(foundSpot, edgeBase), why));
 
   // 10. FellTrees fells the real trees in a footprint (vanilla tree sync manager).
   vector woods;
