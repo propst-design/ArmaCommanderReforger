@@ -3777,6 +3777,9 @@ class ACR_Squad : Managed
  static const float QUEUE_WAIT_MS = 60000; // ... for this long at most
  protected float m_fQueueSince = -1;
  static const float QUEUE_BEHIND = 10;  // a vehicle this close behind: don't reverse into it
+ static const float QUEUE_LANE = 3.5;   // ... ahead or behind means in its lane: this far off its line, centre to centre
+ static const float QUEUE_LANE_WIDEN = 0.2; // ... and ahead, this much wider a metre out (bends, gates at an angle)
+ bool Queueing() { return m_fQueueSince >= 0; }
  static float s_fStallSeconds = STALL_SECONDS; // test hook: srv:stall shortens it so its enemy team arrives after the soft truck has given up
  static const float STALL_SECONDS_FIGHTING = 40; // armed and in contact: the gunner may be busy, give it longer
  static const float STALL_SECONDS_HELPLESS = 3;  // under fire with no gunner
@@ -4065,12 +4068,14 @@ class ACR_Squad : Managed
   // Queueing behind another of our vehicles that's stopped too isn't being stuck (convoys, gates, the
   // roadblock lane); out of contact only, and for QUEUE_WAIT_MS at most: the one ahead may never move
   // (srv:stall, 29 Oct: a truck waited 150 s behind a stuck one).
-  if (!underFire && VehicleNear(vehicle, true, QUEUE_AHEAD))
+  ACR_Squad queueBehind;
+  if (!underFire) queueBehind = VehicleNear(vehicle, true, QUEUE_AHEAD);
+  if (queueBehind)
   {
    if (m_fQueueSince < 0)
    {
     m_fQueueSince = now;
-    PrintFormat("[ACR] DRIVE %1: queueing behind one of ours, not stuck", m_Name);
+    PrintFormat("[ACR] DRIVE %1: queueing behind one of ours, not stuck (%2, %3 m ahead)", m_Name, queueBehind.GetName(), (int)vector.DistanceXZ(vehicle.GetOrigin(), ACR_Transport.CrewedVehicle(queueBehind).GetOrigin()));
    }
    if (now - m_fQueueSince < QUEUE_WAIT_MS)
    {
@@ -4161,9 +4166,10 @@ class ACR_Squad : Managed
   }
   m_iUnsticks++;
   // Never reverse into a vehicle right behind: plan again from here instead.
-  if (VehicleNear(vehicle, false, QUEUE_BEHIND))
+  ACR_Squad behind = VehicleNear(vehicle, false, QUEUE_BEHIND);
+  if (behind)
   {
-   PrintFormat("[ACR] DRIVE %1: stuck, a vehicle right behind, planning again instead of backing up (try %2) at %3", m_Name, m_iUnsticks, DriveSpot(vehicle));
+   PrintFormat("[ACR] DRIVE %1: stuck, a vehicle right behind, planning again instead of backing up (try %2; %3, %4 m) at %5", m_Name, m_iUnsticks, behind.GetName(), (int)vector.DistanceXZ(vehicle.GetOrigin(), ACR_Transport.CrewedVehicle(behind).GetOrigin()), DriveSpot(vehicle));
    m_StallPos = vehicle.GetOrigin();
    m_fStallSince = now;
    if (!m_sOrderPrefab.IsEmpty())
@@ -4219,37 +4225,56 @@ class ACR_Squad : Managed
   return string.Format("%1 (%2%3, pitch %4, %5)", ACR_Manager.Grid(at), road, deck, (int)Math.AbsFloat(angles[0]), ACR_CivilianSocket.PlaceName(at));
  }
 
- // Another ACA vehicle within range, ahead of this one (toward its target) and nearly stopped, or
- // behind it (any speed).
- protected bool VehicleNear(IEntity vehicle, bool ahead, float range)
+ // Another ACA vehicle in this one's lane within range: ahead of its nose and nearly stopped, or
+ // behind its tail (any speed), where backing up takes it. Its own facing, not the line to its
+ // target: that half-plane took vehicles parked beside it for ones ahead or behind, and a truck
+ // facing away from its target "saw" the one in front of its nose as behind it (Everon soak, 7 Nov:
+ // Humvee 1 in the Airbase motor pool was kept from backing up 64 times in 80 minutes).
+ // Nose to nose, each waited for the other until the wait ran out, then both backed up, met again
+ // and waited again: the newer of the two (later in the squad list) gives way and is taken as stuck
+ // as usual, the older one waits.
+ protected ACR_Squad VehicleNear(IEntity vehicle, bool ahead, float range)
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
-  if (!manager) return false;
+  if (!manager) return null;
   vector here = vehicle.GetOrigin();
-  vector toTarget = m_MoveTarget - here;
-  toTarget[1] = 0;
-  if (toTarget.Length() < 1) return false;
-  toTarget.Normalize();
-  foreach (ACR_Squad other : manager.m_Squads)
+  vector facing = vehicle.GetTransformAxis(2);
+  int mine = manager.m_Squads.Find(this);
+  foreach (int i, ACR_Squad other : manager.m_Squads)
   {
    if (!other || other == this) continue;
    IEntity theirs = ACR_Transport.CrewedVehicle(other);
    if (!theirs || theirs == vehicle) continue;
-   vector rel = theirs.GetOrigin() - here;
-   rel[1] = 0;
-   float dist = rel.Length();
-   if (dist > range || dist < 0.1) continue;
-   float along = vector.Dot(rel, toTarget);
-   if (ahead)
-   {
-    if (along <= 0) continue;
-    Physics phys = theirs.GetPhysics();
-    if (phys && phys.GetVelocity().Length() > 1.5) continue;
-    return true;
-   }
-   if (along < 0) return true;
+   vector there = theirs.GetOrigin();
+   if (!InLane(here, facing, there, range, ahead)) continue;
+   if (!ahead) return other;
+   Physics phys = theirs.GetPhysics();
+   if (phys && phys.GetVelocity().Length() > 1.5) continue;
+   if (mine > i && InLane(there, theirs.GetTransformAxis(2), here, range, true)) continue;
+   return other;
   }
-  return false;
+  return null;
+ }
+
+ // Whether 'to' stands in the lane of a vehicle at 'from' facing 'facing': in front of it (with
+ // front false, behind it), within range, and at most QUEUE_LANE off its line (in front, a little
+ // more the farther out, for bends and gates at an angle).
+ static bool InLane(vector from, vector facing, vector to, float range, bool front)
+ {
+  vector rel = to - from;
+  rel[1] = 0;
+  float dist = rel.Length();
+  if (dist > range || dist < 0.1) return false;
+  facing[1] = 0;
+  if (facing.Length() < 0.1) return false;
+  facing.Normalize();
+  float along = vector.Dot(rel, facing);
+  vector side = rel - facing * along;
+  if (!front) along = -along;
+  if (along <= 0) return false;
+  float lane = QUEUE_LANE;
+  if (front) lane = QUEUE_LANE + QUEUE_LANE_WIDEN * along;
+  return side.Length() <= lane;
  }
 
  // Vanilla answers a stuck or unreachable vehicle move by putting the crew out to walk
