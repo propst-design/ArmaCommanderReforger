@@ -184,7 +184,7 @@ class ACR_Rides : Managed
   if (squad.HasGunner(vehicle) && (!carriersToo || CargoSeats(vehicle) < CARRIER_SEATS)) return "a fighting vehicle (manned gun)";
   if (ACR_Logistics.ServiceOf(vehicle) != 0) return "service vehicle"; // ammo/repair/fuel trucks have their own job
   if (!CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent))) return "not a ground vehicle";
-  if (squad.Unflipping() || SCR_AIVehicleUsability.IsVehicleFlipped(vehicle)) return "on its side or roof";
+  if (SCR_AIVehicleUsability.IsVehicleFlipped(vehicle)) return "on its side or roof";
   ChimeraCharacter driver = ACR_Squad.DriverOf(vehicle);
   if (!driver || !ACR_Respawn.IsAlive(driver)) return "no driver";
   if (ACR_Squad.FindController(driver) != 0) return "a player is driving";
