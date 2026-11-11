@@ -185,6 +185,7 @@ ACA|srv:squadai|nightly|200   # median 60s, 3 runs/14d
 ACA|srv:twoic|nightly|200   # median 69s, 3 runs/14d
 ACA|srv:twoicui|skip|240   # needs a player (game client)
 ACA|srv:twoicask|nightly|300   # median 75s, 2 runs/14d
+ACA|srv:twoicfob|nightly|240
 ACA|srv:twoicsuggest|nightly|200   # median 23s, 1 runs/14d
 ACA|srv:twoicshots|skip|240   # measurement/screenshots or soak: no pass/fail meaning, run by hand
 ACA|srv:twoicdeclutter|weekly|120   # not run in the last 14 days; server capability not yet seen

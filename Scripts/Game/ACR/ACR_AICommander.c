@@ -9724,6 +9724,11 @@ class ACR_AICommander : Managed
    }
    return;
   }
+  if (r.m_iKind == ACR_ETwoICAsk.FOB)
+  {
+   FobRequestProgress(r);
+   return;
+  }
   if (r.m_iKind == ACR_ETwoICAsk.TAKE)
   {
    if (!r.m_Base) return;
@@ -9763,6 +9768,11 @@ class ACR_AICommander : Managed
 
  protected void TryRequest(ACR_TwoICRequest r)
  {
+  if (r.m_iKind == ACR_ETwoICAsk.FOB)
+  {
+   TryFob(r);
+   return;
+  }
   array<ACR_Squad> mine = {};
   MySquads(mine, false);
   if (mine.IsEmpty())
@@ -9877,6 +9887,169 @@ class ACR_AICommander : Managed
    Forget(squad);
    squad.SetAITask(ACR_EAITask.FREE);
   }
+  // A FOB asked for and called off before it stands: the truck stops, its loads go back on it, and
+  // the site isn't avoided (nobody gave up on it).
+  if (r.m_iKind == ACR_ETwoICAsk.FOB && squad == m_FobBuilder && !FobStandsNear(r.m_vPos) && !squad.BuiltFobAt(r.m_vPos))
+  {
+   if (squad.OrderState() == ACR_EOrderState.BUILD_FOB || squad.m_iAITask == ACR_EAITask.BUILD_FOB) squad.CancelEstablishFob();
+   m_FobBuilder = null;
+   if (m_FobEscort && m_FobEscort.m_iAITask == ACR_EAITask.DEFEND && !m_FobEscort.m_AITarget) m_FobEscort.SetAITask(ACR_EAITask.FREE);
+   m_FobEscort = null;
+  }
+ }
+
+ // ---------------------------------------------------------------- Build a FOB here
+ static const float FOB_ASK_NEAR = 150; // m: a FOB of ours this close to the asked spot answers it
+
+ // "Build a FOB here" (ACR_TwoICRequests, the commander's): a checked site, then one of my loaded
+ // construction trucks with an escort, as my own FOB builds go (ManageFobBuild: one project at a
+ // time, given up after 3 min without progress); with none, one bought at the base nearest the site.
+ // What waits on time or RP is kept queued by itself, so the line says Queued and the 2IC tries
+ // again every 20 s until the commander cancels it.
+ protected void TryFob(ACR_TwoICRequest r)
+ {
+  if (FobStandsNear(r.m_vPos))
+  {
+   r.Set(ACR_ETwoICState.DONE, "a FOB of ours stands there already");
+   return;
+  }
+  if (!r.m_bSited)
+  {
+   vector site;
+   string why;
+   if (!ACR_FobBuild.ValidateSite(r.m_vPos, site, why, m_sFaction))
+   {
+    r.Set(ACR_ETwoICState.CANT, "a FOB can't go there: " + why);
+    return;
+   }
+   r.m_vPos = site;
+   r.m_bSited = true;
+  }
+  if (HasActiveFobProject())
+  {
+   r.m_bQueued = true;
+   r.Set(ACR_ETwoICState.CANT, "a FOB is being built already: yours is next");
+   return;
+  }
+  ACR_Squad builder = FindConstructionSquad();
+  if (builder)
+  {
+   vector cleared;
+   string blocked;
+   if (!ACR_FobBuild.ValidateSite(r.m_vPos, cleared, blocked, m_sFaction))
+   {
+    r.m_bSited = false;
+    r.Set(ACR_ETwoICState.CANT, "the site isn't clear any more: " + blocked);
+    return;
+   }
+   builder.SetAITask(ACR_EAITask.BUILD_FOB);
+   if (!builder.EstablishFob(cleared))
+   {
+    builder.SetAITask(ACR_EAITask.FREE);
+    r.Set(ACR_ETwoICState.CANT, builder.GetName() + " can't take the order");
+    return;
+   }
+   m_FobBuilder = builder;
+   m_vFobTargetSite = cleared;
+   r.m_vPos = cleared;
+   string with = "";
+   ACR_Squad escort = FindEscortSquad(builder);
+   if (escort)
+   {
+    m_FobEscort = escort;
+    escort.SetAITask(ACR_EAITask.DEFEND);
+    escort.m_AITarget = null;
+    escort.SetMode(ACR_EMoveMode.FAST);
+    Travel(escort, cleared, true, 0);
+    with = ", " + escort.GetName() + " escorting it";
+   }
+   r.m_Squad = builder;
+   r.m_sSquad = builder.GetName();
+   r.m_fUntil = 0;
+   r.m_bQueued = false;
+   r.Set(ACR_ETwoICState.COMING, string.Format("%1, %2%3", builder.GetName(), ACR_TwoIC.Where(builder), with));
+   PrintFormat("[ACR] 2IC %1: %2 builds the FOB asked for at %3 (request %4)", m_sFaction, builder.GetName(), cleared, r.m_iId);
+   return;
+  }
+  // No loaded truck of mine. One bought a moment ago (by me, for this or my own FOB) is waited for.
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (now - m_fFobTruckBoughtAt < FOB_TRUCK_RETRY_MS)
+  {
+   r.Set(ACR_ETwoICState.WAITING, "a construction truck I bought is getting ready");
+   return;
+  }
+  // A loaded one that isn't mine to send (a player's, giving a ride): not a second one bought.
+  if (HasLoadedConstructionTruck())
+  {
+   r.m_bQueued = true;
+   r.Set(ACR_ETwoICState.CANT, "our loaded construction truck isn't mine to send (a player's, or busy): I'll send one once one is free");
+   return;
+  }
+  int entry, cost;
+  ACR_Base base;
+  string whyNot = ACR_TwoICSuggest.TruckOffer(m_Manager, m_sFaction, r.m_vPos, entry, cost, base);
+  ACR_FactionData data = m_Manager.m_Bases.GetFaction(m_sFaction);
+  if (whyNot.IsEmpty() && (!data || Purse(data) < cost)) whyNot = string.Format("not enough RP (%1 needed, %2 mine to spend)", cost, Purse(data));
+  if (!whyNot.IsEmpty())
+  {
+   // Only a side with no construction truck on its list never gets one; the rest is time or RP.
+   r.m_bQueued = !whyNot.Contains("no construction truck") && !whyNot.Contains("requisition list");
+   r.Set(ACR_ETwoICState.CANT, "I have no loaded construction truck and can't buy one: " + whyNot);
+   return;
+  }
+  int before = m_Manager.m_Bases.GetRP(m_sFaction);
+  string bought = m_Manager.PurchaseAt(m_sFaction, entry, base);
+  if (m_Manager.m_Bases.GetRP(m_sFaction) >= before)
+  {
+   r.m_bQueued = true;
+   r.Set(ACR_ETwoICState.CANT, string.Format("buying a construction truck at %1 failed: %2", base.m_sName, bought));
+   return;
+  }
+  m_fFobTruckBoughtAt = now;
+  r.Set(ACR_ETwoICState.WAITING, string.Format("buying a construction truck at %1 (%2 RP)", base.m_sName, cost));
+  PrintFormat("[ACR] AI %1 requisition (FOB asked for, request %2): %3", m_sFaction, r.m_iId, bought);
+ }
+
+ // The truck on a FOB request: Done once the FOB stands; a build that ended without one (given up,
+ // or wiped out) is "can't yet" again, as any request whose answer fell through.
+ protected void FobRequestProgress(ACR_TwoICRequest r)
+ {
+  if (r.m_iState != ACR_ETwoICState.COMING) return;
+  if (FobStandsNear(r.m_vPos))
+  {
+   string builder = r.m_sSquad;
+   EndTwoICRequest(r);
+   r.Set(ACR_ETwoICState.DONE, string.Format("%1 built it: a FOB of ours stands at %2", builder, r.m_sPlace));
+   return;
+  }
+  ACR_Squad truck = r.m_Squad;
+  if (!truck) return;
+  // Finished just now: the FOB appears on the next structures tick.
+  if (truck.BuiltFobAt(r.m_vPos)) return;
+  int order = truck.OrderState();
+  if (order == ACR_EOrderState.BUILD_FOB || (order == ACR_EOrderState.REGROUP && truck.m_iAITask == ACR_EAITask.BUILD_FOB)) return;
+  string gaveUp = r.m_sSquad;
+  EndTwoICRequest(r);
+  r.m_bSited = false;
+  float now = GetGame().GetWorld().GetWorldTime();
+  r.Set(ACR_ETwoICState.CANT, string.Format("%1 gave up the build at %2", gaveUp, r.m_sPlace));
+  r.m_fNextTry = now + ACR_TwoICRequests.RETRY_MS;
+  if (!r.m_bQueued) r.m_fUntil = now + ACR_TwoICRequests.DROP_MS;
+ }
+
+ // Tests: as if no construction truck had been bought lately.
+ void ResetFobTruckBoughtForTest()
+ {
+  m_fFobTruckBoughtAt = -FOB_TRUCK_RETRY_MS;
+ }
+
+ protected bool FobStandsNear(vector pos)
+ {
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (base && base.m_bBuilt && !base.m_bRetired && base.m_sOwner == m_sFaction && vector.DistanceXZ(base.GetOrigin(), pos) <= FOB_ASK_NEAR) return true;
+  }
+  return false;
  }
 
  // The nearest squad of ours free to answer: a fighting squad that isn't holding what it built,

@@ -906,6 +906,7 @@ class ACR_TwoICView : Managed
   AskButton(column, "Support me here", ACR_ETwoICAsk.SUPPORT);
   AskButton(column, "Hold this", ACR_ETwoICAsk.HOLD);
   m_AskTake = AskButton(column, "Take this base", ACR_ETwoICAsk.TAKE);
+  AskButton(column, "Build a FOB here", ACR_ETwoICAsk.FOB);
   m_AskRoot.SetVisible(false);
  }
 

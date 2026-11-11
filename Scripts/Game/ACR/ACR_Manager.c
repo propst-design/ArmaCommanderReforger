@@ -988,8 +988,9 @@ class ACR_Manager : Managed
     // Players' requests first (ACR_TwoICRequests), ahead of its own plans.
     ACR_TwoICRequests.Tick(squads.m_sFaction, squadAI, twoICRuns);
     // Running the whole side it sites and builds its own FOBs (ManageFobBuild): no suggestions
-    // that would send the same construction truck a second way.
-    ACR_TwoICSuggest.Tick(this, squads.m_sFaction, squadAI, twoICRuns && !runsAll);
+    // that would send the same construction truck a second way; a player's Establish FOB still
+    // gets its sites, and "Build a FOB here" (ACR_TwoICRequests) sends its trucks on request.
+    ACR_TwoICSuggest.Tick(this, squads.m_sFaction, squadAI, twoICRuns, !runsAll);
     ACR_TwoICForecast.Tick(this, squads.m_sFaction, squadAI, twoICRuns);
    }
    if (!runsAll && !ACR_SquadAI.AnyFor(squads.m_sFaction)) continue;

@@ -166,6 +166,7 @@ squadai|-acrSquadAITest 1|200
 twoic|-acrTwoICTest 1|200
 twoicui|-acrTwoICUITest 1|240
 twoicask|-acrTwoICAskTest 1|300
+twoicfob|-acrTwoICFobTest 1|240
 twoicsuggest|-acrTwoICSuggestTest 1|200
 twoicshots|-acrTwoICShotsTest 1|240
 twoicdeclutter|-acrTwoICDeclutterTest 1|120

@@ -110,6 +110,7 @@ class ACR_TestHarness : Managed
  static const int MODE_MORTARSPOT = 78; // 69-77: the playtest branches
  static const int MODE_TWOICUI = 82; // 79-81: the playtest branches
  static const int MODE_TWOICASK = 83;
+ static const int MODE_TWOICFOB = 272;
  static const int MODE_TWOICSUGGEST = 84;
  static const int MODE_TWOICSHOTS = 91; // a game client run (89 variety, 90 the armour duel probe)
  static const int MODE_TWOICALL = 260; // the 2IC runs the side while a player commands
@@ -245,6 +246,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrMortarSpotTest", flag)) mode = MODE_MORTARSPOT;
   if (System.GetCLIParam("acrTwoICUITest", flag)) mode = MODE_TWOICUI;
   if (System.GetCLIParam("acrTwoICAskTest", flag)) mode = MODE_TWOICASK;
+  if (System.GetCLIParam("acrTwoICFobTest", flag)) mode = MODE_TWOICFOB;
   if (System.GetCLIParam("acrTwoICSuggestTest", flag)) mode = MODE_TWOICSUGGEST;
   if (System.GetCLIParam("acrTwoICShotsTest", flag)) mode = MODE_TWOICSHOTS;
   if (System.GetCLIParam("acrTwoICDeclutterTest", flag)) mode = MODE_TWOICDECLUTTER;
@@ -432,6 +434,7 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_MORTARSPOT) { ACR_TestMortarSpot.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_TWOICUI) { ACR_TestTwoICUI.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_TWOICASK) { ACR_TestTwoICAsk.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_TWOICFOB) { ACR_TestTwoICFob.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_TWOICSUGGEST) { ACR_TestTwoICSuggest.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_TWOICSHOTS) { ACR_TestTwoICShots.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_TWOICDECLUTTER) { ACR_TestTwoICDeclutter.Run(this, m_Ticks); return; }

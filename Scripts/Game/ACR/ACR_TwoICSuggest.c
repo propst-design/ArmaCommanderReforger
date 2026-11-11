@@ -56,6 +56,7 @@ class ACR_TwoICSuggest
  static const float TRUCK_DEPLOY_MS = 60000; // a tracked one that never deploys stops blocking after this
  protected static ref map<string, float> s_TruckBoughtAt;
  protected static ref map<string, string> s_TruckBought; // faction -> the bought unit's name
+ protected static ref map<int, int> s_SitesSent;        // player -> sites of his last Establish FOB (tests)
  // Called by ACR_StaticInit at game start (static initializer budget: HANDBOOK Pitfalls).
  static void ACR_InitStatics()
  {
@@ -68,11 +69,16 @@ class ACR_TwoICSuggest
   s_Sent = {};
   s_TruckBoughtAt = new map<string, float>();
   s_TruckBought = new map<string, string>();
+  s_SitesSent = new map<int, int>();
  }
 
  // ---------------------------------------------------------------- suggesting
- // Each second for a side the 2IC is on for (ACR_Manager, after the requests).
- static void Tick(ACR_Manager manager, string faction, ACR_AICommander ai, bool running)
+ // Each second for a side the 2IC is on for (ACR_Manager, after the requests). running: the 2IC runs
+ // the side (its Establish FOB sites, its sent trucks' rings); suggest: it may suggest new FOB
+ // sites too, which it doesn't while it runs the whole side and builds its own (ManageFobBuild).
+ // pn44 (7 Nov): one flag did both, so with the whole-side 2IC the sites a player's armed Establish
+ // FOB asks for were dropped the next second and never came.
+ static void Tick(ACR_Manager manager, string faction, ACR_AICommander ai, bool running, bool suggest = true)
  {
   float now = GetGame().GetWorld().GetWorldTime();
   for (int i = s_Live.Count() - 1; i >= 0; i--)
@@ -85,7 +91,7 @@ class ACR_TwoICSuggest
   }
   TickSent(faction);
   TickJobs(manager, faction, ai, running);
-  if (!running || !ai || HasLive(faction)) return;
+  if (!running || !suggest || !ai || HasLive(faction)) return;
   string front;
   if (!s_Searching.Find(faction, front))
   {
@@ -447,6 +453,7 @@ class ACR_TwoICSuggest
    SitesFor(sites, job.m_Front.m_sName, positions, labels, facts);
    SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerManager().GetPlayerController(job.m_iPlayer));
    if (pc) pc.ACR_SendTwoICSites(positions, labels, facts);
+   s_SitesSent.Set(job.m_iPlayer, positions.Count());
    PrintFormat("[ACR] 2IC %1: %2 sites behind %3 for player %4 (sent %5)", faction, positions.Count(), job.m_Front.m_sName, job.m_iPlayer, pc != null);
   }
  }
@@ -715,5 +722,14 @@ class ACR_TwoICSuggest
   s_Sent.Clear();
   s_TruckBoughtAt.Clear();
   s_TruckBought.Clear();
+  s_SitesSent.Clear();
+ }
+
+ // The sites the player's last Establish FOB got (-1: none came yet).
+ static int SitesSentForTest(int playerId)
+ {
+  int count;
+  if (s_SitesSent.Find(playerId, count)) return count;
+  return -1;
  }
 }

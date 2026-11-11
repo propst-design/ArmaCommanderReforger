@@ -4,11 +4,15 @@
 // (who, from where), Can't yet (why; the player keeps it queued or cancels it), Holding (until he
 // releases it), Supporting (10 min), then Done. Live requests get a ring on the map. The player
 // who asked and the commander may cancel or release a request.
+// Build a FOB here (the commander's, 7 Nov): the 2IC sends a loaded construction truck of its own
+// to build a FOB at that spot, buying one at the base nearest it when it has none (it does the
+// side's buying while a player commands); Coming while the truck drives, Done once the FOB stands.
 enum ACR_ETwoICAsk
 {
  SUPPORT,
  HOLD,
- TAKE
+ TAKE,
+ FOB
 }
 
 enum ACR_ETwoICState
@@ -40,6 +44,7 @@ class ACR_TwoICRequest : Managed
  float m_fNextTry;
  float m_fUntil;       // supporting: runs out; can't yet, not queued: dropped
  float m_fAskedAt;
+ bool m_bSited;        // FOB: m_vPos is a checked site (ACR_FobBuild.ValidateSite)
 
  void Set(int state, string answer)
  {
@@ -82,8 +87,10 @@ class ACR_TwoICRequests
   if (!faction) return "You have no faction";
   // What a client sends is checked here (audit 31 Oct): a known kind, a point on the map, and
   // one ask every 2 s per player (asking and cancelling in a loop flooded the side's channel).
-  if (kind < ACR_ETwoICAsk.SUPPORT || kind > ACR_ETwoICAsk.TAKE) return "Unknown request";
+  if (kind < ACR_ETwoICAsk.SUPPORT || kind > ACR_ETwoICAsk.FOB) return "Unknown request";
   if (!ACR_Manager.OnMap(pos)) return "That point is off the map";
+  // A FOB spends the side's RP (a truck, and its 500 supplies): the commander's call.
+  if (kind == ACR_ETwoICAsk.FOB && !manager.IsCommander(pc.GetPlayerId())) return "Only the commander can ask the 2IC for a FOB";
   float now = GetGame().GetWorld().GetWorldTime();
   float last;
   if (s_mLastAsk.Find(pc.GetPlayerId(), last) && now - last < 2000) return "One request at a time: wait a moment";
@@ -117,6 +124,14 @@ class ACR_TwoICRequests
    text = string.Format("%1: take %2", playerName, r.m_sPlace);
   }
   else if (kind == ACR_ETwoICAsk.HOLD) text = string.Format("%1: hold %2", playerName, r.m_sPlace);
+  else if (kind == ACR_ETwoICAsk.FOB)
+  {
+   foreach (ACR_TwoICRequest other : s_Live)
+   {
+    if (other.m_sFaction == faction && other.m_iKind == ACR_ETwoICAsk.FOB && vector.DistanceXZ(other.m_vPos, pos) <= ACR_FobBuild.FOB_SPACING) return "The 2IC has a FOB there in hand already (see the 2IC channel)";
+   }
+   text = string.Format("%1: build a FOB at %2", playerName, r.m_sPlace);
+  }
   else text = string.Format("%1: support me at %2", playerName, r.m_sPlace);
   r.m_iId = ACR_TwoIC.Say(faction, ACR_ETwoICLine.REQUEST, text, "Asked");
   if (r.m_iId == 0) return "The 2IC is off for this match";
@@ -259,7 +274,9 @@ class ACR_TwoICRequests
    if (r.m_sFaction != faction || !r.Live()) continue;
    positions.Insert(r.m_vPos);
    labels.Insert(RingLabel(r));
-   kinds.Insert(r.m_iKind);
+   // A FOB request is drawn as a sent truck's site is: a dashed ring with its pill.
+   if (r.m_iKind == ACR_ETwoICAsk.FOB) kinds.Insert(ACR_TwoICSuggest.RING_SENT);
+   else kinds.Insert(r.m_iKind);
   }
   ACR_TwoICSuggest.AddRings(faction, positions, labels, kinds);
   ACR_TwoICForecast.AddRings(faction, positions, labels, kinds);
@@ -275,6 +292,7 @@ class ACR_TwoICRequests
 
  static string RingLabel(ACR_TwoICRequest r)
  {
+  if (r.m_iKind == ACR_ETwoICAsk.FOB) return FobRingLabel(r);
   string kind = "Support";
   if (r.m_iKind == ACR_ETwoICAsk.HOLD) kind = "Hold";
   else if (r.m_iKind == ACR_ETwoICAsk.TAKE) kind = "Take";
@@ -291,6 +309,25 @@ class ACR_TwoICRequests
   }
   if (state == ACR_ETwoICState.CANT) return string.Format("%1: %2 (%3)", kind, r.m_sPlace, StatusText(r));
   return string.Format("%1: %2 (asked)", kind, r.m_sPlace);
+ }
+
+ // "FOB site · truck on the way · about 4 min" (as a suggestion's sent truck), "FOB site · truck
+ // there, building", "FOB site · getting a truck", "FOB site · can't yet".
+ static string FobRingLabel(ACR_TwoICRequest r)
+ {
+  int state = r.m_iState;
+  if (state == ACR_ETwoICState.COMING && r.m_Squad && r.m_Squad.GetAnchor())
+  {
+   float d = vector.DistanceXZ(r.m_Squad.GetAnchor().GetOrigin(), r.m_vPos);
+   if (d <= ACR_TwoICSuggest.TRUCK_THERE) return ACR_TwoICSuggest.SentLabel(0);
+   return ACR_TwoICSuggest.SentLabel((int)Math.Max(1, Math.Round(d / ACR_TwoICSuggest.TRUCK_SPEED / 60)));
+  }
+  if (state == ACR_ETwoICState.CANT)
+  {
+   if (r.m_bQueued) return "FOB site  ·  queued";
+   return "FOB site  ·  can't yet";
+  }
+  return "FOB site  ·  getting a truck";
  }
 
  // ---------------------------------------------------------------- helpers
