@@ -969,6 +969,12 @@ class ACR_AICommander : Managed
  protected ref map<ACR_Squad, float> m_RetreatingUntil = new map<ACR_Squad, float>();
  protected ref map<ACR_Squad, float> m_ReinforceRetryAt = new map<ACR_Squad, float>();
  protected ref map<ACR_Squad, float> m_Refitting = new map<ACR_Squad, float>(); // squad walking back to refill -> give up at
+ // The base a squad walks back to for refills, the last one it gave up walking to and when, and
+ // how many walks in a row it gave up (RefitGaveUpOn, NoteRefitGaveUp).
+ protected ref map<ACR_Squad, ACR_Base> m_RefitWalkTo = new map<ACR_Squad, ACR_Base>();
+ protected ref map<ACR_Squad, ACR_Base> m_RefitGaveUpOn = new map<ACR_Squad, ACR_Base>();
+ protected ref map<ACR_Squad, float> m_RefitGaveUpAt = new map<ACR_Squad, float>();
+ protected ref map<ACR_Squad, int> m_RefitGiveUps = new map<ACR_Squad, int>();
  protected int m_iSaveForEntry = -1;
  protected int m_iLastSavedLog = -1;
  protected float m_fNextStatus;
@@ -4142,6 +4148,13 @@ class ACR_AICommander : Managed
  // (A pocket's attack score is multiplied by the doctrine's m_fPocketScore, 2.5 standard; idle
  // squads below the doctrine's m_fRefitRatio, 0.5 standard, walk back to a quiet base to refill.)
  static const float REFIT_GIVE_UP_MS = 900000;   // a walk back to refill that hasn't arrived by then is dropped
+ // A walk back to refill that was given up (the base unreachable from where the squad is) isn't
+ // sent to that base again for REFIT_SKIP_MS: the next try goes to another quiet base, and each
+ // walk given up in a row waits REINFORCE_RETRY_MS longer before the next, up to REFIT_RETRY_MAX
+ // times. AI soak 7 Nov (Everon, 2 h): Soviet Weapons Team was sent "to Lancre to reinforce"
+ // 29 times, every 3 min, giving up 75 s after each.
+ static const float REFIT_SKIP_MS = 1200000;
+ static const int REFIT_RETRY_MAX = 5;
  protected ACR_Base m_ReserveBase;
  protected ref map<ACR_Squad, ACR_Base> m_KeptBehindLines = new map<ACR_Squad, ACR_Base>(); // KeepsWorksManned: said once per base called
  protected ACR_Squad m_ReserveSquad;
@@ -6574,6 +6587,42 @@ class ACR_AICommander : Managed
   return name.Contains("team");
  }
 
+ // A walk back to refill given up on the way to 'base' (null: not known): that base is skipped
+ // for REFIT_SKIP_MS (RefitGaveUpOn). Returns how long the squad waits before its next try.
+ float NoteRefitGaveUp(ACR_Squad squad, ACR_Base base, float now)
+ {
+  if (base)
+  {
+   m_RefitGaveUpOn.Set(squad, base);
+   m_RefitGaveUpAt.Set(squad, now);
+  }
+  int giveUps = RefitGiveUps(squad) + 1;
+  m_RefitGiveUps.Set(squad, giveUps);
+  if (giveUps > REFIT_RETRY_MAX) giveUps = REFIT_RETRY_MAX;
+  return REINFORCE_RETRY_MS * giveUps;
+ }
+ int RefitGiveUps(ACR_Squad squad)
+ {
+  int giveUps;
+  if (!m_RefitGiveUps.Find(squad, giveUps)) return 0;
+  return giveUps;
+ }
+ bool RefitGaveUpOn(ACR_Squad squad, ACR_Base base, float now)
+ {
+  ACR_Base given;
+  if (!base || !m_RefitGaveUpOn.Find(squad, given) || given != base) return false;
+  float at;
+  if (!m_RefitGaveUpAt.Find(squad, at)) return false;
+  return now - at < REFIT_SKIP_MS;
+ }
+ void ForgetRefit(ACR_Squad squad)
+ {
+  m_RefitWalkTo.Remove(squad);
+  m_RefitGaveUpOn.Remove(squad);
+  m_RefitGaveUpAt.Remove(squad);
+  m_RefitGiveUps.Remove(squad);
+ }
+
  // Refill depleted infantry squads out of contact (especially 1-man remnants that
  // dropped out of combat status) instead of leaving them idle and buying 2-man teams.
  protected bool ReinforceDepleted(ACR_FactionData data, int keep)
@@ -6623,7 +6672,7 @@ class ACR_AICommander : Managed
     if (base.m_sOwner != m_sFaction || !ACR_LogisticsRules.CanReinforce(base) || base.m_bContested) continue;
     float d = vector.DistanceXZ(PositionOf(squad), base.GetOrigin());
     if (d <= base.m_fRadius && d < insideDist) { insideDist = d; inside = base; }
-    if (ThreatTo(base) == 0 && d < refitDist) { refitDist = d; refit = base; }
+    if (ThreatTo(base) == 0 && d < refitDist && !RefitGaveUpOn(squad, base, now)) { refitDist = d; refit = base; }
    }
    // Only inside the circle: there the replacements come from this base and the squad
    // gets its ammo too. Badly hurt idle squads walk back out of the fighting to refill
@@ -6637,8 +6686,14 @@ class ACR_AICommander : Managed
     {
      m_Refitting.Remove(squad);
      if (squad.m_iAITask == ACR_EAITask.RESUPPLY) squad.SetAITask(ACR_EAITask.FREE);
-     m_ReinforceRetryAt.Set(squad, now + REINFORCE_RETRY_MS);
-     Say(string.Format("[ACR] AI %1: %2 gave up walking back to reinforce", m_sFaction, squad.GetName()));
+     ACR_Base walkedTo;
+     m_RefitWalkTo.Find(squad, walkedTo);
+     m_RefitWalkTo.Remove(squad);
+     float retryMs = NoteRefitGaveUp(squad, walkedTo, now);
+     m_ReinforceRetryAt.Set(squad, now + retryMs);
+     string baseName = "?";
+     if (walkedTo) baseName = walkedTo.m_sName;
+     Say(string.Format("[ACR] AI %1: %2 gave up walking back to reinforce at %3 (%4 in a row); next try in %5 s, elsewhere", m_sFaction, squad.GetName(), baseName, RefitGiveUps(squad), (int)(retryMs / 1000)));
      continue;
     }
     if (refitting && squad.m_Group && (squad.m_Group.GetCurrentWaypoint() || squad.MovePending())) continue;
@@ -6650,9 +6705,12 @@ class ACR_AICommander : Managed
     squad.SetAITask(ACR_EAITask.RESUPPLY);
     squad.SetMode(ACR_EMoveMode.FAST);
     Travel(squad, ACR_Manager.Ground(refit.GetOrigin()), false, 0);
+    m_RefitWalkTo.Set(squad, refit);
     Say(string.Format("[ACR] AI %1: depleted squad %2 (%3% strength) moving to %4 to reinforce", m_sFaction, squad.GetName(), (int)(squad.StrengthRatio() * 100), refit.m_sName));
     continue;
    }
+   m_RefitGiveUps.Remove(squad); // in a base's circle: a walk that got there ends the run of give-ups
+   m_RefitWalkTo.Remove(squad);
    // Arrived: the walk is over. Left on RESUPPLY while contact, a blocked relay or no RP held the
    // refill, it sat out of every defence of the base it stood in, for good (audit 31 Oct); free,
    // it is still refilled here once that clears.
@@ -9950,6 +10008,7 @@ class ACR_AICommander : Managed
   m_RetreatingUntil.Remove(squad);
   m_ReinforceRetryAt.Remove(squad);
   m_Refitting.Remove(squad);
+  ForgetRefit(squad);
   m_ForwardAt.Remove(squad);
   m_Trips.Remove(squad);
   if (m_ReserveSquad == squad) m_ReserveSquad = null;
@@ -9972,6 +10031,10 @@ class ACR_AICommander : Managed
   m_RetreatingUntil.Clear();
   m_ReinforceRetryAt.Clear();
   m_Refitting.Clear();
+  m_RefitWalkTo.Clear();
+  m_RefitGaveUpOn.Clear();
+  m_RefitGaveUpAt.Clear();
+  m_RefitGiveUps.Clear();
   m_Trips.Clear();
   m_ReserveSquad = null;
   m_iSaveForEntry = -1;

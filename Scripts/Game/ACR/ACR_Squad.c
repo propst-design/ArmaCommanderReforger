@@ -3452,7 +3452,13 @@ class ACR_Squad : Managed
   if (GetGame().GetWorld().GetWorldTime() < m_fNextWaypointRecovery) return;
   m_bRecoveryLast = false;
   string message = string.Format("%1 can't reach %2, holding", m_Name, ACR_Manager.Grid(m_MoveTarget));
-  PrintFormat("[ACR] MOVE %1: gave up after 4 recoveries at %2", m_Name, m_MoveTarget);
+  // Where the squad stood too: a squad stuck in a pocket fails every move from there, a target
+  // in one fails every squad (AI soak 7 Nov: the logs couldn't tell the two apart).
+  IEntity anchor = GetAnchor();
+  vector from = m_MoveTarget;
+  if (anchor) from = anchor.GetOrigin();
+  int off = vector.DistanceXZ(from, m_MoveTarget);
+  PrintFormat("[ACR] MOVE %1: gave up after 4 recoveries at %2 (the squad at %3, %4 m away)", m_Name, m_MoveTarget, from, off);
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (manager && m_iOrderedBy > 0) manager.Notify(m_iOrderedBy, message);
   m_iGaveUpMoveSerial = m_iOrderSerial;
