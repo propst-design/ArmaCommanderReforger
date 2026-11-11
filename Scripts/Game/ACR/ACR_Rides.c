@@ -176,6 +176,7 @@ class ACR_Rides : Managed
   if (FactionOf(squad) != faction) return "other side";
   if (squad.HasPlayer()) return "led by a player";
   if (RideOf(squad) || Unloading(squad)) return "already giving a ride";
+  if (squad.m_iAITask == ACR_EAITask.RESCUE) return "on an evac (zombie containment)";
   IEntity vehicle = ACR_Transport.CrewedVehicle(squad);
   if (!vehicle) return "no vehicle";
   // A fighting vehicle isn't a taxi for the AI's rides. A player's own Ride order may take one that

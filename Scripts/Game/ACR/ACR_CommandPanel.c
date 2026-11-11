@@ -44,6 +44,10 @@ enum ACR_EPanelAction
  BUILD_FOLD,
  UPGRADES_FOLD,
  MORE_FOLD,
+ EVAC,                    // containment: set an evac point (ACR_Evac)
+ TWOIC_EVAC,              // ... "I'm the 2IC" runs evacs or leaves them to the commander
+ TRUCE_OFFER,             // TvTvZ truce (ACR_Truce): offer or accept
+ TRUCE_REFUSE,            // ... refuse, withdraw or break
  DEBUG_TOGGLE = 50,
  DEBUG_THINK,             // the AC:A Think card (ACR_Think)
  DEBUG_ACTION = 60,       // + ACR_EDebug (below 100)
@@ -70,7 +74,8 @@ enum ACR_ECursorMode
  ROADBLOCK_L,
  BARRICADE,
  FORTIFY,
- QRF
+ QRF,
+ EVAC
 }
 
 // Arma Commander side panel on the fullscreen map. Built from script out of the
@@ -148,6 +153,8 @@ class ACR_CommandPanel : Managed
  protected Widget m_EstablishFobWidget;
  protected ref array<SCR_ButtonTextComponent> m_RoadblockButtons = {}; // by ACR_ERoadblockType
  protected SCR_ButtonTextComponent m_QrfButton;
+ protected SCR_ButtonTextComponent m_EvacButton;
+ protected Widget m_EvacRow;
  protected Widget m_RoadblockWidget;
  protected SCR_ButtonTextComponent m_PatrolButton;
  protected Widget m_MinesWidget;
@@ -243,6 +250,11 @@ class ACR_CommandPanel : Managed
   if (m_ReportText) { m_ReportText.SetVisible(false); AlignableSlot.SetPadding(m_ReportText, 0, 4, 0, 4); }
   m_RTSCameraButton = AddButton(m_MoreSection, "3D Camera  [F10]", ACR_EPanelAction.TOGGLE_RTS_CAMERA);
   m_KeyHintsButton = AddButton(m_MoreSection, "", ACR_EPanelAction.KEY_HINTS);
+  // Zombie containment under "I'm the 2IC" (#107): the server answers whether it applies.
+  AddButton(m_MoreSection, "2IC runs evacs: on/off", ACR_EPanelAction.TWOIC_EVAC);
+  // TvTvZ truce (#107): the server answers whether one can be had.
+  AddButton(m_MoreSection, "Truce: offer / accept", ACR_EPanelAction.TRUCE_OFFER);
+  AddButton(m_MoreSection, "Truce: refuse / break", ACR_EPanelAction.TRUCE_REFUSE);
   RefreshKeyHints();
   AddExtraRows(m_MoreSection);
   RefreshMore();
@@ -300,6 +312,10 @@ class ACR_CommandPanel : Managed
   Widget orders4 = ws.CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_OrderSection);
   m_PatrolButton = AddButton(orders4, "Patrol", ACR_EPanelAction.PATROL, true);
   m_QrfButton = AddButton(orders4, "QRF", ACR_EPanelAction.QRF, true);
+  // Containment only (#107): the evac row.
+  m_EvacRow = ws.CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_OrderSection);
+  m_EvacButton = AddButton(m_EvacRow, "Evac point", ACR_EPanelAction.EVAC, true);
+  if (m_EvacRow) m_EvacRow.SetVisible(false);
   m_ReinforceButton = AddButton(m_OrderSection, "Reinforce", ACR_EPanelAction.REINFORCE);
   // What a squad builds folds away: with it open and a squad selected the panel took most of the
   // screen and covered the game's hints (a player's report).
@@ -1019,6 +1035,11 @@ class ACR_CommandPanel : Managed
    if (cursorMode == ACR_ECursorMode.QRF) m_QrfButton.SetText("[QRF]");
    else m_QrfButton.SetText("QRF");
   }
+  if (m_EvacButton)
+  {
+   if (cursorMode == ACR_ECursorMode.EVAC) m_EvacButton.SetText("[Evac point]");
+   else m_EvacButton.SetText("Evac point");
+  }
   int armed = RoadblockOfMode(cursorMode);
   foreach (int type, SCR_ButtonTextComponent roadblockButton : m_RoadblockButtons)
   {
@@ -1314,6 +1335,12 @@ class ACR_CommandPanel : Managed
   if (buildingPct >= 0) fold += string.Format("  (%1%%)", buildingPct);
   if (ACR_UiPrefs.s_bUpgradesOpen) fold += "  [hide]";
   m_FobUpgradesFold.SetText(fold);
+ }
+
+ // The evac row, while zombie containment plays.
+ void SetEvac(bool visible)
+ {
+  if (m_EvacRow) m_EvacRow.SetVisible(visible);
  }
 
  void SetEstablishFob(bool visible)

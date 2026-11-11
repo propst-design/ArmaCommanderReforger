@@ -5,13 +5,14 @@
 //    the hive). It refills fast (GZ_GROW_MS) and sends hordes often (GZ_HORDE_MS), so the dead
 //    march out town by town; the towns they settle in grow and spread as ordinary nests. Outbreak's
 //    zombie cap stops it. Both sides are told where it started and mark it as a zombie area.
-//  - Survivors: a town a horde sets out for (not a raid, not one already nested) has people holed
-//    up in it: a site on both sides' maps ("Survivors (n)"). Any soldier of a side within
-//    RESCUE_RANGE with no zombie out within ZOMBIE_CLEAR rescues them: RP_EACH RP each for that
-//    side (capped like income). The horde arriving with nobody there: they join it (within the cap).
-//    A site nobody reaches goes quietly after SITE_MS (they made their own way out).
-//  - AI commanders send one squad at a time to the best site they can reach (ManageRescues), day or
-//    night; players race them for it.
+//  - Civilians: a town a horde sets out for (not a raid, not one already nested) has people holding
+//    out in it: a site on both sides' maps ("Civilians (n)"). They only get out through an evac
+//    point (ACR_Evac: XP, the walk, forced get-in, RP_EACH per civilian delivered to a held base).
+//    The horde arriving with no XP set and nobody there: they join it (within the cap). A site
+//    nobody evacuates goes quietly after SITE_MS (they made their own way out).
+//  - AI commanders run evacs with a free transport (ACR_AICommander.ManageEvacs), day or night;
+//    players race them for the civilians.
+//  - Airdrops: a supply pallet per side about every 12 min, recovered for RP (ACR_Airdrop).
 //  - Bounties: clearing a nest pays the sides near it RP_PER_ZOMBIE per zombie it could hold, ground
 //    zero RP_GROUND_ZERO (ACR_Outbreak.PackedUp). Both sides hear how far it has spread (Level).
 //  - Escalation (#240): left alone it gains a stage every 15 min and every nest regrows and spreads
@@ -27,9 +28,8 @@ class ACR_SurvivorSite : Managed
 
 class ACR_Containment
 {
- static const float RESCUE_RANGE = 75;     // m: a soldier this close to the site rescues them ...
- static const float ZOMBIE_CLEAR = 100;    // ... with no zombie out this close
- static const int RP_EACH = 5;             // RP per survivor rescued
+ static const float RESCUE_RANGE = 75;     // m: the ring a town holding out shows on the map
+ static const int RP_EACH = 5;             // RP per civilian delivered (ACR_Evac)
  static const int RP_PER_ZOMBIE = 2;       // a cleared nest pays this per zombie it could hold
  static const int RP_GROUND_ZERO = 60;     // ground zero cleared
  static const float SITE_MS = 2400000;     // a site nobody reaches goes after 40 min
@@ -63,7 +63,6 @@ class ACR_Containment
  protected static int s_iLevel;
  protected static int s_iStage;
  protected static float s_fStageAt;
- static int s_iRescued;   // survivors rescued this match, any side (tests)
  static int s_iLost;      // survivors the dead took (tests)
  static int s_iSitesMade; // sites made (tests)
 
@@ -81,7 +80,8 @@ class ACR_Containment
   s_iLevel = -1;
   s_iStage = 0;
   s_fStageAt = 0;
-  s_iRescued = 0;
+  ACR_Evac.Reset();
+  ACR_Airdrop.Reset();
   s_iLost = 0;
   s_iSitesMade = 0;
  }
@@ -126,7 +126,7 @@ class ACR_Containment
   foreach (string side : sides1)
   {
    ACR_Insurgency.MarkZombies(side, town.GetOrigin(), "");
-   Feed(side, string.Format("Outbreak reported at %1. Contain it, and get the survivors out", town.m_sName), town.GetOrigin());
+   Feed(side, string.Format("Outbreak reported at %1. Contain it, and evacuate the civilians", town.m_sName), town.GetOrigin());
   }
   // The towns nearest ground zero have people in them from the start.
   array<ACR_Base> near = {};
@@ -164,14 +164,20 @@ class ACR_Containment
   site.m_fSince = GetGame().GetWorld().GetWorldTime();
   s_aSites.Insert(site);
   s_iSitesMade++;
-  PrintFormat("[ACR] CONTAIN %1 survivors holed up at %2 (%3)", site.m_iCount, Where(site), ACR_Manager.Grid(pos));
+  PrintFormat("[ACR] CONTAIN %1 civilians holding out at %2 (%3)", site.m_iCount, Where(site), ACR_Manager.Grid(pos));
   array<string> sides2 = Sides();
-  foreach (string side : sides2) Feed(side, string.Format("Survivors holed up at %1 (%2). The dead are coming", Where(site), site.m_iCount), pos);
+  foreach (string side : sides2) Feed(side, string.Format("Civilians holding out at %1 (%2). The dead are coming: set an evac point near them", Where(site), site.m_iCount), pos);
  }
 
  static bool Has(ACR_SurvivorSite site)
  {
   return site != null && s_aSites.Contains(site);
+ }
+
+ // An evac point took the town's people out (ACR_Evac.Place): the site is no longer abstract.
+ static void Take(ACR_SurvivorSite site)
+ {
+  s_aSites.RemoveItem(site);
  }
 
  static int SiteCount() { return s_aSites.Count(); }
@@ -247,28 +253,16 @@ class ACR_Containment
    int add = Math.Min(site.m_iCount, Math.Max(0, room - joined));
    joined += add;
    s_iLost += site.m_iCount;
-   PrintFormat("[ACR] CONTAIN %1 overran the survivors at %2: %3 lost, %4 join it", horde.m_sName, Where(site), site.m_iCount, add);
+   PrintFormat("[ACR] CONTAIN %1 overran the civilians at %2: %3 lost, %4 join it", horde.m_sName, Where(site), site.m_iCount, add);
    array<string> sides4 = Sides();
-   foreach (string feedSide : sides4) Feed(feedSide, string.Format("The dead overran %1. %2 survivors lost", Where(site), site.m_iCount), site.m_vPos);
+   foreach (string feedSide : sides4) Feed(feedSide, string.Format("The dead overran %1. %2 civilians lost", Where(site), site.m_iCount), site.m_vPos);
    s_aSites.Remove(i);
   }
   return joined;
  }
 
- protected static void Rescue(ACR_Manager manager, ACR_SurvivorSite site, string side)
- {
-  int rp = Give(manager, side, site.m_iCount * RP_EACH);
-  s_iRescued += site.m_iCount;
-  PrintFormat("[ACR] CONTAIN %1 rescued %2 survivors at %3 (+%4 RP)", side, site.m_iCount, Where(site), rp);
-  Feed(side, string.Format("%1 survivors rescued at %2: +%3 RP", site.m_iCount, Where(site), rp), site.m_vPos);
-  array<string> sides5 = Sides();
-  foreach (string other : sides5)
-   if (other != side) Feed(other, string.Format("The enemy got the survivors out of %1", Where(site)), site.m_vPos);
-  s_aSites.RemoveItem(site);
- }
-
  // A zombie of ACA's nests out and alive within range of pos.
- protected static bool ZombiesNear(ACR_Manager manager, vector pos, float range)
+ static bool ZombiesNear(vector pos, float range)
  {
   foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
   {
@@ -314,6 +308,8 @@ class ACR_Containment
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager) return;
   if (s_iSeconds % 5 == 0) CheckSites(manager);
+  if (s_iSeconds % 2 == 0) ACR_Evac.Tick(manager);
+  ACR_Airdrop.Tick(manager, s_iSeconds);
   if (s_iSeconds % 60 == 0) Level(manager);
  }
 
@@ -325,17 +321,8 @@ class ACR_Containment
    ACR_SurvivorSite site = s_aSites[i];
    if (now - site.m_fSince > SITE_MS)
    {
-    PrintFormat("[ACR] CONTAIN the survivors at %1 made their own way out", Where(site));
+    PrintFormat("[ACR] CONTAIN the civilians at %1 made their own way out", Where(site));
     s_aSites.Remove(i);
-    continue;
-   }
-   if (ZombiesNear(manager, site.m_vPos, ZOMBIE_CLEAR)) continue;
-   array<string> sides6 = Sides();
-   foreach (string side : sides6)
-   {
-    if (!ACR_Outbreak.SideNear(manager, side, site.m_vPos, RESCUE_RANGE)) continue;
-    Rescue(manager, site, side);
-    break;
    }
   }
  }
@@ -375,7 +362,7 @@ class ACR_Containment
 
  // ---------------------------------------------------------------- shared
 
- protected static array<string> Sides()
+ static array<string> Sides()
  {
   array<string> sides = {};
   string west = ACR_FactionSelection.West();
@@ -385,7 +372,7 @@ class ACR_Containment
   return sides;
  }
 
- protected static void Feed(string side, string line, vector at)
+ static void Feed(string side, string line, vector at)
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager) return;
@@ -393,7 +380,7 @@ class ACR_Containment
   if (intel) intel.AddFeed(GetGame().GetWorld().GetWorldTime(), line, at);
  }
 
- // The side's command map: a ring per survivor site (ACR_MapFeed).
+ // The side's command map: a ring per town holding out, and the side's own evac points (ACR_MapFeed).
  static void Zones(string faction, notnull array<vector> positions, notnull array<float> radii, notnull array<string> labels)
  {
   if (!s_bOn || ACR_TvZ.IsAbsent(faction)) return;
@@ -401,7 +388,9 @@ class ACR_Containment
   {
    positions.Insert(site.m_vPos);
    radii.Insert(RESCUE_RANGE);
-   labels.Insert(string.Format("Survivors (%1)", site.m_iCount));
+   labels.Insert(string.Format("Civilians (%1)", site.m_iCount));
   }
+  ACR_Evac.Zones(faction, positions, radii, labels);
+  ACR_Airdrop.Zones(faction, positions, radii, labels);
  }
 }

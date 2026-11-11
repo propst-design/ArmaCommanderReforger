@@ -433,6 +433,7 @@ class ACR_MapFeed
    if (ACR_Fortify.CanFortify(squad)) mode |= 256; // + flag: can fortify
    if (squad && squad.m_bAICommanded) mode |= 1024; // + flag: handed to the AI (ACR_SquadAI)
    if (squad && squad.m_bPatrol) mode |= 512; // + flag: patrolling
+   if (squad && ACR_Containment.On()) mode |= 4096; // + flag: can set an evac point (zombie containment)
    frame.m_Symbols.Insert(mode); // 4 ints per group: icons, dimension, amplifier, move mode (+16 manned turret, +32 can establish FOB, +64 roadblock, +128 minefields, +256 fortify, +512 patrolling, +1024 handed to the AI, 2048 = a commander's command unit)
    int state = 0;
    if (ACR_Squad.FindController(leader) > 0) state = 1;

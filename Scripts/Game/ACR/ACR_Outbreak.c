@@ -157,6 +157,7 @@ class ACR_Outbreak
  {
   s_bOn = false;
   ACR_Containment.Reset();
+  ACR_Truce.Reset();
   s_aCounterAt.Clear();
   s_aCounterTime.Clear();
   s_iCounters = 0;

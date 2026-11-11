@@ -1618,6 +1618,9 @@ modded class SCR_PlayerController
   bool canMines = friendly && (modeAndFlags & 128) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
   if (!canMines && m_ACR_CursorMode >= ACR_ECursorMode.MINES_AP && m_ACR_CursorMode <= ACR_ECursorMode.DISARM_MINES)
    m_ACR_CursorMode = ACR_ECursorMode.MOVE;
+  bool canEvac = friendly && (modeAndFlags & 4096) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
+  if (!canEvac && m_ACR_CursorMode == ACR_ECursorMode.EVAC)
+   m_ACR_CursorMode = ACR_ECursorMode.MOVE;
   bool canFortify = friendly && (modeAndFlags & 256) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
   if (!canFortify && m_ACR_CursorMode == ACR_ECursorMode.FORTIFY)
    m_ACR_CursorMode = ACR_ECursorMode.MOVE;
@@ -1632,6 +1635,7 @@ modded class SCR_PlayerController
   else if (m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB) hint = "Right-click a clear site: establish forward base (click Establish FOB again to cancel)";
   else if (roadblock >= 0) hint = ACR_Roadblocks.Hint(roadblock, roadblockFaction);
   else if (m_ACR_CursorMode == ACR_ECursorMode.FORTIFY) hint = ACR_Fortify.Hint();
+  else if (m_ACR_CursorMode == ACR_ECursorMode.EVAC) hint = "Right-click within 600 m of a town holding out (Civilians ring): its people walk to that evac point, they go there; park a vehicle on it to load them, then drive them to a base (click Evac point again to cancel)";
   else if (m_ACR_CursorMode == ACR_ECursorMode.QRF) hint = "Right-click its post: it stands by there, goes after enemies your side spots within 300 m and comes back (click QRF again to cancel)";
   else if (m_ACR_CursorMode >= ACR_ECursorMode.MINES_AP && m_ACR_CursorMode <= ACR_ECursorMode.DISARM_MINES) hint = ACR_Minefields.Hint(ACR_Minefields.KindOfCursor(m_ACR_CursorMode)) + ACR_MineShapeHint();
   else hint = "Right-click: move there";
@@ -1659,6 +1663,7 @@ modded class SCR_PlayerController
   m_ACR_Panel.SetSquadAI(friendly && m_ACR_IsCommander && m_ACR_Data.m_Selected.Count() <= 1, (modeAndFlags & 1024) != 0);
   m_ACR_Panel.SetPatrol((modeAndFlags & 512) != 0);
   m_ACR_Panel.SetEstablishFob(canEstablishFob);
+  m_ACR_Panel.SetEvac(canEvac);
   m_ACR_Panel.SetRoadblock(canRoadblock, !ACR_Roadblocks.IsFia(roadblockFaction));
   m_ACR_Panel.SetMines(canMines);
   m_ACR_Panel.SetFortify(canFortify);
@@ -1725,6 +1730,10 @@ modded class SCR_PlayerController
    case ACR_EPanelAction.ROADBLOCK_L: ACR_ToggleCursor(ACR_ECursorMode.ROADBLOCK_L); return;
    case ACR_EPanelAction.BARRICADE: ACR_ToggleCursor(ACR_ECursorMode.BARRICADE); return;
    case ACR_EPanelAction.QRF: ACR_ToggleCursor(ACR_ECursorMode.QRF); return;
+   case ACR_EPanelAction.EVAC: ACR_ToggleCursor(ACR_ECursorMode.EVAC); return;
+   case ACR_EPanelAction.TWOIC_EVAC: ACR_Request(ACR_ERequest.TOGGLE_2IC_EVAC); return;
+   case ACR_EPanelAction.TRUCE_OFFER: ACR_Request(ACR_ERequest.TRUCE_OFFER); return;
+   case ACR_EPanelAction.TRUCE_REFUSE: ACR_Request(ACR_ERequest.TRUCE_REFUSE); return;
    case ACR_EPanelAction.MINES_AP: ACR_ToggleCursor(ACR_ECursorMode.MINES_AP); return;
    case ACR_EPanelAction.MINES_AT: ACR_ToggleCursor(ACR_ECursorMode.MINES_AT); return;
    case ACR_EPanelAction.MINES_MIXED: ACR_ToggleCursor(ACR_ECursorMode.MINES_MIXED); return;
@@ -1969,6 +1978,7 @@ modded class SCR_PlayerController
   if (m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB) command = ACR_ERequest.ORDER_ESTABLISH_FOB;
   if (m_ACR_CursorMode == ACR_ECursorMode.ROADBLOCK) command = ACR_ERequest.ORDER_ROADBLOCK;
   if (m_ACR_CursorMode == ACR_ECursorMode.QRF) command = ACR_ERequest.ORDER_QRF;
+  if (m_ACR_CursorMode == ACR_ECursorMode.EVAC) command = ACR_ERequest.ORDER_EVAC;
   if (m_ACR_CursorMode == ACR_ECursorMode.MINES_AP) command = ACR_ERequest.ORDER_MINES_AP;
   if (m_ACR_CursorMode == ACR_ECursorMode.MINES_AT) command = ACR_ERequest.ORDER_MINES_AT;
   if (m_ACR_CursorMode == ACR_ECursorMode.MINES_MIXED) command = ACR_ERequest.ORDER_MINES_MIXED;

@@ -10,7 +10,8 @@ enum ACR_EAITask
  MINES,     // laying a minefield on an approach (-acrMinesAI)
  FORTIFY,   // digging in or upgrading a position on an approach (-acrFortifyAI)
  SWEEP,     // clearing a road where FIA ambushed the side (ACR_Insurgency, #89)
- RESCUE     // getting survivors out of a town the dead are coming for (ACR_Containment, #107)
+ RESCUE,    // driving an evac: to the XP, loading, to a base (ACR_Evac, #107)
+ PALLET     // going for a supply pallet (ACR_Airdrop, #107)
 }
 
 enum ACR_ESapperDemoState
@@ -1171,7 +1172,9 @@ class ACR_AICommander : Managed
   t = ACR_Perf.Lap("ai.post", t);
   ManageLogistics();
   ManageDangerRoads();
-  ManageRescues();
+  ManageEvacs();
+  ManagePallets();
+  ManageTruce();
   ManageFobBuild();
   ManageFobUpgrades();
   int beforeBuild = m_Manager.m_Bases.GetRP(m_sFaction);
@@ -7417,48 +7420,277 @@ class ACR_AICommander : Managed
  }
  void ManageDangerRoadsForTest() { ManageDangerRoads(); }
 
- // Containment (ACR_Containment): one squad at a time goes for the survivor site with the most
- // people it can reach (the nearest free combat squad within SWEEP_REACH), day or night. The
- // rescue itself is ACR_Containment's (any soldier of the side close enough); the squad is freed
- // once the site is gone (rescued, overrun, or left), or as a sweeper would be.
- protected ACR_SurvivorSite m_RescueSite;
- protected ACR_Squad m_Rescuer;
- protected float m_fRescueSince;
+ // Containment evac (ACR_Evac): one evac at a time. A free transport (ACR_Rides.IsFreeTransport)
+ // near the town with the most people holding out sets an XP by the town and drives there (an XP
+ // of ours with people still on foot comes first). Loaded (no seat left, nobody left on foot, or
+ // EVAC_LOAD_MS with someone aboard), it drives to our nearest base with no zombie in it; they are
+ // delivered there (ACR_Evac pays on delivery) and it is free again. Under "I'm the 2IC" the
+ // commander can keep evacs to themselves (ACR_Evac.TwoICExtracts). In TvTvZ both AIs race for them.
+ static const float EVAC_REACH = 3000;     // m: a transport this close to the town goes
+ static const float EVAC_AT_XP = 40;       // m from the XP: arrived, loading
+ static const float EVAC_LOAD_MS = 240000; // leaves with whoever is aboard after this long
+ static const float EVAC_MAX_MS = 1500000; // the whole job, then it is given up
+ protected ACR_EvacPoint m_EvacPoint;
+ protected ACR_Squad m_EvacTaxi;
+ protected int m_iEvacPhase;               // 0 to the XP, 1 loading, 2 to a base
+ protected float m_fEvacSince;
+ protected float m_fEvacPhaseAt;
 
- protected void ManageRescues()
+ protected void ManageEvacs()
  {
   if (!ACR_Containment.On()) return;
   float now = GetGame().GetWorld().GetWorldTime();
-  if (m_Rescuer)
+  bool ours = !m_bTwoICAll || ACR_Evac.TwoICExtracts(m_sFaction);
+  if (m_EvacTaxi)
   {
-   bool going = ACR_Containment.Has(m_RescueSite) && m_Manager.m_Squads.Contains(m_Rescuer) && m_Rescuer.CountAlive() > 0 && !m_Rescuer.HasPlayer() && m_Rescuer.m_iAITask == ACR_EAITask.RESCUE && !m_Rescuer.GaveUpUnreachable() && now - m_fRescueSince <= SWEEP_MAX_MS;
-   if (going) return;
-   if (m_Rescuer.m_iAITask == ACR_EAITask.RESCUE) m_Rescuer.SetAITask(ACR_EAITask.FREE);
-   m_Rescuer = null;
-   m_RescueSite = null;
+   IEntity vehicle = ACR_Transport.CrewedVehicle(m_EvacTaxi);
+   bool going = ours && vehicle && m_Manager.m_Squads.Contains(m_EvacTaxi) && m_EvacTaxi.CountAlive() > 0 && !m_EvacTaxi.HasPlayer() && m_EvacTaxi.m_iAITask == ACR_EAITask.RESCUE && now - m_fEvacSince <= EVAC_MAX_MS;
+   string done = "";
+   if (!going) done = "called off";
+   else done = EvacStep(vehicle, now);
+   if (done.IsEmpty()) return;
+   Say(string.Format("[ACR] AI %1: evac by %2 ends (%3)", m_sFaction, m_EvacTaxi.GetName(), done));
+   if (m_EvacTaxi.m_iAITask == ACR_EAITask.RESCUE) m_EvacTaxi.SetAITask(ACR_EAITask.FREE);
+   m_EvacTaxi = null;
+   m_EvacPoint = null;
   }
-  ACR_SurvivorSite pick;
-  ACR_Squad squad;
-  for (int i = 0; i < ACR_Containment.SiteCount(); i++)
+  if (!ours || !m_Manager.m_Rides) return;
+  // An XP of ours with people waiting, else the town with the most people we can reach.
+  ACR_EvacPoint pick;
+  vector goal;
+  ACR_Squad taxi;
+  for (int x = 0; x < ACR_Evac.Count(); x++)
   {
-   ACR_SurvivorSite site = ACR_Containment.SiteAt(i);
-   if (pick && site.m_iCount <= pick.m_iCount) continue;
-   ACR_Squad near = FindSweeper(site.m_vPos);
+   ACR_EvacPoint open = ACR_Evac.At(x);
+   if (open.m_sSide != m_sFaction || ACR_Evac.OnFoot(open) == 0) continue;
+   ACR_Squad near = EvacTaxi(open.m_vPos);
    if (!near) continue;
-   pick = site;
+   pick = open;
+   taxi = near;
+   goal = open.m_vPos;
+   break;
+  }
+  int most = 0;
+  int town = -1;
+  if (!pick && ACR_Evac.CountFor(m_sFaction) < ACR_Evac.MOST_PER_SIDE)
+  {
+   for (int i = 0; i < ACR_Containment.SiteCount(); i++)
+   {
+    ACR_SurvivorSite site = ACR_Containment.SiteAt(i);
+    if (site.m_iCount <= most) continue;
+    ACR_Squad candidate = EvacTaxi(site.m_vPos);
+    if (!candidate) continue;
+    most = site.m_iCount;
+    town = i;
+    taxi = candidate;
+    goal = site.m_vPos;
+   }
+  }
+  if (!pick && town < 0) return;
+  if (!pick)
+  {
+   string why = ACR_Evac.Place(m_sFaction, goal, pick);
+   if (!why.IsEmpty() || !pick)
+   {
+    Say(string.Format("[ACR] AI %1: no evac at %2: %3", m_sFaction, ACR_Manager.Grid(goal), why));
+    return;
+   }
+  }
+  m_EvacPoint = pick;
+  m_EvacTaxi = taxi;
+  m_iEvacPhase = 0;
+  m_fEvacSince = now;
+  m_fEvacPhaseAt = now;
+  taxi.SetAITask(ACR_EAITask.RESCUE);
+  taxi.SetMode(ACR_EMoveMode.FAST);
+  Travel(taxi, pick.m_vPos, false, 0);
+  Say(string.Format("[ACR] AI %1: %2 drives to the evac point for %3 (%4)", m_sFaction, taxi.GetName(), pick.m_sTown, ACR_Manager.Grid(pick.m_vPos)));
+ }
+
+ // The free transport of ours nearest 'at' within EVAC_REACH, or null.
+ protected ACR_Squad EvacTaxi(vector at)
+ {
+  ACR_Squad best;
+  float bestDistance = EVAC_REACH;
+  foreach (ACR_Squad squad : m_Manager.m_Squads)
+  {
+   if (m_bHandedOnly && !squad.m_bAICommanded) continue;
+   if (!m_Manager.m_Rides.IsFreeTransport(squad, m_sFaction) || StuckLately(squad)) continue;
+   IEntity vehicle = ACR_Transport.CrewedVehicle(squad);
+   if (!vehicle || ACR_Rides.FreeSeats(vehicle) < 2) continue;
+   float d = vector.DistanceXZ(vehicle.GetOrigin(), at);
+   if (d < bestDistance) { bestDistance = d; best = squad; }
+  }
+  return best;
+ }
+
+ // One step of the evac under way: "" while it goes on, else why it ended.
+ protected string EvacStep(IEntity vehicle, float now)
+ {
+  int aboard;
+  if (m_EvacPoint) aboard = ACR_Evac.Aboard(m_EvacPoint, vehicle);
+  if (m_iEvacPhase == 0)
+  {
+   if (!ACR_Evac.Has(m_EvacPoint)) return "the evac point is gone";
+   if (m_EvacTaxi.GaveUpUnreachable()) return "can't reach the evac point";
+   if (vector.DistanceXZ(vehicle.GetOrigin(), m_EvacPoint.m_vPos) > EVAC_AT_XP) return "";
+   m_iEvacPhase = 1;
+   m_fEvacPhaseAt = now;
+   m_EvacTaxi.Halt("Loading civilians");
+   return "";
+  }
+  if (m_iEvacPhase == 1)
+  {
+   int onFoot;
+   if (ACR_Evac.Has(m_EvacPoint)) onFoot = ACR_Evac.OnFoot(m_EvacPoint);
+   bool leave = aboard > 0 && (ACR_Rides.FreeSeats(vehicle) == 0 || onFoot == 0 || now - m_fEvacPhaseAt > EVAC_LOAD_MS);
+   if (!leave)
+   {
+    if (aboard == 0 && (onFoot == 0 || now - m_fEvacPhaseAt > EVAC_LOAD_MS * 2)) return "nobody to load";
+    return "";
+   }
+   ACR_Base base = EvacBase(vehicle.GetOrigin());
+   if (!base) return "no base of ours clear of the dead";
+   m_iEvacPhase = 2;
+   m_fEvacPhaseAt = now;
+   Travel(m_EvacTaxi, base.GetOrigin(), false, 0);
+   Say(string.Format("[ACR] AI %1: %2 drives %3 civilians to %4", m_sFaction, m_EvacTaxi.GetName(), aboard, base.m_sName));
+   return "";
+  }
+  if (aboard == 0) return "delivered";
+  if (m_EvacTaxi.GaveUpUnreachable()) return "can't reach the base";
+  return "";
+ }
+
+ // Our base nearest 'at' with no zombie in it (ACR_Evac.DeliveryBase pays there), or null.
+ protected ACR_Base EvacBase(vector at)
+ {
+  ACR_Base best;
+  float bestDistance = float.MAX;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || base.m_bHidden || base.m_sOwner != m_sFaction) continue;
+   if (ACR_Containment.ZombiesNear(base.GetOrigin(), Math.Max(base.m_fRadius, 60))) continue;
+   float d = vector.DistanceXZ(base.GetOrigin(), at);
+   if (d < bestDistance) { bestDistance = d; best = base; }
+  }
+  return best;
+ }
+ void ManageEvacsForTest() { ManageEvacs(); }
+ // Containment airdrops (ACR_Airdrop): one combat squad at a time goes for the nearest pallet it may
+ // take (ours, or the enemy's while no truce holds: ACR_Airdrop.MayTake) within SWEEP_REACH; freed once
+ // the pallet is gone, or as a sweeper would be. Under "I'm the 2IC" the commander can keep pallets
+ // with evacs (ACR_Evac.TwoICExtracts).
+ protected ACR_Pallet m_PalletTarget;
+ protected ACR_Squad m_PalletSquad;
+ protected float m_fPalletSince;
+
+ protected void ManagePallets()
+ {
+  if (!ACR_Containment.On()) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  bool ours = !m_bTwoICAll || ACR_Evac.TwoICExtracts(m_sFaction);
+  if (m_PalletSquad)
+  {
+   bool going = ours && ACR_Airdrop.Has(m_PalletTarget) && ACR_Airdrop.MayTake(m_PalletTarget, m_sFaction) && m_Manager.m_Squads.Contains(m_PalletSquad) && m_PalletSquad.CountAlive() > 0 && !m_PalletSquad.HasPlayer() && m_PalletSquad.m_iAITask == ACR_EAITask.PALLET && !m_PalletSquad.GaveUpUnreachable() && now - m_fPalletSince <= SWEEP_MAX_MS;
+   if (going) return;
+   if (m_PalletSquad.m_iAITask == ACR_EAITask.PALLET) m_PalletSquad.SetAITask(ACR_EAITask.FREE);
+   m_PalletSquad = null;
+   m_PalletTarget = null;
+  }
+  if (!ours) return;
+  ACR_Pallet pick;
+  ACR_Squad squad;
+  float best = float.MAX;
+  for (int i = 0; i < ACR_Airdrop.Count(); i++)
+  {
+   ACR_Pallet pallet = ACR_Airdrop.At(i);
+   if (!ACR_Airdrop.MayTake(pallet, m_sFaction)) continue;
+   ACR_Squad near = FindSweeper(pallet.m_vPos);
+   if (!near) continue;
+   float d = vector.DistanceXZ(PositionOf(near), pallet.m_vPos);
+   if (pallet.m_sFor != m_sFaction) d += 500; // ours first
+   if (d >= best) continue;
+   best = d;
+   pick = pallet;
    squad = near;
   }
   if (!pick) return;
-  m_RescueSite = pick;
-  m_Rescuer = squad;
-  m_fRescueSince = now;
-  squad.SetAITask(ACR_EAITask.RESCUE);
+  m_PalletTarget = pick;
+  m_PalletSquad = squad;
+  m_fPalletSince = now;
+  squad.SetAITask(ACR_EAITask.PALLET);
   squad.SetMode(ACR_EMoveMode.COMBAT);
   Travel(squad, pick.m_vPos, false, 0);
-  Say(string.Format("[ACR] AI %1: %2 to rescue %3 survivors at %4", m_sFaction, squad.GetName(), pick.m_iCount, ACR_Manager.Grid(pick.m_vPos)));
+  string whose = "our";
+  if (pick.m_sFor != m_sFaction) whose = "the enemy's";
+  Say(string.Format("[ACR] AI %1: %2 goes for %3 supply pallet at %4", m_sFaction, squad.GetName(), whose, ACR_Manager.Grid(pick.m_vPos)));
  }
- void ManageRescuesForTest() { ManageRescues(); }
- ACR_Squad RescuerForTest() { return m_Rescuer; }
+ void ManagePalletsForTest() { ManagePallets(); }
+ ACR_Squad PalletSquadForTest() { return m_PalletSquad; }
+ // Truce (ACR_Truce, TvTvZ): an AI commander in command of its side accepts an offer, or offers one, when
+ // the dead press its bases or it is losing; it refuses otherwise. It breaks a truce that has held
+ // ACR_Truce.MIN_HOLD_MS once the dead are under control and it is ahead. The 2IC leaves the truce to
+ // the commanding player.
+ protected void ManageTruce()
+ {
+  if (m_bTwoICAll || m_bHandedOnly || !ACR_Truce.Possible()) return;
+  bool pressed = DeadPress();
+  int standing = Standing();
+  int state = ACR_Truce.State();
+  if (state == ACR_ETruce.OFFERED && ACR_Truce.By() != m_sFaction)
+  {
+   string reply;
+   if (pressed || standing < 0) reply = ACR_Truce.Offer(m_sFaction);
+   else reply = ACR_Truce.Refuse(m_sFaction);
+   Say(string.Format("[ACR] AI %1: truce offer answered (dead pressing %2, standing %3): %4", m_sFaction, pressed, standing, reply));
+   return;
+  }
+  if (state == ACR_ETruce.NONE && pressed && standing <= 0)
+  {
+   string offered = ACR_Truce.Offer(m_sFaction);
+   if (offered == "Truce offered") Say(string.Format("[ACR] AI %1: offers a truce (dead pressing, standing %2)", m_sFaction, standing));
+   return;
+  }
+  if (state == ACR_ETruce.HOLDS && ACR_Truce.HeldMs() >= ACR_Truce.MIN_HOLD_MS && !pressed && standing > 0 && ACR_Containment.LevelForTest() <= 1)
+  {
+   ACR_Truce.Break(m_sFaction);
+   Say(string.Format("[ACR] AI %1: breaks the truce (dead under control, standing %2)", m_sFaction, standing));
+  }
+ }
+
+ // The dead press us: zombies in or near a base of ours, or the outbreak out of control (level 3+).
+ protected bool DeadPress()
+ {
+  if (ACR_Containment.On() && ACR_Containment.LevelForTest() >= 3) return true;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || base.m_sOwner != m_sFaction) continue;
+   if (ACR_Containment.ZombiesNear(base.GetOrigin(), base.m_fRadius + 300)) return true;
+  }
+  return false;
+ }
+
+ // Bases held against the other living side: +1 ahead (two more), -1 losing (two fewer), 0 even.
+ protected int Standing()
+ {
+  int ours;
+  int theirs;
+  array<string> sides = ACR_Containment.Sides();
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || base.m_sOwner.IsEmpty() || !sides.Contains(base.m_sOwner)) continue;
+   if (base.m_sOwner == m_sFaction) ours++;
+   else theirs++;
+  }
+  if (ours >= theirs + 2) return 1;
+  if (ours + 2 <= theirs) return -1;
+  return 0;
+ }
+ void ManageTruceForTest() { ManageTruce(); }
+ bool TruceWantsForTest() { return DeadPress() || Standing() < 0; }
+ ACR_Squad EvacTaxiForTest() { return m_EvacTaxi; }
+ int EvacPhaseForTest() { return m_iEvacPhase; }
 
  // A service vehicle that gave up stuck (ACR_Squad.m_fStuckAt: holding where it is) waits before
  // it is sent anywhere again, as Recrew does. Jacob's 26 Oct game: an arsenal truck stuck by its
@@ -9369,7 +9601,8 @@ class ACR_AICommander : Managed
   if (task == ACR_EAITask.MINES) return "laying mines";
   if (task == ACR_EAITask.FORTIFY) return "digging in";
   if (task == ACR_EAITask.SWEEP) return "clearing a road";
-  if (task == ACR_EAITask.RESCUE) return "rescuing survivors";
+  if (task == ACR_EAITask.RESCUE) return "running an evac";
+  if (task == ACR_EAITask.PALLET) return "recovering a supply pallet";
   if (task == ACR_EAITask.ATTACK) return "attacking" + at;
   return "in reserve";
  }
