@@ -4137,7 +4137,7 @@ class ACR_Squad : Managed
     m_iUnsticks = 0;
     m_iReroutes = 0;
     NoteStuck(vehicle, now);
-    PrintFormat("[ACR] DRIVE %1: stuck, holding position (armed vehicle)", m_Name);
+    PrintFormat("[ACR] DRIVE %1: stuck, holding position (armed vehicle) at %2", m_Name, DriveSpot(vehicle));
     return;
    }
    if (m_iReroutes < REROUTE_TRIES && Reroute(vehicle))
@@ -4155,7 +4155,7 @@ class ACR_Squad : Managed
   // Never reverse into a vehicle right behind: plan again from here instead.
   if (VehicleNear(vehicle, false, QUEUE_BEHIND))
   {
-   PrintFormat("[ACR] DRIVE %1: stuck, a vehicle right behind, planning again instead of backing up (try %2)", m_Name, m_iUnsticks);
+   PrintFormat("[ACR] DRIVE %1: stuck, a vehicle right behind, planning again instead of backing up (try %2) at %3", m_Name, m_iUnsticks, DriveSpot(vehicle));
    m_StallPos = vehicle.GetOrigin();
    m_fStallSince = now;
    if (!m_sOrderPrefab.IsEmpty())
@@ -4167,6 +4167,31 @@ class ACR_Squad : Managed
    return;
   }
   BeginUnstick(vehicle, driver);
+ }
+
+ // Where a vehicle stopped, for the DRIVE lines (AI driving study, 10 Nov): the 6 Nov logs had no
+ // position, so holds couldn't be split into bridges, towns, hills and off-road. Grid, metres from
+ // the nearest road, a deck (bridge, overpass: well above the ground), pitch, and the nearest base.
+ static string DriveSpot(IEntity vehicle)
+ {
+  if (!vehicle) return "?";
+  vector at = vehicle.GetOrigin();
+  string road = "no road within 100 m";
+  ChimeraAIWorld aiWorld = ChimeraAIWorld.Cast(GetGame().GetAIWorld());
+  RoadNetworkManager roads;
+  if (aiWorld) roads = aiWorld.GetRoadNetworkManager();
+  if (roads)
+  {
+   BaseRoad nearest;
+   float off;
+   roads.GetClosestRoad(at, nearest, off);
+   if (nearest && off < 6) road = "on a road";
+   else if (nearest && off < 100) road = string.Format("%1 m off the road", (int)off);
+  }
+  string deck = "";
+  if (at[1] - GetGame().GetWorld().GetSurfaceY(at[0], at[2]) > 2.5) deck = ", on a deck or bridge";
+  vector angles = vehicle.GetAngles();
+  return string.Format("%1 (%2%3, pitch %4, %5)", ACR_Manager.Grid(at), road, deck, (int)Math.AbsFloat(angles[0]), ACR_CivilianSocket.PlaceName(at));
  }
 
  // Another ACA vehicle within range, ahead of this one (toward its target) and nearly stopped, or
@@ -4249,7 +4274,7 @@ class ACR_Squad : Managed
   {
    m_bMoveFailRerouted = true;
    m_iReroutes++;
-   PrintFormat("[ACR] DRIVE %1: move failed (%2), crew stays aboard, falling back to road hops", m_Name, why);
+   PrintFormat("[ACR] DRIVE %1: move failed (%2), crew stays aboard, falling back to road hops at %3", m_Name, why, DriveSpot(vehicle));
    return;
   }
   // The engine reports a stuck vehicle about once a second: say it once per order.
@@ -4321,7 +4346,7 @@ class ACR_Squad : Managed
   foreach (vector leg : legs) m_aRoute.Insert(leg);
   m_Route = order;
   NextLeg();
-  PrintFormat("[ACR] DRIVE %1: stuck, re-routed over the roads (%2 hops)", m_Name, legs.Count());
+  PrintFormat("[ACR] DRIVE %1: stuck, re-routed over the roads (%2 hops) at %3", m_Name, legs.Count(), DriveSpot(vehicle));
   return true;
  }
 
@@ -4343,7 +4368,7 @@ class ACR_Squad : Managed
   m_iReroutes = 0;
   NoteStuck(vehicle, now);
   if (vehicle) ACR_Transport.SanitizeVehicleHorn(vehicle, true);
-  PrintFormat("[ACR] DRIVE %1: stuck, crew stays aboard and holds", m_Name);
+  PrintFormat("[ACR] DRIVE %1: stuck, crew stays aboard and holds at %2", m_Name, DriveSpot(vehicle));
  }
 
  // A living, conscious member of this squad is getting in or out of a vehicle, or is on foot
@@ -4374,7 +4399,7 @@ class ACR_Squad : Managed
   if (!m_UnstickListener) m_UnstickListener = new ACR_SquadUnstick(this);
   // BBB_Unstick parks the driver's AI and reverses (inputs applied every frame).
   BBB_Unstick.Begin(vehicle, driver, steer, m_UnstickListener);
-  PrintFormat("[ACR] DRIVE %1: stuck, backing up (try %2)", m_Name, m_iUnsticks);
+  PrintFormat("[ACR] DRIVE %1: stuck, backing up (try %2) at %3", m_Name, m_iUnsticks, DriveSpot(vehicle));
  }
 
  // Backing out is over (BBB_Unstick has given the driver his AI back).
@@ -4401,7 +4426,7 @@ class ACR_Squad : Managed
  // carries on to its destination on foot; otherwise it takes cover where it is.
  protected void Bail(IEntity vehicle, string why, bool resume)
  {
-  PrintFormat("[ACR] DRIVE %1: %2, crew bails out", m_Name, why);
+  PrintFormat("[ACR] DRIVE %1: %2, crew bails out at %3", m_Name, why, DriveSpot(vehicle));
   if (vehicle) ACR_Transport.SanitizeVehicleHorn(vehicle, true);
   // Handbrake on: from Reforger 1.9 the automatic gearbox drops a driverless vehicle into neutral, and an
   // abandoned truck rolled 40 m downhill into the BTR its crew had just bailed out from (pak:mannersevade).
