@@ -2553,6 +2553,7 @@ class ACR_Squad : Managed
    }
   }
   UnflipWatch(now, contact);
+  HoldRetryWatch(now);
   DriveWatch(now, contact);
   CheckTacticalDismount(now, contact);
  }
@@ -4506,6 +4507,10 @@ class ACR_Squad : Managed
  protected void StuckHold(IEntity vehicle, float now)
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
+  // Saved to try again later (HoldRetryWatch). Not a ride: it ends with this hold, its riders walk on.
+  bool ride = manager && manager.m_Rides && (manager.m_Rides.RideOf(this) || manager.m_Rides.Unloading(this));
+  ACR_OrderSnapshot retry = null;
+  if (!ride && !HasPlayer()) retry = OrderToRetry();
   if (manager)
   {
    array<ACR_Squad> riders = {};
@@ -4513,6 +4518,15 @@ class ACR_Squad : Managed
    foreach (ACR_Squad rider : riders) if (rider != this && !rider.HasPlayer()) rider.DismountNow();
   }
   Halt("Stuck, holding");
+  // The same trip as last time counts its retries on; a new destination starts again.
+  if (retry && vector.DistanceXZ(retry.m_Target, m_vHoldRetryGoal) > STUCK_LEFT_M) m_iHoldRetries = 0;
+  m_HoldRetryOrder = null;
+  if (retry && m_iHoldRetries < HOLD_RETRIES)
+  {
+   m_HoldRetryOrder = retry;
+   m_vHoldRetryGoal = retry.m_Target;
+   m_iHoldRetrySerial = m_iOrderSerial;
+  }
   m_iStuckCount++;
   m_StallVehicle = null;
   m_iUnsticks = 0;
@@ -4520,6 +4534,72 @@ class ACR_Squad : Managed
   NoteStuck(vehicle, now);
   if (vehicle) ACR_Transport.SanitizeVehicleHorn(vehicle, true);
   PrintFormat("[ACR] DRIVE %1: stuck, crew stays aboard and holds at %2", m_Name, DriveSpot(vehicle));
+ }
+
+ // A soft vehicle that gave up tries again (AI driving study, 10 Nov). "Stuck, holding" used to last
+ // until someone gave it a new order: 62 of 139 stuck episodes in Jacob's 6 Nov game ended there, a
+ // truck parked for good on the road it had stalled on. After HOLD_RETRY_MS, out of contact, its trip
+ // is issued again from where it stands (the game plans afresh; DriveWatch backs up and re-routes as
+ // before), at most HOLD_RETRIES times for the same destination. Any new order ends the wait. Armed
+ // vehicles still hold and fight; rides don't retry (riders already walked on).
+ static const float HOLD_RETRY_MS = 180000;
+ static const int HOLD_RETRIES = 2;
+ protected ref ACR_OrderSnapshot m_HoldRetryOrder;
+ protected vector m_vHoldRetryGoal;
+ protected int m_iHoldRetrySerial;
+ int m_iHoldRetries;
+
+ static bool HoldRetryDue(float now, float stuckAt, int retriesDone)
+ {
+  return retriesDone < HOLD_RETRIES && now - stuckAt >= HOLD_RETRY_MS;
+ }
+
+ // The trip in hand: its final destination when it is on road legs (Reroute), else the order.
+ protected ACR_OrderSnapshot OrderToRetry()
+ {
+  ResourceName prefab = m_sOrderPrefab;
+  vector goal = m_MoveTarget;
+  float radius = m_fOrderRadius;
+  if (m_Route && !m_aRoute.IsEmpty())
+  {
+   prefab = m_Route.m_sPrefab;
+   radius = m_Route.m_fRadius;
+   goal = m_aRoute[m_aRoute.Count() - 1];
+  }
+  if (prefab.IsEmpty() || goal == vector.Zero) return null;
+  ACR_EOrderState state = OrderState();
+  if (state == ACR_EOrderState.HOLD || state == ACR_EOrderState.NONE) return null;
+  return ACR_OrderSnapshot.Make(prefab, goal, radius, m_Order, state, m_OrderKind);
+ }
+
+ protected void HoldRetryWatch(float now)
+ {
+  if (!m_HoldRetryOrder) return;
+  if (m_iOrderSerial != m_iHoldRetrySerial || HasPlayer() || m_iUnflipStage > 0)
+  {
+   m_HoldRetryOrder = null; // given another order meanwhile
+   return;
+  }
+  if (!HoldRetryDue(now, m_fStuckAt, m_iHoldRetries)) return;
+  IEntity vehicle = ACR_Transport.CrewedVehicle(this);
+  if (!vehicle || !CrewAboard(vehicle)) return; // its crew isn't all aboard: wait (Recrew or a new order)
+  ChimeraCharacter driver = DriverOf(vehicle);
+  if (!driver || !ACR_Respawn.IsAlive(driver) || FindController(driver) != 0) return;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (manager && manager.IsGunnerDriven(vehicle)) return;
+  if (KnownEnemies(300) > 0 || BBB_Transport.VehicleHitRecently(vehicle, 6000)) return;
+  float fuel = ACR_Logistics.Fuel(vehicle);
+  if (fuel >= 0 && fuel < 0.02) return;
+  if (SCR_AIVehicleUsability.IsVehicleFlipped(vehicle)) return;
+  ACR_OrderSnapshot order = m_HoldRetryOrder;
+  m_HoldRetryOrder = null;
+  m_iHoldRetries++;
+  m_StallVehicle = null;
+  m_iUnsticks = 0;
+  m_iReroutes = 0;
+  // An internal re-issue: the serial stays (a new order from anyone else still shows).
+  RestoreOrder(order);
+  PrintFormat("[ACR] DRIVE %1: stuck hold, trying again (%2 of %3) to %4 from %5", m_Name, m_iHoldRetries, HOLD_RETRIES, ACR_Manager.Grid(order.m_Target), DriveSpot(vehicle));
  }
 
  // A living, conscious member of this squad is getting in or out of a vehicle, or is on foot

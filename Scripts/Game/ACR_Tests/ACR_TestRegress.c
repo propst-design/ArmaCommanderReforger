@@ -210,7 +210,7 @@ class ACR_TestRegress
  }
 
  // Checks a full run makes (Skip counts as made). Raise it with every new check.
- static const int EXPECTED = 163; // includes one stuck-taxi check, three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
+ static const int EXPECTED = 164; // includes one stuck-taxi and one hold-retry check, three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
  static SCR_AIGroup s_RecoveryGroup;
  static SCR_AIGroup s_BoardingGroup;
  static SCR_AIGroup s_CancelBoardingGroup;
@@ -1319,6 +1319,11 @@ class ACR_TestRegress
     crew.m_fStuckAt = stuckAt;
     crew.m_vStuckPos = stuckPos;
     Check("a truck that gave up stuck gives no rides until it has moved on", !whyStuck.IsEmpty() && whyMoved.IsEmpty(), string.Format("stuck here '%1', moved since '%2'", whyStuck, whyMoved));
+    float holdAt = 1000000;
+    bool waitsFirst = !ACR_Squad.HoldRetryDue(holdAt + ACR_Squad.HOLD_RETRY_MS - 1000, holdAt, 0);
+    bool triesThen = ACR_Squad.HoldRetryDue(holdAt + ACR_Squad.HOLD_RETRY_MS, holdAt, 0);
+    bool stopsAfter = !ACR_Squad.HoldRetryDue(holdAt + 10 * ACR_Squad.HOLD_RETRY_MS, holdAt, ACR_Squad.HOLD_RETRIES);
+    Check("a stuck hold tries again after a while, a limited number of times", waitsFirst && triesThen && stopsAfter, string.Format("waits %1, tries %2, stops after %3 %4", waitsFirst, triesThen, ACR_Squad.HOLD_RETRIES, stopsAfter));
    }
    if (crew && crew.m_OwnVehicle) VehicleDoorsCheck(crew.m_OwnVehicle);
   }
