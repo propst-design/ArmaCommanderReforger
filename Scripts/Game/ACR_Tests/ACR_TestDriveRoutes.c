@@ -35,7 +35,7 @@ class ACR_TestDriveRoutes
    PrintFormat("[ACR] DRIVEROUTES scripted driver %1", BBB_Drive.s_bOn);
   }
   // Driving, not fighting: anyone not on the trucks' side is removed (the test range has garrisons).
-  if (tick % 5 == 2) ClearOthers(h);
+  if (tick % 5 == 2) ClearOthers(tick);
   if (tick == 3)
   {
    PickRoutes();
@@ -55,7 +55,7 @@ class ACR_TestDriveRoutes
    {
     ACR_DriveRouteRun run = new ACR_DriveRouteRun();
     run.m_iRoute = j + 1;
-    run.m_Squad = h.NamedSquad(manager, string.Format("Route Truck %1", j + 1));
+    run.m_Squad = Named(manager, string.Format("Route Truck %1", j + 1));
     if (run.m_Squad) run.m_Vehicle = ACR_Transport.CrewedVehicle(run.m_Squad);
     run.m_vGoal = s_aTo[j];
     if (run.m_Vehicle)
@@ -105,7 +105,14 @@ class ACR_TestDriveRoutes
  }
 
  static int s_iCleared;
- static void ClearOthers(ACR_TestHarness h)
+ // On the test range from the harness (h), elsewhere from ACR_TestHooks.ScenarioSecond (h null).
+ static ACR_Squad Named(ACR_Manager manager, string name)
+ {
+  foreach (ACR_Squad squad : manager.m_Squads) if (squad.GetName() == name) return squad;
+  return null;
+ }
+
+ static void ClearOthers(int tick)
  {
   AIWorld world = GetGame().GetAIWorld();
   if (!world) return;
@@ -118,10 +125,10 @@ class ACR_TestDriveRoutes
    if (!body || !ACR_Respawn.IsAlive(body)) continue;
    FactionAffiliationComponent aff = FactionAffiliationComponent.Cast(body.FindComponent(FactionAffiliationComponent));
    if (!aff || !aff.GetAffiliatedFaction() || aff.GetAffiliatedFaction().GetFactionKey() == ours) continue;
-   h.Kill(body);
+   body.GetCharacterController().ForceDeath();
    s_iCleared++;
   }
-  if (s_iCleared > 0 && h.m_Ticks % 30 == 2) PrintFormat("[ACR] DRIVEROUTES cleared %1 others so far", s_iCleared);
+  if (s_iCleared > 0 && tick % 30 == 2) PrintFormat("[ACR] DRIVEROUTES cleared %1 others so far", s_iCleared);
  }
 
  static float FrameUs()

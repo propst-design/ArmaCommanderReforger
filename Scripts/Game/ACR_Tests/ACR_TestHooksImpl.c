@@ -70,6 +70,8 @@ modded class ACR_TestHooks
   if (System.IsCLIParam("acrPlaceAuditTest") || System.IsCLIParam("acrPlaceAuditOldTest")) ACR_TestPlaceAudit.Run(seconds);
   // -acrVoidSpawnTest: soldiers never placed in sealed spaces (ACR_TestVoidSpawn).
   if (System.IsCLIParam("acrVoidSpawnTest")) ACR_TestVoidSpawn.Run(seconds);
+  // -acrDriveRoutesTest / -acrDriveRoutesBBBTest off the test range (Everon, Chernarus): BBB driver A/B.
+  if (!m_Harness && (System.IsCLIParam("acrDriveRoutesTest") || System.IsCLIParam("acrDriveRoutesBBBTest"))) ACR_TestDriveRoutes.Run(null, seconds);
   // -acrTruckParkTest: where idle service trucks wait at a base (ACR_TestTruckPark).
   if (System.IsCLIParam("acrTruckParkTest")) ACR_TestTruckPark.Run(seconds);
   if (System.IsCLIParam("acrPartsTest")) ACR_TestParts.Run(seconds);
