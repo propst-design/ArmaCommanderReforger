@@ -176,6 +176,26 @@ class ACR_TestDecks
    if (!kept.m_bCustom && !ACR_DeckRules.Locked(kept) && kept.m_sName != plain[0].m_sName) onlyDeck = false;
   ACR_TestRegress.Check("deck: a handed-in deck is the buy list: its card, its custom team, the locked trucks", hasCustom && hasFirst && onlyDeck && answer.Contains("A Card No Mod Has"), string.Format("%1 | %2 | applied: %3", answer, Names(data.m_aRequisitions), ACR_Decks.Applied(west)));
 
+  // 8. Ownership and 9. ride stock (review of #238): in their own methods, as Run is at the
+  // engine's limit of 64 local variables.
+  CheckOwnership(west, plain);
+  CheckRareRide(west, mine, pool, plain, stepped);
+
+  // 7. Decks off: today's list.
+  ACR_Options.Set("acrDecks", "0");
+  manager.m_Bases.ForgetFactions();
+  data = manager.m_Bases.GetFaction(west);
+  ACR_TestRegress.Check("deck: decks off leaves today's list", Names(data.m_aRequisitions) == Names(plain), string.Format("%1 vs %2 cards", data.m_aRequisitions.Count(), plain.Count()));
+
+  ACR_Options.Unset("acrDecks");
+  ACR_Options.Unset("acrDeckPoints");
+  ACR_Options.Unset(ACR_Decks.OptionFor(west));
+  ACR_Decks.Reset();
+  manager.m_Bases.ForgetFactions();
+  ACR_TestRegress.Complete("deck", CHECKS);
+ }
+ protected static void CheckOwnership(string west, array<ref ACR_RequisitionEntry> plain)
+ {
   // 8. Ownership (review of #238): a player's deck is an offer. On auto the host's deck still
   // decides; the row picks the player's. Nothing is taken after Start.
   ACR_DeckData offered = new ACR_DeckData();
@@ -201,7 +221,10 @@ class ACR_TestDecks
   string lateAnswer = ACR_Decks.Accept(0, offered.ToText(), true, true);
   bool fiaOwn = ACR_Decks.OptionFor("FIA") == "" || ACR_FactionSelection.West() == "FIA" || ACR_FactionSelection.East() == "FIA";
   ACR_TestRegress.Check("deck: no hand-in after Start; FIA has no deck row of its own side's", ACR_Decks.Submitted().Count() == countBefore && lateAnswer.Contains("has started") && fiaOwn, lateAnswer);
+ }
 
+ protected static void CheckRareRide(string west, ACR_CustomCard mine, array<ref ACR_DeckSoldier> pool, array<ref ACR_RequisitionEntry> plain, bool stepped)
+ {
   // 9. A custom team riding a rare vehicle (fixed stock) is rare with no more than the ride's stock,
   // and its purchases take the ride card's stock (ACR_Requisition.RideOf).
   ACR_RequisitionEntry rareRide;
@@ -221,20 +244,8 @@ class ACR_TestDecks
    bool rareOk = carriedEntry && carriedEntry.m_bRare && !carriedEntry.m_bStepped && carriedEntry.m_iStock <= rareRide.m_iStock && carriedEntry.m_iRemaining <= rareRide.m_iRemaining && ACR_Requisition.RideOf(rideData, carriedEntry) == rareRide;
    ACR_TestRegress.Check("deck: a custom team on a rare ride is rare, within the ride's stock, and shares it", rareOk, string.Format("%1: %2", rareRide.m_sName, carriedError));
   }
-
-  // 7. Decks off: today's list.
-  ACR_Options.Set("acrDecks", "0");
-  manager.m_Bases.ForgetFactions();
-  data = manager.m_Bases.GetFaction(west);
-  ACR_TestRegress.Check("deck: decks off leaves today's list", Names(data.m_aRequisitions) == Names(plain), string.Format("%1 vs %2 cards", data.m_aRequisitions.Count(), plain.Count()));
-
-  ACR_Options.Unset("acrDecks");
-  ACR_Options.Unset("acrDeckPoints");
-  ACR_Options.Unset(ACR_Decks.OptionFor(west));
-  ACR_Decks.Reset();
-  manager.m_Bases.ForgetFactions();
-  ACR_TestRegress.Complete("deck", CHECKS);
  }
+
 
  protected static array<ref ACR_RequisitionEntry> AIDeck(string faction, ACR_FactionSettings settings)
  {
