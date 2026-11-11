@@ -1,9 +1,10 @@
 // -acrSkillBBBTest 1 (server-capable, under a minute): ACA's every-second skill and spotting update lets
 // Better Battle Buddies' Settings-tab values through (ACR_BBBHooks.ModeSkill). With a BBB preset setting
 // skill Expert and spotting 2: an ACA soldier gets them instead of the mode's (-acrSkill, -acrReaction);
-// a pinned soldier keeps his pin; with the preset gone, the mode's values come back.
+// a pinned soldier keeps his pin; with the preset gone, the mode's values come back. VERDICT: 5 checks.
 class ACR_TestSkillBBB
 {
+ static const int CHECKS = 5;
  static ref BBB_Preset s_Preset;
 
  protected static SCR_AICombatComponent Combat(ACR_TestHarness h, int index)
@@ -24,7 +25,7 @@ class ACR_TestSkillBBB
   {
    SCR_AICombatComponent combat = Combat(h, 0);
    ACR_TestRegress.Check("skill bbb: a soldier to test", combat != null);
-   if (!combat) { Print("[ACR] TEST COMPLETE"); return; }
+   if (!combat) { ACR_TestRegress.Complete("skillbbb", CHECKS); return; }
    ACR_AISkill.Apply(combat, h.Squad().m_Group, manager.m_iAISkill, manager.m_fAIPerception);
    int modeSkill = combat.GetAISkill();
    float modeReaction = combat.GetPerceptionFactor();
@@ -57,7 +58,7 @@ class ACR_TestSkillBBB
    s_Preset.Delete();
    BBB_Settings.s_bTestPick = false;
    BBB_Settings.Invalidate();
-   Print("[ACR] TEST COMPLETE");
+   ACR_TestRegress.Complete("skillbbb", CHECKS);
   }
  }
 }

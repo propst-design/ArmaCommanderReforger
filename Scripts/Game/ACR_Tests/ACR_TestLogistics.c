@@ -1,4 +1,6 @@
 // Requisition, logistics, supplies, spawn spot, cleanup and launcher tests (split out of ACR_TestHarness, 2 Oct).
+// VERDICT lines (ACR_TestRegress): supplies 4, launcher 4. Requisition, logistics (service trucks), spawn spot
+// and cleanup only log what happens (no verdict).
 class ACR_TestLogistics : Managed
 {
  protected ACR_TestHarness h;
@@ -196,6 +198,7 @@ class ACR_TestLogistics : Managed
    string outline;
    if (building && building.GetOutlineManager() && editable) outline = building.GetOutlineManager().GetCompositionOutline(editable);
    PrintFormat("[ACR] SUPPLY CHECK placed compositions get a build outline: %1 (%2)", !outline.IsEmpty(), outline);
+   ACR_TestRegress.Check("supplies: placed compositions get a build outline", !outline.IsEmpty(), outline);
    // A player takes gear from the arsenal: the game's own consume path.
    m_fSuppliesBefore = ACR_Logistics.GameSupplies(m_ArsenalTruck);
    SCR_ResourceComponent resources = SCR_ResourceComponent.FindResourceComponent(m_ArsenalTruck);
@@ -207,7 +210,9 @@ class ACR_TestLogistics : Managed
   {
    LogSupplies("arsenal after visit", m_ArsenalTruck);
    float stock = manager.m_Logistics.StockOf(m_ArsenalTruck);
-   PrintFormat("[ACR] SUPPLY CHECK player use reaches the stock: %1 (stock %2, expected about %3)", Math.AbsFloat(stock - (ACR_Logistics.CAPACITY_AMMO - 200 / ACR_Logistics.SUPPLIES_PER_LOAD_AMMO)) < 0.6, stock, ACR_Logistics.CAPACITY_AMMO - 200 / ACR_Logistics.SUPPLIES_PER_LOAD_AMMO);
+   bool stockFollows = Math.AbsFloat(stock - (ACR_Logistics.CAPACITY_AMMO - 200 / ACR_Logistics.SUPPLIES_PER_LOAD_AMMO)) < 0.6;
+   PrintFormat("[ACR] SUPPLY CHECK player use reaches the stock: %1 (stock %2, expected about %3)", stockFollows, stock, ACR_Logistics.CAPACITY_AMMO - 200 / ACR_Logistics.SUPPLIES_PER_LOAD_AMMO);
+   ACR_TestRegress.Check("supplies: player use reaches the stock", stockFollows, string.Format("stock %1", stock));
    // The AI resupplies from the ammo truck: 10 loads.
    manager.m_Logistics.Use(m_SupplyAmmoTruck, 10);
   }
@@ -215,12 +220,15 @@ class ACR_TestLogistics : Managed
   {
    LogSupplies("ammo after AI use", m_SupplyAmmoTruck);
    float expected = (ACR_Logistics.CAPACITY_AMMO - 10) * ACR_Logistics.SUPPLIES_PER_LOAD_AMMO;
-   PrintFormat("[ACR] SUPPLY CHECK AI use reaches the game supplies: %1 (supplies %2, expected %3)", Math.AbsFloat(ACR_Logistics.GameSupplies(m_SupplyAmmoTruck) - expected) < 1, ACR_Logistics.GameSupplies(m_SupplyAmmoTruck), expected);
+   bool suppliesFollow = Math.AbsFloat(ACR_Logistics.GameSupplies(m_SupplyAmmoTruck) - expected) < 1;
+   PrintFormat("[ACR] SUPPLY CHECK AI use reaches the game supplies: %1 (supplies %2, expected %3)", suppliesFollow, ACR_Logistics.GameSupplies(m_SupplyAmmoTruck), expected);
+   ACR_TestRegress.Check("supplies: AI use reaches the game supplies", suppliesFollow, string.Format("supplies %1, expected %2", ACR_Logistics.GameSupplies(m_SupplyAmmoTruck), expected));
    LogSupplies("arsenal steady", m_ArsenalTruck);
    LogSupplies("engineer steady", m_EngineerTruck);
    bool full = ACR_Logistics.GameSupplies(m_EngineerTruck) >= ACR_Logistics.CAPACITY_CONSTRUCTION * ACR_Logistics.SUPPLIES_PER_LOAD_CONSTRUCTION - 1;
    PrintFormat("[ACR] SUPPLY CHECK construction truck full of supplies: %1", full);
-   Print("[ACR] TEST COMPLETE");
+   ACR_TestRegress.Check("supplies: construction truck full of supplies", full, ACR_Logistics.GameSupplies(m_EngineerTruck).ToString());
+   ACR_TestRegress.Complete("supplies", 4);
   }
  }
 
@@ -324,7 +332,12 @@ class ACR_TestLogistics : Managed
     }
     if (m_LauncherMan) break;
    }
-   if (!m_LauncherMan) { Print("[ACR] LAUNCHERTEST no soldier with a disposable launcher found"); return; }
+   if (!m_LauncherMan)
+   {
+    Print("[ACR] LAUNCHERTEST no soldier with a disposable launcher found");
+    ACR_TestRegress.Abort("launcher", "no soldier with a disposable launcher");
+    return;
+   }
    IEntity tube = BBB_Launchers.DisposableOf(m_LauncherMan);
    BaseWeaponComponent weapon = BaseWeaponComponent.Cast(tube.FindComponent(BaseWeaponComponent));
    PrintFormat("[ACR] LAUNCHERTEST soldier has %1 with %2 round(s)", ACR_Vehicles.NameOf(tube), BBB_Launchers.Loaded(tube));
@@ -341,6 +354,8 @@ class ACR_TestLogistics : Managed
   if (h.m_Ticks == 16 && m_LauncherMan)
   {
    PrintFormat("[ACR] LAUNCHERTEST dropped %1 (want 1), still carries one: %2 (want 0), owed: %3", BBB.s_Launchers.m_iDropped, BBB_Launchers.DisposableOf(m_LauncherMan) != null, manager.m_Launchers.IsOwed(m_LauncherMan));
+   ACR_TestRegress.Check("launcher: the emptied tube is dropped", BBB.s_Launchers.m_iDropped == 1, BBB.s_Launchers.m_iDropped.ToString());
+   ACR_TestRegress.Check("launcher: he no longer carries it", BBB_Launchers.DisposableOf(m_LauncherMan) == null);
    PrintFormat("[ACR] LAUNCHERTEST rearm: %1", manager.m_Launchers.Rearm(m_LauncherMan));
   }
   if (h.m_Ticks == 20 && m_LauncherMan)
@@ -348,8 +363,12 @@ class ACR_TestLogistics : Managed
    IEntity fresh = BBB_Launchers.DisposableOf(m_LauncherMan);
    int rounds = -1;
    if (fresh) rounds = BBB_Launchers.Loaded(fresh);
-   PrintFormat("[ACR] LAUNCHERTEST after rearm: has launcher %1 (want 1), rounds %2 (want 1)", fresh != null, rounds);
+   // BBB_Launchers.Loaded counts the muzzle and its magazine, so a loaded tube reads 2 (BBB documents
+   // it in BBB_LauncherInfantryTest; game callers only ask > 0).
+   PrintFormat("[ACR] LAUNCHERTEST after rearm: has launcher %1 (want 1), rounds %2 (want > 0)", fresh != null, rounds);
+   ACR_TestRegress.Check("launcher: a rearm gives him a launcher back", fresh != null);
+   ACR_TestRegress.Check("launcher: the new launcher is loaded", rounds > 0, rounds.ToString());
   }
-  if (h.m_Ticks == 22) Print("[ACR] TEST COMPLETE");
+  if (h.m_Ticks == 22) ACR_TestRegress.Complete("launcher", 4);
  }
 }

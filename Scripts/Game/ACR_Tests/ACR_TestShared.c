@@ -3,13 +3,15 @@
 //  -acrSharedTest 1 (needs the game) orders credited to their commander, Halt,
 //                   override warning, pings (map, picker, HUD), the support link,
 //                   selections, the spending log, with the command map open.
+// Each check is an ACR_TestRegress check; VERDICT: tags 19, shared 17.
 class ACR_TestShared
 {
+ static const int CHECKS_TAGS = 19;
+ static const int CHECKS_SHARED = 17;
+
  static void Check(string name, bool ok, string detail = "")
  {
-  string verdict = "FAIL";
-  if (ok) verdict = "PASS";
-  PrintFormat("[ACR] SHARED %1 %2 %3", verdict, name, detail);
+  ACR_TestRegress.Check(name, ok, detail);
  }
 
  static string Tags(array<string> names)
@@ -95,7 +97,7 @@ class ACR_TestShared
    string parts = "";
    foreach (string section, int bytes : frame.m_Bytes) { total += bytes; parts += string.Format(" %1=%2", section, bytes); }
    Check("feed frame built", frame.m_PingIds.Count() == 2 && total > 0, string.Format("%1 bytes:%2", total, parts));
-   Print("[ACR] TEST COMPLETE");
+   ACR_TestRegress.Complete("tags", CHECKS_TAGS);
   }
  }
 
@@ -260,6 +262,6 @@ class ACR_TestShared
    ACR_PingDisplay.ShowHoldHint(ACR_EPing.LOOK);
    ACR_PingDisplay.ShowHoldHint(-1);
   }
-  if (tick == 64) Print("[ACR] TEST COMPLETE");
+  if (tick == 64) ACR_TestRegress.Complete("shared", CHECKS_SHARED);
  }
 }
