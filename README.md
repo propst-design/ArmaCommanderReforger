@@ -72,6 +72,18 @@ alone does not add one.
 mortar, artillery, air and recon support. Threat level, pricing, starting RP, income and caps
 are setup-screen choices.
 
+**Decks.** Each side buys from a deck: cards picked from its faction's whole catalogue within a
+points budget (100, 150 or 250 by threat level, or the setup screen's **Deck points** row). The
+standard deck is the usual buy list, whatever its points; the catalogue also has extra kitted teams (RHS and the
+Ukrainian forces mod), and you can make your own **custom cards**: a team of your faction's own
+soldiers, two to twelve men, optionally with its own ride. Press **F3** on the map, or during
+match setup, to open the deck builder: decks are saved in your profile, **Copy code** and
+**Paste code** share them, and **Hand in** offers one for the match. The host's **Blue deck** /
+**Red deck** rows pick what each side plays (any player's handed-in deck is listed there): left on
+auto, a side plays the latest deck the host handed in for it, else the standard deck; **AI picks** has the side's AI commander build its own from its
+company and doctrine. A buy list fixed by the
+mission overrides any deck, and the **Decks** row turns them off.
+
 **FOBs.** **Establish FOB** with a squad and a construction truck carrying 500 supplies: pick a
 clear site and keep the squad there for the 90-second build. A FOB's store starts empty
 (1,000 supplies); order 500 supplies for 20 RP, delivered after 60 uncontested seconds. Its
@@ -113,6 +125,7 @@ Open the command map with **F9** (no map item needed) or the game map with **M**
 | F6 (driver, pilot or commander of a vehicle) | Drop every passenger squad now (a second press within 3 s overrides the "too high/fast" warning) |
 | F10 | RTS 3D camera (H hides its UI, F follows the selected squad, W/A/S/D pans, F9 goes straight back to the map) |
 | F11 | Second-in-command panel on the map (with `-acr2IC 1`) |
+| F3 | Deck builder (on the map, and during match setup) |
 | W/A/S/D in a turret | Gunner drive with an AI driver (a map order hands control back) |
 | Ping (unbound by default) | Tap to mark where you look, hold to pick a ping |
 | Command menu key (default: backtick) | Native squad orders, only while possessing a squad leader |

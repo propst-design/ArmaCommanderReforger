@@ -214,6 +214,16 @@ class ACR_Requisition : Managed
   return result;
  }
 
+ // A custom team's ride card in this side's list, or null (no ride, or its card isn't in the deck:
+ // then the custom card carries the vehicle's own stock, ACR_DeckCatalog.CustomEntry).
+ static ACR_RequisitionEntry RideOf(ACR_FactionData data, ACR_RequisitionEntry entry)
+ {
+  if (!data || !entry || !entry.m_bCustom || entry.m_sRide.IsEmpty()) return null;
+  foreach (ACR_RequisitionEntry other : data.m_aRequisitions)
+   if (other != entry && !other.m_bCustom && other.m_sName == entry.m_sRide) return other;
+  return null;
+ }
+
  // Shared by the player commander and the AI commander.
  // hasSpot: the commander clicked a point in the base ring; the unit appears there
  // (the AI commander and old callers get a random clear point in the ring).
@@ -223,6 +233,9 @@ class ACR_Requisition : Managed
   if (entryIndex < 0 || entryIndex >= data.m_aRequisitions.Count()) return "Unknown unit";
   ACR_RequisitionEntry entry = data.m_aRequisitions[entryIndex];
   if (entry.m_iRemaining <= 0) return entry.m_sName + ": none left";
+  // A custom team's ride comes out of its vehicle card's stock (deck builder, #106).
+  ACR_RequisitionEntry ride = RideOf(data, entry);
+  if (ride && ride.m_iRemaining <= 0) return string.Format("%1: no %2 left for its ride", entry.m_sName, ride.m_sName);
   if (!base || base.m_sOwner != key) return "Deploy at one of your own bases";
   if (base.m_bHqLost) return base.m_sName + "'s HQ is destroyed: an Establish FOB order rebuilds it";
   if (ACR_LogisticsRules.RelayBlocked(base)) return base.m_sName + " needs a completed friendly radio relay inside its circle before deploying new units";
@@ -243,6 +256,11 @@ class ACR_Requisition : Managed
   purchase.m_Entry = entry;
   purchase.m_iPaid = entry.m_iCost;
   entry.m_iRemaining--;
+  if (ride)
+  {
+   ride.m_iRemaining--;
+   purchase.m_Ride = ride;
+  }
   entry.m_iBought++;
   entry.m_iNamed++;
   ACR_Pricing.Reprice(entry);
@@ -399,6 +417,8 @@ class ACR_Requisition : Managed
    SetUnitFaction(spawned, faction);
    purchase.m_Group = spawned;
    spawned.SetCustomName(name, 0);
+   // A custom team with its own transport gets in (ACR_DeckCatalog.CustomEntry).
+   if (vehicle && purchase.m_Entry && purchase.m_Entry.m_bBoard) m_Manager.m_PendingBoarding.Set(spawned, vehicle);
   }
   if (!passengers.IsEmpty())
   {
@@ -498,6 +518,7 @@ class ACR_Requisition : Managed
    entry.m_iBought = Math.Max(0, entry.m_iBought - 1);
    ACR_Pricing.Reprice(entry);
   }
+  if (purchase.m_Ride) purchase.m_Ride.m_iRemaining++;
   purchase.m_bRefunded = true;
   PrintFormat("[ACR] PURCHASE %1 failed (%2): %3 RP refunded, next %4 RP", purchase.m_sName, why, purchase.m_iPaid, entry.m_iCost);
  }

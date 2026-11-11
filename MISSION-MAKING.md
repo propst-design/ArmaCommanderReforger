@@ -480,6 +480,16 @@ Low/Normal and 4 on High. `FIXED_STOCK`: the older system, every unit has
 its `m_iStock` per match (scaled by threat level) at a fixed price. The host can override it with
 `-acrPricing`.
 
+**Decks.** With decks on (the default), each side's automatic buy list becomes a deck: the cards a side may
+buy, picked from its faction's catalogue (the automatic list above, plus extra kitted teams for the RHS and
+Ukrainian factions) within a points budget. A card costs its base price / 3 in points (special forces x1.5,
+service and construction trucks free and always in). The budget is 100 / 150 / 250 by threat level, or
+`-acrDeckPoints`; it limits decks players build and the AI's own deck, never the standard deck (the automatic
+list as it is). Players build decks in game (F3) and hand them in; `-acrDeckWest` / `-acrDeckEast` pick
+what each side plays. Players can add custom cards: teams of the faction's own soldiers (2-12 men, priced
+by role), optionally riding a transport card (a rare ride keeps its own stock, shared with its card). **A hand-picked `m_aRequisitions` list overrides any deck**,
+as do `-acrDecks 0` and the setup screen's Decks row.
+
 #### Requisition entry (`m_aRequisitions`)
 
 Click **+** to add an item. Choose its infantry group and vehicle (if any) from the prefab browser.
@@ -998,6 +1008,9 @@ mission makers and server operators; players choose match settings in game.
 | `-acrCoveredFallBack 1` / `0` | On by default from 0.5.13 (off with `-acrAICommander classic`). A squad the AI commander pulls back under fire bounds back toward its refuge in covered halves (Better Battle Buddies' ordered withdrawal) instead of fighting where it stands; if it gains under 10 m in 30 s under fire it runs for it. Needs Better Battle Buddies with ordered withdrawal |
 | `-acrCompanyWest <company>` / `-acrCompanyEast <company>` | The blue / red side's company, its starting kit given at Start to an AI commander or a player side: `rifle` (default, no kit), `mechanized` (an APC or IFV in place of the starting truck), `weapons` (a mortar team and a forward observer team), `engineers` (two tier I Fortify positions at its front bases) or `recon` (two recon teams). A kit is bought at list price out of the side's starting RP. The setup screen's Economy tab has the same rows (Blue company / Red company). The log names each kit (`COMPANY KIT <side>:`) |
 | `-acrUnitCap N` | AI commander squad cap for every side (overrides `m_iAIUnitCap`) |
+| `-acrDecks 0` | Turns decks off: every side buys from its whole automatic list, as before decks (default on; setup screen: Economy tab, Decks) |
+| `-acrDeckPoints N` | The budget in points for decks players build and for the AI's own deck (default by threat: 100 low, 150 normal, 250 high; `0` unlimited). Over budget, the dearest card of the role with the most cards is dropped until the deck fits. The standard deck is never trimmed |
+| `-acrDeckWest <deck>` / `-acrDeckEast <deck>` | What the blue / red side plays: `standard` (the automatic list as it is), `ai` (the AI builds one from its company and doctrine, the same for the same match seed) or empty/auto (the latest deck the host or an admin handed in for that faction, else `standard`). The setup screen's Blue deck / Red deck rows also list every deck a player handed in during setup, for the host to pick. The log names each side's deck and cards (`DECK <faction>:`) |
 | `-acrThreat low` / `normal` / `high` | Threat level. Low: prices climb +25% per purchase (stepped pricing; finite stock in either mode: half the infantry stock, a third of the vehicles, at least one each), 0.75x soldier limit, 0.6x AI squad cap, one AI attack at a time, AI buys few vehicles. High: prices climb +8% (finite stock in either mode: rare units get quadruple base stock, other units double stock), 1.5x soldier limit and AI squad cap, one more AI attack at a time. Normal: +15%, nothing else changes |
 | `-acrSize full` / `half` / `quarter` / `flashpoint` | Skirmish size: the whole map (default) or a random `ACR_Skirmish` layout of that size. Hand-built worlds without a matching layout play in full; generated layouts support all four sizes |
 | `-acrPockets few` / `many` / `off` | FIA pockets of resistance (default few with the setup screen, off without it): on whole-map and half-map battles, neutral bases away from both starting bases start held by an FIA garrison (villages 4-6 men, industry 6-8, military sites 8-10 plus a 2-man patrol). Few = 7 on a whole map, 3 on a half; many = 12 / 6; never on flashpoints, or when FIA plays a main side. Other sides see a pocket as unclaimed until one of their units comes within 400 m. Whoever clears one captures the base |

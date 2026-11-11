@@ -230,6 +230,8 @@ class ACR_Manager : Managed
   ACR_Report.Reset();
   ACR_Setup.Reset();
   ACR_SetupClient.Reset();
+  ACR_DeckClient.Reset();
+  ACR_Decks.Reset();
   ACR_FactionSelection.Reset();
   ACR_PlayerSide.Reset();
   ACR_Vehicles.Reset();
@@ -1398,6 +1400,7 @@ class ACR_Manager : Managed
  void OnFrame()
  {
   ACR_SetupClient.Frame();
+  ACR_DeckClient.Frame();
   SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
   if (pc && !pc.GetControlledEntity()) pc.ACR_UpdateSetupMap();
   if (pc) pc.ACR_UpdateDeathTransition(0);
