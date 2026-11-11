@@ -5815,6 +5815,9 @@ class ACR_AICommander : Managed
   m_ScreenAgain.Set(post.m_Base, now + SCREEN_AGAIN_MS);
   squad.SetMode(ACR_EMoveMode.FAST);
   Travel(squad, post.m_Base.GetOrigin(), true, 0);
+  // Pulled back with the enemy close or men lost: a fall-back, so BBB bounds it back in covered halves
+  // (as FallBack does; it was left for after the covered fall-back merge, #232).
+  if (ACR_Squad.CoveredFallBackOn()) squad.MarkFallBack(ACR_Manager.Ground(post.m_Base.GetOrigin()));
   squad.SetAITask(ACR_EAITask.DEFEND);
   squad.m_AITarget = post.m_Base;
   Say(string.Format("[ACR] AI %1: screen %2 pulls back to %3 (%4)", m_sFaction, squad.GetName(), post.m_Base.m_sName, why));
