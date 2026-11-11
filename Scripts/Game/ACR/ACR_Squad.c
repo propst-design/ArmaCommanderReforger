@@ -2696,8 +2696,9 @@ class ACR_Squad : Managed
   return true;
  }
 
- // Covered fall-back is experimental and off by default (Jacob, 5 Nov): -acrCoveredFallBack 1.
- static bool CoveredFallBackOn() { return ACR_LogisticsRules.Choice("acrCoveredFallBack", "0") == "1"; }
+ // Covered fall-back: on by default from 0.5.13 (#232; off in 0.5.9-0.5.12): -acrCoveredFallBack 0 or the
+ // classic commander (ACR_AIRework) turns it off.
+ static bool CoveredFallBackOn() { return ACR_LogisticsRules.Choice("acrCoveredFallBack", ACR_AIRework.Default("1")) == "1"; }
 
  // The order just given is the AI commander's fall-back to this point (call after issuing it).
  void MarkFallBack(vector to)

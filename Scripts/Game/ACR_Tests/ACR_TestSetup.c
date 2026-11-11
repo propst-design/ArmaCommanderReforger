@@ -5,7 +5,7 @@
 // Start applies them (threat high reaches the game, starting units spawn).
 class ACR_TestSetup
 {
- static const int CHECKS = 27;
+ static const int CHECKS = 28;
  protected static int s_iStartedAt = -1;
 
  static bool Wanted() { return System.IsCLIParam("acrSetupTest"); }
@@ -84,7 +84,7 @@ class ACR_TestSetup
    ACR_TestRegress.Check("setup: the map preview is on the first tab with the battlefield", ACR_SetupDialog.Tab("map") == 0 && ACR_SetupDialog.Tab("seed") == 0 && ACR_SetupDialog.Tab("layout") == 0 && rows.Contains("map\t") && rows.IndexOf("map\t") < rows.IndexOf("pockets\t"), "");
    // The Experimental tab (5 Nov): every row there, off by default, drives its host option, and says
    // what it does in at most two lines that fit under the rows.
-   array<string> experimental = {"strategy", "allocator", "forecast", "coveredfallback", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
+   array<string> experimental = {"periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
    int expDriven;
    int expHelped;
    string expWrong;
@@ -106,6 +106,14 @@ class ACR_TestSetup
    }
    ACR_TestRegress.Check("setup: the Experimental tab's rows start off and drive their host options", expDriven == experimental.Count(), expWrong);
    ACR_TestRegress.Check("setup: every Experimental row says what it does in two short lines", expHelped == experimental.Count(), expWrong);
+   // The AI commander rework (#232) left the Experimental tab: one Command row, new by default, classic
+   // turns all four parts off (ACR_AIRework).
+   bool aiNew = ACR_Setup.Current("aicommander") == "new" && ACR_SetupDialog.Tab("aicommander") == 1 && rows.Contains("aicommander\t") && !rows.Contains("allocator\t");
+   bool partsOn = ACR_AILanes.On() && ACR_AICommander.AllocatorMode() == 2 && ACR_DefenceForecast.Acts() && ACR_Squad.CoveredFallBackOn();
+   ACR_Setup.SetValue("aicommander", "classic");
+   bool partsOff = ACR_Setup.Current("aicommander") == "classic" && !ACR_AILanes.On() && ACR_AICommander.AllocatorMode() == 0 && !ACR_DefenceForecast.On() && !ACR_Squad.CoveredFallBackOn();
+   ACR_Options.Unset("acrAICommander");
+   ACR_TestRegress.Check("setup: the AI commander row (Command tab) is new by default, classic turns lanes, allocator, forecast and fall-back off", aiNew && partsOn && partsOff, string.Format("row %1, parts on %2, classic off %3", aiNew, partsOn, partsOff));
    ACR_MissionHeader logisticsHeader = new ACR_MissionHeader();
    logisticsHeader.m_sAcrDeployment = "military";
    logisticsHeader.m_sAcrReinforcement = "deployment";

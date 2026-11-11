@@ -1220,7 +1220,8 @@ class ACR_AICommander : Managed
  protected int m_iAllocAgree, m_iAllocDiffer, m_iAllocTicks;
 
  static const float ALLOC_DROP_COOLDOWN = 120; // s before an attack the allocator called off is weighed again
- static int AllocatorMode() { return Math.ClampInt(ACR_LogisticsRules.Choice("acrAIAllocator", "0").ToInt(), 0, 2); }
+ // 2 by default (#232), 0 with the classic commander (ACR_AIRework).
+ static int AllocatorMode() { return Math.ClampInt(ACR_LogisticsRules.Choice("acrAIAllocator", ACR_AIRework.Default("2")).ToInt(), 0, 2); }
  // -acrAIAllocator 2: the allocator assigns the combat jobs (in place of AssignAttacks and PostIdle).
  bool AllocatorControls() { return AllocatorMode() == 2 && !m_bHandedOnly; }
 

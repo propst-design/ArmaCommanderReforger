@@ -8,7 +8,7 @@ class ACR_TestLanes
   CheckGeometry();
   CheckScores();
   CheckDoctrines();
-  // Lanes are off by default (-acrAIStrategy 1 turns them on): the commander checks need them on.
+  // Lanes are on by default (#232); set them on anyway so a host flag can't change what this checks.
   ACR_Options.Set("acrAIStrategy", "1");
   CheckCommander(manager);
   ACR_Options.Unset("acrAIStrategy");
@@ -63,13 +63,19 @@ class ACR_TestLanes
   bool rush = ACR_AIDoctrine.Find("blitz").m_fRushMinutes < ACR_AIDoctrine.Find("balanced").m_fRushMinutes;
   ACR_TestRegress.Check("lanes: doctrines fight down a lane (Raider raids everywhere), Fortress guards flanks hardest", used && raider && fronts && works && rush, "");
 
-  bool offByDefault = !ACR_AILanes.On();
-  ACR_Options.Set("acrAIStrategy", "1");
-  bool on = ACR_AILanes.On();
+  // On by default from 0.5.13 (#232); -acrAIStrategy 0 or the classic commander turns them off, and the
+  // part's own flag wins over the classic switch.
+  bool onByDefault = ACR_AILanes.On();
   ACR_Options.Set("acrAIStrategy", "0");
   bool off = !ACR_AILanes.On();
   ACR_Options.Unset("acrAIStrategy");
-  ACR_TestRegress.Check("lanes: off by default, -acrAIStrategy 1 turns them on", offByDefault && on && off && !ACR_AILanes.On(), "");
+  ACR_Options.Set("acrAICommander", "classic");
+  bool classicOff = !ACR_AILanes.On();
+  ACR_Options.Set("acrAIStrategy", "1");
+  bool flagWins = ACR_AILanes.On();
+  ACR_Options.Unset("acrAIStrategy");
+  ACR_Options.Unset("acrAICommander");
+  ACR_TestRegress.Check("lanes: on by default, -acrAIStrategy 0 or -acrAICommander classic turns them off", onByDefault && off && classicOff && flagWins && ACR_AILanes.On(), string.Format("default %1, flag off %2, classic off %3, flag over classic %4", onByDefault, off, classicOff, flagWins));
  }
 
  // On the test range: once the rush is over, a commander picks a lane from a base it holds toward

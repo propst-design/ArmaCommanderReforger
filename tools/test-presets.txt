@@ -63,6 +63,8 @@ alloc2perf|-acrAllocControlPerfTest 1|260|Worlds/ACR_Arland.ent
 alloc2perfeveron|-acrAllocControlPerfTest 1|260|Worlds/ACR_Everon.ent
 alloc2soak|-acrAllocControlSoakTest 1|1380|Worlds/ACR_Everon.ent
 alloc2longsoak|-acrAllocControlLongSoakTest 1|7380|Worlds/ACR_Everon.ent
+classicsoak|-acrClassicSoakTest 1|1380|Worlds/ACR_Everon.ent
+classiclongsoak|-acrClassicLongSoakTest 1|7380|Worlds/ACR_Everon.ent
 crewold|-acrCrewOldTest 1|120
 bbbaim|-acrBbbAimTest 1|3000
 bbbsuppress|-acrBbbSuppressTest 1|1200
