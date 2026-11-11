@@ -6,7 +6,8 @@
 // XP by one has its people walk out with a few left behind, a running helicopter by it is heard,
 // a US truck parked on it gets them aboard, and brought to the US HQ they pay on delivery; a horde
 // reaching civilians with nobody there takes them; an AI commander sets an XP and sends a free
-// truck (kept out of rides meanwhile); ground zero's bounty and the RP cap; a town taken near a nest is counterattacked
+// truck (kept out of rides meanwhile); airdrops: a pallet lands in the open, its side recovers it,
+// the other side can steal one, the AI sends a squad for one; ground zero's bounty and the RP cap; a town taken near a nest is counterattacked
 // (once per place); the spread is reported; messages name towns (#241); left alone it escalates and
 // hordes stay 15+ (#240).
 class ACR_TestContainment
@@ -14,10 +15,13 @@ class ACR_TestContainment
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const ResourceName HELI = "{70BAEEFC2D3FEE64}Prefabs/Vehicles/Helicopters/UH1H/UH1H.et";
- static const int EXPECTED = 21;
+ static const int EXPECTED = 25;
  protected static ACR_DefenderPost s_Zero;
  protected static ref ACR_EvacPoint s_Evac; // ref: a finished XP leaves the list
  protected static IEntity s_Heli;
+ protected static ref ACR_Pallet s_Pallet;  // ref: a recovered pallet leaves the list
+ protected static ref ACR_Pallet s_Theirs;
+ protected static ref ACR_Pallet s_AIPallet;
  protected static int s_iTownPeople;
  protected static float s_fFootBefore;
  protected static string s_sHome;
@@ -47,6 +51,10 @@ class ACR_TestContainment
   if (second == 84) AIEvac(manager);
   if (second == 86) Bounty(manager);
   if (second == 88) Counterattack();
+  if (second == 90) PalletSetup(manager);
+  if (second == 104) PalletChecks(manager);
+  if (second == 106) AIPalletSetup(manager);
+  if (second == 118) AIPallet(manager);
   if (second == 130) Spread();
  }
 
@@ -251,6 +259,52 @@ class ACR_TestContainment
  {
   ACR_Outbreak.s_fWalkScaleForTest = 1;
   Check("containment: a horde reaching civilians nobody guards takes them", ACR_Containment.s_iLost > s_iLostBefore, string.Format("lost %1 -> %2", s_iLostBefore, ACR_Containment.s_iLost));
+ }
+
+ // Airdrops (ACR_Airdrop): a US pallet with a US team at it, a Soviet pallet with a US team at it.
+ protected static void PalletSetup(ACR_Manager manager)
+ {
+  ACR_FactionData us = manager.m_Bases.GetFaction("US");
+  if (us) us.m_iRP = 100;
+  s_iRPBefore = 100;
+  vector spot;
+  bool found = ACR_Airdrop.Spot("US", spot);
+  if (found) s_Pallet = ACR_Airdrop.DropForTest("US", spot);
+  ACR_Base hq = ACR_DoctrineKits.HQOf("US");
+  float fromHQ = -1;
+  if (hq && s_Pallet) fromHQ = vector.DistanceXZ(hq.GetOrigin(), s_Pallet.m_vPos);
+  Check("airdrop: a pallet drops in the open away from the HQ and lies on both maps", s_Pallet && s_Pallet.m_Prop && ACR_Airdrop.CountFor("US") >= 1 && fromHQ >= ACR_Airdrop.DROP_MIN - 50, string.Format("spot %1, pallet %2, prop %3, %4 m from the HQ", found, s_Pallet != null, s_Pallet && s_Pallet.m_Prop, fromHQ));
+  if (s_Pallet) Spawn(manager, "Pallet Team", s_Pallet.m_vPos, 6);
+  vector theirs;
+  if (ACR_Airdrop.Spot("USSR", theirs)) s_Theirs = ACR_Airdrop.DropForTest("USSR", theirs);
+  if (s_Theirs) Spawn(manager, "Thief Team", s_Theirs.m_vPos, 6);
+ }
+
+ protected static void PalletChecks(ACR_Manager manager)
+ {
+  int rp = manager.m_Bases.GetRP("US");
+  Check("airdrop: a team reaching its pallet recovers it for RP", s_Pallet && !ACR_Airdrop.Has(s_Pallet) && ACR_Airdrop.s_iRecovered >= 1 && rp > s_iRPBefore, string.Format("recovered %1, RP %2 -> %3", ACR_Airdrop.s_iRecovered, s_iRPBefore, rp));
+  Check("airdrop: in TvTvZ the other side can steal a pallet", s_Theirs && !ACR_Airdrop.Has(s_Theirs) && ACR_Airdrop.s_iStolen >= 1, string.Format("stolen %1", ACR_Airdrop.s_iStolen));
+ }
+
+ // A US pallet 700 m from a free US team: the AI sends it.
+ protected static void AIPalletSetup(ACR_Manager manager)
+ {
+  vector spot;
+  if (!ACR_Airdrop.Spot("US", spot)) return;
+  s_AIPallet = ACR_Airdrop.DropForTest("US", spot);
+  Spawn(manager, "Pallet Runners", spot, 700);
+ }
+
+ protected static void AIPallet(ACR_Manager manager)
+ {
+  ACR_AICommander ai = manager.FobAICommanderFor("US");
+  if (ai) ai.ManagePalletsForTest();
+  ACR_Squad squad;
+  if (ai) squad = ai.PalletSquadForTest();
+  string name = "none";
+  if (squad) name = squad.GetName();
+  Check("airdrop: an AI commander sends a squad for a pallet", squad && squad.m_iAITask == ACR_EAITask.PALLET, string.Format("ai %1, squad %2, pallets %3", ai != null, name, ACR_Airdrop.Count()));
  }
 
  protected static void Bounty(ACR_Manager manager)

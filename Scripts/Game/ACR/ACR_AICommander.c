@@ -10,7 +10,8 @@ enum ACR_EAITask
  MINES,     // laying a minefield on an approach (-acrMinesAI)
  FORTIFY,   // digging in or upgrading a position on an approach (-acrFortifyAI)
  SWEEP,     // clearing a road where FIA ambushed the side (ACR_Insurgency, #89)
- RESCUE     // driving an evac: to the XP, loading, to a base (ACR_Evac, #107)
+ RESCUE,    // driving an evac: to the XP, loading, to a base (ACR_Evac, #107)
+ PALLET     // going for a supply pallet (ACR_Airdrop, #107)
 }
 
 enum ACR_ESapperDemoState
@@ -1172,6 +1173,7 @@ class ACR_AICommander : Managed
   ManageLogistics();
   ManageDangerRoads();
   ManageEvacs();
+  ManagePallets();
   ManageFobBuild();
   ManageFobUpgrades();
   int beforeBuild = m_Manager.m_Bases.GetRP(m_sFaction);
@@ -7574,6 +7576,57 @@ class ACR_AICommander : Managed
   return best;
  }
  void ManageEvacsForTest() { ManageEvacs(); }
+ // Containment airdrops (ACR_Airdrop): one combat squad at a time goes for the nearest pallet it may
+ // take (ours, or the enemy's while no truce holds: ACR_Airdrop.MayTake) within SWEEP_REACH; freed once
+ // the pallet is gone, or as a sweeper would be. Under "I'm the 2IC" the commander can keep pallets
+ // with evacs (ACR_Evac.TwoICExtracts).
+ protected ACR_Pallet m_PalletTarget;
+ protected ACR_Squad m_PalletSquad;
+ protected float m_fPalletSince;
+
+ protected void ManagePallets()
+ {
+  if (!ACR_Containment.On()) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  bool ours = !m_bTwoICAll || ACR_Evac.TwoICExtracts(m_sFaction);
+  if (m_PalletSquad)
+  {
+   bool going = ours && ACR_Airdrop.Has(m_PalletTarget) && ACR_Airdrop.MayTake(m_PalletTarget, m_sFaction) && m_Manager.m_Squads.Contains(m_PalletSquad) && m_PalletSquad.CountAlive() > 0 && !m_PalletSquad.HasPlayer() && m_PalletSquad.m_iAITask == ACR_EAITask.PALLET && !m_PalletSquad.GaveUpUnreachable() && now - m_fPalletSince <= SWEEP_MAX_MS;
+   if (going) return;
+   if (m_PalletSquad.m_iAITask == ACR_EAITask.PALLET) m_PalletSquad.SetAITask(ACR_EAITask.FREE);
+   m_PalletSquad = null;
+   m_PalletTarget = null;
+  }
+  if (!ours) return;
+  ACR_Pallet pick;
+  ACR_Squad squad;
+  float best = float.MAX;
+  for (int i = 0; i < ACR_Airdrop.Count(); i++)
+  {
+   ACR_Pallet pallet = ACR_Airdrop.At(i);
+   if (!ACR_Airdrop.MayTake(pallet, m_sFaction)) continue;
+   ACR_Squad near = FindSweeper(pallet.m_vPos);
+   if (!near) continue;
+   float d = vector.DistanceXZ(PositionOf(near), pallet.m_vPos);
+   if (pallet.m_sFor != m_sFaction) d += 500; // ours first
+   if (d >= best) continue;
+   best = d;
+   pick = pallet;
+   squad = near;
+  }
+  if (!pick) return;
+  m_PalletTarget = pick;
+  m_PalletSquad = squad;
+  m_fPalletSince = now;
+  squad.SetAITask(ACR_EAITask.PALLET);
+  squad.SetMode(ACR_EMoveMode.COMBAT);
+  Travel(squad, pick.m_vPos, false, 0);
+  string whose = "our";
+  if (pick.m_sFor != m_sFaction) whose = "the enemy's";
+  Say(string.Format("[ACR] AI %1: %2 goes for %3 supply pallet at %4", m_sFaction, squad.GetName(), whose, ACR_Manager.Grid(pick.m_vPos)));
+ }
+ void ManagePalletsForTest() { ManagePallets(); }
+ ACR_Squad PalletSquadForTest() { return m_PalletSquad; }
  ACR_Squad EvacTaxiForTest() { return m_EvacTaxi; }
  int EvacPhaseForTest() { return m_iEvacPhase; }
 
@@ -9487,6 +9540,7 @@ class ACR_AICommander : Managed
   if (task == ACR_EAITask.FORTIFY) return "digging in";
   if (task == ACR_EAITask.SWEEP) return "clearing a road";
   if (task == ACR_EAITask.RESCUE) return "running an evac";
+  if (task == ACR_EAITask.PALLET) return "recovering a supply pallet";
   if (task == ACR_EAITask.ATTACK) return "attacking" + at;
   return "in reserve";
  }

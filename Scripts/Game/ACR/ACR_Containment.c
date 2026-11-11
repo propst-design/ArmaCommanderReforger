@@ -12,6 +12,7 @@
 //    nobody evacuates goes quietly after SITE_MS (they made their own way out).
 //  - AI commanders run evacs with a free transport (ACR_AICommander.ManageEvacs), day or night;
 //    players race them for the civilians.
+//  - Airdrops: a supply pallet per side about every 12 min, recovered for RP (ACR_Airdrop).
 //  - Bounties: clearing a nest pays the sides near it RP_PER_ZOMBIE per zombie it could hold, ground
 //    zero RP_GROUND_ZERO (ACR_Outbreak.PackedUp). Both sides hear how far it has spread (Level).
 //  - Escalation (#240): left alone it gains a stage every 15 min and every nest regrows and spreads
@@ -80,6 +81,7 @@ class ACR_Containment
   s_iStage = 0;
   s_fStageAt = 0;
   ACR_Evac.Reset();
+  ACR_Airdrop.Reset();
   s_iLost = 0;
   s_iSitesMade = 0;
  }
@@ -307,6 +309,7 @@ class ACR_Containment
   if (!manager) return;
   if (s_iSeconds % 5 == 0) CheckSites(manager);
   if (s_iSeconds % 2 == 0) ACR_Evac.Tick(manager);
+  ACR_Airdrop.Tick(manager, s_iSeconds);
   if (s_iSeconds % 60 == 0) Level(manager);
  }
 
@@ -388,5 +391,6 @@ class ACR_Containment
    labels.Insert(string.Format("Civilians (%1)", site.m_iCount));
   }
   ACR_Evac.Zones(faction, positions, radii, labels);
+  ACR_Airdrop.Zones(faction, positions, radii, labels);
  }
 }
