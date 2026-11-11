@@ -3,6 +3,7 @@
 // overrides the hooks below. Unplugged, every hook does nothing and ACA plays as before.
 //  - ACA -> mod: AiHeadroom (room in the active AI limit), OnStrike (scripted blasts the mod's
 //    civilians can't hear: ACA support projectiles are local copies on each client).
+//  - ACA -> mod: Evacuees (Containment #107: the mod's civilians round a town ACA evacuates).
 //  - mod -> ACA: CivilianKilled, a feed line to the killer's side ("civilian killed near ...").
 //    The other side isn't told: that would hand it the killer's position for free.
 class ACR_CivilianSocket : Managed
@@ -31,6 +32,12 @@ class ACR_CivilianSocket : Managed
 
  // A scripted ACA blast (bomb run, battery round, cook-off) at this point.
  void OnStrike(vector impact) {}
+
+ // Containment evac (ACR_Evac.Place): up to 'most' of the mod's living civilians within 'radius' of
+ // 'at', added to 'people'; ACA takes them over (moves them into its own group and walks them to the
+ // evac point), so the mod should stop driving them. Returns how many. Unplugged: none, and ACA
+ // spawns its own vanilla civilians for the town.
+ int Evacuees(vector at, float radius, int most, notnull array<IEntity> people) { return 0; }
 
  // ---------------------------------------------------------------- called by the mod
 

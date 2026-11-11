@@ -221,7 +221,7 @@ fialeaning|-acrFIALeaningTest 1|100|Worlds/ACR_Everon.ent
 hideouts|-acrHideoutsTest 1|120|Worlds/ACR_Everon.ent
 zombies|-acrZombiesTest 1|200|Worlds/ACR_Everon.ent
 tvz|-acrTvZTest 1|150|Worlds/ACR_Everon.ent
-containment|-acrContainmentTest 1|150|Worlds/ACR_Everon.ent
+containment|-acrContainmentTest 1|170|Worlds/ACR_Everon.ent
 kolguyevsoak|-acrEveronSoakTest 1|1380|Worlds/ACR_Kolguyev.ent
 deploymenu|-acrDeployMenuTest 1|180|Worlds/ACR_Arland.ent
 mappolygon|-acrMapPolygonTest 1|60

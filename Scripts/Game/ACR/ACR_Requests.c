@@ -32,8 +32,21 @@ class ACR_Requests : Managed
    case ACR_ERequest.REINFORCE: return m_Manager.m_Requisition.Reinforce(pc, targetId);
    case ACR_ERequest.LEAVE_COMMAND: return m_Manager.LeaveCommand(pc);
    case ACR_ERequest.UNLOAD_HERE: return UnloadHere(pc, body);
+   case ACR_ERequest.TOGGLE_2IC_EVAC: return TwoICEvac(pc);
   }
   return Order(pc, command, targetId, point);
+ }
+
+ // The commander keeps evacs from "I'm the 2IC" (-acr2IC 2), or hands them back (ACR_Evac.TwoICExtracts).
+ protected string TwoICEvac(SCR_PlayerController pc)
+ {
+  if (!m_Manager.IsCommander(pc.GetPlayerId())) return "Only the commander can do that. Take command first.";
+  if (!ACR_SquadAI.ImThe2IC()) return "Only with \"I'm the 2IC\" (-acr2IC 2): evacs are yours already";
+  Faction faction = SCR_FactionManager.SGetPlayerFaction(pc.GetPlayerId());
+  if (!faction) return "No side";
+  string line = ACR_Evac.ToggleTwoIC(faction.GetFactionKey());
+  PrintFormat("[ACR] EVAC 2IC %1: runs evacs %2", faction.GetFactionKey(), ACR_Evac.TwoICExtracts(faction.GetFactionKey()));
+  return line;
  }
 
  string ReturnToCommandUnit(SCR_PlayerController pc, ChimeraCharacter body)
@@ -265,6 +278,7 @@ class ACR_Requests : Managed
    case ACR_ERequest.ORDER_BARRICADE: return "building barricade";
    case ACR_ERequest.ORDER_FORTIFY: return "fortifying";
    case ACR_ERequest.ORDER_QRF: return "standing by as a QRF";
+   case ACR_ERequest.ORDER_EVAC: return "setting an evac point";
   }
   return "moving";
  }
@@ -289,7 +303,7 @@ class ACR_Requests : Managed
   if (!m_Manager.IsCommander(pc.GetPlayerId())) return outcome.Refuse("Only the commander can give map orders. Take command first.");
   IEntity anchor = squad.GetAnchor();
   if (!anchor) return outcome.Refuse("That squad is not ready");
-  bool usesPoint = command == ACR_ERequest.MOVE_TO || command == ACR_ERequest.ORDER_DEFEND || command == ACR_ERequest.ORDER_GET_IN || command == ACR_ERequest.ORDER_SET_LZ || command == ACR_ERequest.ORDER_RIDE || command == ACR_ERequest.QUEUE_MOVE || command == ACR_ERequest.QUEUE_DEFEND || command == ACR_ERequest.ORDER_HUNT || command == ACR_ERequest.ORDER_GARRISON || command == ACR_ERequest.QUEUE_GARRISON || command == ACR_ERequest.ORDER_ESTABLISH_FOB || ACR_Roadblocks.TypeOfRequest(command) >= 0 || ACR_Minefields.IsRequest(command) || command == ACR_ERequest.ORDER_FORTIFY || command == ACR_ERequest.ORDER_QRF;
+  bool usesPoint = command == ACR_ERequest.MOVE_TO || command == ACR_ERequest.ORDER_DEFEND || command == ACR_ERequest.ORDER_GET_IN || command == ACR_ERequest.ORDER_SET_LZ || command == ACR_ERequest.ORDER_RIDE || command == ACR_ERequest.QUEUE_MOVE || command == ACR_ERequest.QUEUE_DEFEND || command == ACR_ERequest.ORDER_HUNT || command == ACR_ERequest.ORDER_GARRISON || command == ACR_ERequest.QUEUE_GARRISON || command == ACR_ERequest.ORDER_ESTABLISH_FOB || ACR_Roadblocks.TypeOfRequest(command) >= 0 || ACR_Minefields.IsRequest(command) || command == ACR_ERequest.ORDER_FORTIFY || command == ACR_ERequest.ORDER_QRF || command == ACR_ERequest.ORDER_EVAC;
   // Reject nonsense coordinates from a client.
   if (usesPoint && (vector.Distance(point, anchor.GetOrigin()) > 20000 || !ACR_Manager.OnMap(point))) return outcome.Refuse("Order is too far away");
   // Map clicks made inside Game Master / build mode are not orders (the client checks too).
@@ -483,6 +497,18 @@ class ACR_Requests : Managed
      return outcome.Accept(name + ": establishing FOB");
     }
     return outcome.Refuse(name + ": unable to establish FOB");
+   }
+   case ACR_ERequest.ORDER_EVAC:
+   {
+    string evacSide;
+    if (squad.GetFaction()) evacSide = squad.GetFaction().GetFactionKey();
+    ACR_EvacPoint evac;
+    string evacWhy = ACR_Evac.Place(evacSide, point, evac);
+    if (!evacWhy.IsEmpty()) return outcome.Refuse(name + ": " + evacWhy);
+    if (ACR_Transport.CrewedVehicle(squad) && squad.IsMounted()) squad.RouteTo(point, ACR_Squad.WP_MOVE, -1, "Evac point", ACR_EOrderKind.MOVE, true);
+    else squad.MoveTo(point);
+    PrintFormat("[ACR] EVAC player=%1 squad=%2 xp=%3 town=%4", pc.GetPlayerId(), name, point, evac.m_sTown);
+    return outcome.Accept(string.Format("%1: evac point for %2 set, %3 civilians walking to it", name, evac.m_sTown, evac.m_iWalked));
    }
    case ACR_ERequest.ORDER_QRF:
    {

@@ -39,7 +39,9 @@ enum ACR_ERequest
  ORDER_FORTIFY,      // dig in at point, or upgrade our position there (ACR_Fortify)
  ORDER_SQUAD_AI,     // toggle: the AI commander commands this squad (ACR_SquadAI)
  ORDER_PATROL,       // toggle: the squad walks its queued points in a loop
- ORDER_QRF           // stand by at point and go after enemies the side spots round it (ACR_Qrf)
+ ORDER_QRF,          // stand by at point and go after enemies the side spots round it (ACR_Qrf)
+ ORDER_EVAC,         // set an evac point at point and go there (Containment, ACR_Evac)
+ TOGGLE_2IC_EVAC     // no squad: "I'm the 2IC" runs this side's evacs or leaves them to the commander
 }
 
 // Arma Commander core. One instance exists on every machine while the mode is
