@@ -210,7 +210,7 @@ class ACR_TestRegress
  }
 
  // Checks a full run makes (Skip counts as made). Raise it with every new check.
- static const int EXPECTED = 162; // includes three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
+ static const int EXPECTED = 163; // includes one stuck-taxi check, three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
  static SCR_AIGroup s_RecoveryGroup;
  static SCR_AIGroup s_BoardingGroup;
  static SCR_AIGroup s_CancelBoardingGroup;
@@ -1305,6 +1305,21 @@ class ACR_TestRegress
    foreach (ACR_Squad squad : manager.m_Squads) if (squad.GetName() == "Regress Truck") crew = squad;
    Check("vehicle crew keeps its unit name", crew != null && crew.m_OwnVehicle != null, string.Format("found %1", crew != null));
    if (crew) Check("idle truck crew can give rides", manager.m_Rides && manager.m_Rides.WhyNotTaxi(crew, "US").IsEmpty(), manager.m_Rides.WhyNotTaxi(crew, "US"));
+   // Jacob's 6 Nov game: rides went to trucks that had just given up stuck ("Stuck, holding" read as idle).
+   if (crew && crew.m_OwnVehicle && manager.m_Rides)
+   {
+    float stuckAt = crew.m_fStuckAt;
+    vector stuckPos = crew.m_vStuckPos;
+    crew.m_fStuckAt = GetGame().GetWorld().GetWorldTime();
+    crew.m_vStuckPos = crew.m_OwnVehicle.GetOrigin();
+    string whyStuck = manager.m_Rides.WhyNotTaxi(crew, "US");
+    vector stuckAway = "200 0 0";
+    crew.m_vStuckPos = crew.m_OwnVehicle.GetOrigin() + stuckAway;
+    string whyMoved = manager.m_Rides.WhyNotTaxi(crew, "US");
+    crew.m_fStuckAt = stuckAt;
+    crew.m_vStuckPos = stuckPos;
+    Check("a truck that gave up stuck gives no rides until it has moved on", !whyStuck.IsEmpty() && whyMoved.IsEmpty(), string.Format("stuck here '%1', moved since '%2'", whyStuck, whyMoved));
+   }
    if (crew && crew.m_OwnVehicle) VehicleDoorsCheck(crew.m_OwnVehicle);
   }
   // After-action report (5 Oct): kills/losses, bases, RP tallied per side.
