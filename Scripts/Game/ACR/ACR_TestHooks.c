@@ -35,6 +35,9 @@ class ACR_TestHooks
  string AIDoctrine(string factionKey) { return ""; }
  // Side a test's player deploys on without the deploy screen ("west" / "east"), "" = the menu.
  string AutoDeploySide() { return ""; }
+ // A test that plays a match unattended (the soaks) skips the setup phase the mission header asks for:
+ // pak: servers start from the shipped header, and nobody presses Start (ACR_Setup.Wanted).
+ bool SkipSetup() { return false; }
  // A side a test says a player commands (ACR_SquadAI.RunsAll): a server test has no players.
  bool PlayerCommandsForTest(string factionKey) { return false; }
  // Build the test classes' statics (ACR_StaticInit, at game creation).

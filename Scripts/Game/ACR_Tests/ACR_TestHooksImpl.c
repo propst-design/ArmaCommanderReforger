@@ -130,6 +130,15 @@ modded class ACR_TestHooks
   return "west";
  }
 
+ // The soaks play unattended: on a pak: server (started from the mission header, setup phase on)
+ // they waited for a Start nobody pressed and ran 2 h with no squads (11 Nov, #232 A/B).
+ override bool SkipSetup()
+ {
+  if (System.IsCLIParam("acrSoakTest") || System.IsCLIParam("acrPerfTest") || System.IsCLIParam("acrPerfScaleTest") || System.IsCLIParam("acrAllocPerfTest") || System.IsCLIParam("acrAllocControlPerfTest")) return true;
+  if (System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrForecastSoakTest") || System.IsCLIParam("acrAllocSoakTest") || System.IsCLIParam("acrAllocControlSoakTest") || System.IsCLIParam("acrClassicSoakTest")) return true;
+  return System.IsCLIParam("acrForecastSkirmishTest") || System.IsCLIParam("acrLongSoakTest") || System.IsCLIParam("acrAllocControlLongSoakTest") || System.IsCLIParam("acrClassicLongSoakTest") || System.IsCLIParam("acrWorksAISoakTest");
+ }
+
  // Tests keep their worlds as authored; the guerrilla test and the balance soaks get guerrillas.
  override string Guerrillas()
  {
