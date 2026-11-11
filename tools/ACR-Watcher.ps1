@@ -225,9 +225,11 @@ function Invoke-ServerTest($id, $preset, $config, $packed) {
     } else {
         # Another dedicated server (the AiO Command Menu's test launcher, or a hosted game) holds
         # port 2001: wait up to 10 min for it to close instead of failing at once (13 Oct).
+        # Wait on the port, not on any server process: a pak: server (port 2302, A2S 17778) runs
+        # beside a srv: one, and waiting on its process refused every srv: run during a 2 h pak: soak (11 Nov).
         $waited = 0
-        while ((Get-Process -Name 'ArmaReforgerServer' -ErrorAction SilentlyContinue) -and $waited -lt 600) { Start-Sleep -Seconds 5; $waited += 5 }
-        if (Get-Process -Name 'ArmaReforgerServer' -ErrorAction SilentlyContinue) { Write-Result $id @('status=refused', 'reason=another Reforger server kept running (port 2001)'); return }
+        while ((Test-UdpPortBusy 2001) -and $waited -lt 600) { Start-Sleep -Seconds 5; $waited += 5 }
+        if (Test-UdpPortBusy 2001) { Write-Result $id @('status=refused', 'reason=another Reforger server kept running on port 2001'); return }
         if ($waited -gt 0) { Write-Host "[$time] Waited $waited s for another server to close" -ForegroundColor Yellow }
         $profileDir = $TestServerProfile
         # Unpacked mods resolve their own prefabs only through resourceDatabase.rdb (gitignored,
