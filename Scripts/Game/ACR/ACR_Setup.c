@@ -273,7 +273,7 @@ class ACR_Setup
    rows += key + "\t" + Label(key) + ": " + ValueName(key, Current(key)) + "\n";
    // The company and doctrine rows show a name; what it means goes on a line under the tab's rows
    // (pn10b, 26 Oct: in the rows, the descriptions ran past the buttons).
-   if (key == "companywest" || key == "companyeast" || key == "doctrinewest" || key == "doctrineeast" || key == "aicommander") rows += "about" + key + "\t" + About(key) + "\n";
+   if (key == "companywest" || key == "companyeast" || key == "doctrinewest" || key == "doctrineeast") rows += "about" + key + "\t" + About(key) + "\n";
   }
   return rows;
  }
@@ -282,12 +282,6 @@ class ACR_Setup
  // positions at its front", "Red: Fortress: holds in depth, counterattacks lost bases".
  static string About(string key)
  {
-  // The AI commander rework (#232, ACR_AIRework): what each choice is.
-  if (key == "aicommander")
-  {
-   if (Current(key) == "classic") return "AI commander, classic: as before 0.5.13, kept to compare";
-   return "AI commander, new: one main push, jobs weighed, defence from intel";
-  }
   string side = "Blue: ";
   string faction = ACR_FactionSelection.West();
   if (key == "companyeast" || key == "doctrineeast")
@@ -661,7 +655,7 @@ class ACR_Setup
   if (key == "declutter" && value == "0") return "off (the classic map)";
   if (key == "declutter") return "on";
   if (key == "aicommander" && value == "classic") return "classic (before 0.5.13)";
-  if (key == "aicommander") return "new";
+  if (key == "aicommander") return "new (lanes, allocator, forecast)";
   if (key == "evadearmour" && value == "1") return "on (needs BBB's setting too)";
   if (key == "twoic" && value == "1") return "2IC: runs the squads nobody leads";
   if (key == "twoic" && value == "2") return "I'm the 2IC: the AI commands";
