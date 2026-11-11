@@ -245,6 +245,7 @@ ACA|srv:stallwait|nightly|130   # median 99s, 1 runs/14d
 ACA|srv:faceoff|nightly|100   # new 7 Nov: the drive watch's queue and back-up lanes (four truck pairs, frozen drivers)
 ACA|srv:recrew|nightly|120   # median 93s, 1 runs/14d
 ACA|srv:mortargiveup|nightly|100   # median 60s, 1 runs/14d
+ACA|srv:counterbattery|nightly|300   # counter-battery: rings, the answer, displacing (8 Nov)
 ACA|srv:roadhops|weekly|500   # median 277s, 1 runs/14d
 ACA|srv:roadhopsoff|skip|500   # A/B control with the feature off or the old code: run beside its pair by hand
 ACA|srv:keyhints|skip|60   # needs a player (game client)

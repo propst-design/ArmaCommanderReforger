@@ -680,6 +680,8 @@ class ACR_MapFeed
   ACR_Containment.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   // ...and enemy transmissions it picked up (pale rings, ACR_RadioIntercept).
   ACR_RadioIntercept.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
+  // ...and enemy mortars it heard firing (pale rings, ACR_CounterBattery).
+  ACR_CounterBattery.Zones(frame.m_sKey, frame.m_ZonePos, frame.m_ZoneRadii, frame.m_ZoneLabels);
   foreach (int r, vector rangePos : frame.m_ZonePos) sig += P(rangePos) + frame.m_ZoneLabels[r] + ";";
   frame.m_sZonesSig = sig;
   frame.m_Bytes.Set("zones", sig.Length() + frame.m_ZonePos.Count() * 16 + 12);

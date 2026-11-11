@@ -204,6 +204,8 @@ class ACR_Intel : Managed
 
  // Enemy transmissions this side picked up (ACR_RadioIntercept).
  ref array<ref ACR_Intercept> m_Intercepts = {};
+ // Enemy mortars this side heard firing, and where it thinks they stand (ACR_CounterBattery).
+ ref array<ref ACR_CBFix> m_CBFixes = {};
 
  // Called every second by the manager.
  void Tick()

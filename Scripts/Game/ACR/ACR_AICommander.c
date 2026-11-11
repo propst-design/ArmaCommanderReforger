@@ -3253,7 +3253,35 @@ class ACR_AICommander : Managed
     if (CallSupport(ACR_ESupportType.MORTAR_HE_SMALL, enemySeen, "roadblock interdiction")) break;
    }
   }
+  CounterBatterySupport(fireFactor);
  }
+
+ // Counter-battery the side pays for (ACR_CounterBattery): an enemy mortar pinned down (its ring
+ // FIX_TIGHT or less) that our own fire-at-will teams left alone for CB_PAID_WAIT_MS (none in reach,
+ // or all busy) gets our mortar support, or else the howitzer battery when the side can spare it:
+ // rich, or a doctrine that fires more (Firepower always; Fortress from about 670 RP, the others
+ // from about 800-900). CallSupport keeps it to the side's own RP and away from our own men.
+ protected void CounterBatterySupport(float fireFactor)
+ {
+  ACR_Intel intel = m_Manager.IntelFor(m_sFaction);
+  float now = GetGame().GetWorld().GetWorldTime();
+  ACR_CBFix fix = ACR_CounterBattery.Target(intel, now);
+  if (!fix || fix.m_fRadius > ACR_CounterBattery.FIX_TIGHT || fix.m_fPinnedAt <= 0) return;
+  if (now - fix.m_fPinnedAt < ACR_CounterBattery.CB_PAID_WAIT_MS) return;
+  string why = "counter-battery on the enemy mortar " + intel.Place(fix.m_vCentre);
+  bool fired = CallSupport(ACR_ESupportType.MORTAR_HE_SMALL, fix.m_vCentre, why);
+  float lands = ACR_CounterBattery.MORTAR_LANDS_MS;
+  float eager = fireFactor / Math.Max(0.1, m_Doctrine.m_fFireMissionGap);
+  if (!fired && eager >= ACR_CounterBattery.CB_BATTERY_EAGER)
+  {
+   fired = CallSupport(ACR_ESupportType.ARTILLERY_BATTERY, fix.m_vCentre, "battery " + why);
+   lands = ACR_CounterBattery.BATTERY_LANDS_MS;
+  }
+  if (!fired) return;
+  ACR_CounterBattery.s_iPaidFires++;
+  ACR_CounterBattery.Shelled(fix, fix.m_vCentre, vector.Zero, now + lands);
+ }
+ void CounterBatterySupportForTest(float fireFactor) { CounterBatterySupport(fireFactor); }
 
  // Defence in depth (Jacob 20 Oct: defenders only ever held the point itself). When an
  // attack on a base is seen coming (intel), part of its defenders move out to a forward
@@ -6519,10 +6547,37 @@ class ACR_AICommander : Managed
   return m_MortarUnreachable.Find(base, until) && GetGame().GetWorld().GetWorldTime() < until;
  }
 
+ // A team under counter-battery fire (ACR_CounterBattery.UnderFire) packs up and moves well away
+ // from where the rounds came from, so the estimate the enemy built goes stale. Not held back by
+ // MORTAR_MOVE_MS: the rounds are landing now. A team that is still firing finishes its mission first.
+ protected void DisplaceUnderFire(float now)
+ {
+  array<ACR_MortarTeam> teams = {};
+  m_Manager.Mortars().TeamsOf(m_sFaction, teams);
+  foreach (ACR_MortarTeam team : teams)
+  {
+   ACR_Squad squad = team.m_Squad;
+   if (!squad || squad.HasPlayer() || team.m_bLost || team.m_bFiring || team.m_eState != ACR_EMortarState.DEPLOYED) continue;
+   if (m_bHandedOnly && (squad.m_bClaimed || squad.m_Commander != 0)) continue; // a team the player ordered is theirs
+   vector from;
+   if (!ACR_CounterBattery.UnderFire(team, now, from)) continue;
+   vector away = ACR_CounterBattery.DisplaceSpot(team, from);
+   team.m_fIncomingAt = 0;
+   team.m_iFired = 0;
+   team.m_fLastFinished = 0;
+   squad.MoveTo(away);
+   m_fNextMortarMove = now + MORTAR_MOVE_MS;
+   Say(string.Format("[ACR] AI %1 mortar: %2 under counter-battery fire, displacing %3 m", m_sFaction, squad.GetName(), Math.Round(vector.DistanceXZ(team.m_Spot, away))));
+  }
+ }
+
+ void DisplaceUnderFireForTest(float now) { DisplaceUnderFire(now); }
+
  protected void PositionMortars()
  {
   float now = GetGame().GetWorld().GetWorldTime();
   NoteMortarGiveUps(now);
+  DisplaceUnderFire(now);
   if (now < m_fNextMortarMove) return;
   array<ACR_MortarTeam> teams = {};
   m_Manager.Mortars().TeamsOf(m_sFaction, teams);

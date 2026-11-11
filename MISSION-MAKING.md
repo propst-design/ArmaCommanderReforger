@@ -597,6 +597,23 @@ price and cooldown and can happen once every 45 seconds per side. Observer teams
 on. AI commanders' observers and mortar teams always use it. Mortar teams also fire two free, scattered
 rounds every 30 seconds at spotted enemies they can reach.
 
+Counter-battery: a mortar that fires gives itself away. Each round may be heard by the other side,
+more likely the closer its men are to the tube (60% a round within 1.2 km, fading to nothing at
+3.5 km), and at least 45% when the rounds land within 250 m of its men. A side that hears a tube
+gets a pale "Enemy mortar" ring on its map and a line in its feed: about 300 m wide at the first
+round, narrower with every round heard (down to 35 m; "pinned down" at 100 m or less). The ring
+always holds the spot the tube fired from, never with the tube in its middle, and is forgotten 10
+minutes after the last round heard; a team that moves leaves it behind. Mortar teams that fire at
+will shell a ring heard in the last 2 minutes and at most 160 m wide (3 rounds spread over it, at
+most once a minute per ring) instead of a spotted enemy: always when it is pinned down, otherwise
+weighed against the enemy as AI choices are (`-acrVariety`). An AI commander whose teams leave a pinned
+ring alone for 20 seconds (none in reach, or all busy) pays for counter-battery: its mortar support,
+or else the howitzer battery when it can spare it (Firepower always, Fortress from about 670 RP, the
+other doctrines from about 800-900 RP). An AI commander's mortar team that
+counter-battery rounds land near packs up and moves 150-300 m away from where they came from; on
+a player's team, the side is warned ("Counter-battery fire coming in on ...: move it").
+`-acrCounterBattery 0` turns it off.
+
 `AIR_LIFT` flies an infantry squad with no player-controlled member. It must be on foot and not a
 vehicle crew. Capacity depends on the helicopter; one or two fly, and troops without seats stay
 behind. Select the squad, pick the air lift, and right-click where it should land (at least 400 m
@@ -1036,6 +1053,7 @@ mission makers and server operators; players choose match settings in game.
 | `-acr2IC 1` / `2` | The second-in-command (off by default), in two modes (the Experimental tab's 2IC row: off, 2IC, I'm the 2IC). `1`, the 2IC: on a side a player commands, or one with no AI commander, the AI runs every squad nobody has claimed (attacks, defenders, grabs, idle posting, roadblocks and minefields) with the AI commander's own logic. A player claims a squad by leading it or ordering it and hands it back with the squad panel's **AI commands this squad**; **AI manages this FOB** hands over a FOB. On a side nobody commands it builds only from the AI build budget, never from the side's RP, and with a player in command it runs only those squads and leaves them the buying, logistics and FOBs, suggesting FOB sites. `2`, "I'm the 2IC": the same on a side nobody commands, but while a player commands the side the AI commander runs the whole side as if nobody commanded, every job included (purchases with the side's RP, logistics, FOBs, mortars, crews, fire support and air lifts, fortifying, and lanes, forecast and allocator when those are on), with the squads nobody has claimed; the player keeps every command power and can buy and order as ever, and the 2IC makes no FOB suggestions (it builds its own) |
 | `-acr2ICKeep N` | With `-acr2IC 2` and a player in command: RP the AI commander leaves for that player's own purchases (default 0: it spends like an AI commander). It buys, builds and calls support only with the side's RP above this |
 | `-acrVariety 0` | AI choices always take the single best option. By default (`1`) an AI choice made from scored options (where to site a Fortify position, say) is picked at random among those within 12% of the best, the best most likely, seeded from the match's seed so a replayed seed makes the same choices |
+| `-acrCounterBattery 0` | Mortars can't be heard: no "Enemy mortar" rings, and no counter-battery fire or displacing under it (see [Requisition support unit](#requisition-support-unit-m_asupportunits)). On by default (`1`) |
 | `-acrMinesAI 1` | AI commanders lay minefields: every 30 s, with RP to spare and fewer than two fields down, a free infantry squad (sappers first) mines the approach 150-270 m out from its frontline base towards the nearest enemy base (off by default) |
 | `-acrSetup 1` / `0` | Setup screen before the match. With 1, nothing spawns until the host (or a logged-in admin on a dedicated server) picks the battlefield, factions, threat, prices, AI commanders, AI squad cap, starting RP, income and shared command in a dialog and presses Start; other players wait. A dedicated server starts by itself 5 minutes after the first player joins if nobody does. Our Arland, Everon and Kolguyev scenarios set it in their header; the AC: Actual Play and Host launchers pass `-acrSetup 1` and leave match settings to this screen. Its **Command** tab has the **AI commander** row (`-acrAICommander`: new or classic). Its **Experimental** tab holds features shipped off by default until they have been played: period jets (`-acrPeriodJets`), AI squad tactics (`-acrSquadTactics`), pull over before getting out (`-acrPullOver`), unarmed vehicles evade armour (`-acrEvadeArmour`, which also needs Better Battle Buddies' own setting), guns clear bushes (`-acrFieldsOfFire`) and the 2IC (`-acr2IC`). A host flag or mission header value shows there as the starting value |
 | `-acrFirstPlayerHost` | On dedicated servers, additionally trust the first connected player for this session. Off by default for ordinary dedicated servers; Host-ACA enables it for its separate local server, so the launching host must connect before friends. Configured admins remain trusted, and authority does not transfer after the first player disconnects |

@@ -237,6 +237,27 @@ class ACR_FireMissions : Managed
     if (FriendlyNear(key, contact.m_Pos, DANGER_CLOSE)) continue;
     best = contact;
    }
+   // An enemy mortar this side heard firing (ACR_CounterBattery): shelled instead of the contact
+   // when the estimate is tight, weighed against it otherwise.
+   ACR_CBFix enemyTube = ACR_CounterBattery.Target(intel, now * 1000);
+   string why;
+   float cbFlight;
+   if (enemyTube)
+   {
+    if (!m_Manager.Mortars().Ready(team, ACR_ESupportType.MORTAR_HE_SMALL, enemyTube.m_vCentre, why, cbFlight) || FriendlyNear(key, enemyTube.m_vCentre, DANGER_CLOSE)) enemyTube = null;
+   }
+   string cbKey = string.Format("cb fire %1 %2 %3", key, team.m_sName, ACR_CounterBattery.s_iCounterFires);
+   if (enemyTube && ACR_CounterBattery.Prefer(enemyTube, best != null, cbKey))
+   {
+    vector cbAim = ACR_CounterBattery.AimAt(enemyTube, cbKey);
+    m_Manager.Mortars().StartFreeFire(team, cbAim, ACR_CounterBattery.CB_ROUNDS);
+    m_NextFree.Set(team, now + FREE_GAP_S * Gap(key, ai));
+    s_iFreeFires++;
+    ACR_CounterBattery.Shelled(enemyTube, cbAim, team.m_Tube.GetOrigin(), (now + cbFlight) * 1000);
+    PrintFormat("[ACR] FIRE %1 %2 counter-battery: %3 rounds on the enemy mortar heard %4 (ring %5 m) at %6", key, team.m_sName, ACR_CounterBattery.CB_ROUNDS, intel.Place(enemyTube.m_vCentre), Math.Round(enemyTube.m_fRadius), cbAim);
+    intel.AddFeed(now * 1000, string.Format("%1 fires counter-battery on the enemy mortar %2", team.m_sName, intel.Place(enemyTube.m_vCentre)), enemyTube.m_vCentre);
+    continue;
+   }
    if (!best) continue;
    vector aim = ACR_Manager.Ground(best.m_Pos + Vector(Math.RandomFloat(-FREE_SCATTER, FREE_SCATTER), 0, Math.RandomFloat(-FREE_SCATTER, FREE_SCATTER)));
    m_Manager.Mortars().StartFreeFire(team, aim, FREE_ROUNDS);

@@ -40,6 +40,9 @@ class ACR_MortarTeam : Managed
  IEntity m_Gunner;
  ResourceName m_sShell;
  int m_iFired;
+ vector m_vAim;        // where the current mission aims (ACR_CounterBattery: the side it lands on hears it)
+ float m_fIncomingAt;  // counter-battery rounds aimed at its tube land then (world ms, 0: none; ACR_CounterBattery)
+ vector m_vIncomingFrom; // ...fired from there
  int m_iLoadingDismounts; // observed native aiming -> on-foot loading transitions
  int m_iReserveRounds; // paid mission rounds not yet issued to a gunner
  int m_iDryMissions;   // missions in a row that timed out with nothing fired (reset when the tube goes up again)
@@ -818,6 +821,7 @@ class ACR_Mortars : Managed
   }
   team.m_sShell = ShellFor(team, type);
   team.m_iFired = 0;
+  team.m_vAim = target;
   int total = rounds * aims.Count();
   team.m_iReserveRounds = total;
   team.m_iRounds = total;
@@ -881,7 +885,7 @@ class ACR_Mortars : Managed
   foreach (ACR_MortarTeam team : m_Teams)
   {
    if (!team.m_bFiring || team.m_Tube != tube) continue;
-   if (fired) team.m_iFired++;
+   if (fired) { team.m_iFired++; ACR_CounterBattery.Fired(team); }
    if (!gunner || ACR_Squad.FindController(gunner)) return;
    team.m_Gunner = gunner;
    if (fired) return; // Let the shot's inventory removal finish before moving another shell.
