@@ -46,6 +46,7 @@ class ACR_Setup
    string value;
    s_bWanted = ACR_Options.Get("acrSetup", value) && value == "1";
    if (System.IsCLIParam("acrSetupTest") || System.IsCLIParam("acrSetupUiTest") || System.IsCLIParam("acrSetupGenTest") || System.IsCLIParam("acrSetupMapTest")) s_bWanted = true;
+   else if (ACR_TestHooks.Get().SkipSetup()) s_bWanted = false;
    if (s_bWanted) Print("[ACR] SETUP phase: waiting for the host or an admin to press Start");
   }
   return s_bWanted;
