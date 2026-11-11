@@ -9,6 +9,10 @@
 - An unarmed AI vehicle that gave up stuck tries its trip again. "Stuck, holding" used to last until someone gave the crew a new order, so trucks stayed parked for good where they stalled. After 3 minutes, with its crew aboard, out of contact, with fuel and on its wheels, it sets off again from where it stands, at most twice for the same trip; any new order ends the wait. Armed vehicles still hold and fight.
 - An AI service truck sent out to a squad no longer keeps that job for the rest of the match when it can't finish it. A truck that ran dry, or stopped at the road short of a squad holding its positions, never parked, restocked or got replaced. The job now ends when the truck is gone or empty, has stood still 3 minutes, or has been out 15 minutes, and that squad gets no truck sent for 10 minutes (it can still walk to one).
 
+### FOBs and logistics
+
+- A FOB with a supply depot really holds 3,000 supplies. The depot raised the FOB's storage limit on paper, but the supplies sit in the HQ's own crates, which still held 1,000 between them, so the FOB never stored more than before. The crates now grow to the depot's capacity, and the FOB goes back to 1,000 if the depot is lost.
+
 ### Zombies
 
 - A contained outbreak (`-acrOutbreak contain`) keeps getting worse while nobody contains it. It used to stall after its first spread: each horde took half its nest, and the town it settled in only grew back to that size, so hordes halved town by town (32, then 16, then 8), and a nest that wasn't completely full waited 25 minutes before trying again. Now hordes are at least 15 zombies, a town the dead take grows back to at least 30 so it can send one on, and nests grow back twice as fast. Left alone, the outbreak gains strength every 15 minutes (up to six times), so every nest grows back and spreads faster, and both sides are told. Clearing a nest knocks it back a step (ground zero two). The spread report goes past "out of control" to levels 4 and 5. Still no timer and no way to lose; the zombie cap still limits the total, and zombies still only come out near soldiers.
