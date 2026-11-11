@@ -210,7 +210,7 @@ class ACR_TestRegress
  }
 
  // Checks a full run makes (Skip counts as made). Raise it with every new check.
- static const int EXPECTED = 162; // includes three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
+ static const int EXPECTED = 163; // includes one service-job-end, three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
  static SCR_AIGroup s_RecoveryGroup;
  static SCR_AIGroup s_BoardingGroup;
  static SCR_AIGroup s_CancelBoardingGroup;
@@ -1481,6 +1481,14 @@ class ACR_TestRegress
    bravo.m_fGaveUpAt = gaveUpBefore;
    Check("a service vehicle that gave up stuck or unreachable isn't sent on another run for a while", waits && free && waitsGaveUp, string.Format("waits %1, free later %2, waits after giving up %3", waits, free, waitsGaveUp));
    ServiceAtCapCheck(manager);
+   // #242 audit (10 Nov): a drive-out job that can't finish (truck empty, stopped short of a squad
+   // holding its positions) ended only when the need cleared: the truck never parked or restocked.
+   int jobOn = ACR_AICommander.ServiceJobEnd(true, 10, 0, 60000, 100000);
+   int jobEmpty = ACR_AICommander.ServiceJobEnd(true, 0.5, 0, 100000, 100000);
+   int jobGone = ACR_AICommander.ServiceJobEnd(false, 10, 0, 100000, 100000);
+   int jobStill = ACR_AICommander.ServiceJobEnd(true, 10, 0, 0, ACR_AICommander.SERVICE_JOB_STILL_MS + 1000);
+   int jobLong = ACR_AICommander.ServiceJobEnd(true, 10, 0, ACR_AICommander.SERVICE_JOB_MAX_MS, ACR_AICommander.SERVICE_JOB_MAX_MS + 1000);
+   Check("a service truck's drive-out ends when it is empty, gone, stood still too long or took too long", jobOn == ACR_AICommander.JOB_ON && jobEmpty == ACR_AICommander.JOB_EMPTY && jobGone == ACR_AICommander.JOB_NO_TRUCK && jobStill == ACR_AICommander.JOB_STILL && jobLong == ACR_AICommander.JOB_LONG, string.Format("on %1 empty %2 gone %3 still %4 long %5", jobOn, jobEmpty, jobGone, jobStill, jobLong));
    PrintFormat("[ACR] REGRESS invariant errors: %1", ACR_Perf.s_iInvariantErrors);
    Complete("regress", EXPECTED);
   }

@@ -7073,6 +7073,40 @@ class ACR_AICommander : Managed
  // A squad sent back to a service truck, and when it gives up: a truck destroyed, emptied or
  // gone home left a squad that still needed the service tasked RESUPPLY (out of every pool) for good.
  protected ref map<ACR_Squad, float> m_ResupplyGiveUp = new map<ACR_Squad, float>();
+ // #242 audit (10 Nov): a drive-out job ended only when the squad's need cleared, so a truck that
+ // ran dry, or stopped at the road point up to 250 m from a squad holding its positions (served
+ // only within 25 m), kept the job for the rest of the match: never parked, never restocked, and
+ // requisition never replaced it (the side still had one). A job now also ends when the truck is
+ // gone or empty, has stood still SERVICE_JOB_STILL_MS without the need clearing, or has run
+ // SERVICE_JOB_MAX_MS; that squad then gets no drive-out for SERVICE_SNUB_MS (it may still walk).
+ static const float SERVICE_JOB_STILL_MS = 180000;
+ static const float SERVICE_JOB_MAX_MS = 900000;
+ static const float SERVICE_SNUB_MS = 600000;
+ static const int JOB_ON = 0;
+ static const int JOB_NO_TRUCK = 1;
+ static const int JOB_EMPTY = 2;
+ static const int JOB_STILL = 3;
+ static const int JOB_LONG = 4;
+ protected ref map<ACR_Squad, float> m_ServiceJobSince = new map<ACR_Squad, float>();  // crew -> sent at
+ protected ref map<ACR_Squad, float> m_ServiceJobMoved = new map<ACR_Squad, float>();  // crew -> last seen driving
+ protected ref map<ACR_Squad, float> m_ServiceSnub = new map<ACR_Squad, float>();      // client -> no drive-out until
+
+ // Why a drive-out job should end now (JOB_ON: carry on). Pure, for srv:regress.
+ static int ServiceJobEnd(bool hasTruck, float stock, float sentAt, float movedAt, float now)
+ {
+  if (!hasTruck) return JOB_NO_TRUCK;
+  if (stock < 1) return JOB_EMPTY;
+  if (now - movedAt > SERVICE_JOB_STILL_MS) return JOB_STILL;
+  if (now - sentAt > SERVICE_JOB_MAX_MS) return JOB_LONG;
+  return JOB_ON;
+ }
+
+ protected void EndServiceJob(ACR_Squad crew)
+ {
+  m_ServiceJobs.Remove(crew);
+  m_ServiceJobSince.Remove(crew);
+  m_ServiceJobMoved.Remove(crew);
+ }
 
  protected ACR_Squad CrewOf(IEntity vehicle)
  {
@@ -7108,12 +7142,45 @@ class ACR_AICommander : Managed
   ACR_Logistics logistics = m_Manager.m_Logistics;
   m_iNeeds = 0;
   if (!logistics) return;
+  float nowMs = GetGame().GetWorld().GetWorldTime();
   // Finished jobs: the served squad no longer needs it, or either side is gone.
   array<ACR_Squad> done = {};
   foreach (ACR_Squad jobCrew, ACR_Squad jobClient : m_ServiceJobs)
-   if (!jobCrew || !jobClient || !m_Manager.m_Squads.Contains(jobCrew) || !m_Manager.m_Squads.Contains(jobClient) || NeedsOf(jobClient) == 0 || jobCrew.OrderState() == ACR_EOrderState.HOLD) done.Insert(jobCrew);
-  foreach (ACR_Squad finished : done) m_ServiceJobs.Remove(finished);
-  float nowMs = GetGame().GetWorld().GetWorldTime();
+  {
+   if (!jobCrew || !jobClient || !m_Manager.m_Squads.Contains(jobCrew) || !m_Manager.m_Squads.Contains(jobClient) || NeedsOf(jobClient) == 0 || jobCrew.OrderState() == ACR_EOrderState.HOLD)
+   {
+    done.Insert(jobCrew);
+    continue;
+   }
+   // ...or it isn't going to happen (#242 audit): see SERVICE_JOB_STILL_MS.
+   IEntity jobTruck = ACR_Transport.CrewedVehicle(jobCrew);
+   float stock = 0;
+   if (jobTruck)
+   {
+    stock = logistics.StockOf(jobTruck);
+    Physics jobPhysics = jobTruck.GetPhysics();
+    if (!m_ServiceJobMoved.Contains(jobCrew) || (jobPhysics && jobPhysics.GetVelocity().Length() > ACR_Logistics.SERVICE_MAX_SPEED)) m_ServiceJobMoved.Set(jobCrew, nowMs);
+   }
+   float sentAt = nowMs;
+   if (m_ServiceJobSince.Contains(jobCrew)) sentAt = m_ServiceJobSince.Get(jobCrew);
+   else m_ServiceJobSince.Set(jobCrew, nowMs);
+   float movedAt = nowMs;
+   if (m_ServiceJobMoved.Contains(jobCrew)) movedAt = m_ServiceJobMoved.Get(jobCrew);
+   int end = ServiceJobEnd(jobTruck != null, stock, sentAt, movedAt, nowMs);
+   if (end == JOB_ON) continue;
+   done.Insert(jobCrew);
+   m_ServiceSnub.Set(jobClient, nowMs + SERVICE_SNUB_MS);
+   string whyEnd = "its truck is gone";
+   if (end == JOB_EMPTY) whyEnd = "the truck is empty";
+   else if (end == JOB_STILL) whyEnd = "stopped without serving them";
+   else if (end == JOB_LONG) whyEnd = "it took too long";
+   Say(string.Format("[ACR] AI %1: %2 gives up resupplying %3 (%4)", m_sFaction, jobCrew.GetName(), jobClient.GetName(), whyEnd));
+  }
+  foreach (ACR_Squad finished : done) EndServiceJob(finished);
+  array<ACR_Squad> snubGone = {};
+  foreach (ACR_Squad snubbed, float snubUntil : m_ServiceSnub)
+   if (!snubbed || !m_Manager.m_Squads.Contains(snubbed) || nowMs >= snubUntil) snubGone.Insert(snubbed);
+  foreach (ACR_Squad unsnubbed : snubGone) m_ServiceSnub.Remove(unsnubbed);
   array<ACR_Squad> walkers = {};
   foreach (ACR_Squad walker, float giveUp : m_ResupplyGiveUp) walkers.Insert(walker);
   foreach (ACR_Squad walker : walkers)
@@ -7159,12 +7226,14 @@ class ACR_AICommander : Managed
     bool holding = squad.m_iAITask == ACR_EAITask.DEFEND || squad.m_iAITask == ACR_EAITask.POSTED || !squad.m_Group.GetCurrentWaypoint();
     bool crewFree = crew && !crew.HasPlayer() && Ours(crew) && !m_ServiceJobs.Contains(crew) && !StuckLately(crew);
     string what = ACR_Logistics.ServiceName(service);
-    if (crewFree && (holding || squad.IsMounted() == false && best > 800) && !DangerOnTheWay(crew, PositionOf(squad)))
+    if (crewFree && !m_ServiceSnub.Contains(squad) && (holding || squad.IsMounted() == false && best > 800) && !DangerOnTheWay(crew, PositionOf(squad)))
     {
      // Bring the truck to them.
      crew.SetMode(ACR_EMoveMode.FAST);
      crew.RouteTo(ACR_Manager.Ground(PositionOf(squad)), ACR_Squad.WP_MOVE, -1, "Resupplying " + squad.GetName(), 0);
      m_ServiceJobs.Set(crew, squad);
+     m_ServiceJobSince.Set(crew, nowMs);
+     m_ServiceJobMoved.Set(crew, nowMs);
      m_ParkSentAt.Remove(crew); // back from the job, it goes straight to the park
      Say(string.Format("[ACR] AI %1: %2 drives out to %3 (%4)", m_sFaction, crew.GetName(), squad.GetName(), what));
     }
