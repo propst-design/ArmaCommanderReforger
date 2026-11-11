@@ -12,7 +12,8 @@ enum ACR_ERideState
 {
  TO_PICKUP,
  BOARDING,
- TO_DROP
+ TO_DROP,
+ PULLING_UP // at the drop (or told to get out on the way): the transport stops before anyone gets out
 }
 
 class ACR_Ride
@@ -47,6 +48,10 @@ class ACR_Ride
  ref array<Vehicle> m_aExtraVehicles = {};
  ref array<int> m_aExtraSerials = {};
  float m_fLeadAt = -1;          // convoy: when the lead reached the pickup (TO_PICKUP) or the drop (TO_DROP)
+ // Pulling up (PULLING_UP): what the riders do once it has stopped, and how it stops.
+ int m_iAfterStop;              // ACR_Rides.AFTER_*
+ bool m_bParking;               // the lead is being driven onto the verge (BBB_PullOver, MODE_PARK)
+ bool m_bParked;                // ...and its handbrake was set: let off when it drives on
 }
 
 class ACR_Rides : Managed
@@ -73,6 +78,15 @@ class ACR_Rides : Managed
  static const float ESCORT_STOPPED_MS = 15000;
  static const float PLAYER_UNLOAD_MS = 60000;  // dropped off: the transport waits this long for a player to get out
  static const float RIDERS_UNLOAD_MS = 20000;  // ...and this long for AI riders (the dismount's sweeps take 9 s)
+ // Riders get out only once the transport has stopped (11 Nov play-test: a squad put out at the
+ // drop-off's 60 m mark, the truck still rolling: it ran over the squad leader, then hit a light
+ // pole as the rest climbed out). It stops (onto the verge with -acrPullOver, else braking where it
+ // is), they get out below STOPPED_SPEED, and it moves off once none is within RIDERS_CLEAR_M.
+ static const float STOPPED_SPEED = 1;         // m/s
+ static const float PULL_UP_MAX_MS = 22000;    // a pull-over drives up to 16 s; then out wherever it is
+ static const float RIDERS_CLEAR_M = 6;        // m from a ride vehicle: still too close for it to move off
+ static const int AFTER_DROP = 0;              // stopped: the ride's own final order (Finish)
+ static const int AFTER_NEW_ORDER = 1;         // stopped: the riders' new order, on foot
  // A far fetch gets longer than PICKUP_TIMEOUT_MS: this pace door to door plus a start (1 Nov live:
  // trucks fetched from 900-1400 m on Chernarus "never arrived" within 240 s, and the squads walked).
  static const float PICKUP_PACE = 2.5;         // m/s
@@ -499,7 +513,8 @@ class ACR_Rides : Managed
   ACR_Ride ride = RideOf(rider);
   if (!ride || ride.m_Rider != rider || ride.m_bEscort || ride.m_bLedByPlayer || !ride.m_Vehicle || !ride.m_Taxi) return false;
   vector from = ride.m_Vehicle.GetOrigin();
-  if (ride.m_State != ACR_ERideState.TO_DROP && rider.GetAnchor()) from = rider.GetAnchor().GetOrigin();
+  bool riding = ride.m_State == ACR_ERideState.TO_DROP || ride.m_State == ACR_ERideState.PULLING_UP;
+  if (!riding && rider.GetAnchor()) from = rider.GetAnchor().GetOrigin();
   float trip = vector.DistanceXZ(from, destination);
   if (trip < MIN_TRIP) return false;
   vector dir = destination - from;
@@ -514,9 +529,11 @@ class ACR_Rides : Managed
   ride.m_sFinalOrder = finalOrder;
   ride.m_iFinalKind = finalKind;
   ride.m_fDriveBudgetMs = (trip / 4 + 150) * 1000;
-  if (ride.m_State == ACR_ERideState.TO_DROP)
+  if (riding)
   {
-   ride.m_fStateSince = GetGame().GetWorld().GetWorldTime();
+   // (Stopping to let them out: drive on instead, nobody has got out yet.)
+   if (ride.m_State == ACR_ERideState.PULLING_UP) ReleaseBrakes(ride);
+   SetState(ride, ACR_ERideState.TO_DROP);
    ride.m_fLeadAt = -1;
    DriveToDrop(ride);
   }
@@ -644,7 +661,7 @@ class ACR_Rides : Managed
  {
   ACR_Squad rider = ride.m_Rider;
   IEntity anchor = rider.GetAnchor();
-  if (ride.m_State == ACR_ERideState.TO_DROP) rider.Halt("Riding", ACR_EOrderState.RIDE);
+  if (ride.m_State == ACR_ERideState.TO_DROP || ride.m_State == ACR_ERideState.PULLING_UP) rider.Halt("Riding", ACR_EOrderState.RIDE);
   else if (ride.m_State == ACR_ERideState.BOARDING && ride.m_Vehicle)
   {
    rider.MoveTo(ride.m_Vehicle.GetOrigin());
@@ -691,13 +708,17 @@ class ACR_Rides : Managed
   int outside, alive;
   bool player = riders && PlayersAboard(ride, outside) > 0;
   int aboard = 0;
+  int beside = 0;
   if (riders) aboard = Aboard(ride, alive);
+  if (riders) beside = RidersBeside(ride);
   float waited = GetGame().GetWorld().GetWorldTime() - ride.m_fUnloadSince;
   if (player && waited < PLAYER_UNLOAD_MS) return true;
-  if (aboard > 0 && !player && waited < RIDERS_UNLOAD_MS) return true;
+  // Out is not enough: not until they have stepped away from it (it drove off through them).
+  if ((aboard > 0 || beside > 0) && !player && waited < RIDERS_UNLOAD_MS) return true;
   if (player) Log(ride, "a player is still aboard, the transport leaves with him");
   else if (aboard > 0) Log(ride, string.Format("%1 still aboard after %2 s, the transport leaves with them", aboard, (int)(waited / 1000)));
-  else Log(ride, string.Format("riders out after %1 s, the transport goes", (int)(waited / 1000)));
+  else if (beside > 0) Log(ride, string.Format("%1 rider(s) still beside it after %2 s, the transport goes", beside, (int)(waited / 1000)));
+  else Log(ride, string.Format("riders out and clear after %1 s, the transport goes", (int)(waited / 1000)));
   SendHome(ride);
   return false;
  }
@@ -799,6 +820,26 @@ class ACR_Rides : Managed
   {
    // (the transport crew bailing out also lands here, with the riders already told to get out)
    bool riderReordered = ride.m_Rider.m_iOrderSerial != ride.m_iRiderSerial && ride.m_Rider.OrderState() != ACR_EOrderState.DISMOUNT;
+   bool taxiOurs = ride.m_Taxi.m_iOrderSerial == ride.m_iTaxiSerial;
+   bool moving = ride.m_State == ACR_ERideState.TO_DROP || ride.m_State == ACR_ERideState.PULLING_UP;
+   // Riders given a new order aboard (a Get out among them: the game's own waypoint): the transport
+   // stops first, then they get out and carry it out (a job, mines or a roadblock, left as it is).
+   if (taxiOurs && riderReordered && moving && aboard > 0)
+   {
+    ride.m_iRiderSerial = ride.m_Rider.m_iOrderSerial;
+    if (ride.m_State == ACR_ERideState.PULLING_UP) ride.m_iAfterStop = AFTER_NEW_ORDER;
+    else PullUp(ride, AFTER_NEW_ORDER, "the riders got a new order");
+    return true;
+   }
+   // Thrown out on the way (a tactical dismount under fire, the crew bailing out): out at once, but
+   // the transport stops and waits until they are clear rather than drive home through them.
+   if (taxiOurs && !riderReordered && moving && ride.m_Rider.OrderState() == ACR_EOrderState.DISMOUNT)
+   {
+    Log(ride, "cancelled: the riders bailed out, the transport stops for them");
+    ride.m_Rider.ContinueAfterDismount(ride.m_sFinalPrefab, ride.m_Final, ride.m_fFinalRadius, ride.m_sFinalOrder, ride.m_iFinalKind);
+    WaitForUnload(ride, "Halted");
+    return false;
+   }
    if (riderReordered) Log(ride, "cancelled: the riders got a new order");
    else Log(ride, "cancelled: the transport crew was given other orders or bailed out");
    if (ride.m_Taxi.m_iOrderSerial == ride.m_iTaxiSerial) SendHome(ride);
@@ -930,10 +971,8 @@ class ACR_Rides : Managed
     if (playersOn > 0) ride.m_bPlayerAboard = true;
     else if (ride.m_bPlayerAboard && playersOff > 0 && aboard > 0)
     {
-     Log(ride, "a player got out on the way, everyone out here");
-     Finish(ride, true);
-     SendHome(ride);
-     return false;
+     PullUp(ride, AFTER_DROP, "a player got out on the way, everyone out here");
+     return true;
     }
     if (aboard == 0)
     {
@@ -966,33 +1005,167 @@ class ACR_Rides : Managed
      }
      if (now - ride.m_fLeadAt < CONVOY_DROP_WAIT_MS) return true;
     }
-    if (arrived || inState > ride.m_fDriveBudgetMs)
+    // Arrived (60 m out, still at speed): it stops first, they get out once it has (PULLING_UP).
+    if (arrived) PullUp(ride, AFTER_DROP, "at the drop-off");
+    else if (inState > ride.m_fDriveBudgetMs) PullUp(ride, AFTER_DROP, "drive took too long, getting out here");
+    return true;
+   }
+   case ACR_ERideState.PULLING_UP:
+   {
+    // Bailed out meanwhile (all of them out already): on to the objective, it waits till they're clear.
+    if (aboard == 0)
     {
-     if (arrived) Log(ride, "dropped off");
-     else Log(ride, "drive took too long, getting out here");
-     Finish(ride, true);
-     // Wait for the riders to get out rather than drive off with them (a player gets out himself).
-     if (aboard > 0 && !ride.m_bEscort)
-     {
-      ride.m_Taxi.Halt("Unloading");
-      ride.m_iTaxiSerial = ride.m_Taxi.m_iOrderSerial;
-      foreach (int u, ACR_Squad unloading : ride.m_aExtraTaxis)
-      {
-       if (!unloading) continue;
-       unloading.Halt("Unloading");
-       ride.m_aExtraSerials[u] = unloading.m_iOrderSerial;
-      }
-      ride.m_fUnloadSince = now;
-      m_Unloading.Insert(ride);
-      return false;
-     }
-     SendHome(ride);
+     Log(ride, "riders out before it stopped, continuing on foot");
+     Finish(ride, false);
+     WaitForUnload(ride, "Halted");
      return false;
     }
-    return true;
+    float speed = RideSpeed(ride);
+    bool parking = ride.m_bParking && BBB_PullOver.Active(ride.m_Vehicle);
+    if (!parking && ride.m_bParking)
+    {
+     ride.m_bParking = false;
+     // Parked (or given up on the verge): a brake held for the riders now.
+     Brake(ride.m_Vehicle);
+    }
+    bool stopped = speed < STOPPED_SPEED && !parking;
+    if (!stopped && inState < PULL_UP_MAX_MS) return true;
+    if (stopped) Log(ride, string.Format("stopped after %1 s, riders out", Math.Round(inState / 100) / 10));
+    else Log(ride, string.Format("still at %1 km/h after %2 s, riders out anyway", Math.Round(speed * 36) / 10, (int)(inState / 1000)));
+    AfterStop(ride);
+    WaitForUnload(ride, "Unloading");
+    return false;
    }
   }
   return false;
+ }
+
+ // ---------------------------------------------------------------- stopping for the riders
+
+ // Every vehicle of the ride halted; the lead onto the verge on its right with -acrPullOver (as a
+ // squad's own Get out does, ACR_Squad.PullOverFirst), not for an armed carrier or under fire;
+ // otherwise each brakes where it is (BBB_PullOver, MODE_HOLD, held until it drives on). The riders
+ // get out once all have stopped (PULLING_UP).
+ protected void PullUp(ACR_Ride ride, int after, string why)
+ {
+  float speed = RideSpeed(ride);
+  ride.m_iAfterStop = after;
+  ride.m_bParking = false;
+  SetState(ride, ACR_ERideState.PULLING_UP);
+  HaltAll(ride, "Pulling up");
+  string how = "braking where it is";
+  ChimeraCharacter driver = ACR_Squad.DriverOf(ride.m_Vehicle);
+  bool calm = !BBB_Transport.VehicleHitRecently(ride.m_Vehicle, 10000) && ride.m_Taxi.KnownEnemies(250) == 0;
+  if (!ride.m_bEscort && ACR_Squad.PullOverOn() && calm && driver && ride.m_Vehicle.FindComponent(CarControllerComponent)
+   && BBB_PullOver.Begin(ride.m_Vehicle, driver, BBB_PullOver.MODE_PARK, 1, null, null, ACR_Squad.PULL_OVER_AHEAD_M))
+  {
+   ride.m_bParking = true;
+   ride.m_bParked = true;
+   how = "pulling over to the " + BBB_PullOver.s_sWhere;
+  }
+  else Brake(ride.m_Vehicle);
+  foreach (Vehicle extra : ride.m_aExtraVehicles) Brake(extra);
+  Log(ride, string.Format("%1: stopping first (%2 km/h, %3)", why, Math.Round(speed * 36) / 10, how));
+ }
+
+ // Stopped: the riders out, to the ride's own order or the new one they were given aboard.
+ protected void AfterStop(ACR_Ride ride)
+ {
+  ACR_Squad rider = ride.m_Rider;
+  if (ride.m_iAfterStop != AFTER_NEW_ORDER)
+  {
+   Log(ride, "dropped off");
+   Finish(ride, true);
+   return;
+  }
+  // (A Get out order is the game's own waypoint, already running: it waits for the stop, EnsureGetOut.)
+  if (rider.m_sOrderPrefab == ACR_Squad.WP_GET_OUT) return;
+  // A job (mines, a roadblock, a Fortify order) is left as it is to carry on on foot (DismountAndContinue's
+  // Halt would end it, refunded).
+  if (rider.HasJob()) rider.GetOutForJob();
+  else rider.DismountAndContinue(rider.m_sOrderPrefab, rider.m_MoveTarget, rider.m_fOrderRadius, rider.m_Order, rider.m_OrderKind);
+ }
+
+ // The transport (and the convoy) halted and held still until its riders are out and clear
+ // (WaitForRidersOut), then home.
+ protected void WaitForUnload(ACR_Ride ride, string label)
+ {
+  HaltAll(ride, label);
+  Brake(ride.m_Vehicle);
+  foreach (Vehicle extra : ride.m_aExtraVehicles) Brake(extra);
+  ride.m_fUnloadSince = GetGame().GetWorld().GetWorldTime();
+  m_Unloading.Insert(ride);
+ }
+
+ protected void HaltAll(ACR_Ride ride, string label)
+ {
+  if (ride.m_Taxi && m_Manager.m_Squads.Contains(ride.m_Taxi) && ride.m_Taxi.m_iOrderSerial == ride.m_iTaxiSerial)
+  {
+   ride.m_Taxi.Halt(label);
+   ride.m_iTaxiSerial = ride.m_Taxi.m_iOrderSerial;
+  }
+  foreach (int i, ACR_Squad extra : ride.m_aExtraTaxis)
+  {
+   if (!extra || !m_Manager.m_Squads.Contains(extra) || extra.m_iOrderSerial != ride.m_aExtraSerials[i]) continue;
+   extra.Halt(label);
+   ride.m_aExtraSerials[i] = extra.m_iOrderSerial;
+  }
+ }
+
+ // Brakes on and held (the game's driver, once halted, coasts: the 11 Nov truck rolled on into a pole).
+ protected static void Brake(IEntity vehicle)
+ {
+  if (!vehicle || BBB_PullOver.Active(vehicle) || !vehicle.FindComponent(CarControllerComponent)) return;
+  ChimeraCharacter driver = ACR_Squad.DriverOf(vehicle);
+  if (driver) BBB_PullOver.Begin(vehicle, driver, BBB_PullOver.MODE_HOLD, 1, null, null);
+ }
+
+ // The ride's vehicles free to drive on: brakes let go, the parked lead's handbrake off.
+ protected void ReleaseBrakes(ACR_Ride ride)
+ {
+  if (ride.m_Vehicle)
+  {
+   BBB_PullOver.Release(ride.m_Vehicle);
+   CarControllerComponent car = CarControllerComponent.Cast(ride.m_Vehicle.FindComponent(CarControllerComponent));
+   if (ride.m_bParked && car) car.SetPersistentHandBrake(false);
+  }
+  ride.m_bParked = false;
+  ride.m_bParking = false;
+  foreach (Vehicle extra : ride.m_aExtraVehicles)
+   if (extra) BBB_PullOver.Release(extra);
+ }
+
+ // The fastest of the ride's vehicles (riders may be in any of them).
+ protected float RideSpeed(ACR_Ride ride)
+ {
+  float fastest = Speed(ride.m_Vehicle);
+  foreach (Vehicle extra : ride.m_aExtraVehicles)
+   if (extra) fastest = Math.Max(fastest, Speed(extra));
+  return fastest;
+ }
+
+ protected static float Speed(IEntity vehicle)
+ {
+  if (!vehicle || !vehicle.GetPhysics()) return 0;
+  return vehicle.GetPhysics().GetVelocity().Length();
+ }
+
+ // AI riders out of the transport but still within RIDERS_CLEAR_M of one of the ride's vehicles.
+ protected int RidersBeside(ACR_Ride ride)
+ {
+  int beside;
+  array<AIAgent> agents = {};
+  ride.m_Rider.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (!ACR_Respawn.IsAlive(body) || ACR_Squad.FindController(body) != 0 || ACR_Transport.VehicleOf(body)) continue;
+   bool near = ride.m_Vehicle && vector.DistanceXZ(body.GetOrigin(), ride.m_Vehicle.GetOrigin()) < RIDERS_CLEAR_M;
+   foreach (Vehicle extra : ride.m_aExtraVehicles)
+    if (extra && vector.DistanceXZ(body.GetOrigin(), extra.GetOrigin()) < RIDERS_CLEAR_M) near = true;
+   if (near) beside++;
+  }
+  return beside;
  }
 
  // Riders carry out their final order (getting out first if aboard).
@@ -1039,6 +1212,8 @@ class ACR_Rides : Managed
  // Ride over: the convoy's other vehicles still on this ride's orders go home too.
  protected void ReleaseConvoy(ACR_Ride ride)
  {
+  // (Every way a ride ends passes here: the brakes held for its riders let go.)
+  ReleaseBrakes(ride);
   foreach (int i, ACR_Squad extra : ride.m_aExtraTaxis)
   {
    if (!extra || !m_Manager.m_Squads.Contains(extra) || extra.m_iOrderSerial != ride.m_aExtraSerials[i] || extra.HasPlayer()) continue;
