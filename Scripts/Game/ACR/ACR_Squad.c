@@ -4470,6 +4470,9 @@ class ACR_Squad : Managed
   return ACR_OrderSnapshot.Make(prefab, goal, radius, m_Order, state, m_OrderKind);
  }
 
+ // Its job was ended by whoever gave it (a called-off ammo truck, a finished service job): no retry.
+ void DropHoldRetry() { m_HoldRetryOrder = null; }
+
  protected void HoldRetryWatch(float now)
  {
   if (!m_HoldRetryOrder) return;

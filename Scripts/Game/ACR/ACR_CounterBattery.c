@@ -273,10 +273,25 @@ class ACR_CounterBattery
    if (vector.DistanceXZ(team.m_Tube.GetOrigin(), aim) > INCOMING_NEAR) continue;
    team.m_fIncomingAt = landsAtMs;
    team.m_vIncomingFrom = from;
-   // Its side's players hear it coming in (an AI commander's team moves by itself: DisplaceUnderFire).
-   if (team.m_Squad && (team.m_Squad.HasPlayer() || team.m_Squad.m_bClaimed || team.m_Squad.m_Commander != 0))
+   // Its side's players hear it coming in, unless the AI will move the team itself (DisplaceUnderFire).
+   if (team.m_Squad && !AIMoves(manager, team))
     manager.NotifyFaction(team.m_sFaction, string.Format("Counter-battery fire coming in on %1: move it", team.m_sName));
   }
+ }
+
+ // Does the AI move this team off when the rounds land (ACR_AICommander.DisplaceUnderFire)? Only on a
+ // side the AI commands (not paused) or one the 2IC runs whole ("I'm the 2IC"), and only a team no
+ // player leads, claimed or ordered. A human commander's map-ordered team and the plain 2IC's handed
+ // teams are never moved, so their players must hear the warning (review 0.5.13 #7).
+ static bool AIMoves(ACR_Manager manager, ACR_MortarTeam team)
+ {
+  ACR_Squad squad = team.m_Squad;
+  if (!squad || squad.HasPlayer() || squad.m_iOrderedBy != 0) return false;
+  if (manager.m_Debug && manager.m_Debug.IsPaused(team.m_sFaction)) return false;
+  ACR_FactionSettings settings = ACR_FactionSettings.Find(team.m_sFaction);
+  ACR_AICommander ai = manager.AICommanderFor(team.m_sFaction);
+  if (settings && settings.m_bAICommander && ai && ai.m_bActive) return true;
+  return ACR_SquadAI.RunsAll(manager, team.m_sFaction) && !squad.m_bClaimed && squad.m_Commander == 0;
  }
 
  // Counter-battery rounds have landed near this team's tube lately (and from where they came).

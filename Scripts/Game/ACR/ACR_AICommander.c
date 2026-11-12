@@ -7238,6 +7238,9 @@ class ACR_AICommander : Managed
 
  protected void EndServiceJob(ACR_Squad crew)
  {
+  // Its stuck-hold retry (ACR_Squad.HoldRetryWatch) would re-drive the dead job to the old meeting
+  // point minutes later, untracked and unchecked (review 0.5.13 #9).
+  if (crew) crew.DropHoldRetry();
   m_ServiceJobs.Remove(crew);
   m_ServiceJobSince.Remove(crew);
   m_ServiceJobMoved.Remove(crew);
@@ -7468,8 +7471,9 @@ class ACR_AICommander : Managed
  protected ref map<ACR_Squad, float> m_AmmoNoTruckUntil = new map<ACR_Squad, float>();
  protected ref map<ACR_Squad, float> m_AmmoToppedAt = new map<ACR_Squad, float>();
  protected ref map<ACR_Squad, int> m_AmmoToppedPct = new map<ACR_Squad, int>();
- protected ref map<ACR_Squad, ACR_Base> m_AmmoSkipBase = new map<ACR_Squad, ACR_Base>();
- protected ref map<ACR_Squad, float> m_AmmoSkipAt = new map<ACR_Squad, float>();
+ // Every base a squad couldn't get to, and when (one remembered base let a run ping-pong between
+ // two unreachable bases all match: review 0.5.13 #13).
+ protected ref map<ACR_Squad, ref map<ACR_Base, float>> m_AmmoSkips = new map<ACR_Squad, ref map<ACR_Base, float>>();
 
  ACR_AmmoRun AmmoRunOf(ACR_Squad squad)
  {
@@ -7582,10 +7586,27 @@ class ACR_AICommander : Managed
 
  protected bool AmmoSkips(ACR_Squad squad, ACR_Base base, float now)
  {
-  ACR_Base skipped;
+  map<ACR_Base, float> skips;
   float at;
-  if (!m_AmmoSkipBase.Find(squad, skipped) || skipped != base || !m_AmmoSkipAt.Find(squad, at)) return false;
+  if (!base || !m_AmmoSkips.Find(squad, skips) || !skips.Find(base, at)) return false;
   return now - at < AMMO_SKIP_MS;
+ }
+
+ protected void SkipAmmoBase(ACR_Squad squad, ACR_Base base, float now)
+ {
+  if (!squad || !base) return;
+  map<ACR_Base, float> skips;
+  if (!m_AmmoSkips.Find(squad, skips))
+  {
+   skips = new map<ACR_Base, float>();
+   m_AmmoSkips.Insert(squad, skips);
+  }
+  // Long-past skips go (and bases that no longer exist), so the map stays small.
+  array<ACR_Base> old = {};
+  foreach (ACR_Base was, float at : skips)
+   if (!was || now - at >= AMMO_SKIP_MS) old.Insert(was);
+  foreach (ACR_Base gone : old) skips.Remove(gone);
+  skips.Set(base, now);
  }
 
  protected void ManageAmmoRuns(ACR_Logistics logistics, float now)
@@ -7595,6 +7616,7 @@ class ACR_AICommander : Managed
    if (!m_AmmoRuns.IsEmpty()) EndAllAmmoRuns("ammo runs turned off");
    return;
   }
+  PruneAmmo();
   array<ACR_Squad> running = {};
   foreach (ACR_Squad runner, ACR_AmmoRun r : m_AmmoRuns) running.Insert(runner);
   foreach (ACR_Squad squad : running) TickAmmoRun(squad, logistics, now);
@@ -7828,8 +7850,7 @@ class ACR_AICommander : Managed
   else if (!inside && (now >= run.m_fGiveUpAt || squad.GaveUpUnreachable())) lost = "it can't get there";
   if (!lost.IsEmpty())
   {
-   m_AmmoSkipBase.Set(squad, base);
-   m_AmmoSkipAt.Set(squad, now);
+   SkipAmmoBase(squad, base, now);
    m_AmmoRuns.Remove(squad);
    squad.SetAITask(ACR_EAITask.FREE);
    string name = "?";
@@ -7935,8 +7956,20 @@ class ACR_AICommander : Managed
   m_AmmoNoTruckUntil.Remove(squad);
   m_AmmoToppedAt.Remove(squad);
   m_AmmoToppedPct.Remove(squad);
-  m_AmmoSkipBase.Remove(squad);
-  m_AmmoSkipAt.Remove(squad);
+  m_AmmoSkips.Remove(squad);
+ }
+
+ // Squads gone from the match (wiped, deleted) leave nothing behind in the ammo maps (review 0.5.13).
+ protected void PruneAmmo()
+ {
+  array<ACR_Squad> gone = {};
+  foreach (ACR_Squad a, ACR_AmmoRun r : m_AmmoRuns) if (!a || !m_Manager.m_Squads.Contains(a)) gone.Insert(a);
+  foreach (ACR_Squad b, float t1 : m_AmmoLookAt) if (!b || !m_Manager.m_Squads.Contains(b)) gone.Insert(b);
+  foreach (ACR_Squad c, float t2 : m_AmmoNoTruckUntil) if (!c || !m_Manager.m_Squads.Contains(c)) gone.Insert(c);
+  foreach (ACR_Squad d, float t3 : m_AmmoToppedAt) if (!d || !m_Manager.m_Squads.Contains(d)) gone.Insert(d);
+  foreach (ACR_Squad e, int p : m_AmmoToppedPct) if (!e || !m_Manager.m_Squads.Contains(e)) gone.Insert(e);
+  foreach (ACR_Squad f, map<ACR_Base, float> s : m_AmmoSkips) if (!f || !m_Manager.m_Squads.Contains(f)) gone.Insert(f);
+  foreach (ACR_Squad squad : gone) ForgetAmmo(squad);
  }
 
  protected void ThinkAmmoRuns(notnull array<string> lines)
@@ -10307,11 +10340,17 @@ class ACR_AICommander : Managed
   return m_RequestedTarget;
  }
 
+ // Answered as the 2IC it is: running the whole side ("I'm the 2IC"), what it buys for a player's
+ // ask (a construction truck for "Build a FOB here") comes out of Purse too, above the player's
+ // -acr2ICKeep, as everything else it buys (review 0.5.13 #14: the ask used to spend below the keep).
  void AnswerTwoIC(ACR_TwoICRequest r)
  {
   bool handed = m_bHandedOnly;
+  bool all = m_bTwoICAll;
   m_bHandedOnly = true;
+  m_bTwoICAll = ACR_SquadAI.RunsAll(m_Manager, m_sFaction);
   AnswerRequest(r);
+  m_bTwoICAll = all;
   m_bHandedOnly = handed;
  }
 
@@ -10821,11 +10860,11 @@ class ACR_AICommander : Managed
   m_RefitGaveUpOn.Clear();
   m_RefitGaveUpAt.Clear();
   m_RefitGiveUps.Clear();
-  m_AmmoRuns.Clear();
+  // Ended, not just forgotten: their trucks are released too (m_ServiceJobs kept them booked).
+  EndAllAmmoRuns("");
   m_AmmoLookAt.Clear();
   m_AmmoNoTruckUntil.Clear();
-  m_AmmoSkipBase.Clear();
-  m_AmmoSkipAt.Clear();
+  m_AmmoSkips.Clear();
   m_Trips.Clear();
   m_ReserveSquad = null;
   m_iSaveForEntry = -1;
