@@ -153,9 +153,13 @@ class ACR_Airdrop
   float seconds = PLANE_LEAD * 2 / PLANE_SPEED;
   ResourceName plane = ACR_Supports.BOMB_JET_EAST;
   if (West(side)) plane = ACR_Supports.BOMB_JET_WEST;
+  // Flown as one of AC: Actual's own jets whatever -acrPeriodJets says (the stand-in is always one), so the
+  // flyover treats it as one: its engine loops and pass-by play and its bounds move with it. Flown with
+  // periodJets false it never looked up its SoundComponent and passed over silent (Jacob, 12 Nov: a silent
+  // A-10). No bombs: only a bomb run hangs them (ACR_LocalFlyover.AddBomb).
   SCR_BaseGameMode mode = SCR_BaseGameMode.Cast(GetGame().GetGameMode());
-  if (mode) mode.ACR_BroadcastFlyover(plane, start, dir, PLANE_SPEED, altitude, seconds, false);
-  if (GetGame().GetPlayerController()) ACR_LocalFlyover.Start(plane, start, dir, PLANE_SPEED, altitude, seconds, false);
+  if (mode) mode.ACR_BroadcastFlyover(plane, start, dir, PLANE_SPEED, altitude, seconds, true);
+  if (GetGame().GetPlayerController()) ACR_LocalFlyover.Start(plane, start, dir, PLANE_SPEED, altitude, seconds, true);
   string name = "An-12";
   if (West(side)) name = "C-130";
   PrintFormat("[ACR] AIRDROP %1 %2 inbound to %3", side, name, ACR_Manager.Grid(spot));
