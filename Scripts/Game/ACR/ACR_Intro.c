@@ -19,7 +19,7 @@ class ACR_Intro : Managed
 {
  static const float ORBIT_S = 11.0;     // the orbit
  static const float ZOOM_S = 4.0;       // the flight into the player's head; ORBIT_S + ZOOM_S <= 15
- static const float FADE_S = 3.0;       // the music fades out over the last FADE_S
+ static const float FADE_S = 1.5;       // the music fades out over the last FADE_S (full volume until then)
  static const float STRIKE_S = 4.6;     // zombie matches: the strike, on an onset 4.6 s into Lost As Shit
  static const float WAIT_S = 20.0;      // how long a received intro waits for the map or a menu to close
  static const float ORBIT_RADIUS = 85.0;
