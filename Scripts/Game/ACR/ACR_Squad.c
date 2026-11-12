@@ -1673,6 +1673,7 @@ class ACR_Squad : Managed
   // Built: nothing left to refund (a dismantle gives half back to whoever paid).
   rb.m_PaidTruck = m_RoadblockTruck;
   rb.m_fPaidLoads = m_fRoadblockLoads;
+  rb.m_iPaidRP = m_iRoadblockPaidRP;
   m_iRoadblockPaidRP = 0;
   m_RoadblockTruck = null;
   m_fRoadblockLoads = 0;

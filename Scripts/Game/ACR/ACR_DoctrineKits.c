@@ -366,7 +366,14 @@ class ACR_DoctrineKits
   }
   data.m_iRP += truck.m_iPrice;
   record.m_iCredit = truck.m_iPrice;
-  if (Buy(manager, faction, data, hq, CarrierIndex(data, faction), "APC or IFV", record)) return;
+  ACR_PendingPurchase waiting = manager.m_Requisition.NewestPending(faction);
+  if (Buy(manager, faction, data, hq, CarrierIndex(data, faction), "APC or IFV", record))
+  {
+   // Its crew may still fail to turn up: then the truck comes back, not its price (Requisition.Refund).
+   ACR_PendingPurchase carrier = manager.m_Requisition.NewestPending(faction);
+   if (carrier && carrier != waiting) carrier.m_KitSwap = truck;
+   return;
+  }
   data.m_iRP -= truck.m_iPrice;
   if (data.m_iRP < 0) data.m_iRP = 0;
   record.m_iCredit = 0;

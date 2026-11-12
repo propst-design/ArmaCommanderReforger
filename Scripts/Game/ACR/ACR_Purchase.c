@@ -16,6 +16,9 @@ class ACR_PendingPurchase : Managed
  bool m_bCrewed;
  SCR_AIGroup m_Group;
  SCR_AIGroup m_Riders;
+ // A company kit's carrier bought in place of this starting truck (ACR_DoctrineKits.GiveCarrier):
+ // if the carrier never turns up, the truck comes back and only the difference is refunded.
+ ref ACR_KitTruck m_KitSwap;
 
  bool NeedsWatch() { return (m_Vehicle && m_bCrewed) || m_Group || m_Riders; }
 

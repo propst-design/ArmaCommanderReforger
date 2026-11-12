@@ -351,6 +351,15 @@ class ACR_FobSupply
   return line;
  }
 
+
+ // A FOB's own store (the HQ's crates the paid editor spends), not a depot or a truck.
+ static bool IsFobStore(SCR_ResourceContainer container)
+ {
+  if (!container || !container.GetOwner()) return false;
+  IEntity provider = EditorProvider(container.GetOwner());
+  return provider && provider != container.GetOwner() && provider.FindComponent(ACR_FobProviderComponent) && container == ACR_Logistics.SupplyContainer(provider);
+ }
+
  // Any other container inside a built FOB (a supply depot's crates, which vanilla lets a truck
  // unload into) refuses a truck's load: ACA builds and serves only from the CP store, so it would
  // be lost there. Park beside the HQ instead (vanilla unload reaches 12 m).
@@ -572,5 +581,40 @@ modded class SCR_ResourceContainerVehicleUnloadAction
   float now = GetGame().GetWorld().GetWorldTime();
   if (now - m_fACRToldAt < 10000 && moved < 1) playerId = 0; // once per 10 s while refused
   if (!ACR_FobSupply.Unloaded(pOwnerEntity, moved, m_fACRWanted, playerId).IsEmpty() && playerId > 0) m_fACRToldAt = now;
+ }
+}
+
+// The inventory's own supply moves (merging one container into another, splitting a crate out)
+// go container to container and never ask IsAllowed (broad review): a FOB's store neither takes
+// from nor gives to them. It fills only through a truck's Unload supplies (paid loads) and the
+// supply order, and is spent by building.
+modded class SCR_ResourcePlayerControllerInventoryComponent
+{
+ protected override bool CheckResourceConsumptionAvailability(notnull SCR_ResourceActor actor, float resourceValue)
+ {
+  if (ACR_FobSupply.IsFobStore(SCR_ResourceContainer.Cast(actor)))
+  {
+   ACR_TellFobStore();
+   return false;
+  }
+  return super.CheckResourceConsumptionAvailability(actor, resourceValue);
+ }
+
+ protected override bool CheckResourceGenerationAvailability(notnull SCR_ResourceActor actor, float resourceValue)
+ {
+  if (ACR_FobSupply.IsFobStore(SCR_ResourceContainer.Cast(actor)))
+  {
+   ACR_TellFobStore();
+   return false;
+  }
+  return super.CheckResourceGenerationAvailability(actor, resourceValue);
+ }
+
+ protected void ACR_TellFobStore()
+ {
+  if (!Replication.IsServer()) return;
+  PlayerController controller = PlayerController.Cast(GetOwner());
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (controller && manager) manager.Notify(controller.GetPlayerId(), "A FOB's supplies move only by a truck's Unload supplies (paid loads) or the supply order, not by hand");
  }
 }

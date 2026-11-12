@@ -183,6 +183,8 @@ class ACR_Depots
   if (spot == vector.Zero) return false;
   IEntity vehicle = ACR_Manager.SpawnPrefab(prefab, spot);
   if (!vehicle) return false;
+  // Its wreck is cleared like any other (broad review: technical wrecks piled up over a long match).
+  if (manager.m_Cleanup) manager.m_Cleanup.Watch(vehicle);
   depot.m_aVehicles.Insert(vehicle);
   depot.m_aSpots.Insert(spot);
   if (depot.m_vYard == vector.Zero) depot.m_vYard = spot;

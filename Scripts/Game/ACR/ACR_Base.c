@@ -102,6 +102,8 @@ class ACR_Base : GenericEntity
   if (m_FobSupply) SCR_EntityHelper.DeleteEntityAndChildren(m_FobSupply);
   m_FobSupply = null;
   if (s_All) s_All.RemoveItem(this);
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (manager && manager.m_Bases) manager.m_Bases.DespawnForces(this);
   if (m_GarrisonGroup) SCR_EntityHelper.DeleteEntityAndChildren(m_GarrisonGroup);
   if (m_PatrolGroup) SCR_EntityHelper.DeleteEntityAndChildren(m_PatrolGroup);
   PrintFormat("[ACR] BASE %1 retired (%2)", m_sName, why);

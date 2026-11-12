@@ -31,6 +31,7 @@ class ACR_Roadblock : Managed
 	int m_iType = ACR_ERoadblockType.MEDIUM;
 	IEntity m_PaidTruck;  // the construction truck that paid for it (none: RP)
 	float m_fPaidLoads;
+	int m_iPaidRP;        // RP its build order was paid with (0: free, e.g. an FIA cell's barricade)
 	ACR_DefenderPost m_Defenders; // its defenders (-acrRoadblockDefenders, ACR_Defenders)
 	vector m_vPost;               // where its holders and defenders post, off the lane (ACR_RoadblockLane.Post)
 	float m_fPostRadius = 15;
@@ -556,7 +557,8 @@ class ACR_Roadblocks : Managed
 		return rb;
 	}
 
-	static void DismantleRoadblock(ACR_Roadblock rb)
+	// 'refund': half of what was paid goes back (false: destroyed, e.g. by saboteurs).
+	static void DismantleRoadblock(ACR_Roadblock rb, bool refund = true)
 	{
 		if (!rb) return;
 		if (rb.m_Turret) VacateTurret(rb.m_Turret);
@@ -566,20 +568,22 @@ class ACR_Roadblocks : Managed
 		// Half its price back where it was paid from (the medium checkpoint's DISMANTLE_REFUND RP);
 		// a destroyed truck's half is lost.
 		ACR_Manager manager = ACR_Manager.GetInstance();
-		string refund = "nothing";
-		if (rb.m_fPaidLoads > 0)
+		string refunded = "nothing";
+		if (!refund) refunded = "nothing (destroyed)";
+		else if (rb.m_fPaidLoads > 0)
 		{
 			if (manager && manager.m_Logistics && rb.m_PaidTruck && ACR_Logistics.Health(rb.m_PaidTruck) > 0)
 			{
 				manager.m_Logistics.AddStock(rb.m_PaidTruck, rb.m_fPaidLoads * 0.5);
-				refund = string.Format("%1 supplies to the construction truck", Math.Round(rb.m_fPaidLoads * 0.5 * ACR_Logistics.SUPPLIES_PER_LOAD_CONSTRUCTION));
+				refunded = string.Format("%1 supplies to the construction truck", Math.Round(rb.m_fPaidLoads * 0.5 * ACR_Logistics.SUPPLIES_PER_LOAD_CONSTRUCTION));
 			}
 		}
-		else
+		// Only RP that was paid (broad review #15: every FIA barricade and works roadblock "refunded").
+		else if (rb.m_iPaidRP > 0)
 		{
-			int rp = Cost(rb.m_iType) * DISMANTLE_REFUND / ROADBLOCK_COST;
+			int rp = rb.m_iPaidRP * DISMANTLE_REFUND / ROADBLOCK_COST;
 			if (manager) manager.m_Bases.Refund(rb.m_sFaction, rp);
-			refund = string.Format("%1 RP", rp);
+			refunded = string.Format("%1 RP", rp);
 		}
 
 		// Removing it from the list frees it when the caller holds no strong reference.
@@ -587,7 +591,7 @@ class ACR_Roadblocks : Managed
 		string faction = rb.m_sFaction;
 		ACR_Defenders.Remove(rb.m_Defenders);
 		s_aRoadblocks.RemoveItem(rb);
-		PrintFormat("[ACR] ROADBLOCK dismantled at %1, refunded %2 to %3", pos, refund, faction);
+		PrintFormat("[ACR] ROADBLOCK dismantled at %1, refunded %2 to %3", pos, refunded, faction);
 	}
 
 	static IEntity FindTurretInHierarchy(IEntity root)

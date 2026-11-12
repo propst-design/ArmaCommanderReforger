@@ -345,7 +345,7 @@ class ACR_Raid : Managed
   PrintFormat("[ACR] RAID charge at %1 went off", m_sName);
   if (!m_Roadblock || !m_Roadblock.m_Entity || vector.DistanceXZ(m_Roadblock.m_vPos, m_vTarget) > ROADBLOCK_BLAST) return;
   string side = m_Roadblock.m_sFaction;
-  ACR_Roadblocks.DismantleRoadblock(m_Roadblock);
+  ACR_Roadblocks.DismantleRoadblock(m_Roadblock, false); // blown up: nothing back
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (manager) manager.NotifyFaction(side, string.Format("Roadblock at %1 destroyed by saboteurs", ACR_Manager.Grid(m_vTarget)));
  }

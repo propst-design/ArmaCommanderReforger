@@ -295,7 +295,8 @@ class ACR_Containment
   ACR_FactionData data = manager.m_Bases.GetFaction(side);
   if (!data) return 0;
   int before = data.m_iRP;
-  data.m_iRP = Math.Min(data.m_iRP + amount, ACR_BaseSystem.POINTS_CAP);
+  // Up to the cap, never cutting a side already above it (starting RP over 1000: broad review #13).
+  if (data.m_iRP < ACR_BaseSystem.POINTS_CAP) data.m_iRP = Math.Min(data.m_iRP + amount, ACR_BaseSystem.POINTS_CAP);
   return Math.Max(0, data.m_iRP - before);
  }
 

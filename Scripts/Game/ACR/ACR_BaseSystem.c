@@ -196,6 +196,9 @@ class ACR_BaseSystem : Managed
   foreach (Faction faction : factions)
   {
    string key = faction.GetFactionKey();
+   // Only the two sides at war earn (broad review, refactor 10): CIV, Outbreak's Z, FIA and modded
+   // factions got a full record (requisitions built) and RP nobody spends.
+   if (!ACR_FactionSelection.IsSelected(key)) continue;
    int added = Math.Round(GetIncome(key) * ACR_Manager.IncomeOption());
    ACR_FactionData data = GetFaction(key);
    int before = data.m_iRP;
@@ -323,9 +326,14 @@ class ACR_BaseSystem : Managed
      manager.NotifyFaction(key, string.Format("FIA resistance at %1", base.m_sName));
      PrintFormat("[ACR] POCKETS %1 found by %2", base.m_sName, key);
     }
-    if (distance <= spawnRange) enemyNear = true;
-    if (distance <= spawnRange + 300) enemyApproaching = true;
-    if (distance <= despawnRange) enemyInRange = true;
+    // Only an enemy at war (or the dead) turns the garrison out: civilians and evacuees passing
+    // through kept towns' garrisons deployed all match (broad review #16).
+    if (inWar || zombie)
+    {
+     if (distance <= spawnRange) enemyNear = true;
+     if (distance <= spawnRange + 300) enemyApproaching = true;
+     if (distance <= despawnRange) enemyInRange = true;
+    }
    }
   }
   UpdateCapture(manager, base, inside, zombies);
@@ -976,6 +984,15 @@ class ACR_BaseSystem : Managed
  }
 
  // keepSurvivors: pack up (survivors return to the reserve); a capture hands them to FallBack instead.
+ // A base that goes for good (ACR_Base.Retire): its garrison and patrol soldiers with their groups
+ // (deleting a group entity leaves its members standing: broad review #22).
+ void DespawnForces(ACR_Base base)
+ {
+  if (!base) return;
+  DespawnGarrison(base, false);
+  DespawnPatrol(base, false);
+ }
+
  protected void DespawnGarrison(ACR_Base base, bool keepSurvivors)
  {
   SCR_AIGroup group = base.m_GarrisonGroup;

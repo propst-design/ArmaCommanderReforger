@@ -28,6 +28,7 @@
 
 - A truck of supplies for your FOB (#107, in every mode, zombies or not): park a construction truck beside the HQ of one of your built FOBs and use the game's own **Unload supplies** on it, and the load goes into the FOB's store, the one FOB building spends. Until now a FOB's store only filled through the 20 RP supply order; a truck's load could be built with but never put into a FOB. So you can buy a construction truck (from about 21 RP, arrives with 1000 supplies) and run that load out, which costs less than the order but can be ambushed on the road. Only paid loads unload: the load a truck was bought with goes into a FOB, but what it refills for free at your deployment bases (or what a starting truck carries) only serves its own jobs, such as resupplying squads and building, and stays aboard. Those jobs use up the free part first. When an unload moves less than the truck carries, it says how much was paid and how much stayed. Supplies can't be taken back out of a FOB into a truck, and a FOB whose HQ is destroyed takes nothing. Unloading next to a FOB's supply depot no longer drops the load into the depot's own crates, where nothing could use it. A FOB with an empty store says how to fill it. Whether a truck may unload is now decided from what every player's game knows about the FOB, so it should work for every player on a dedicated server, not only the host (not yet checked in multiplayer).
 - A FOB with a supply depot really holds 3,000 supplies. The depot raised the FOB's storage limit on paper, but the supplies sit in the HQ's own crates, which still held 1,000 between them, so the FOB never stored more than before. The crates now grow to the depot's capacity, and the FOB goes back to 1,000 if the depot is lost.
+- A FOB's store can't be filled or emptied by hand. The inventory's own supply moves (dragging supplies from a truck or crate into the FOB's crates, or splitting a crate out of them) skipped every FOB rule, so a truck's free supplies could still go in that way and supplies could be taken out. The store now fills only through a truck's Unload supplies and the supply order.
 
 ### Zombies
 
@@ -39,6 +40,8 @@
 - Zombie messages name the town again. After a counterattack, the survivor, bounty and counterattack lines could use the horde's label as the place ("survivors holed up at Zombies counterattacking Le Moule"); they now read "Le Moule", and a cleared nest reads "Zombies cleared at Le Moule".
 - Zombies on the map look like zombies. A zombie contact was drawn with the hostile-infantry symbol and labelled "infantry squad", and Project Outbreak's zombies wear civilian clothes, so players heading for an enemy squad found what looked like townsfolk. The map now shows an empty hostile frame labelled "N zombies" with its size; the AI commander, fire missions and BBB treat zombie contacts as before.
 - Zombie nests can be seen from far off. A nest was some blood, a garbage pile and sometimes a small fire, easy to walk into before the dead poured out. Now a column of black smoke rises over a burning car wreck while the nest lives, seen kilometres away by day, with the fire's glow at night; a big nest (30 or more, ground zero) burns bigger. Round it stand two to four burnt-out cars, on open ground off the roads, and remains lie among the blood. Clear the nest and its fire goes out and the smoke thins away; the wrecks stay. If the dead take the town back, it burns again. Each player's game shows the smoke of the 12 nearest live nests within 5 km. A player who joins mid-match sees the nests too, and a second match in the same session lays its blood again.
+- Zombie bounties, recovered pallets and delivered civilians no longer cut a side holding more than 1000 RP (a starting RP over 1000) down to 1000; they just add nothing above the cap.
+- Civilians loaded at an evac point aren't paid for at a FOB built on that point afterwards (or a town taken round it): they have to be driven to another base, as when an evac point is refused inside a base.
 
 ### Insurgency
 
@@ -47,6 +50,9 @@
 - Sabotage raids (#96): small FIA teams walk to a built FOB or an unmanned roadblock of a side they are against, plant a charge on a 20-second fuse and run; a FOB loses its HQ, a roadblock is blown down (killing the team after it planted doesn't stop the charge). Guarded targets are left alone; raids are three times as likely at night.
 - Technicals (#96): some FIA pockets are depots with a technical or two (UAZ with PKM or UK-59, sometimes a BRDM-2). A crew drives out against that side's traffic on the roads nearby or to a cell under attack, strikes and drives home. A crew that loses its technical walks to the nearest cell and joins it. Only technicals parked in the depot's yard go out: one left on the road or taken by players stays where it is, and the depot can buy another.
 - Intel rings (#96): a side that wipes out a cell, an IED team or a raid gets an "FIA activity" ring on its map where the hideout behind it lies; more leads from the same hideout tighten the ring. Finding the hideout itself still takes men there.
+- Removing a roadblock refunds only what was paid for it: one blown up by saboteurs gives nothing back, and FIA cells no longer get RP for their own barricades.
+- FIA technicals' wrecks are cleared like other wrecks over a long match.
+- An air lift that runs out of time puts the squad aboard down on the ground instead of taking it away with the helicopter.
 
 ### Supports
 
@@ -58,6 +64,10 @@
 - A mission intro in the Arma 2 style. The first time you take control in a match, your own screen circles your side's HQ with music and the ARMA COMMANDER ACTUAL title, then flies into your soldier's head and hands over: 15 s at most, and the music fades out as the camera reaches you and never plays on into the match. Main modes play Cliffhanger; matches with zombies play Lost As Shit, with a flash of light across the title and ZOMBIES under it (both vanilla tracks). Space or Enter skips it, and opening the command map or the RTS camera ends it. Once per match: not after a respawn or a reconnect; late joiners get it on their first spawn. Turn it off with the setup screen's **Mission intro** row (Battlefield tab) or `-acrIntro 0`; `-acrIntroMusic` and `-acrIntroMusicZombies` change the tracks (MISSION-MAKING.md). Not yet tried in multiplayer.
 
 - Taking the lead of a squad (possessing its leader) no longer wipes its order: it stays the squad's objective, shown on the map, and the men follow you in formation while you take them there. Your first order (command wheel, AiO or the map) replaces it rather than queuing behind it; it also ends when you get there. Paid builds and rides are still cleared as before, and when you let go the squad goes back to its map order as before. Possessing one of a squad's other men instead leaves it under its AI leader and its AI commander, who keep ordering it while you ride along as a rifleman (not if you drive its vehicle). Not yet tried in multiplayer.
+- Garrisons turn out only for an enemy at war or for zombies: civilians and evacuees in a town kept its garrison deployed all match.
+- A FOB that is gone for good takes its garrison and patrol soldiers with it; they were left standing without a group.
+- Only the two sides at war earn income. Civilians, zombies and other factions in the world each had a record built and earned RP nobody spent.
+- A company kit's carrier that never deploys gives the starting truck back, not the truck's price in RP the side never had.
 
 ### Vehicles
 

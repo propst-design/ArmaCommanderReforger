@@ -16,7 +16,7 @@ class ACR_TestContainment
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const ResourceName HELI = "{70BAEEFC2D3FEE64}Prefabs/Vehicles/Helicopters/UH1H/UH1H.et";
- static const int EXPECTED = 30;
+ static const int EXPECTED = 31;
  protected static ACR_DefenderPost s_Zero;
  protected static ref ACR_EvacPoint s_Evac; // ref: a finished XP leaves the list
  protected static IEntity s_Heli;
@@ -379,6 +379,12 @@ class ACR_TestContainment
   ACR_Containment.Give(manager, "US", 100000);
   int rp = manager.m_Bases.GetRP("US");
   Check("containment: ground zero pays its bounty, and RP stops at the cap", bounty == ACR_Containment.RP_GROUND_ZERO && rp == ACR_BaseSystem.POINTS_CAP, string.Format("bounty %1, rp %2", bounty, rp));
+  // Broad review #13: a side already over the cap (starting RP 2000) isn't cut down to it.
+  ACR_FactionData us = manager.m_Bases.GetFaction("US");
+  us.m_iRP = 1500;
+  int given = ACR_Containment.Give(manager, "US", 30);
+  Check("containment: a side over the cap keeps its RP when paid", given == 0 && us.m_iRP == 1500, string.Format("given %1, rp %2", given, us.m_iRP));
+  us.m_iRP = rp;
  }
 
  protected static void Counterattack()

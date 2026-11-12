@@ -507,6 +507,9 @@ class ACR_Evac
  {
   ACR_Base base = DeliveryBase(vehicle.GetOrigin());
   if (!base) return false;
+  // Not a base that has come to the evac point since it was set (a FOB built on it, a town taken
+  // round it): loading there would pay on the spot, as Place refuses (broad review #15).
+  if (vector.DistanceXZ(base.GetOrigin(), point.m_vPos) <= Math.Max(base.m_fRadius, 60) + XP_RADIUS) return false;
   IEntity person = point.m_aPeople[i];
   Forget(point, i);
   int rp = ACR_Containment.Give(manager, base.m_sOwner, ACR_Containment.RP_EACH);

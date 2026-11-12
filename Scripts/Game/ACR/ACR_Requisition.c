@@ -364,6 +364,14 @@ class ACR_Requisition : Managed
  static float s_fPendingTimeoutMs = 30000; // a bought unit with nobody in it after this is refunded (tests shorten it)
  static bool s_bTestNoCrew; // tests: crewed vehicles get no crew (a crew that never turns up)
  ref array<ref ACR_PendingPurchase> m_aPending = {};
+
+ // The newest purchase still waiting for its crew or members, of 'faction' (null: none).
+ ACR_PendingPurchase NewestPending(string faction)
+ {
+  for (int i = m_aPending.Count() - 1; i >= 0; i--)
+   if (m_aPending[i] && m_aPending[i].m_sFaction == faction) return m_aPending[i];
+  return null;
+ }
  // Tests: the next N soldier/vehicle/group spawns in buying and reinforcing fail.
  static int s_iTestFailSpawns;
  static int s_iTestPassSpawns; // ...after letting this many through
@@ -535,9 +543,23 @@ class ACR_Requisition : Managed
 
  // Gives back exactly what this purchase took: its own RP, one unit of stock and one
  // price step (later purchases keep theirs; names are never reused).
- void Refund(ACR_PendingPurchase purchase, string why)
+ // Refunds a failed purchase; the RP given back.
+ int Refund(ACR_PendingPurchase purchase, string why)
  {
-  m_Manager.m_Bases.Refund(purchase.m_sFaction, purchase.m_iPaid);
+  int back = purchase.m_iPaid;
+  // A kit carrier swapped for a starting truck (broad review #15): the truck's price was a credit,
+  // not RP the side had; it gets the truck back instead of that part of the refund.
+  ACR_KitTruck swap = purchase.m_KitSwap;
+  if (swap)
+  {
+   back = Math.Max(0, back - swap.m_iPrice);
+   m_Manager.m_sSpawningFaction = purchase.m_sFaction;
+   m_Manager.SpawnUnit(swap.m_sName, swap.m_sGroup, swap.m_sVehicle, swap.m_bCrewed, swap.m_sPassengers, swap.m_vVehiclePos, swap.m_vGroupPos);
+   m_Manager.m_sSpawningFaction = "";
+   purchase.m_KitSwap = null;
+   PrintFormat("[ACR] PURCHASE %1: kit carrier failed, %2 back instead of %3 RP", purchase.m_sName, swap.m_sName, swap.m_iPrice);
+  }
+  m_Manager.m_Bases.Refund(purchase.m_sFaction, back);
   ACR_RequisitionEntry entry = purchase.m_Entry;
   if (entry)
   {
@@ -547,7 +569,8 @@ class ACR_Requisition : Managed
   }
   if (purchase.m_Ride) purchase.m_Ride.m_iRemaining++;
   purchase.m_bRefunded = true;
-  PrintFormat("[ACR] PURCHASE %1 failed (%2): %3 RP refunded, next %4 RP", purchase.m_sName, why, purchase.m_iPaid, entry.m_iCost);
+  PrintFormat("[ACR] PURCHASE %1 failed (%2): %3 RP refunded, next %4 RP", purchase.m_sName, why, back, entry.m_iCost);
+  return back;
  }
 
  // Every tick: bought units waiting for their crew/members. Ready = every part has
@@ -574,8 +597,8 @@ class ACR_Requisition : Managed
     if (m_Manager.Command()) m_Manager.Command().Feed(purchase.m_sFaction, string.Format("%1 did not fully deploy; its vehicle was retained, so no RP was refunded", purchase.m_sName));
     continue;
    }
-   Refund(purchase, "nobody turned up in time");
-   if (m_Manager.Command()) m_Manager.Command().Feed(purchase.m_sFaction, string.Format("%1 failed to deploy; %2 RP refunded", purchase.m_sName, purchase.m_iPaid));
+   int back = Refund(purchase, "nobody turned up in time");
+   if (m_Manager.Command()) m_Manager.Command().Feed(purchase.m_sFaction, string.Format("%1 failed to deploy; %2 RP refunded", purchase.m_sName, back));
   }
  }
 

@@ -1078,6 +1078,22 @@ class ACR_AirLift : ACR_SupportRun
   }
  }
 
+ // Squad members put out of a helicopter still in the air: on the ground below it, not falling.
+ protected void SetSquadDown(ACR_LiftHeli heli)
+ {
+  if (!m_Squad || !heli.m_Vehicle) return;
+  vector at = heli.m_Vehicle.GetOrigin();
+  array<AIAgent> agents = {};
+  m_Squad.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity man = agent.GetControlledEntity();
+   if (!man || ACR_Transport.VehicleOf(man) || vector.DistanceXZ(man.GetOrigin(), at) > 20) continue;
+   vector ground = ACR_Manager.Ground(man.GetOrigin());
+   if (man.GetOrigin()[1] - ground[1] > 3) man.SetOrigin(ground);
+  }
+ }
+
  // Whoever is still in a cargo seat (any group) is put out on the ground beside the helicopter.
  protected void PutOut()
  {
@@ -1277,7 +1293,14 @@ class ACR_AirLift : ACR_SupportRun
   foreach (ACR_LiftHeli heli : m_Helis)
   {
    if (!heli.m_Vehicle || heli.m_bDestroyed) continue;
-   if (Passengers(heli) > 0) PrintFormat("[ACR] AIRLIFT %1: %2 still aboard when it ended", m_sSquadName, Passengers(heli));
+   // The squad aboard is put out on the ground first: the hired helicopter leaves with whoever is
+   // still seated, deleting them (broad review #22: a lift that timed out took its squad with it).
+   if (Passengers(heli) > 0)
+   {
+    PrintFormat("[ACR] AIRLIFT %1: %2 still aboard when it ended: put out", m_sSquadName, Passengers(heli));
+    PutOutHeli(heli);
+    SetSquadDown(heli);
+   }
    heli.Finish();
   }
   PrintFormat("[ACR] AIRLIFT %1 finished (stage %2)", m_sSquadName, m_iStage);

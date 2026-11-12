@@ -260,6 +260,8 @@ class ACR_TestStructures
   ACR_TestRegress.Check("FOB: full store refuses delivery without charge", manager.m_Bases.GetRP("US") == beforeFull && fob.m_iSupplyDelivery == 0, "");
   SCR_ResourceConsumer loader = ACR_Logistics.SupplyContainer(s_Construction).GetComponent().GetConsumer(EResourceGeneratorID.VEHICLE_LOAD, EResourceType.SUPPLIES);
   ACR_TestRegress.Check("FOB: paid store forbids native truck loading", loader && !store.IsAllowed(loader), "");
+  // Broad review: the inventory's merge and split moves (container to container) can't reach the FOB store.
+  ACR_TestRegress.Check("FOB: the store is closed to the inventory's merges, a truck's cargo isn't", ACR_FobSupply.IsFobStore(store) && !ACR_FobSupply.IsFobStore(ACR_Logistics.SupplyContainer(s_Construction)), "");
   CheckUnload(fob, store);
   CheckArsenal(fob, store);
   // An emptied truck inside the FOB must stay empty across real logistics ticks.
@@ -779,7 +781,7 @@ class ACR_TestStructures
    ACR_TestRegress.Check("structures: pad gone with its helipad", last.Faction() == "", last.Faction());
    ACR_TestRegress.Check("FOB: supply provider removed with command post", s_Fob && !s_Fob.m_FobSupply && s_Fob.m_iSupplyDelivery == 0, "");
    ACR_TestSapperLive.Final();
-   ACR_TestRegress.Complete("structures", 98 + ACR_TestLogisticsRules.CHECKS + ACR_TestFobRelay.CHECKS + ACR_TestFobBuild.CHECKS + ACR_TestFobSlots.CHECKS + ACR_TestFobUpgrades.CHECKS + ACR_TestFobDefences.CHECKS + ACR_TestFobIntel.CHECKS + ACR_TestFobPatrol.CHECKS + ACR_TestSapperDemo.CHECKS + ACR_TestFobDesign.CHECKS + ACR_TestFobBuiltRace.CHECKS + ACR_TestSapperLive.CHECKS);
+   ACR_TestRegress.Complete("structures", 99 + ACR_TestLogisticsRules.CHECKS + ACR_TestFobRelay.CHECKS + ACR_TestFobBuild.CHECKS + ACR_TestFobSlots.CHECKS + ACR_TestFobUpgrades.CHECKS + ACR_TestFobDefences.CHECKS + ACR_TestFobIntel.CHECKS + ACR_TestFobPatrol.CHECKS + ACR_TestSapperDemo.CHECKS + ACR_TestFobDesign.CHECKS + ACR_TestFobBuiltRace.CHECKS + ACR_TestSapperLive.CHECKS);
   }
  }
 

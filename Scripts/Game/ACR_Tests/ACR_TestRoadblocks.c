@@ -216,9 +216,19 @@ class ACR_TestRoadblocks
    int rpBack = us.m_iRP - rp;
    if (s_Truck) SCR_EntityHelper.DeleteEntityAndChildren(s_Truck);
    ACR_Roadblock unpaid = ACR_Roadblocks.SpawnRoadblock("US", s_vBuild, s_fYaw, "", ACR_ERoadblockType.BARRICADE);
+   if (unpaid) unpaid.m_iPaidRP = ACR_Roadblocks.Cost(ACR_ERoadblockType.BARRICADE); // as its build order would
    rp = us.m_iRP;
    if (unpaid) ACR_Roadblocks.DismantleRoadblock(unpaid);
-   ACR_TestRegress.Check("roadblocks: dismantling gives half back where it was paid from", Math.AbsFloat(truckBack - 0.8) < 0.01 && rpBack == 0 && unpaid && us.m_iRP - rp == 4 && !ACR_Roadblocks.s_aRoadblocks.Contains(rb), string.Format("truck-paid barricade: +%1 loads, +%2 RP; RP-paid barricade: +%3 RP", truckBack, rpBack, us.m_iRP - rp));
+   int rpPaidBack = us.m_iRP - rp;
+   // Broad review #15: one nobody paid for (an FIA cell's barricade) or one blown up gives nothing.
+   ACR_Roadblock free = ACR_Roadblocks.SpawnRoadblock("US", s_vBuild, s_fYaw, "", ACR_ERoadblockType.BARRICADE);
+   rp = us.m_iRP;
+   if (free) ACR_Roadblocks.DismantleRoadblock(free);
+   ACR_Roadblock blown = ACR_Roadblocks.SpawnRoadblock("US", s_vBuild, s_fYaw, "", ACR_ERoadblockType.BARRICADE);
+   if (blown) blown.m_iPaidRP = ACR_Roadblocks.Cost(ACR_ERoadblockType.BARRICADE);
+   if (blown) ACR_Roadblocks.DismantleRoadblock(blown, false);
+   int rpFreeBack = us.m_iRP - rp;
+   ACR_TestRegress.Check("roadblocks: dismantling gives half back where it was paid from", Math.AbsFloat(truckBack - 0.8) < 0.01 && rpBack == 0 && unpaid && rpPaidBack == 4 && free && blown && rpFreeBack == 0 && !ACR_Roadblocks.s_aRoadblocks.Contains(rb), string.Format("truck-paid barricade: +%1 loads, +%2 RP; RP-paid barricade: +%3 RP; unpaid or blown: +%4 RP", truckBack, rpBack, rpPaidBack, rpFreeBack));
 
    // Alpha builds a medium checkpoint (with a gun) for the leave-the-gun rounds.
    us.m_iRP = 500;
