@@ -22,6 +22,7 @@ BETTER
 - Taking the lead of a squad keeps its order until you give your first one.
 - F9 in the RTS camera goes straight back to the command map.
 - Soldiers who surrender (Better Battle Buddies 0.2.0) leave their squad and hold no base.
+- Experimental, off by default: with Better Battle Buddies' driver on (-bbbDriver 1), BBB drives the AI commander's vehicles on long moves, never a player's squad. Tested on 12 route trips only; convoys, towns, combat and multiplayer are untested.
 - The command map sends and redraws far less: markers are kept rather than rebuilt, hidden soldiers get none, and positions go out only while the map or RTS camera is open. This helps busy multiplayer matches.
 
 FIXED
