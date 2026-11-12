@@ -782,6 +782,12 @@ class ACR_DeckEditor
   }
   if (action == "handin")
   {
+   // Decks are taken only during match setup (ACR_Decks.Accept): say so here, without asking the server.
+   if (!ACR_SetupClient.IsActive())
+   {
+    SetStatus("Decks are handed in during match setup: this match has started. Copy code shares it instead.");
+    return;
+   }
    if (view.m_iBudget > 0 && view.Points(deck) > view.m_iBudget) SetStatus("Over the points: the server drops the dearest cards. Handing in...");
    else SetStatus("Handing in " + deck.m_sName + "...");
    ACR_DeckClient.HandIn(deck);
@@ -913,6 +919,7 @@ class ACR_DeckEditor
 modded class SCR_PlayerController
 {
  protected float m_fACR_DeckAskAt = -100000;
+ protected float m_fACR_DeckHandInAt = -100000;
 
  void ACR_DeckAsk()
  {
@@ -991,9 +998,12 @@ modded class SCR_PlayerController
  [RplRpc(RplChannel.Reliable, RplRcver.Server)]
  protected void ACR_DeckHandInServer(string text)
  {
+  // Its own limiter (review of 0.5.13): a hand-in reads the catalogue and sends it back, so a
+  // client sending them fast could hitch the server. After Start it's refused before any of that.
   float now = GetGame().GetWorld().GetWorldTime();
-  if (now - m_fACR_DeckAskAt < 300) return;
-  m_fACR_DeckAskAt = now;
+  if (now - m_fACR_DeckHandInAt < 2000) { Rpc(ACR_DeckResultOwner, "Too fast: wait a moment and hand it in again"); return; }
+  m_fACR_DeckHandInAt = now;
+  if (ACR_Setup.Started()) { Rpc(ACR_DeckResultOwner, "The match has started: hand a deck in during match setup"); return; }
   string result = ACR_Decks.Submit(GetPlayerId(), text);
   PrintFormat("[ACR] DECK player %1: %2", GetPlayerId(), result);
   Rpc(ACR_DeckResultOwner, result);

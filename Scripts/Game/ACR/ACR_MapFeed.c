@@ -603,12 +603,15 @@ class ACR_MapFeed
  {
   string sig = "";
   int bytes;
-  foreach (ACR_RequisitionEntry entry : manager.m_Bases.GetFaction(frame.m_sKey).m_aRequisitions)
+  ACR_FactionData data = manager.m_Bases.GetFaction(frame.m_sKey);
+  foreach (ACR_RequisitionEntry entry : data.m_aRequisitions)
   {
+   // What can still be bought: a custom team whose ride is sold out shows none left (ACR_Requisition.Left).
+   int left = ACR_Requisition.Left(data, entry);
    frame.m_ReqNames.Insert(entry.m_sName);
    frame.m_ReqCosts.Insert(entry.m_iCost);
-   frame.m_ReqRemaining.Insert(entry.m_iRemaining);
-   sig += entry.m_sName + "," + entry.m_iCost.ToString() + "," + entry.m_iRemaining.ToString() + ";";
+   frame.m_ReqRemaining.Insert(left);
+   sig += entry.m_sName + "," + entry.m_iCost.ToString() + "," + left.ToString() + ";";
    bytes += entry.m_sName.Length() + 12;
   }
   frame.m_sReqSig = sig;

@@ -487,7 +487,7 @@ service and construction trucks free and always in). The budget is 100 / 150 / 2
 `-acrDeckPoints`; it limits decks players build and the AI's own deck, never the standard deck (the automatic
 list as it is). Players build decks in game (F3) and hand them in; `-acrDeckWest` / `-acrDeckEast` pick
 what each side plays. Players can add custom cards: teams of the faction's own soldiers (2-12 men, priced
-by role), optionally riding a transport card (a rare ride keeps its own stock, shared with its card). **A hand-picked `m_aRequisitions` list overrides any deck**,
+by role), optionally riding a transport card (never more than the ride's stock: every team on one vehicle shares its card's stock, or the first such team's when the card isn't in the deck). **A hand-picked `m_aRequisitions` list overrides any deck**,
 as do `-acrDecks 0` and the setup screen's Decks row.
 
 #### Requisition entry (`m_aRequisitions`)

@@ -262,7 +262,7 @@ class ACR_TwoICSuggest
   {
    if (offer.m_sVehicle.IsEmpty() || (ACR_Logistics.ServiceOfName(offer.m_sVehicle) & ACR_EService.CONSTRUCTION) == 0) continue;
    listed = true;
-   if (offer.m_iRemaining <= 0) continue;
+   if (!ACR_Requisition.Available(data, offer)) continue;
    if (entry < 0 || offer.m_iCost < data.m_aRequisitions[entry].m_iCost) entry = e;
   }
   if (entry < 0)

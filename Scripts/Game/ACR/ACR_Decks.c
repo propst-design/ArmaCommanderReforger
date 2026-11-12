@@ -261,15 +261,13 @@ class ACR_DeckCatalog
    entry.m_bCrewed = true;
    entry.m_bBoard = true;
    entry.m_bArmed = ride.m_bArmed;
-   // Never more of the vehicle than its own card gives: a rare ride (an APC or IFV with a fixed
-   // stock) makes the card rare with the ride's stock, and each purchase also takes one of the ride
-   // card's stock when the deck has it (ACR_Requisition.RideOf).
+   // Never more of the vehicle than its own card gives: the card has no more than the ride's
+   // stock (a rare ride, an APC or IFV with a fixed stock, also makes it rare), and every card
+   // riding that vehicle draws on one pool: the ride card when the deck keeps it, else the first
+   // custom card on that ride (ACR_Requisition.RideOf).
    entry.m_sRide = ride.m_sName;
-   if (ride.m_bRare)
-   {
-    entry.m_bRare = true;
-    entry.m_iStock = Math.Min(entry.m_iStock, ride.m_iStock);
-   }
+   entry.m_iStock = Math.Min(entry.m_iStock, ride.m_iStock);
+   if (ride.m_bRare) entry.m_bRare = true;
   }
   ACR_Pricing.Setup(entry, stepped);
   return entry;
@@ -728,9 +726,22 @@ class ACR_Decks
   int cards;
   foreach (bool kept : keep) if (kept) cards++;
   array<ref ACR_DeckSubmission> all = Submitted();
+  // A player's new deck replaces their last one for that side, except the one a deck row picked:
+  // the host chose it, so it stays until the host picks another (review of 0.5.13).
+  bool keptPicked;
   for (int i = all.Count() - 1; i >= 0; i--)
-   if (all[i].m_iPlayer == playerId && all[i].m_Deck.m_sFaction == deck.m_sFaction) all.RemoveOrdered(i);
-  while (all.Count() >= MAX_SUBMITTED) all.RemoveOrdered(0);
+  {
+   if (all[i].m_iPlayer != playerId || all[i].m_Deck.m_sFaction != deck.m_sFaction) continue;
+   if (Picked(all[i])) keptPicked = true;
+   else all.RemoveOrdered(i);
+  }
+  for (int j = 0; j < all.Count() && all.Count() >= MAX_SUBMITTED; j++)
+  {
+   if (Picked(all[j])) continue;
+   all.RemoveOrdered(j);
+   j--;
+  }
+  if (all.Count() >= MAX_SUBMITTED) return "Too many decks are handed in: the host has to pick from them first";
   ACR_DeckSubmission before = Latest(deck.m_sFaction);
   ACR_DeckSubmission sub = new ACR_DeckSubmission();
   s_iSerial++;
@@ -747,7 +758,15 @@ class ACR_Decks
   if (!host) result += " Offered to the host: the setup screen's deck row picks which deck the side plays.";
   else if (Chosen(deck.m_sFaction) != "") result += " The deck row picks which deck the side plays.";
   else if (before && before.m_iPlayer != playerId) result += string.Format(" It replaces %1's deck for %2.", before.m_sPlayer, deck.m_sFaction);
+  if (keptPicked) result += " Your earlier deck stays as well: the host picked it on the deck row.";
   return result + note;
+ }
+
+ // The deck a side's deck row points at.
+ static bool Picked(ACR_DeckSubmission sub)
+ {
+  if (!sub || !sub.m_Deck) return false;
+  return Chosen(sub.m_Deck.m_sFaction) == "sub:" + sub.m_iSerial.ToString();
  }
 
  // ---------------------------------------------------------------- setup rows

@@ -6453,7 +6453,7 @@ class ACR_AICommander : Managed
   int pick = -1;
   foreach (int i, ACR_RequisitionEntry entry : data.m_aRequisitions)
   {
-   if (entry.m_iRemaining <= 0) continue;
+   if (!ACR_Requisition.Available(data, entry)) continue;
    if (entry.m_iSupportHeli == 3) { pick = i; break; }
    if (entry.m_iSupportHeli == 1 && pick < 0) pick = i;
   }
@@ -6903,7 +6903,7 @@ class ACR_AICommander : Managed
     int pick = -1;
     foreach (int e, ACR_RequisitionEntry offer : data.m_aRequisitions)
     {
-     if (offer.m_iRemaining <= 0 || offer.m_iCost > Purse(data) || offer.m_sVehicle.IsEmpty()) continue;
+     if (!ACR_Requisition.Available(data, offer) || offer.m_iCost > Purse(data) || offer.m_sVehicle.IsEmpty()) continue;
      if ((ACR_Logistics.ServiceOfName(offer.m_sVehicle) & service) == 0) continue;
      if (pick < 0 || offer.m_iCost < data.m_aRequisitions[pick].m_iCost) pick = e;
     }
@@ -6974,7 +6974,7 @@ class ACR_AICommander : Managed
   bool hasLineOffer = false;
   foreach (ACR_RequisitionEntry checkOffer : data.m_aRequisitions)
   {
-   if (checkOffer.m_iRemaining > 0 && checkOffer.m_sVehicle.IsEmpty() && !checkOffer.m_bMortarTeam && !IsSmallTeamEntry(checkOffer) && !IsSpecialistTeam(checkOffer))
+   if (ACR_Requisition.Available(data, checkOffer) && checkOffer.m_sVehicle.IsEmpty() && !checkOffer.m_bMortarTeam && !IsSmallTeamEntry(checkOffer) && !IsSpecialistTeam(checkOffer))
    {
     hasLineOffer = true;
     break;
@@ -6988,7 +6988,7 @@ class ACR_AICommander : Managed
   if (m_iSaveForEntry >= 0 && m_iSaveForEntry < data.m_aRequisitions.Count())
   {
    ACR_RequisitionEntry savedEntry = data.m_aRequisitions[m_iSaveForEntry];
-   if (savedEntry.m_iRemaining <= 0 || savedEntry.m_iCost > saveMax || (combatLine < 2 && savedEntry.m_iCost > budget) || (savedEntry.m_eFormation == ACR_EFormation.SF && HasSpecialForces()))
+   if (!ACR_Requisition.Available(data, savedEntry) || savedEntry.m_iCost > saveMax || (combatLine < 2 && savedEntry.m_iCost > budget) || (savedEntry.m_eFormation == ACR_EFormation.SF && HasSpecialForces()))
     m_iSaveForEntry = -1;
    else if (savedEntry.m_iCost > budget)
     return;
@@ -7003,7 +7003,7 @@ class ACR_AICommander : Managed
   {
    budget = Purse(data) - keep;
    int pick = -1;
-   if (m_iSaveForEntry >= 0 && m_iSaveForEntry < data.m_aRequisitions.Count() && data.m_aRequisitions[m_iSaveForEntry].m_iRemaining > 0 && data.m_aRequisitions[m_iSaveForEntry].m_iCost <= budget)
+   if (m_iSaveForEntry >= 0 && m_iSaveForEntry < data.m_aRequisitions.Count() && ACR_Requisition.Available(data, data.m_aRequisitions[m_iSaveForEntry]) && data.m_aRequisitions[m_iSaveForEntry].m_iCost <= budget)
    {
     pick = m_iSaveForEntry;
     m_iSaveForEntry = -1;
@@ -7016,7 +7016,7 @@ class ACR_AICommander : Managed
     float total;
     foreach (int i, ACR_RequisitionEntry entry : data.m_aRequisitions)
     {
-     if (entry.m_iRemaining <= 0 || entry.m_iCost > saveMax) continue;
+     if (!ACR_Requisition.Available(data, entry) || entry.m_iCost > saveMax) continue;
      if (entry.m_eFormation == ACR_EFormation.SF && (boughtSF || HasSpecialForces())) continue;
      if (combatLine < 2 && entry.m_iCost > budget) continue;
      if (supportTeams >= 2 && IsSpecialistTeam(entry)) continue;
@@ -8632,7 +8632,7 @@ class ACR_AICommander : Managed
   int pick = -1;
   foreach (int e, ACR_RequisitionEntry offer : data.m_aRequisitions)
   {
-   if (offer.m_iRemaining <= 0 || offer.m_iCost > Purse(data) || offer.m_sVehicle.IsEmpty()) continue;
+   if (!ACR_Requisition.Available(data, offer) || offer.m_iCost > Purse(data) || offer.m_sVehicle.IsEmpty()) continue;
    if ((ACR_Logistics.ServiceOfName(offer.m_sVehicle) & ACR_EService.CONSTRUCTION) == 0) continue;
    if (pick < 0 || offer.m_iCost < data.m_aRequisitions[pick].m_iCost) pick = e;
   }

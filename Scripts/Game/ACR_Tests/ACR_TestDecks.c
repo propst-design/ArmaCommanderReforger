@@ -5,10 +5,11 @@
 // soldiers; a handed-in deck becomes the faction's buy list with its custom card; decks off leaves
 // today's list; only the host's hand-in decides a side's deck on auto (a player's is an offer the row
 // picks), none after Start, and FIA doesn't follow Blue's row; a custom team riding a rare vehicle has
-// no more than its stock and shares it. Logs every faction's standard deck in points (to calibrate the budget).
+// no more than its stock and shares it; custom teams on one vehicle share one pool without its card,
+// and a sold-out ride makes the team unavailable (ACR_Requisition.Available). Logs every faction's standard deck in points (to calibrate the budget).
 class ACR_TestDecks
 {
- static const int CHECKS = 13;
+ static const int CHECKS = 15;
 
  static void Run(ACR_TestHarness h, int tick)
  {
@@ -180,6 +181,7 @@ class ACR_TestDecks
   // engine's limit of 64 local variables.
   CheckOwnership(west, plain);
   CheckRareRide(west, mine, pool, plain, stepped);
+  CheckRidePool(west, mine, pool, plain, stepped);
 
   // 7. Decks off: today's list.
   ACR_Options.Set("acrDecks", "0");
@@ -246,6 +248,54 @@ class ACR_TestDecks
   }
  }
 
+ protected static void CheckRidePool(string west, ACR_CustomCard mine, array<ref ACR_DeckSoldier> pool, array<ref ACR_RequisitionEntry> plain, bool stepped)
+ {
+  // 10. (review of 0.5.13 #2) Two custom teams on the same rare vehicle, its card left out of the
+  // deck: one pool, the first team's, so they never add up to more than the vehicle's stock.
+  // 11. (#15) A team whose ride is sold out isn't available, with or without the ride card.
+  ACR_RequisitionEntry rideCard;
+  foreach (ACR_RequisitionEntry rv : plain) if (ACR_DeckCatalog.IsTransport(rv) && rv.m_bRare) { rideCard = rv; break; }
+  if (!rideCard)
+  {
+   ACR_TestRegress.Check("deck: custom teams on one vehicle share one pool (no rare ride in this list)", true, "");
+   ACR_TestRegress.Check("deck: a team with its ride sold out isn't available (no rare ride in this list)", true, "");
+   return;
+  }
+  ACR_CustomCard firstCard = mine.Copy();
+  firstCard.m_sName = "Test Pool One";
+  firstCard.m_sTransport = rideCard.m_sName;
+  ACR_CustomCard secondCard = firstCard.Copy();
+  secondCard.m_sName = "Test Pool Two";
+  string poolError;
+  ACR_RequisitionEntry first = ACR_DeckCatalog.CustomEntry(west, firstCard, pool, plain, stepped, poolError);
+  ACR_RequisitionEntry second = ACR_DeckCatalog.CustomEntry(west, secondCard, pool, plain, stepped, poolError);
+  if (!first || !second)
+  {
+   ACR_TestRegress.Check("deck: custom teams on one vehicle share one pool", false, poolError);
+   ACR_TestRegress.Check("deck: a team with its ride sold out isn't available", false, poolError);
+   return;
+  }
+  ACR_FactionData noCard = new ACR_FactionData();
+  noCard.m_aRequisitions.Insert(first);
+  noCard.m_aRequisitions.Insert(second);
+  bool shared = ACR_Requisition.RideOf(noCard, first) == null && ACR_Requisition.RideOf(noCard, second) == first && ACR_Requisition.Left(noCard, second) <= first.m_iRemaining;
+  int firstLeft = first.m_iRemaining;
+  first.m_iRemaining = 0;
+  bool poolOut = !ACR_Requisition.Available(noCard, second) && ACR_Requisition.Left(noCard, second) == 0;
+  first.m_iRemaining = firstLeft;
+  ACR_TestRegress.Check("deck: custom teams on one vehicle share one pool without its card", shared && poolOut, string.Format("%1: stock %2/%3, pool out %4", rideCard.m_sName, first.m_iRemaining, second.m_iRemaining, poolOut));
+
+  ACR_FactionData withCard = new ACR_FactionData();
+  withCard.m_aRequisitions.Insert(rideCard);
+  withCard.m_aRequisitions.Insert(first);
+  int rideLeft = rideCard.m_iRemaining;
+  bool before = ACR_Requisition.Available(withCard, first);
+  rideCard.m_iRemaining = 0;
+  bool after = ACR_Requisition.Available(withCard, first);
+  int shown = ACR_Requisition.Left(withCard, first);
+  rideCard.m_iRemaining = rideLeft;
+  ACR_TestRegress.Check("deck: a team with its ride sold out isn't available (AI, 2IC and buy list)", before && !after && shown == 0, string.Format("before %1, after %2, shown %3", before, after, shown));
+ }
 
  protected static array<ref ACR_RequisitionEntry> AIDeck(string faction, ACR_FactionSettings settings)
  {

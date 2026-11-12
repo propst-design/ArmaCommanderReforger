@@ -221,7 +221,31 @@ class ACR_Requisition : Managed
   if (!data || !entry || !entry.m_bCustom || entry.m_sRide.IsEmpty()) return null;
   foreach (ACR_RequisitionEntry other : data.m_aRequisitions)
    if (other != entry && !other.m_bCustom && other.m_sName == entry.m_sRide) return other;
+  // No ride card in the deck: the first custom card on that vehicle holds the pool for the rest
+  // (itself included, so it gets null and uses its own stock).
+  foreach (ACR_RequisitionEntry first : data.m_aRequisitions)
+  {
+   if (!first.m_bCustom || first.m_sRide != entry.m_sRide) continue;
+   if (first == entry) return null;
+   return first;
+  }
   return null;
+ }
+
+ // How many of this card can still be bought: its own stock, and for a custom team its ride's
+ // pool too (RideOf). The AI, the 2IC and the buy list all ask this, so a sold-out ride shows.
+ static int Left(ACR_FactionData data, ACR_RequisitionEntry entry)
+ {
+  if (!entry) return 0;
+  int left = entry.m_iRemaining;
+  ACR_RequisitionEntry ride = RideOf(data, entry);
+  if (ride && ride.m_iRemaining < left) left = ride.m_iRemaining;
+  return left;
+ }
+
+ static bool Available(ACR_FactionData data, ACR_RequisitionEntry entry)
+ {
+  return Left(data, entry) > 0;
  }
 
  // Shared by the player commander and the AI commander.
@@ -233,9 +257,9 @@ class ACR_Requisition : Managed
   if (entryIndex < 0 || entryIndex >= data.m_aRequisitions.Count()) return "Unknown unit";
   ACR_RequisitionEntry entry = data.m_aRequisitions[entryIndex];
   if (entry.m_iRemaining <= 0) return entry.m_sName + ": none left";
-  // A custom team's ride comes out of its vehicle card's stock (deck builder, #106).
+  // A custom team's ride comes out of its vehicle's one stock pool (deck builder, #106).
   ACR_RequisitionEntry ride = RideOf(data, entry);
-  if (ride && ride.m_iRemaining <= 0) return string.Format("%1: no %2 left for its ride", entry.m_sName, ride.m_sName);
+  if (ride && ride.m_iRemaining <= 0) return string.Format("%1: no %2 left for its ride", entry.m_sName, entry.m_sRide);
   if (!base || base.m_sOwner != key) return "Deploy at one of your own bases";
   if (base.m_bHqLost) return base.m_sName + "'s HQ is destroyed: an Establish FOB order rebuilds it";
   if (ACR_LogisticsRules.RelayBlocked(base)) return base.m_sName + " needs a completed friendly radio relay inside its circle before deploying new units";
@@ -487,6 +511,7 @@ class ACR_Requisition : Managed
     SCR_EntityHelper.DeleteEntityAndChildren(purchase.m_Vehicle);
    }
   }
+  if (purchase.m_Group) m_Manager.m_PendingBoarding.Remove(purchase.m_Group);
   RemoveGroup(purchase.m_Group);
   if (purchase.m_Riders) m_Manager.m_PendingBoarding.Remove(purchase.m_Riders);
   RemoveGroup(purchase.m_Riders);
