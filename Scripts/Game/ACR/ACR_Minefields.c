@@ -318,7 +318,7 @@ class ACR_Minefields
    refusal = "a roadblock is there";
    return false;
   }
-  if (CountMines(plan.m_sFaction) >= MAX_MINES)
+  if (CountMines(plan.m_sFaction) >= MAX_MINES && !RetirableField(plan.m_sFaction, plan.m_vSite))
   {
    refusal = string.Format("our side already has %1 mines down", MAX_MINES);
    return false;
@@ -389,7 +389,7 @@ class ACR_Minefields
    refusal = "a roadblock is there";
    return false;
   }
-  if (CountMines(plan.m_sFaction) >= MAX_MINES)
+  if (CountMines(plan.m_sFaction) >= MAX_MINES && !RetirableField(plan.m_sFaction, plan.m_vSite))
   {
    refusal = string.Format("our side already has %1 mines down", MAX_MINES);
    return false;
@@ -741,6 +741,13 @@ class ACR_Minefields
   field.m_aCorners.Copy(plan.m_aOutline);
   if (!plan.m_aOutline.IsEmpty()) field.m_fReach = plan.m_fReach;
   field.m_bLaying = true;
+  // At the cap: the fields farthest from the front are lifted (Plan let this one through for them).
+  for (int i = 0; i < 4 && CountMines(plan.m_sFaction) >= MAX_MINES; i++)
+  {
+   ACR_Minefield old = RetirableField(plan.m_sFaction, plan.m_vSite);
+   if (!old) break;
+   Retire(old, "at the cap, farthest from the front");
+  }
   s_Fields.Insert(field);
   plan.m_Field = field;
   PlaceSigns(field, plan.m_vForward);
@@ -973,6 +980,34 @@ class ACR_Minefields
  {
   BaseTriggerComponent trigger = BaseTriggerComponent.Cast(mine.FindComponent(BaseTriggerComponent));
   return trigger && trigger.WasTriggered();
+ }
+
+ // At the cap a new field near point lifts the side's field farthest from the front, if that is farther
+ // than point (fields at old fronts filled the cap for good: review, 12 Nov). Null: none to give way.
+ static ACR_Minefield RetirableField(string faction, vector point)
+ {
+  float farthest = ACR_Fortify.FrontDistance(faction, point);
+  ACR_Minefield pick;
+  foreach (ACR_Minefield field : s_Fields)
+  {
+   if (!field || field.m_sFaction != faction || field.m_bLaying) continue;
+   float d = ACR_Fortify.FrontDistance(faction, field.m_vPos);
+   if (d <= farthest) continue;
+   farthest = d;
+   pick = field;
+  }
+  return pick;
+ }
+
+ // Lifted (RetirableField): its mines and signs go, not just its record.
+ static void Retire(ACR_Minefield field, string why)
+ {
+  if (!field) return;
+  PrintFormat("[ACR] MINEFIELD %1 %2 at %3 lifted (%4, %5 mines)", field.m_iId, field.m_sFaction, field.m_vPos, why, field.m_aMines.Count());
+  array<IEntity> mines = {};
+  mines.Copy(field.m_aMines);
+  RemoveField(field);
+  foreach (IEntity mine : mines) if (mine) SCR_EntityHelper.DeleteEntityAndChildren(mine);
  }
 
  static void RemoveField(ACR_Minefield field)

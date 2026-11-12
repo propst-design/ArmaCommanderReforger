@@ -745,6 +745,15 @@ class ACR_AirLift : ACR_SupportRun
   if (now < m_fNextStep) return true;
   m_fNextStep = now + 1000;
   bool squadGone = !m_Squad || !m_Squad.m_Group || Alive(m_Squad) == 0;
+  // A player took the lead before anyone boarded: the lift is his call no more (Call refuses a squad a
+  // player is in), so it leaves without ordering his men (review, 12 Nov).
+  if (!squadGone && m_iStage < TRANSIT && m_Squad.PlayerSteers() && Aboard() == 0)
+  {
+   ClearBoarding();
+   Leave(supports, now, "a player took the lead");
+   Tell(supports, string.Format("Air lift left: a player leads %1 now.", m_sSquadName));
+   return true;
+  }
   if (m_bSequential && m_iStage < UNLOADING)
   {
    if (squadGone) Leave(supports, now, "the squad is gone");
@@ -804,7 +813,7 @@ class ACR_AirLift : ACR_SupportRun
     Stage(UNLOADING, now);
     if (m_Squad && m_Squad.m_Group)
     {
-     if (!m_sFinalPrefab.IsEmpty())
+     if (!m_sFinalPrefab.IsEmpty() && !m_Squad.PlayerSteers())
      {
       vector dest = m_FinalTarget;
       if (dest == vector.Zero) dest = m_Drops[0];
@@ -826,13 +835,14 @@ class ACR_AirLift : ACR_SupportRun
      // The resume ContinueAfterDismount set at touchdown is done here: left set, a later plain
      // unload marched the squad back to this objective.
      m_Squad.ForgetResume();
-     if (!m_sFinalPrefab.IsEmpty())
+     bool led = m_Squad.PlayerSteers(); // led by a player now: out on the landing zone, then his orders
+     if (!led && !m_sFinalPrefab.IsEmpty())
      {
       vector finalDest = m_FinalTarget;
       if (finalDest == vector.Zero) finalDest = m_Drops[0];
       m_Squad.RestoreOrder(ACR_OrderSnapshot.Make(m_sFinalPrefab, finalDest, m_fFinalRadius, m_sFinalOrder, ACR_Squad.StateOfLabel(m_sFinalOrder), m_iFinalKind));
      }
-     else
+     else if (!led)
      {
       m_Squad.Defend(m_Drops[0]);
      }

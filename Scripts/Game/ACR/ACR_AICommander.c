@@ -1133,8 +1133,11 @@ class ACR_AICommander : Managed
    Say(string.Format("[ACR] AI commander %1: %2", m_sFaction, m_bActive));
    // With the 2IC on its plans carry on for the squads nobody claims (ACR_SquadAI.Adopt).
    if (!m_bActive && !ACR_SquadAI.TwoIC()) ReleaseAll();
-   // Back in command: judge its doctrine on what it does from now, not on the player's spell.
+   else if (!m_bActive && !ACR_SquadAI.ImThe2IC()) HandOverToPlainTwoIC();
+   // Back in command: judge its doctrine on what it does from now, not on the player's spell, and
+   // its initiative clock starts again (the spell counted as quiet: it came back at minimum pressure).
    m_fNextDoctrineReview = -1;
+   if (m_bActive) m_fLastOffensive = GetGame().GetWorld().GetWorldTime();
   }
   if (!m_bActive) return;
   Turn();
@@ -6693,7 +6696,10 @@ class ACR_AICommander : Managed
  // dropped out of combat status) instead of leaving them idle and buying 2-man teams.
  protected bool ReinforceDepleted(ACR_FactionData data, int keep)
  {
-  if (!data || !m_Manager.m_Requisition || m_Manager.m_Requisition.OverSoldierCap(m_sFaction)) return false;
+  if (!data || !m_Manager.m_Requisition) return false;
+  // At the soldier cap only the refill is skipped: the walks still end (prune, give-ups, arrival), or
+  // squads walking back sat on RESUPPLY, out of every defence and attack, until the side lost men (review, 12 Nov).
+  bool capped = m_Manager.m_Requisition.OverSoldierCap(m_sFaction);
   array<ACR_Squad> all = {};
   MySquads(all, false);
   array<ACR_Squad> gone = {};
@@ -6766,6 +6772,17 @@ class ACR_AICommander : Managed
     if (refitting && squad.m_Group && (squad.m_Group.GetCurrentWaypoint() || squad.MovePending())) continue;
     // Don't cut short a walk to a service vehicle (ManageLogistics).
     if (!refitting && squad.m_iAITask == ACR_EAITask.RESUPPLY && squad.m_Group && squad.m_Group.GetCurrentWaypoint()) continue;
+    if (capped)
+    {
+     // No walk is started or sent again while no replacements can come: one waiting for a new waypoint ends.
+     if (refitting)
+     {
+      m_Refitting.Remove(squad);
+      m_RefitWalkTo.Remove(squad);
+      if (squad.m_iAITask == ACR_EAITask.RESUPPLY) squad.SetAITask(ACR_EAITask.FREE);
+     }
+     continue;
+    }
     bool idle = squad.m_iAITask == ACR_EAITask.FREE || squad.m_iAITask == ACR_EAITask.POSTED || squad.m_iAITask == ACR_EAITask.RESUPPLY;
     if (!refit || !(refitting || remnant || (idle && squad.StrengthRatio() < m_Doctrine.m_fRefitRatio))) continue;
     if (!refitting) m_Refitting.Set(squad, now + REFIT_GIVE_UP_MS);
@@ -6786,6 +6803,7 @@ class ACR_AICommander : Managed
     m_Refitting.Remove(squad);
     if (squad.m_iAITask == ACR_EAITask.RESUPPLY) squad.SetAITask(ACR_EAITask.FREE);
    }
+   if (capped) continue;
    if (m_Manager.m_Requisition.InContact(squad) != "") continue;
    if (ACR_LogisticsRules.RelayBlocked(ACR_FobSupply.Nearby(m_sFaction, PositionOf(squad)))) continue;
    // Same price ReinforceSquad checks: replacements plus a FOB's instant restock fee.
@@ -10825,9 +10843,41 @@ class ACR_AICommander : Managed
  }
 
  // A squad given back to its player: out of every plan of ours.
+ // A player took command with the plain 2IC (-acr2IC 1, kept apart from "I'm the 2IC" by ruling):
+ // TickHanded runs only part of the AI's managers, so a squad on a task of the other part (refit walks
+ // and ammo runs, screens, road sweeps, evacs, pallets, its own FOB build or fortifying) kept that task
+ // all spell with nothing to end it, and its ammo trucks stayed booked. Those come off here; the jobs
+ // themselves (a build under way) carry on as the squad's (review, 12 Nov). "I'm the 2IC" runs the
+ // whole turn and keeps every plan.
+ protected void HandOverToPlainTwoIC()
+ {
+  EndAllAmmoRuns("");
+  int freed;
+  foreach (ACR_Squad squad : m_Manager.m_Squads)
+  {
+   if (!squad || !squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction) continue;
+   ACR_EAITask task = squad.m_iAITask;
+   bool stranded = task == ACR_EAITask.RESUPPLY || task == ACR_EAITask.SWEEP || task == ACR_EAITask.RESCUE || task == ACR_EAITask.PALLET;
+   if (!stranded) stranded = task == ACR_EAITask.BUILD_FOB || task == ACR_EAITask.FORTIFY || IsScreen(squad);
+   if (!stranded) continue;
+   squad.SetAITask(ACR_EAITask.FREE);
+   freed++;
+  }
+  m_Refitting.Clear();
+  m_RefitWalkTo.Clear();
+  m_Screens.Clear();
+  m_EvacTaxi = null;
+  m_PalletSquad = null;
+  m_FobBuilder = null;
+  m_FobEscort = null;
+  Say(string.Format("[ACR] AI %1: a player took command (plain 2IC): %2 squad(s) freed from tasks it won't run", m_sFaction, freed));
+ }
+
  void Forget(ACR_Squad squad)
  {
   m_OnRequest.Remove(squad);
+  for (int i = m_Screens.Count() - 1; i >= 0; i--)
+   if (!m_Screens[i] || m_Screens[i].m_Squad == squad) m_Screens.Remove(i);
   foreach (ACR_AIAttack attack : m_Attacks) LeaveAttack(attack, squad);
   m_RetreatingUntil.Remove(squad);
   m_ReinforceRetryAt.Remove(squad);
@@ -10865,6 +10915,7 @@ class ACR_AICommander : Managed
   m_AmmoLookAt.Clear();
   m_AmmoNoTruckUntil.Clear();
   m_AmmoSkips.Clear();
+  m_Screens.Clear();
   m_Trips.Clear();
   m_ReserveSquad = null;
   m_iSaveForEntry = -1;

@@ -13,7 +13,7 @@ class ACR_TestBaseWorks
  static const string NAME = "Works Squad";
  static const int STEP_LIMIT = 420; // s a tier may take (a site it can't reach is given up on after its walk + 90 s)
  static const float ENEMY_CLEAR = 700; // m from the other side's men for the town the test picks
- static const int CHECKS = 50;
+ static const int CHECKS = 51;
  protected static int s_iStep;
  protected static int s_iStepAt;
  protected static int s_iRP;
@@ -592,6 +592,8 @@ class ACR_TestBaseWorks
   string east = ACR_FactionSelection.East();
   ACR_TestRegress.Check("baseworks: the works pass to whoever takes the base", s_Work.m_sFaction == east && ACR_BaseWorks.BuiltSites(s_Work) > 0 && s_Work.m_iTier == 3, s_Work.m_sFaction);
   ACR_TestRegress.Check("baseworks: the men in reserve don't change hands", !s_Work.m_Defenders, "");
+  // ...nor are they raised for what stands (a 1 RP repair used to raise all 8), and what is left to build is planned for him.
+  ACR_TestRegress.Check("baseworks: no reserve is raised for the works taken, the rest is planned for the new owner", s_Work.m_iMannedTier == 3, string.Format("manned tier %1, %2 sites, %3 standing, open tier %4", s_Work.m_iMannedTier, s_Work.m_aSites.Count(), ACR_BaseWorks.BuiltSites(s_Work), ACR_BaseWorks.OpenTier(s_Work)));
   ACR_TestRegress.Complete("baseworks", CHECKS);
  }
 

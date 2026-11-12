@@ -739,10 +739,20 @@ class ACR_Rides : Managed
   {
    IEntity body = agent.GetControlledEntity();
    if (!ACR_Respawn.IsAlive(body)) continue;
+   bool on = IsRideVehicle(ride, ACR_Transport.VehicleOf(body));
+   // A man down can't get in: he isn't waited for (a team with one down never reached the share
+   // and waited out the clock: review, 12 Nov). Loaded aboard by the others, he counts.
+   if (!on && Unconscious(body)) continue;
    alive++;
-   if (IsRideVehicle(ride, ACR_Transport.VehicleOf(body))) aboard++;
+   if (on) aboard++;
   }
   return aboard;
+ }
+
+ protected static bool Unconscious(IEntity body)
+ {
+  ChimeraCharacter character = ChimeraCharacter.Cast(body);
+  return character && character.GetCharacterController() && character.GetCharacterController().IsUnconscious();
  }
 
  // Riders not aboard, none of them anywhere near the transport (stuck at a spawn,
@@ -755,7 +765,7 @@ class ACR_Rides : Managed
   foreach (AIAgent agent : agents)
   {
    IEntity body = agent.GetControlledEntity();
-   if (!ACR_Respawn.IsAlive(body) || IsRideVehicle(ride, ACR_Transport.VehicleOf(body))) continue;
+   if (!ACR_Respawn.IsAlive(body) || IsRideVehicle(ride, ACR_Transport.VehicleOf(body)) || Unconscious(body)) continue;
    if (vector.DistanceXZ(body.GetOrigin(), ride.m_Vehicle.GetOrigin()) <= STRAGGLER_DISTANCE) return -1;
    foreach (Vehicle extra : ride.m_aExtraVehicles)
     if (extra && vector.DistanceXZ(body.GetOrigin(), extra.GetOrigin()) <= STRAGGLER_DISTANCE) return -1;

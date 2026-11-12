@@ -1413,7 +1413,9 @@ class ACR_BaseWorks
   ACR_Defenders.Remove(work.m_Defenders);
   work.m_Defenders = null;
   work.m_GarrisonPost = null;
-  work.m_iMannedTier = 0;
+  // The reserve stays with the old owner, and for what stands it isn't raised again: at 0 a 1 RP repair
+  // of a captured tier III town later raised all 8 men at once (review, 12 Nov).
+  work.m_iMannedTier = work.m_iTier;
   foreach (ACR_BaseSite site : work.m_aSites)
   {
    // Nests and bunkers still to build are the new owner's kind.
@@ -1439,6 +1441,30 @@ class ACR_BaseWorks
     if (comp) comp.ACR_SetFaction(owner);
    }
   }
+  Replan(work);
+ }
+
+ // Captured: what is still to build was planned against the old owner's enemy (tiers II and III facing
+ // the new owner's own rear, at his cost). It is planned again for him; what stands stays, kept for
+ // repair and its tier, but on no line of the new plan (review, 12 Nov).
+ protected static void Replan(ACR_BaseWork work)
+ {
+  if (!work.m_Base || !ACR_FactionSettings.Find(work.m_sFaction)) return;
+  array<ref ACR_BaseSite> standing = {};
+  foreach (ACR_BaseSite site : work.m_aSites)
+  {
+   if (!site.m_bBuilt && site.m_aWalls.IsEmpty() && !site.m_Roadblock) continue;
+   site.m_iLine = -1;
+   standing.Insert(site);
+  }
+  work.m_aSites.Clear();
+  work.m_aLines.Clear();
+  work.m_Kill = null;
+  work.m_iPicks = 0;
+  int started = System.GetTickCount();
+  PlanSites(work);
+  foreach (ACR_BaseSite kept : standing) work.m_aSites.Insert(kept);
+  PrintFormat("[ACR] BASEWORKS %1 %2: planned again for the new owner, %3 sites (%4 standing kept) in %5 ms", work.m_sFaction, work.m_Base.m_sName, work.m_aSites.Count(), standing.Count(), System.GetTickCount() - started);
  }
 
  protected static void CallOff(ACR_BaseWork work, string why)

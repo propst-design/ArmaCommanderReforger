@@ -214,7 +214,9 @@ class ACR_BBBHooks : BBB_Hooks
  override bool AllowStaticWeapons(SCR_AIGroup group)
  {
   ACR_Squad squad = SquadOf(group);
-  return !squad || (!ACR_AirLift.Busy(squad) && !squad.m_bMortar && !squad.m_ActiveRoadblock && !squad.m_Fortification);
+  // Nor the men of a squad a human is in charge of (as the sibling hooks): they don't wander off to a
+  // gun he didn't send them to (review, 12 Nov).
+  return !squad || (!squad.HumanInCharge() && !ACR_AirLift.Busy(squad) && !squad.m_bMortar && !squad.m_ActiveRoadblock && !squad.m_Fortification);
  }
 
  // Gunners stay on the static guns at the spot a squad holds (ACR_GunHold; BBB_HeldGuns keeps
@@ -292,7 +294,7 @@ class ACR_BBBHooks : BBB_Hooks
  protected BBB_EIntent IntentOf(ACR_Squad squad, out vector centre, out float radius, out string why)
  {
   radius = 0;
-  if (squad.HasPlayer() || squad.m_Commander != 0 || squad.m_iOrderedBy != 0) { why = "player"; return BBB_EIntent.NONE; }
+  if (squad.HumanInCharge()) { why = "player"; return BBB_EIntent.NONE; } // a rifleman player rolls along: BBB still fights the squad
   if (ACR_AirLift.Busy(squad)) { why = "airlift"; return BBB_EIntent.TRANSIT; }
   if (squad.m_bForced) { why = "forced"; return BBB_EIntent.TRANSIT; }
   // The AI commander pulled it back (FallBack): in contact BBB bounds it toward the order's point in

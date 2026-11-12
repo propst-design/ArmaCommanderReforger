@@ -877,7 +877,7 @@ class ACR_Fortify
     refusal = "too close to another of our positions (click on it to upgrade it)";
     return null;
    }
-   if (CountPositions(faction) >= MAX_POSITIONS)
+   if (CountPositions(faction) >= MAX_POSITIONS && !Retirable(faction, point))
    {
     refusal = string.Format("our side already has %1 fortified positions", MAX_POSITIONS);
     return null;
@@ -961,6 +961,55 @@ class ACR_Fortify
   foreach (ACR_Squad squad : manager.m_Squads)
    if (squad && squad != except && squad.m_FortifyPlan && squad.m_FortifyPlan.m_Target == fort) return true;
   return false;
+ }
+
+ // How far the nearest base an enemy holds is from pos, m (float.MAX: none).
+ static float FrontDistance(string faction, vector pos)
+ {
+  float best = float.MAX;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || base.m_sOwner.IsEmpty() || base.m_sOwner == faction) continue;
+   float d = vector.DistanceXZ(pos, base.GetOrigin());
+   if (d < best) best = d;
+  }
+  return best;
+ }
+
+ // At the cap a new position near point retires the side's one farthest from the front, if that one is
+ // farther from it than point (positions left at old fronts filled the cap for good, and the AI stopped
+ // digging in where the fighting is: review, 12 Nov). Null: none to give way.
+ static ACR_Fortification Retirable(string faction, vector point)
+ {
+  float farthest = FrontDistance(faction, point);
+  ACR_Fortification pick;
+  foreach (ACR_Fortification fort : s_Positions)
+  {
+   if (!fort || fort.m_sFaction != faction || BeingBuilt(fort)) continue;
+   float d = FrontDistance(faction, fort.m_vPos);
+   if (d <= farthest) continue;
+   farthest = d;
+   pick = fort;
+  }
+  return pick;
+ }
+
+ // Taken down (Retirable): its pieces, wire, wings and reserve go, and squads manning it leave it.
+ static void Retire(ACR_Fortification fort, string why)
+ {
+  if (!fort) return;
+  PrintFormat("[ACR] FORTIFY %1 %2 at %3 taken down (%4)", fort.m_sFaction, TierName(fort.m_iTier), fort.m_vPos, why);
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (manager)
+   foreach (ACR_Squad squad : manager.m_Squads)
+    if (squad && squad.m_Fortification == fort) squad.LeaveFortification();
+  foreach (IEntity piece : fort.m_aPieces) DeletePiece(piece);
+  fort.m_aPieces.Clear();
+  foreach (IEntity segment : fort.m_aWire) DeletePiece(segment);
+  fort.m_aWire.Clear();
+  ACR_Wings.Remove(fort.m_aWings);
+  ACR_Defenders.Remove(fort.m_Defenders);
+  s_Positions.RemoveItem(fort);
  }
 
  static int CountPositions(string faction)
@@ -1100,6 +1149,8 @@ class ACR_Fortify
   fort.m_iTier = plan.m_iTier;
   if (created)
   {
+   // At the cap: the position farthest from the front gives way (Plan let this one through for it).
+   if (CountPositions(fort.m_sFaction) >= MAX_POSITIONS) Retire(Retirable(fort.m_sFaction, fort.m_vPos), "at the cap, farthest from the front");
    s_iNextId++;
    fort.m_iId = s_iNextId;
    s_Positions.Insert(fort);
