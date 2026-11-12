@@ -527,10 +527,14 @@ class ACR_TestStructures
    ACR_Vehicles.All(padVehicles);
    // Terrain clearance does not exclude live vehicles. ClearPad rejects one
    // within 10 m, so keep this fixture 14 m clear of the range truck/Humvee.
+   // It also stays 90 m from the fobbuild probe (ACR_TestFobBuild: the first base's edge + 30 m east):
+   // a pad nearer stood in a 20 m site's 50 m defence ring, and the search went out to 50 m (12 Nov,
+   // refb-abmain/abbranch-1112e: the same on main and the refactor with the pad pinned there).
+   vector fobProbe = ACR_Base.s_All[0].GetOrigin() + Vector(ACR_Base.s_All[0].m_fRadius + 30, 0, 0);
    for (int padTry = 0; padTry < 32; padTry++)
    {
     vector padCandidate = manager.ClearSpotNear(s_Base, 30, 70, 14);
-    bool padBlocked;
+    bool padBlocked = vector.DistanceXZ(padCandidate, fobProbe) < 90;
     foreach (IEntity padVehicle : padVehicles)
      if (padVehicle && vector.DistanceXZ(padVehicle.GetOrigin(), padCandidate) < 14) { padBlocked = true; break; }
     if (padBlocked) continue;
