@@ -237,7 +237,6 @@ class ACR_AICommander : Managed
  protected string m_sHomeDoctrine;
  ACR_AIDoctrine Doctrine() { return m_Doctrine; }
  string HomeDoctrine() { return m_sHomeDoctrine; }
- int DoctrineChanges() { return m_iDoctrineChanges; }
  void SetDoctrineForTest(ACR_AIDoctrine doctrine) { m_Doctrine = doctrine; m_sDoctrineSource = "test"; }
 
  void ACR_AICommander(ACR_Manager manager, string factionKey)
@@ -1428,7 +1427,6 @@ class ACR_AICommander : Managed
   vector at = base.GetOrigin();
   return ACR_AILanes.TargetFactor(m_Lane.Contains(at), m_Lane.Flanks(at), base.m_bIncome, base.m_iValue);
  }
- float LaneTargetFactorForTest(ACR_Base base) { return LaneTargetFactor(base); }
 
  protected bool InLaneOrFlank(ACR_Base base)
  {
@@ -1505,7 +1503,6 @@ class ACR_AICommander : Managed
   }
   return false;
  }
- bool HqTargetableForTest(ACR_Base base) { return HqTargetable(base); }
 
  // What a lane from 'from' to 'to' wins (income of the bases in it we don't hold, an enemy HQ at
  // its end) against the defence we know of in it and its length. Only what this side can see.
@@ -3715,7 +3712,6 @@ class ACR_AICommander : Managed
   Say(string.Format("[ACR] AI %1: %2 catches a ride on the way to %3 (%4 m to go)", m_sFaction, pick.GetName(), ACR_Manager.Grid(go.m_vTo), (int)pickLeft));
  }
 
- int CountTripsForTest() { return m_Trips.Count(); }
  string TripOverForTest(ACR_Squad squad, ACR_Base base)
  {
   ACR_AITrip trip = new ACR_AITrip();
@@ -6192,7 +6188,6 @@ class ACR_AICommander : Managed
   if (m_Doctrine.m_bSmallTeamsFree && !ACR_Transport.CrewedVehicle(squad) && FullSizeOf(squad) <= 3) return 0.5;
   return 1;
  }
- float CapSlotsForTest(ACR_Squad squad) { return CapSlots(squad); }
  void RequisitionForTest(int needs) { m_iNeeds = needs; Requisition(); }
 
  protected bool IsRUArmorEntry(ACR_RequisitionEntry entry)
@@ -6444,7 +6439,6 @@ class ACR_AICommander : Managed
 
  ACR_Squad PalletSquadForTest() { return m_PalletSquad; }
  ACR_Squad EvacTaxiForTest() { return m_EvacTaxi; }
- int EvacPhaseForTest() { return m_iEvacPhase; }
 
  // A service vehicle that gave up stuck (ACR_Squad.m_fStuckAt: holding where it is) waits before
  // it is sent anywhere again, as Recrew does. Jacob's 26 Oct game: an arsenal truck stuck by its
@@ -6533,7 +6527,6 @@ class ACR_AICommander : Managed
  void AssignAttacksForTest() { m_iTickStarted = System.GetTickCount(); AssignAttacks(); }
  void UpdateAttacksForTest() { UpdateAttacks(); }
  void RunAllocationForTest(bool control) { m_iTickStarted = System.GetTickCount(); RunAllocation(control); }
- void SetFobBuilderForTest(ACR_Squad builder) { m_FobBuilder = builder; }
  // Holding a roadblock or a position it built (not building one).
  static bool IsHolder(ACR_Squad squad)
  {

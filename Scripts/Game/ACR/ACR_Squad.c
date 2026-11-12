@@ -734,7 +734,6 @@ class ACR_Squad : Managed
  protected bool m_bFallBackPushed;
  static const float FALLBACK_CHECK_MS = 30000;
  static const float FALLBACK_MIN_GAIN_M = 10;
- float m_fContactLogged;
  protected float m_fLastContactTime = -1;
 
  ACR_EMoveMode m_Mode = ACR_EMoveMode.COMBAT;

@@ -496,10 +496,6 @@ modded class ACR_AICommander
 
  ACR_Squad FobBuilder() { return m_FobBuilder; }
 
- ACR_Squad FobEscort() { return m_FobEscort; }
-
- vector FobTargetSite() { return m_vFobTargetSite; }
-
  ACR_Base GetHomeBase() { return HomeBase(); }
 
  // Construction temporarily owns an AI squad. A finished checkpoint keeps its builder holding
@@ -1009,27 +1005,6 @@ modded class ACR_AICommander
    if (base && !base.m_bRetired && base.m_sOwner == m_sFaction && vector.DistanceXZ(base.GetOrigin(), pos) < base.m_fRadius + 40) return false;
   }
   return true;
- }
-
- // Our uncontested base nearest to an enemy base, and that enemy base's position.
- protected ACR_Base FrontlineBase(out vector enemyPos)
- {
-  ACR_Base front;
-  float nearest = float.MAX;
-  foreach (ACR_Base base : ACR_Base.s_All)
-  {
-   if (!base || base.m_bRetired || base.m_sOwner != m_sFaction || base.m_bContested) continue;
-   foreach (ACR_Base other : ACR_Base.s_All)
-   {
-    if (!other || other.m_bRetired || other.m_sOwner == m_sFaction || other.m_sOwner.IsEmpty()) continue;
-    float d = vector.DistanceXZ(base.GetOrigin(), other.GetOrigin());
-    if (d >= nearest) continue;
-    nearest = d;
-    front = base;
-    enemyPos = other.GetOrigin();
-   }
-  }
-  return front;
  }
 
  // Fortified positions on the approaches (-acrFortifyAI 1; off by default). Every 60 s, one

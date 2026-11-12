@@ -84,7 +84,6 @@ class ACR_SapperDemo : Managed
  IEntity DemoCharge() { return m_DemoCharge; }
  bool IsDetonated() { return m_bDetonated; }
  bool IsDefused() { return m_bDefused; }
- ACR_Squad SapperSquad() { return m_SapperSquad; }
  vector FallbackPos() { return m_vFallbackPos; }
  vector ChargePos() { return m_vChargePos; }
  string TargetOwner() { return m_sTargetOwner; }
