@@ -57,7 +57,10 @@ config's mod list. Nothing spawns until an admin presses Start on the setup scre
 does, the server starts by itself 5 minutes after the first player joins. Every setup-screen row
 also has a launch parameter (`-acr...`), so a server can preset its match: see
 [Host options](MISSION-MAKING.md#host-options) for the full list. BBB's own options are
-`-bbb...` parameters or a BBB preset (see the BBB README). To match the AI load to your server
+`-bbb...` parameters or a BBB preset (see the BBB README). BBB's experimental scripted driver
+(`-bbbDriver 1`, off by default) also drives AI squads' wheeled vehicles on long moves, but not
+a squad a player is in or commands, one getting out of fire, or near its own roadblocks; it is
+untested in real matches. To match the AI load to your server
 and player count, or to run ACA in a big mod stack, see [SERVER-SETUPS.md](SERVER-SETUPS.md).
 
 ## The game
