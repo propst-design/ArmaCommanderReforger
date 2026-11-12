@@ -341,12 +341,26 @@ class ACR_TestContainment
  protected static void AIPallet(ACR_Manager manager)
  {
   ACR_AICommander ai = manager.FobAICommanderFor("US");
+  // Every other US squad busy for this one call (as in Jacob's game: none free), then as it was.
+  ACR_Squad runners = Named(manager, "Pallet Runners");
+  int runnersTask = -1;
+  if (runners) runnersTask = runners.m_iAITask;
+  array<ACR_Squad> parked = {};
+  array<int> parkedTasks = {};
+  foreach (ACR_Squad other : manager.m_Squads)
+  {
+   if (other == runners || !other.GetFaction() || other.GetFaction().GetFactionKey() != "US") continue;
+   parked.Insert(other);
+   parkedTasks.Insert(other.m_iAITask);
+   other.SetAITask(ACR_EAITask.DEFEND);
+  }
   if (ai) ai.ManagePalletsForTest();
+  foreach (int i, ACR_Squad back : parked) if (back) back.SetAITask(parkedTasks[i]);
   ACR_Squad squad;
   if (ai) squad = ai.PalletSquadForTest();
   string name = "none";
   if (squad) name = squad.GetName();
-  Check("airdrop: an AI commander sends a squad for a pallet, taking one off a grab when none is free", squad && squad.m_iAITask == ACR_EAITask.PALLET && squad.GetName() == "Pallet Runners", string.Format("ai %1, squad %2, pallets %3", ai != null, name, ACR_Airdrop.Count()));
+  Check("airdrop: an AI commander sends a squad for a pallet, taking one off a grab when none is free", squad && squad == runners && runnersTask == ACR_EAITask.ATTACK && squad.m_iAITask == ACR_EAITask.PALLET, string.Format("ai %1, squad %2, runners' task before %3, pallets %4", ai != null, name, runnersTask, ACR_Airdrop.Count()));
  }
 
  // The AI's runners walk up and recover it, paid as a player's recovery is (ACR_Airdrop.Check).
