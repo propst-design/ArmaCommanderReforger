@@ -91,7 +91,8 @@ class ACR_Guerrillas
  static const int MAX_HIDEOUT_LOOKS = 40;     // spots looked at for building groups at the start
  static const float HIDEOUT_AREA = 60;        // its men hold the windows this far round its middle
  static const float HIDEOUT_CLOSE = 150;      // it opens fire on enemies this close
- static const float HIDEOUT_FOUND = 400;      // a side with men this close when it opens fire has found it
+ static const float HIDEOUT_FOUND = 400;      // a side with men on foot this close while it fights has found it
+ static const int FOUND_EVERY_S = 5;          // ...checked this often while it fights
  static const float SUPPLY_REACH = 3000;      // it feeds the cells this close (ACR_FIAGrowth.TopUp)
  protected static int s_iWantedCells;         // cells (not hideouts) placed at the start
  protected static bool s_bManyOption;         // -acrGuerrillas many (ACR_FIAGrowth's caps)
@@ -937,8 +938,13 @@ class ACR_Guerrillas
     if (why != "") Spring(manager, post, alive, why, now);
     continue;
    }
-   // A hideout holds its ground to the last.
-   if (cell.m_bWithdrawing || cell.m_bHideout) continue;
+   // A hideout holds its ground to the last; men who come up on foot while it fights find it.
+   if (cell.m_bHideout)
+   {
+    if (s_iSeconds % FOUND_EVERY_S == 0) ACR_Insurgency.HideoutFound(post);
+    continue;
+   }
+   if (cell.m_bWithdrawing) continue;
    float hit = HIT_S;
    if (cell.m_bHouse) hit = HOUSE_HIT_S;
    if (alive * 2 <= cell.m_iAliveAtSpring || now - cell.m_fSprungAt >= hit * 1000) Withdraw(post, alive);

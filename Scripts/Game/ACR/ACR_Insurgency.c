@@ -354,8 +354,9 @@ class ACR_Insurgency
 
  // ---------------------------------------------------------------- hideouts
 
- // The main sides with a living man (a squad's or a player) within range of pos.
- static void SidesNear(vector pos, float range, notnull array<string> sides)
+ // The main sides with a living man (a squad's or a player) within range of pos; onFoot: only men
+ // out of vehicles count (a crew driving past sees fighters, not where they live).
+ static void SidesNear(vector pos, float range, notnull array<string> sides, bool onFoot = false)
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager) return;
@@ -372,6 +373,7 @@ class ACR_Insurgency
    {
     IEntity body = agent.GetControlledEntity();
     if (!body || !ACR_Respawn.IsAlive(body) || vector.DistanceXZ(body.GetOrigin(), pos) > range) continue;
+    if (onFoot && Mounted(body)) continue;
     sides.Insert(key);
     break;
    }
@@ -384,15 +386,23 @@ class ACR_Insurgency
    if (!player || !ACR_Respawn.IsAlive(player)) continue;
    string side = ACR_Intel.FactionKeyOf(player);
    if (side.IsEmpty() || side == ACR_Pockets.FACTION || sides.Contains(side)) continue;
+   if (onFoot && Mounted(player)) continue;
    if (vector.DistanceXZ(player.GetOrigin(), pos) <= range) sides.Insert(side);
   }
  }
 
- // A hideout opened fire (ACR_Guerrillas.Spring): the sides with men near have found it.
+ static bool Mounted(IEntity body)
+ {
+  ChimeraCharacter man = ChimeraCharacter.Cast(body);
+  return man && man.IsInVehicle();
+ }
+
+ // A hideout opened fire (ACR_Guerrillas.Spring, then every few seconds while it fights): the
+ // sides with men on foot near have found it. A crew driving past it hasn't (#96, 12 Nov).
  static void HideoutFound(ACR_DefenderPost post)
  {
   array<string> sides = {};
-  SidesNear(post.m_vPos, ACR_Guerrillas.HIDEOUT_FOUND, sides);
+  SidesNear(post.m_vPos, ACR_Guerrillas.HIDEOUT_FOUND, sides, true);
   ACR_Manager manager = ACR_Manager.GetInstance();
   float now = GetGame().GetWorld().GetWorldTime();
   foreach (string side : sides)

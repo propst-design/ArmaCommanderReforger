@@ -13,6 +13,7 @@
 // watched and goes off (review 0.5.13 #10).
 // Intel (#96, ACR_FIAIntel): a cell wiped out by the US gives the US (not USSR) an "FIA activity"
 // ring that holds the hideout feeding it; a second lead tightens it and still holds it.
+// Drive-by (#96, 12 Nov): men in a vehicle don't count as finding a hideout, the same men on foot do.
 class ACR_TestHideouts
 {
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
@@ -25,6 +26,10 @@ class ACR_TestHideouts
  protected static ref ACR_Raid s_Raid;
  protected static ref ACR_Raid s_Raid2;
  protected static bool s_bPlantersKilled;
+ protected static bool s_bOnFootCounted;
+ protected static IEntity s_Car;
+ static const ResourceName CAR = "{259EE7B78C51B624}Prefabs/Vehicles/Wheeled/UAZ469/UAZ469.et";
+ static const string RIDERS = "Drive-by Check";
 
  static void Run(int second)
  {
@@ -43,6 +48,9 @@ class ACR_TestHideouts
   if (second == 48) Spawn(manager, "Cleanup Team", s_Hideout.m_vPos, 120);
   if (second == 56) WipeOut(manager);
   if (second == 68) Destroyed(manager);
+  if (second == 66) SpawnRiders(manager);
+  if (second == 69) MountRiders(manager);
+  if (second == 70) DriveBy(manager);
   if (second == 70) Slowed(manager);
   if (second == 71) FastForward(manager);
   if (second == 72) SpreadRules(manager);
@@ -428,7 +436,7 @@ class ACR_TestHideouts
   {
    ACR_TestRegress.Skip("hideouts: a guarded FOB is never picked", "no second FOB");
    ACR_TestRegress.Skip("hideouts: a raid at a guarded FOB plants nothing", "no second FOB");
-   ACR_TestRegress.Complete("hideouts", 17);
+   ACR_TestRegress.Complete("hideouts", 18);
    return;
   }
   ACR_Base fob;
@@ -445,7 +453,92 @@ class ACR_TestHideouts
   ACR_Raid.s_fStageForTest = 0;
   if (!s_Raid2) return;
   ACR_TestRegress.Check("hideouts: a raid at a guarded FOB plants nothing", !s_Fob2.m_bHqLost && s_Raid2.m_eState != ACR_ERaidState.PLANTED && !s_Raid2.m_Charge, string.Format("state %1, HQ lost %2", s_Raid2.m_eState, s_Fob2.m_bHqLost));
-  ACR_TestRegress.Complete("hideouts", 17);
+  ACR_TestRegress.Complete("hideouts", 18);
+ }
+
+ // Far from the hideout and the bases, so the team touches nothing else in the run.
+ protected static vector RidersAt()
+ {
+  return ACR_Manager.Ground(s_Hideout.m_vPos + Vector(2500, 0, 0));
+ }
+
+ protected static ACR_Squad Riders(ACR_Manager manager)
+ {
+  foreach (ACR_Squad squad : manager.m_Squads) if (squad.GetName() == RIDERS) return squad;
+  return null;
+ }
+
+ protected static void SpawnRiders(ACR_Manager manager)
+ {
+  vector spot = RidersAt();
+  manager.m_sSpawningFaction = ACR_FactionSelection.East();
+  manager.SpawnUnit(RIDERS, USSR_TEAM, "", false, "", spot, spot);
+  manager.m_sSpawningFaction = "";
+ }
+
+ // On foot they count; then everyone goes into a car beside them (as ACR_Depots.Seat does).
+ protected static void MountRiders(ACR_Manager manager)
+ {
+  array<string> sides = {};
+  ACR_Insurgency.SidesNear(RidersAt(), 60, sides, true);
+  s_bOnFootCounted = sides.Contains(ACR_FactionSelection.East());
+  ACR_Squad squad = Riders(manager);
+  if (!squad) return;
+  s_Car = ACR_Manager.SpawnPrefab(CAR, RidersAt() + Vector(0, 0, 8));
+  if (!s_Car) return;
+  SCR_BaseCompartmentManagerComponent seats = SCR_BaseCompartmentManagerComponent.Cast(s_Car.FindComponent(SCR_BaseCompartmentManagerComponent));
+  if (!seats) return;
+  array<BaseCompartmentSlot> slots = {};
+  seats.GetCompartments(slots);
+  array<AIAgent> agents = {};
+  squad.GetAgents(agents);
+  int next;
+  foreach (AIAgent agent : agents)
+  {
+   ChimeraCharacter body = ChimeraCharacter.Cast(agent.GetControlledEntity());
+   if (!body) continue;
+   // More men than seats: the spare ones go, so nobody is left standing beside it.
+   if (next >= slots.Count())
+   {
+    SCR_EntityHelper.DeleteEntityAndChildren(body);
+    continue;
+   }
+   CompartmentAccessComponent access = body.GetCompartmentAccessComponent();
+   if (access) access.GetInVehicle(s_Car, slots[next], true, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
+   next++;
+  }
+ }
+
+ protected static void DriveBy(ACR_Manager manager)
+ {
+  string ussr = ACR_FactionSelection.East();
+  ACR_Squad squad = Riders(manager);
+  int men, aboard;
+  if (squad)
+  {
+   array<AIAgent> agents = {};
+   squad.GetAgents(agents);
+   foreach (AIAgent agent : agents)
+   {
+    IEntity body = agent.GetControlledEntity();
+    if (!body) continue;
+    men++;
+    if (ACR_Insurgency.Mounted(body)) aboard++;
+   }
+  }
+  array<string> near = {};
+  ACR_Insurgency.SidesNear(RidersAt(), 60, near);
+  array<string> onFoot = {};
+  ACR_Insurgency.SidesNear(RidersAt(), 60, onFoot, true);
+  // Every man aboard, so no one left on foot counts the side back in.
+  ACR_TestRegress.Check("hideouts: men driving past don't find it, the same men on foot do", s_bOnFootCounted && men > 0 && aboard == men && near.Contains(ussr) && !onFoot.Contains(ussr), string.Format("on foot counted %1, %2 of %3 aboard, near %4, on foot now %5", s_bOnFootCounted, aboard, men, near.Contains(ussr), onFoot.Contains(ussr)));
+  if (squad)
+  {
+   array<AIAgent> agents = {};
+   squad.GetAgents(agents);
+   foreach (AIAgent agent : agents) if (agent.GetControlledEntity()) SCR_EntityHelper.DeleteEntityAndChildren(agent.GetControlledEntity());
+  }
+  if (s_Car) SCR_EntityHelper.DeleteEntityAndChildren(s_Car);
  }
 
  protected static void Spawn(ACR_Manager manager, string name, vector at, float distance)
