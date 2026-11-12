@@ -873,8 +873,6 @@ class ACR_TwoICView : Managed
   FrameSlot.SetPos(m_BadgeText, ws.DPIUnscale(x), ws.DPIUnscale(y));
  }
 
- int Badge() { return m_iBadge; }
-
  // ---------------------------------------------------------------- the ask box
  // "Ask the 2IC": a menu beside ACA's ping picker (Alt+right-click), at the same spot, as the
  // sketch's right-click menu: its heading in the accent, then the requests.

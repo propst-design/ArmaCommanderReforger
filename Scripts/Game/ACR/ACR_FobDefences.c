@@ -346,10 +346,4 @@ class ACR_FobDefences : Managed
 			if (structure) structure.m_sFaction = faction;
 		}
 	}
-
-	static bool IsPiece(ACR_Base base, IEntity entity)
-	{
-		if (!base || !base.m_FobDefences || !base.m_FobDefences.m_aPieces || !entity) return false;
-		return base.m_FobDefences.m_aPieces.Contains(entity);
-	}
 }

@@ -211,6 +211,5 @@ modded class SCR_PlayerController
 
  // Tests.
  int ACR_DarkPlacesShownForTest() { return m_iACR_PlacesShown; }
- int ACR_DarkPlacesForBasesForTest() { return m_iACR_PlacesForBases; }
  bool ACR_MapNamesHiddenForTest() { return m_bACR_NamesHidden; }
 }

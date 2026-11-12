@@ -27,7 +27,6 @@ class ACR_BaseSpot : Managed
  float m_fFacing;    // compass the gun looks along
  int m_iSector;      // the sector it looks into
  float m_fReach;     // clear m along the facing, up to OPEN_RANGE
- bool m_bNest;       // a nest's gun, low down, has a line of fire here
  bool m_bBunker;     // a bunker's ports have
  bool m_bTower;      // a tower's platform has (it sees over what stops the others)
  bool m_bGate;       // looks down a road in
@@ -225,22 +224,6 @@ class ACR_BaseSurvey : Managed
   int right = Wrapped(s + 1);
   m_aLight[left] = m_aLight[left] + value * 0.4;
   m_aLight[right] = m_aLight[right] + value * 0.4;
- }
-
- // The worst sectors now that a threat comes from, up to 'most'.
- void WeakSectors(notnull array<int> sectors, int most)
- {
-  for (int made = 0; made < most; made++)
-  {
-   int worst = -1;
-   for (int s = 0; s < SECTORS; s++)
-   {
-    if (sectors.Contains(s) || m_aThreat[s] < MIN_SPOT_THREAT) continue;
-    if (worst < 0 || WeakLight(s) > WeakLight(worst)) worst = s;
-   }
-   if (worst < 0) return;
-   sectors.Insert(worst);
-  }
  }
 
  // Something a line can end on near a point: its word, "" if nothing.

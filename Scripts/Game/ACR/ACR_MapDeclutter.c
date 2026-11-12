@@ -142,7 +142,6 @@ class ACR_MapDeclutter
  static Color GreyText() { return Rgb(150, 156, 162); }
  static Color ButtonColor() { return Rgb(36, 50, 66); }
  static Color ButtonHover() { return Rgb(52, 72, 96); }
- static Color ButtonBorder() { return Rgb(70, 86, 104); }
  // The dark map's tint: a near-black blue over the map (linear colour; tweak the strength here).
  static const float DARK_TINT_ALPHA = 0.82;
  static Color DarkTint() { return Rgb(8, 12, 24, DARK_TINT_ALPHA); }

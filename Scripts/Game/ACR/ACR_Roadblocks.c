@@ -694,21 +694,4 @@ class ACR_Roadblocks : Managed
 		}
 		return best;
 	}
-
-	static ACR_Roadblock FindNearest(vector pos, float maxDist = 50.0)
-	{
-		PruneRoadblocks();
-		ACR_Roadblock best = null;
-		float bestDist = maxDist;
-		foreach (ACR_Roadblock rb : s_aRoadblocks)
-		{
-			float d = vector.DistanceXZ(pos, rb.m_vPos);
-			if (d < bestDist)
-			{
-				bestDist = d;
-				best = rb;
-			}
-		}
-		return best;
-	}
 }
