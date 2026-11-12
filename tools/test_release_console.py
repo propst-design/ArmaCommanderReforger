@@ -399,6 +399,14 @@ class GuardTests(unittest.TestCase):
         parent = self.console.stage('ACA')
         self.assertFalse((parent / 'ArmaCommanderReforger/Scripts/Game/ACR_Tests').exists())
 
+    def test_aio_test_scripts_excluded(self):
+        test = self.console.source('AIO') / 'Scripts/Game/AIO_Tests/AIO_Test.c'
+        test.parent.mkdir(parents=True)
+        test.write_text('test')
+        self.commit(self.console.source('AIO'))
+        parent = self.mark_checked('AIO')
+        self.assertFalse((parent / 'AIOCommandMenu/Scripts/Game/AIO_Tests').exists())
+
     def test_installed_missing_and_stale_blocked(self):
         self.mark_checked('BBB')
         installed = self.base / 'downloaded'

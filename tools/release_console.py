@@ -24,6 +24,9 @@ SPECS = {
                 guid='629405AEFC950C12', dirs=['Scripts', 'Configs'],
                 files=['COPYING', 'LICENSE.md', 'LICENSE.txt', 'README.md', 'CHANGELOG.md']),
 }
+# Automated tests stay out of every player download; game code reaches them only through each mod's
+# test hooks (ACR_TestHooks, AIO_TestHooks).
+TEST_DIRS = ('Scripts/Game/ACR_Tests/', 'Scripts/Game/BBB_Tests/', 'Scripts/Game/AIO_Tests/')
 # ACA map add-ons (29 Oct): one per third-party terrain, each a world + mission header that
 # depends on ACA and that map. Their startup check runs against the downloaded Workshop ACA/BBB
 # and map (InstalledAddons), so a map add-on never waits on an ACA release.
@@ -284,8 +287,7 @@ class Console:
                 raise Blocked(f'Commit {name} before preparing a release.')
             changed = git(source, 'diff', '--name-only', reviewed, 'HEAD', '--',
                           'addon.gproj', *spec['dirs']).splitlines()
-            changed = [p for p in changed if not p.startswith(('Scripts/Game/ACR_Tests/',
-                       'Scripts/Game/BBB_Tests/')) and 'BBB_TestArland' not in p]
+            changed = [p for p in changed if not p.startswith(TEST_DIRS) and 'BBB_TestArland' not in p]
             if changed:
                 raise Blocked(f'{mod}: production changed since {name} was reviewed. Update and commit its release notes first.')
         dependency = None
@@ -304,9 +306,7 @@ class Console:
         paths = set(spec['files'] + ['addon.gproj', 'resourceDatabase.rdb'])
         for directory in spec['dirs']:
             paths.update(p for p in tracked if p.startswith(directory + '/'))
-        paths = {p for p in paths if not (p.startswith('Scripts/Game/ACR_Tests/') or
-                 p.startswith('Scripts/Game/BBB_Tests/') or 'BBB_TestArland' in p)}
-        # AiO currently calls its test classes directly; preserve its existing builder's file set.
+        paths = {p for p in paths if not (p.startswith(TEST_DIRS) or 'BBB_TestArland' in p)}
         for relative in paths:
             path = source / relative
             no_links(path)
