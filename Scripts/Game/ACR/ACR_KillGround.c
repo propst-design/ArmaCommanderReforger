@@ -46,7 +46,7 @@ class ACR_KillSite : Managed
  ref map<int, bool> m_mLOS = new map<int, bool>();
 }
 
-class ACR_KillGround : Managed
+class ACR_KillGround : ACR_TownGrid
 {
  static const float MOST_SIDE = 48;     // cells a side, at most
  static const float CELL_LEAST = 12;    // m
@@ -99,11 +99,7 @@ class ACR_KillGround : Managed
  static bool On() { return ACR_LogisticsRules.Choice("acrKillGround", "1") != "0"; }
 
  protected vector m_vCenter;
- protected float m_fCell;
  protected float m_fHalf;
- protected int m_iN;
- protected float m_fX, m_fZ;
- protected ref array<float> m_aY = {};
  protected ref array<float> m_aWalk = {};     // what a metre costs him, -1 no way
  protected ref array<bool> m_aRoad = {};
  protected ref array<bool> m_aInside = {};
@@ -131,28 +127,9 @@ class ACR_KillGround : Managed
  protected int m_iSolves;
  protected int m_iStarted;
  protected int m_iTraces;
- protected ref array<int> m_aDX = {1, -1, 0, 0, 1, 1, -1, -1};
- protected ref array<int> m_aDZ = {0, 0, 1, -1, 1, -1, 1, -1};
- protected ref array<float> m_aStep = {1, 1, 1, 1, 1.414, 1.414, 1.414, 1.414};
  protected static ACR_KillGround s_Filling;
 
  // ---------------------------------------------------------------- the ground
-
- protected int At(float x, float z)
- {
-  if (x < m_fX || z < m_fZ) return -1;
-  int ix = (x - m_fX) / m_fCell;
-  int iz = (z - m_fZ) / m_fCell;
-  if (ix >= m_iN || iz >= m_iN) return -1;
-  return iz * m_iN + ix;
- }
-
- vector Middle(int i)
- {
-  int iz = i / m_iN;
-  int ix = i - iz * m_iN;
-  return Vector(m_fX + (ix + 0.5) * m_fCell, m_aY[i], m_fZ + (iz + 0.5) * m_fCell);
- }
 
  protected void HouseAt(IEntity b)
  {
@@ -512,49 +489,6 @@ class ACR_KillGround : Managed
  }
 
  // ---------------------------------------------------------------- walking him in
-
- protected void HeapPush(notnull array<float> keys, notnull array<int> values, float key, int value)
- {
-  int at = keys.Count();
-  keys.Insert(key);
-  values.Insert(value);
-  while (at > 0)
-  {
-   int up = (at - 1) / 2;
-   if (keys[up] <= key) break;
-   keys[at] = keys[up];
-   values[at] = values[up];
-   at = up;
-  }
-  keys[at] = key;
-  values[at] = value;
- }
-
- protected int HeapPop(notnull array<float> keys, notnull array<int> values, out float key)
- {
-  int top = values[0];
-  key = keys[0];
-  int last = keys.Count() - 1;
-  float moved = keys[last];
-  int movedValue = values[last];
-  keys.Remove(last);
-  values.Remove(last);
-  if (last == 0) return top;
-  int at = 0;
-  while (true)
-  {
-   int child = at * 2 + 1;
-   if (child >= last) break;
-   if (child + 1 < last && keys[child + 1] < keys[child]) child++;
-   if (keys[child] >= moved) break;
-   keys[at] = keys[child];
-   values[at] = values[child];
-   at = child;
-  }
-  keys[at] = moved;
-  values[at] = movedValue;
-  return top;
- }
 
  // The cheapest walk from everywhere to 'heart', into 'next'. On roads only, if asked.
  protected void Flow(int heart, bool roadsOnly, notnull array<int> next, bool plain = false)

@@ -65,6 +65,39 @@ class ACR_BaseWork : Managed
  int m_iPicks;                      // sites handed out, for the weighted pick's key
  ref ACR_KillGround m_Kill;         // the ground as planned on: which line sees the way he's walking
  ref ACR_DefenderPost m_GarrisonPost; // the base's own garrison out on the bags, kept as the reserve is (WatchGarrison)
+
+ // The works' one footprint test against what's already planned: a site of this kind closer than 'within'.
+ bool SiteWithin(vector at, float within, ACR_EBaseSite kind)
+ {
+  foreach (ACR_BaseSite site : m_aSites)
+   if (site.m_eKind == kind && vector.DistanceXZ(site.m_vPos, at) < within) return true;
+  return false;
+ }
+
+ // A nest or a bunker closer than 'within'.
+ bool GunWithin(vector at, float within)
+ {
+  return SiteWithin(at, within, ACR_EBaseSite.NEST) || SiteWithin(at, within, ACR_EBaseSite.BUNKER);
+ }
+
+ // A piece of bags closer than 'within', bar those standing on one of 'except' (pieces about to go).
+ // 'cull' skips a line whose middle is past half its length (and a margin) from the point: the line planner's
+ // shortcut; the ring planner asks without it.
+ bool PieceWithin(vector at, float within, array<vector> except = null, bool cull = true)
+ {
+  foreach (ACR_BaseLine line : m_aLines)
+  {
+   if (cull && vector.DistanceXZ(line.m_vMiddle, at) > line.m_fLength * 0.5 + within + 4) continue;
+   foreach (ACR_LinePiece piece : line.m_aPieces)
+   {
+    if (vector.DistanceXZ(piece.m_vPos, at) >= within) continue;
+    bool goes = false;
+    if (except) foreach (vector cut : except) if (vector.DistanceXZ(cut, piece.m_vPos) < 0.3) goes = true;
+    if (!goes) return true;
+   }
+  }
+  return false;
+ }
 }
 
 class ACR_BaseWorks
@@ -1304,20 +1337,6 @@ class ACR_BaseWorks
    if (apart < GUN_APART) return true;
    if (apart < SAME_WAY && ACR_BaseDefences.DotXZ(ACR_BaseSurvey.Dir(site.m_fYaw), ACR_BaseSurvey.Dir(facing)) > 0.906) return true;
   }
-  return false;
- }
-
- static bool GunWithin(ACR_BaseWork work, vector at, float within)
- {
-  foreach (ACR_BaseSite site : work.m_aSites)
-   if ((site.m_eKind == ACR_EBaseSite.NEST || site.m_eKind == ACR_EBaseSite.BUNKER) && vector.DistanceXZ(site.m_vPos, at) < within) return true;
-  return false;
- }
-
- static bool CheckpointNear(ACR_BaseWork work, vector pos, float apart)
- {
-  foreach (ACR_BaseSite site : work.m_aSites)
-   if (site.m_eKind == ACR_EBaseSite.ROADBLOCK && vector.DistanceXZ(site.m_vPos, pos) < apart) return true;
   return false;
  }
 

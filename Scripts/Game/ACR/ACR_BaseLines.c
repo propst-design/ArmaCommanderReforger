@@ -186,11 +186,6 @@ class ACR_BaseLiner : Managed
   return "length";
  }
 
- protected static ref array<vector> s_aNoCuts;
- static void ACR_InitStatics()
- {
-  s_aNoCuts = {};
- }
  static const float OTHER_BAGS = 3;     // m from another line's bags
  static const float TIES_IN = 7;        // ... except where it goes on from one
  vector m_vTiesIn;
@@ -233,7 +228,7 @@ class ACR_BaseLiner : Managed
   if (m_Survey.DoorGap(mid) < ACR_BaseSurvey.WALL_DOOR) return FIT_DOOR;
   if (!ACR_BaseDefences.WorldClear(mid, ACR_BaseDefences.Bearing(facing), Vector(length * 0.5 + 0.05, 0, 0.61), null, false, true)) return FIT_SOLID;
   // Not across or along a line already laid.
-  if (m_bRing && m_Work && vector.DistanceXZ(mid, m_vTiesIn) > TIES_IN && ACR_BaseLines.PieceWithin(m_Work, mid, OTHER_BAGS, s_aNoCuts)) return FIT_SOLID;
+  if (m_bRing && m_Work && vector.DistanceXZ(mid, m_vTiesIn) > TIES_IN && m_Work.PieceWithin(mid, OTHER_BAGS)) return FIT_SOLID;
   if (loose) return FIT_OK;
   if (!RoomBehind(mid, facing)) return FIT_BEHIND;
   if (noView) return FIT_OK;
@@ -1644,9 +1639,7 @@ class ACR_BaseLines
     if (vector.DistanceXZ(lane, gate.m_vPos) < GATE_HELD || vector.DistanceXZ(lane, gate.m_vPos + gate.m_vOut * GATE_OUT) < GATE_HELD) return true;
    foreach (ACR_LinePiece piece : line.m_aPieces) if (vector.DistanceXZ(piece.m_vPos, gate.m_vPos) < GATE_HELD) return true;
   }
-  foreach (ACR_BaseSite site : work.m_aSites)
-   if (site.m_eKind == ACR_EBaseSite.ROADBLOCK && vector.DistanceXZ(site.m_vPos, gate.m_vPos) < GATE_HELD + GATE_OUT) return true;
-  return false;
+  return work.SiteWithin(gate.m_vPos, GATE_HELD + GATE_OUT, ACR_EBaseSite.ROADBLOCK);
  }
 
  // A funnel across a way in: an arm from each side of the road, opening out towards the enemy and facing in over
@@ -2291,20 +2284,13 @@ class ACR_BaseLines
    }
    // Two long pieces at least either side of it, before a road or the end.
    if (since < until || i < 3 || i + 4 >= pieces.Count() || !piece.m_bLong || pieces[i - 1].m_iBreak != 0 || pieces[i - 2].m_iBreak != 0 || pieces[i + 1].m_iBreak != 0 || pieces[i + 2].m_iBreak != 0) continue;
-   if (NestWithin(work, piece.m_vPos, NEST_CLEAR)) continue;
+   if (work.SiteWithin(piece.m_vPos, NEST_CLEAR, ACR_EBaseSite.NEST)) continue;
    pieces[i - 1].m_iBreak = BREAK_WALK;
    pieces.RemoveOrdered(i);
    i--;
    since = 0;
    until = WALK_APART + rng.RandFloat01() * 10;
   }
- }
-
- protected static bool NestWithin(ACR_BaseWork work, vector at, float within)
- {
-  foreach (ACR_BaseSite site : work.m_aSites)
-   if (site.m_eKind == ACR_EBaseSite.NEST && vector.DistanceXZ(site.m_vPos, at) < within) return true;
-  return false;
  }
 
  protected static void AddStretch(ACR_BaseWork work, ACR_BaseLine line, int index, array<ACR_LinePiece> pieces, ACR_BaseSurvey survey, ACR_BaseDefenceKit kit, int order)
@@ -2864,7 +2850,7 @@ class ACR_BaseLines
     if (ACR_BaseDefences.RoadEdgeGap(survey.m_aSegs, at) < COMPACT_ROAD) { noRoad++; continue; }
     if (ACR_BaseDefences.BuildingGap(survey.m_aBuildings, at, COMPACT_HOUSE) < COMPACT_HOUSE) { noHouse++; continue; }
     if (survey.DoorGap(at) < ACR_BaseSurvey.DOOR_CLEAR || ACR_Fortify.HardSurface(at)) { noHard++; continue; }
-    if (PieceWithin(work, at, GATE_GUN_HALF + 1, {})) { noPiece++; continue; }
+    if (work.PieceWithin(at, GATE_GUN_HALF + 1)) { noPiece++; continue; }
     if (!ACR_BaseDefences.WorldClear(at, 0, Vector(GATE_GUN_HALF, 0, GATE_GUN_HALF), null, true)) { noWorld++; continue; }
     float yaw = ACR_BaseDefences.Bearing(outwards[c]);
     if (survey.m_Kill)
@@ -2975,7 +2961,7 @@ class ACR_BaseLines
       if (ACR_BaseDefences.RoadEdgeGap(survey.m_aSegs, at) < COMPACT_ROAD) continue;
       if (ACR_BaseDefences.BuildingGap(survey.m_aBuildings, at, COMPACT_HOUSE) < COMPACT_HOUSE) continue;
       if (survey.DoorGap(at) < ACR_BaseSurvey.DOOR_CLEAR || ACR_Fortify.HardSurface(at)) continue;
-      if (PieceWithin(work, at, GATE_GUN_HALF + 1, {})) continue;
+      if (work.PieceWithin(at, GATE_GUN_HALF + 1)) continue;
       if (!ACR_BaseDefences.WorldClear(at, 0, Vector(GATE_GUN_HALF, 0, GATE_GUN_HALF), null, true)) continue;
       // Turned towards the road it's there to watch, or as near that as its fan is clear.
       foreach (float inward : inwards)
@@ -3048,7 +3034,7 @@ class ACR_BaseLines
    foreach (ACR_BaseSpot spot : spots)
    {
     // A tower looks the same way as the nest in front of it, on purpose.
-    if (ACR_BaseWorks.GunWithin(work, spot.m_vPos, 30)) continue;
+    if (work.GunWithin(spot.m_vPos, 30)) continue;
     open.Insert(spot);
     if (survey.m_Kill)
     {
@@ -3159,13 +3145,13 @@ class ACR_BaseLines
   if (ACR_BaseDefences.RoadEdgeGap(survey.m_aSegs, towerMid) < ACR_BaseSurvey.TOWER_ROAD) return null;
   if (ACR_BaseDefences.BuildingGap(survey.m_aBuildings, towerMid, ACR_BaseSurvey.TOWER_BUILDING) < ACR_BaseSurvey.TOWER_BUILDING) return null;
   if (survey.DoorGap(towerMid) < ACR_BaseSurvey.TOWER_DOOR) return null;
-  if (PieceWithin(work, towerMid, 3.6, mayGo)) return null;
+  if (work.PieceWithin(towerMid, 3.6, mayGo)) return null;
   bool tower = work.m_sFaction != "FIA" && HasRoom(towerMid, facing, Vector(3, 0, 3.8)) && ACR_BaseSurvey.TowerFan(place, facing);
   bool bunker = false;
   if (!towerOnly)
   {
    vector bunkerMid = place + look;
-   bunker = ACR_BaseDefences.RoadEdgeGap(survey.m_aSegs, bunkerMid) >= ACR_BaseSurvey.GUN_ROAD && ACR_BaseDefences.BuildingGap(survey.m_aBuildings, bunkerMid, ACR_BaseSurvey.NEST_BUILDING) >= ACR_BaseSurvey.NEST_BUILDING && !PieceWithin(work, bunkerMid, 5.4, mayGo) && HasRoom(bunkerMid, facing, Vector(5.5, 0, 4.5)) && ACR_BaseSurvey.BunkerFan(place, facing) && !BagsAhead(work, place, facing, null);
+   bunker = ACR_BaseDefences.RoadEdgeGap(survey.m_aSegs, bunkerMid) >= ACR_BaseSurvey.GUN_ROAD && ACR_BaseDefences.BuildingGap(survey.m_aBuildings, bunkerMid, ACR_BaseSurvey.NEST_BUILDING) >= ACR_BaseSurvey.NEST_BUILDING && !work.PieceWithin(bunkerMid, 5.4, mayGo) && HasRoom(bunkerMid, facing, Vector(5.5, 0, 4.5)) && ACR_BaseSurvey.BunkerFan(place, facing) && !BagsAhead(work, place, facing, null);
   }
   if (!tower && !bunker) return null;
   ACR_BaseSpot spot = new ACR_BaseSpot();
@@ -3186,22 +3172,6 @@ class ACR_BaseLines
   string why;
   if (!ACR_FobBuild.FootprintClear(mid, Math.Max(half[0], half[2]), null, why, true, ACR_FobDefences.MAX_RISE, 0.5)) return false;
   return ACR_BaseDefences.WorldClear(mid, facing, half, null, true);
- }
-
- static bool PieceWithin(ACR_BaseWork work, vector at, float within, array<vector> except)
- {
-  foreach (ACR_BaseLine line : work.m_aLines)
-  {
-   if (vector.DistanceXZ(line.m_vMiddle, at) > line.m_fLength * 0.5 + within + 4) continue;
-   foreach (ACR_LinePiece piece : line.m_aPieces)
-   {
-    if (vector.DistanceXZ(piece.m_vPos, at) >= within) continue;
-    bool goes = false;
-    foreach (vector cut : except) if (vector.DistanceXZ(cut, piece.m_vPos) < 0.3) goes = true;
-    if (!goes) return true;
-   }
-  }
-  return false;
  }
 
  // Our bags in a gun's fan, close enough to stop it (they're as high as its muzzle). Not its own line's
@@ -3492,7 +3462,7 @@ class ACR_BaseLines
      float yaw;
      string refusal;
      if (!ACR_Roadblocks.ValidateSite(lane, pos, yaw, refusal, work.m_sFaction, enemy.GetOrigin(), work.m_Base)) continue;
-     if (ACR_BaseWorks.CheckpointNear(work, pos, 60)) continue;
+     if (work.SiteWithin(pos, 60, ACR_EBaseSite.ROADBLOCK)) continue;
      spots.Insert(pos);
      yaws.Insert(yaw);
      sectors.Insert(line.m_iSector);
@@ -3516,7 +3486,7 @@ class ACR_BaseLines
      float gateYaw;
      string gateRefusal;
      if (!ACR_Roadblocks.ValidateSite(open.m_vPos, gatePos, gateYaw, gateRefusal, work.m_sFaction, enemy.GetOrigin(), work.m_Base)) { gateWhy += " site(" + gateRefusal + ")"; continue; }
-     if (ACR_BaseWorks.CheckpointNear(work, gatePos, 60)) { gateWhy += " taken"; continue; }
+     if (work.SiteWithin(gatePos, 60, ACR_EBaseSite.ROADBLOCK)) { gateWhy += " taken"; continue; }
      spots.Insert(gatePos);
      yaws.Insert(gateYaw);
      sectors.Insert(open.m_iSector);

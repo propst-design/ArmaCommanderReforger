@@ -19,7 +19,6 @@ class ACR_StaticInit
   ACR_BagHold.ACR_InitStatics();
   ACR_Base.ACR_InitStatics();
   ACR_BaseDefences.ACR_InitStatics();
-  ACR_BaseLiner.ACR_InitStatics();
   ACR_BaseLines.ACR_InitStatics();
   ACR_BaseRing.ACR_InitStatics();
   ACR_BaseSurvey.ACR_InitStatics();

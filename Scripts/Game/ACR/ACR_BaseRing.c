@@ -40,7 +40,7 @@ class ACR_RingRun : Managed
  bool m_bLooked;                 // the walker has tried it
 }
 
-class ACR_BaseRing : Managed
+class ACR_BaseRing : ACR_TownGrid
 {
  static const float CELL = 6;
  static const float BEYOND = 120;      // m past the search radius the grid goes
@@ -153,40 +153,16 @@ class ACR_BaseRing : Managed
  protected ref RandomGenerator m_Luck;
  protected int m_iLaidFronts;     // lines already laid when choosing more
  protected float m_fFirstValue;   // what the first part that went in did to him
- int m_iN;
- float m_fX;
- float m_fZ;
  float m_fCX;
  float m_fCZ;
  ref array<int> m_aCell = {};
- ref array<float> m_aY = {};
  ref array<float> m_aRim = {};
  ref array<float> m_aThreat = {};
  ref array<float> m_aView = {};
  ref array<float> m_aBack = {};
- protected ref array<int> m_aDX = {1, -1, 0, 0, 1, 1, -1, -1};
- protected ref array<int> m_aDZ = {0, 0, 1, -1, 1, -1, 1, -1};
- protected ref array<float> m_aStep = {1, 1, 1, 1, 1.414, 1.414, 1.414, 1.414};
  protected static ACR_BaseRing s_Filling;
 
  // ---------------------------------------------------------------- the grid
-
- protected int At(float x, float z)
- {
-  int ix = (x - m_fX) / CELL;
-  int iz = (z - m_fZ) / CELL;
-  if (x < m_fX || z < m_fZ || ix >= m_iN || iz >= m_iN) return -1;
-  return iz * m_iN + ix;
- }
-
- vector Middle(int i)
- {
-  int ix = i - (i / m_iN) * m_iN;
-  int iz = i / m_iN;
-  float x = m_fX + (ix + 0.5) * CELL;
-  float z = m_fZ + (iz + 0.5) * CELL;
-  return Vector(x, m_aY[i], z);
- }
 
  protected void Mark(float x, float z, int what)
  {
@@ -301,6 +277,7 @@ class ACR_BaseRing : Managed
   m_fCX = center[0];
   m_fCZ = center[2];
   float half = survey.m_fRadius + BEYOND;
+  m_fCell = CELL;
   m_iN = half * 2 / CELL;
   m_fX = center[0] - half;
   m_fZ = center[2] - half;
@@ -647,49 +624,6 @@ class ACR_BaseRing : Managed
 
  // ---------------------------------------------------------------- the ring
 
- protected void HeapPush(notnull array<float> keys, notnull array<int> values, float key, int value)
- {
-  int at = keys.Count();
-  keys.Insert(key);
-  values.Insert(value);
-  while (at > 0)
-  {
-   int up = (at - 1) / 2;
-   if (keys[up] <= key) break;
-   keys[at] = keys[up];
-   values[at] = values[up];
-   at = up;
-  }
-  keys[at] = key;
-  values[at] = value;
- }
-
- protected int HeapPop(notnull array<float> keys, notnull array<int> values, out float key)
- {
-  int top = values[0];
-  key = keys[0];
-  int last = keys.Count() - 1;
-  float moved = keys[last];
-  int movedValue = values[last];
-  keys.Remove(last);
-  values.Remove(last);
-  if (last == 0) return top;
-  int at = 0;
-  while (true)
-  {
-   int child = at * 2 + 1;
-   if (child >= last) break;
-   if (child + 1 < last && keys[child + 1] < keys[child]) child++;
-   if (keys[child] >= moved) break;
-   keys[at] = keys[child];
-   values[at] = values[child];
-   at = child;
-  }
-  keys[at] = moved;
-  values[at] = movedValue;
-  return top;
- }
-
  // One way round the town, the cells in order: from one side of a seam straight out from the middle, where the
  // threat is least, round to its other side. False if there's no way round.
  bool Solve(float off, float bandIn, float bandOut, float noise, bool threatMatters, string key, notnull array<int> path)
@@ -965,16 +899,6 @@ class ACR_BaseRing : Managed
  protected static int PiecesFor(float metres)
  {
   return metres / ACR_BaseLines.LONG_STEP + 1;
- }
-
- protected static bool BagsNear(ACR_BaseWork work, vector at, float within)
- {
-  foreach (ACR_BaseLine line : work.m_aLines)
-  {
-   foreach (ACR_LinePiece piece : line.m_aPieces)
-    if (vector.DistanceXZ(piece.m_vPos, at) < within) return true;
-  }
-  return false;
  }
 
  protected static bool WantedAt(notnull array<ref ACR_RingRun> all, int parent, int order)
@@ -1711,7 +1635,7 @@ class ACR_BaseRing : Managed
   {
    if (ThreatAt(cell) < 0.5) continue;
    s_iLastAsked++;
-   if ((m_aCell[cell] & FREE_RING) != 0 || BagsNear(work, Middle(cell), CLOSED_WITHIN)) s_iLastClosed++;
+   if ((m_aCell[cell] & FREE_RING) != 0 || work.PieceWithin(Middle(cell), CLOSED_WITHIN, null, false)) s_iLastClosed++;
   }
  }
 
@@ -1730,7 +1654,7 @@ class ACR_BaseRing : Managed
    array<ref ACR_RingRun> fit = {};
    foreach (ACR_RingRun out_part : runs)
    {
-    if (out_part.m_fView >= FORWARD_VIEW * 0.6 && !BagsNear(work, out_part.m_vMiddle, FORWARD_CLEAR + out_part.m_fLength * 0.5)) fit.Insert(out_part);
+    if (out_part.m_fView >= FORWARD_VIEW * 0.6 && !work.PieceWithin(out_part.m_vMiddle, FORWARD_CLEAR + out_part.m_fLength * 0.5, null, false)) fit.Insert(out_part);
    }
    ChooseRuns(kill, work.m_Style, fit, sorted, 0, 0, 0, most, tier, key);
    return BuildWanted(work, survey, kit, sorted, fit, most);
@@ -1738,7 +1662,7 @@ class ACR_BaseRing : Managed
   foreach (ACR_RingRun all : runs)
   {
    if (all.m_fThreat < FORWARD_THREAT || all.m_fView < FORWARD_VIEW || all.m_iRoads == 0) continue;
-   if (BagsNear(work, all.m_vMiddle, FORWARD_CLEAR + all.m_fLength * 0.5)) continue;
+   if (work.PieceWithin(all.m_vMiddle, FORWARD_CLEAR + all.m_fLength * 0.5, null, false)) continue;
    sorted.Insert(all);
   }
   Sort(sorted);
@@ -1767,7 +1691,7 @@ class ACR_BaseRing : Managed
    vector mid = run.m_vMiddle - run.m_vOut * GATE_BACK;
    int cell = At(mid[0], mid[2]);
    if (cell < 0 || (m_aCell[cell] & (FREE_RING | BOARD | WIRE)) != 0) continue;
-   if (BagsNear(work, mid, GATE_BACK * 0.7)) continue;
+   if (work.PieceWithin(mid, GATE_BACK * 0.7, null, false)) continue;
    vector across = Vector(run.m_vOut[2], 0, -run.m_vOut[0]);
    ACR_RingRun line = new ACR_RingRun();
    line.m_vOut = run.m_vOut;
