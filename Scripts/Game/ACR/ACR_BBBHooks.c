@@ -373,6 +373,23 @@ class ACR_BBBHooks : BBB_Hooks
  // he leaves the squad (counted missing, refilled by Reinforce like a death) and ACR_BaseSystem
  // leaves prisoners out of holding and contesting bases. Override here only once the pin has the hook.
 
+ // Zombie rules (BBB_Zombies, BBB 0.1.11+; these overrides need a pin that has the hooks): no surrender to
+ // zombies, keep distance, no flanks or suppression on them, clear them before healing, dragging or looting.
+ // ACA's zombie modes switch the rules on; otherwise BBB decides (-bbbZombies auto: on whenever Project
+ // Outbreak is loaded). A host's -bbbZombies 0 or 1 still wins. BBB judges per threat: the other side's
+ // soldiers are still fought as men (TvTvZ).
+ override int ZombieRules()
+ {
+  if (ACR_Outbreak.On()) return 1;
+  return -1;
+ }
+
+ // ACA's zombies are Outbreak's (BBB finds those by their components); the Z faction covers any other.
+ override bool IsZombie(IEntity entity)
+ {
+  return ACR_Outbreak.IsZombie(entity);
+ }
+
  override void OnLitter(IEntity item)
  {
   if (m_Manager.m_Cleanup) m_Manager.m_Cleanup.AddLitter(item);
