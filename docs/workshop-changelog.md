@@ -22,6 +22,7 @@ BETTER
 - Taking the lead of a squad keeps its order until you give your first one.
 - F9 in the RTS camera goes straight back to the command map.
 - Soldiers who surrender (Better Battle Buddies 0.2.0) leave their squad and hold no base.
+- The command map sends and redraws far less: markers are kept rather than rebuilt, hidden soldiers get none, and positions go out only while the map or RTS camera is open. This helps busy multiplayer matches.
 
 FIXED
 
@@ -33,3 +34,5 @@ FIXED
 - The 2IC channel keeps open requests and their Cancel buttons; accepted defence advice isn't offered again.
 - A FOB with a supply depot really stores 3,000 supplies.
 - Zombie messages name the town again.
+- A purchase, support call or setup click sent right after another request is no longer dropped silently; one sent too fast says so.
+- Typing a name in the deck editor no longer closes the map, and joined players with a modded faction pair open it on their own side.
