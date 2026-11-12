@@ -1,6 +1,6 @@
-0.5.13
+0.6.0
 
-Decks and a deck builder, the reworked AI commander on by default, a growing insurgency, the rest of the contained outbreak and counter-battery fire. Needs Better Battle Buddies 0.1.11.
+Decks and a deck builder, the reworked AI commander on by default, a growing insurgency, the rest of the contained outbreak and counter-battery fire. Needs Better Battle Buddies 0.2.0.
 
 NEW
 
@@ -18,10 +18,10 @@ BETTER
 
 - The AI commander rework is on by default: one main push with a supporting attack, jobs weighed together, attack forecasts from its own intel, covered withdrawals. AI commander row set to classic (or -acrAICommander classic) brings back the old one for this release.
 - AI squads low on ammo go and get more, from an ammo truck when it is safe or at a quiet base.
-- Zombie mode: soldiers fight zombies like zombies (Better Battle Buddies 0.1.11), the outbreak keeps growing while nobody contains it, zombies show on the map as zombies, and nests send up smoke you can see from far off.
+- Zombie mode: soldiers fight zombies like zombies (Better Battle Buddies 0.2.0), the outbreak keeps growing while nobody contains it, zombies show on the map as zombies, and nests send up smoke you can see from far off.
 - Taking the lead of a squad keeps its order until you give your first one.
 - F9 in the RTS camera goes straight back to the command map.
-- Soldiers who surrender (Better Battle Buddies 0.1.11) leave their squad and hold no base.
+- Soldiers who surrender (Better Battle Buddies 0.2.0) leave their squad and hold no base.
 
 FIXED
 
