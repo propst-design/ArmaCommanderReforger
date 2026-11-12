@@ -1104,7 +1104,7 @@ modded class SCR_PlayerController
  {
   SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
   bool open = mapEntity && mapEntity.IsOpen();
-  ACR_SendViewing(open || ACR_RTSCamera.IsActive());
+  ACR_SendViewing(open || ACR_RTSCameraManager.IsActive());
   m_ACR_Data.m_iMyId = GetPlayerId();
   if (!open)
   {
