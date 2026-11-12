@@ -882,6 +882,8 @@ class ACR_BaseWorks
  static bool ManLine(ACR_DefenderPost post, int men, array<int> chosen = null)
  {
   ACR_BaseWork work = post.m_Work;
+  bool wasFull = post.m_bLinesFull;
+  post.m_bLinesFull = false;
   if (!work || !post.m_Group || s_bNoLineMenForTest || men <= 0) return false;
   ACR_Squad.FightLikeSquad(post.m_Group);
   vector threat;
@@ -892,7 +894,14 @@ class ACR_BaseWorks
   if (lines.IsEmpty()) return false;
   array<ref ACR_GarrisonSpot> spots = {};
   LineSpots(work, lines, threat, hasThreat, men, post.m_Group, spots);
-  if (spots.IsEmpty()) return false;
+  if (spots.IsEmpty())
+  {
+   // A squad holding the base already stands behind every bag that faces him: the reserve goes where it went
+   // before the works (buildings, wings), not behind bags that face away from him.
+   post.m_bLinesFull = true;
+   if (!wasFull) PrintFormat("[ACR] BASEWORKS %1 %2: the lines facing him are full (line %3 first), the reserve goes elsewhere", work.m_sFaction, work.m_Base.m_sName, lines[0]);
+   return false;
+  }
   vector center = spots[0].m_Pos;
   float radius;
   if (ACR_Garrison.PostsAt(post.m_Group, spots, center, radius) <= 0) return false;

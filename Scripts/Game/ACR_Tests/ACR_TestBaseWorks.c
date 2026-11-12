@@ -495,7 +495,10 @@ class ACR_TestBaseWorks
   array<AIAgent> agents = {};
   group.GetAgents(agents);
   ACR_TestRegress.Check("baseworks: an enemy near deploys the reserve", agents.Count() > 0, string.Format("%1 men", agents.Count()));
-  ACR_TestRegress.Check("baseworks: ... each to his own place behind a line's bags", s_Work.m_Defenders.m_iMannedLine >= 0, string.Format("line %1", s_Work.m_Defenders.m_iMannedLine));
+  // The squad holding the base can have every place on the one line facing him (its pieces vary with the plan):
+  // then the reserve rightly goes elsewhere, on posts of its own (checked next).
+  bool full = s_Work.m_Defenders.m_bLinesFull && ACR_Garrison.HasPosts(group);
+  ACR_TestRegress.Check("baseworks: ... each to his own place behind a line's bags", s_Work.m_Defenders.m_iMannedLine >= 0 || full, string.Format("line %1, lines facing him full %2", s_Work.m_Defenders.m_iMannedLine, full));
   ACR_TestRegress.Check("baseworks: ... on posts of their own", ACR_Garrison.HasPosts(group), string.Format("at %1", s_Work.m_Defenders.m_vPos));
  }
 

@@ -26,6 +26,7 @@ class ACR_DefenderPost : Managed
  ACR_Fortification m_Fort;        // a Fortify position's: its men go behind its wings if it has them (ACR_Wings.ManWings)
  bool m_bOnWings;
  int m_iMannedLine = -1;
+ bool m_bLinesFull;     // ManLine: the lines facing him had no place left (others' men on them all)
  float m_fMannedAt;
  ref ACR_GuerrillaCell m_Cell;    // an FIA guerrilla cell (ACR_Guerrillas): its own spring and pull-back
  ref ACR_ZombieNest m_Nest;       // a zombie nest (ACR_Outbreak): out while anyone is near them, grows back
