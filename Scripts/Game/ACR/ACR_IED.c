@@ -51,6 +51,7 @@ class ACR_IED : Managed
  bool m_bDisarmed;
  bool m_bRan;                // the team ran: nobody will fire it
  bool m_bWired;              // connected to the blasting machine (else fired by script only)
+ bool m_bLead;               // the team's loss has given its hideout away once (one lead per team)
  int m_iOut;                 // men out at deploy (a loss: shot at)
  float m_fDisarmMs;
  string m_sDisarmSide;
@@ -184,8 +185,13 @@ class ACR_IED : Managed
   ied.m_Charge = charge;
   ied.m_From = from;
   ied.m_fPlacedAt = GetGame().GetWorld().GetWorldTime();
-  ied.m_Detonator = ACR_Manager.SpawnPrefab(ACR_Demolition.DetonatorFor(owner), trigger);
-  ied.m_bWired = Wire(charge, ied.m_Detonator);
+  // Wired now, so the game's Disarm works on it from the start, but the blasting machine isn't
+  // left lying at the triggerman's place for anyone to pick up and fire: it goes, and each time
+  // the team comes out a new one is wired into his hands (HandDetonator). The charge keeps its
+  // REMOTE fuze when a detonator is deleted (vanilla only unwires through Disconnect or Disarm).
+  IEntity wiring = ACR_Manager.SpawnPrefab(ACR_Demolition.DetonatorFor(owner), trigger);
+  ied.m_bWired = Wire(charge, wiring);
+  if (wiring) SCR_EntityHelper.DeleteEntityAndChildren(wiring);
   string name = string.Format("IED team %1", ACR_Manager.Grid(spot));
   ACR_DefenderPost post = ACR_Defenders.Add(owner, trigger, name, 8);
   post.m_iReserve = 2;
@@ -210,7 +216,7 @@ class ACR_IED : Managed
   RplId detonatorId = Replication.FindItemId(detonator);
   if (!detonatorId.IsValid() || !chargeComp.GetRplId().IsValid()) return false;
   detonator.ConnectNewCharge(chargeComp.GetRplId());
-  chargeComp.ConnectDetonator(SCR_EFuzeType.REMOTE, detonatorId);
+  chargeComp.ConnectDetonator(SCR_EFuzeType.REMOTE, detonatorId, true, true); // silent: no wiring click at the charge when the team comes out
   return chargeComp.GetUsedFuzeType() != SCR_EFuzeType.NONE;
  }
 
@@ -298,12 +304,23 @@ class ACR_IED : Managed
   return body;
  }
 
- // The blasting machine from the ground into his hands (the wiring stays). Missed: it stays there.
+ // A blasting machine wired to the charge, straight into his hands. It goes with him when the
+ // team packs up (PackUpGuards deletes the men with what they carry); a dead triggerman's can be
+ // looted. Never left on the ground: if it doesn't fit, it goes (Fire works by script anyway).
  protected static void HandDetonator(ACR_IED ied, IEntity man)
  {
-  if (!man || !ied.m_Detonator || ied.m_Detonator.GetParent()) return;
+  if (!man || !ied.m_Charge || (ied.m_Detonator && ied.m_Detonator.GetParent())) return;
+  if (ied.m_Detonator) SCR_EntityHelper.DeleteEntityAndChildren(ied.m_Detonator);
+  ied.m_Detonator = ACR_Manager.SpawnPrefab(ACR_Demolition.DetonatorFor(ied.m_sOwner), man.GetOrigin());
+  if (!ied.m_Detonator) return;
+  if (Wire(ied.m_Charge, ied.m_Detonator)) ied.m_bWired = true;
   SCR_InventoryStorageManagerComponent inventory = ACR_SapperDemo.InventoryOf(man);
-  if (!inventory || !inventory.TryInsertItem(ied.m_Detonator, EStoragePurpose.PURPOSE_ANY, null)) return;
+  if (!inventory || !inventory.TryInsertItem(ied.m_Detonator, EStoragePurpose.PURPOSE_ANY, null))
+  {
+   SCR_EntityHelper.DeleteEntityAndChildren(ied.m_Detonator);
+   ied.m_Detonator = null;
+   return;
+  }
   SCR_GadgetManagerComponent gadgets = SCR_GadgetManagerComponent.GetGadgetManager(man);
   if (gadgets) gadgets.SetGadgetMode(ied.m_Detonator, EGadgetMode.IN_HAND);
  }
@@ -324,7 +341,7 @@ class ACR_IED : Managed
   if (post.m_iReserve <= 0)
   {
    PrintFormat("[ACR] IED %1: the team is dead", post.m_sName);
-   ACR_FIAIntel.Wiped(post.m_vPos, ied.m_From, "a dead IED team");
+   Lead(ied, post.m_vPos, "a dead IED team");
    ACR_Defenders.Remove(post);
    return;
   }
@@ -332,6 +349,23 @@ class ACR_IED : Managed
   if (ied.m_From && !ied.m_From.m_bGone) ied.m_From.m_Cell.m_fPool = Math.Min(ACR_FIAGrowth.PoolCap(), ied.m_From.m_Cell.m_fPool + 1);
   PrintFormat("[ACR] IED %1: the team goes home", post.m_sName);
   ACR_Defenders.Remove(post);
+ }
+
+ // The team's loss gives its hideout away: once per team (a dead triggerman, then the whole
+ // team dead, used to tighten the ring twice).
+ protected static void Lead(ACR_IED ied, vector at, string what)
+ {
+  if (ied.m_bLead) return;
+  ied.m_bLead = true;
+  ACR_FIAIntel.Wiped(at, ied.m_From, what);
+ }
+
+ // The group's leader is gone or dead (unconscious: no).
+ protected static bool LeaderDead(ACR_DefenderPost post)
+ {
+  if (!post || !post.m_Group || !post.m_Group.GetLeaderAgent()) return true;
+  IEntity body = post.m_Group.GetLeaderAgent().GetControlledEntity();
+  return !body || !ACR_Respawn.IsAlive(body);
  }
 
  // ---------------------------------------------------------------- watching the road
@@ -362,7 +396,8 @@ class ACR_IED : Managed
    IEntity vehicle = NextVehicle(ied, closest);
    if (hit)
    {
-    if (!man) ACR_FIAIntel.Wiped(ied.m_vTrigger, ied.m_From, "a dead triggerman");
+    // Dead, not just knocked out (Triggerman is null for both).
+    if (!man && LeaderDead(ied.m_Post)) Lead(ied, ied.m_vTrigger, "a dead triggerman");
     if (man && vehicle && closest < EARLY_REACH) Fire(ied, man, vehicle, "early: the team was shot at");
     else Run(ied, "shot at before a target came");
     continue;
@@ -505,6 +540,16 @@ class ACR_IED : Managed
    Disarmed(ied, "", "the charge is gone");
    return true;
   }
+  // Picked up (an unwired charge isn't locked) or carried off and dropped: it's whoever took it
+  // now, never fired by script. Not deleted: it may be in a player's pack. (15 m: a wheel
+  // nudging it isn't taking it.)
+  if (ied.m_Charge.GetParent() || vector.DistanceXZ(ied.m_Charge.GetOrigin(), ied.m_vPos) > 15)
+  {
+   string taker = NearestSide(ied);
+   ied.m_Charge = null;
+   Disarmed(ied, taker, "taken");
+   return true;
+  }
   SCR_ExplosiveChargeComponent chargeComp = ACR_SapperDemo.ChargeComponent(ied.m_Charge);
   if (ied.m_bWired && chargeComp && chargeComp.GetUsedFuzeType() == SCR_EFuzeType.NONE)
   {
@@ -572,6 +617,8 @@ class ACR_IED : Managed
 
  // An AI soldier on foot of a side sweeping that road (a danger mark over the charge) standing at
  // it: after DISARM_MS he has disarmed it. Players use the game's Disarm action.
+ // Known design gap (review 0.5.13): the danger mark only comes from a blast (ACR_Insurgency.OnLoss),
+ // so AI sweepers almost never find a live charge; in practice LIFT_MS clears the rest. Not built.
  static void SweepDisarm(ACR_IED ied, float elapsedMs)
  {
   ACR_Manager manager = ACR_Manager.GetInstance();

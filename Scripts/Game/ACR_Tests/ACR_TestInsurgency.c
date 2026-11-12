@@ -8,8 +8,13 @@
 // comes out for a Red car; the Blue (allied) car over it passes, the Red car sets it off and the
 // road is marked for Red; a second team with its triggerman shot runs and the charge doesn't go
 // off under the car; the game's Disarm leaves it dead; an old charge with nobody near is lifted.
+// Review 0.5.13: no blasting machine lies at the triggerman's place before the team comes out;
+// out, he holds one wired to the charge; a charge carried off is taken (never fired by script).
 class ACR_TestInsurgency
 {
+ protected static ref ACR_IED s_IED4;
+ protected static IEntity s_Taken;
+ protected static int s_iDetonators;
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
  protected static ACR_DefenderPost s_Cell;
  protected static vector s_vRoad;
@@ -49,6 +54,8 @@ class ACR_TestInsurgency
   if (second == 160) Disarmed(manager);
   if (second == 161) PlantOld(manager);
   if (second == 164) Lifted(manager);
+  if (second == 165) PlantTaken(manager);
+  if (second == 168) Taken(manager);
  }
 
  protected static void Allegiance(ACR_Manager manager)
@@ -231,8 +238,24 @@ class ACR_TestInsurgency
   }
   float off = vector.DistanceXZ(s_IED.m_vTrigger, s_IED.m_vPos);
   ACR_TestRegress.Check("insurgency: an IED is a wired charge on the road, its triggerman's place 80-200 m off, nobody out yet", s_IED.m_Charge && s_IED.m_bWired && s_IED.m_Post && !s_IED.m_Post.m_Group && off >= ACR_IED.TRIGGER_NEAR - 5 && off <= ACR_IED.TRIGGER_FAR + 15, string.Format("charge %1, wired %2, %3 m off, out %4", s_IED.m_Charge != null, s_IED.m_bWired, (int)off, s_IED.m_Post.m_Group != null));
+  int lying = DetonatorsNear(s_IED.m_vTrigger, 10);
+  ACR_TestRegress.Check("insurgency: no blasting machine lies at the triggerman's place before the team comes out", !s_IED.m_Detonator && lying == 0, string.Format("held detonator %1, %2 lying there", s_IED.m_Detonator != null, lying));
   Car(manager, "Red Car", ACR_FactionSelection.East(), RED_CAR, s_IED, 250);
   Car(manager, "Blue Car", ACR_FactionSelection.West(), BLUE_CAR, s_IED, -250);
+ }
+
+ // Loose detonators (none carried) within range of 'pos'.
+ protected static int DetonatorsNear(vector pos, float range)
+ {
+  s_iDetonators = 0;
+  GetGame().GetWorld().QueryEntitiesBySphere(pos, range, CountDetonator, null, EQueryEntitiesFlags.DYNAMIC);
+  return s_iDetonators;
+ }
+
+ protected static bool CountDetonator(IEntity e)
+ {
+  if (!e.GetParent() && e.FindComponent(SCR_DetonatorGadgetComponent)) s_iDetonators++;
+  return true;
  }
 
  // The team is out for the Red car; the Blue (allied) car stands on the charge.
@@ -242,6 +265,10 @@ class ACR_TestInsurgency
   IEntity blue = VehicleOf(manager, "Blue Car");
   Put(blue, s_IED.m_vPos);
   ACR_TestRegress.Check("insurgency: an enemy car near brings the IED team out", teamOut, string.Format("team out %1, blue car %2", teamOut, blue != null));
+  SCR_ExplosiveChargeComponent charge = ACR_SapperDemo.ChargeComponent(s_IED.m_Charge);
+  bool held = s_IED.m_Detonator && s_IED.m_Detonator.GetParent() != null;
+  bool remote = charge && charge.GetUsedFuzeType() == SCR_EFuzeType.REMOTE;
+  ACR_TestRegress.Check("insurgency: out, the triggerman holds a blasting machine wired to the charge", held && remote && DetonatorsNear(s_IED.m_vTrigger, 10) == 0, string.Format("detonator %1, held %2, charge remote %3", s_IED.m_Detonator != null, held, remote));
  }
 
  protected static void EnemySetsOff(ACR_Manager manager)
@@ -317,6 +344,28 @@ class ACR_TestInsurgency
   ACR_IED.s_fLiftMs = 0;
   bool lifted = s_IED3 && s_IED3.m_bDisarmed && !s_IED3.m_Charge;
   ACR_TestRegress.Check("insurgency: an IED left long with nobody near is lifted", lifted, string.Format("planted %1, lifted %2", s_IED3 != null, lifted));
-  ACR_TestRegress.Complete("insurgency", 15);
+ }
+
+ // Carried off (as a player would an unwired one): moved 20 m from its spot.
+ protected static void PlantTaken(ACR_Manager manager)
+ {
+  s_IED4 = PlantAt(manager);
+  if (!s_IED4 || !s_IED4.m_Charge) return;
+  s_Taken = s_IED4.m_Charge;
+  s_Taken.SetOrigin(ACR_Manager.Ground(s_IED4.m_vPos + Vector(20, 0, 0)));
+ }
+
+ protected static void Taken(ACR_Manager manager)
+ {
+  if (!s_IED4)
+  {
+   ACR_TestRegress.Skip("insurgency: a charge carried off is taken, not fired, and left to whoever has it", "no road for a fourth IED");
+  }
+  else
+  {
+   bool taken = s_IED4.m_bDisarmed && !s_IED4.m_bFired && !s_IED4.m_Charge && s_Taken != null;
+   ACR_TestRegress.Check("insurgency: a charge carried off is taken, not fired, and left to whoever has it", taken, string.Format("disarmed %1, fired %2, charge entity kept %3", s_IED4.m_bDisarmed, s_IED4.m_bFired, s_Taken != null));
+  }
+  ACR_TestRegress.Complete("insurgency", 18);
  }
 }
