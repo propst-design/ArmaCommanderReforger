@@ -1608,9 +1608,7 @@ modded class SCR_PlayerController
   Faction faction = SCR_FactionManager.SGetPlayerFaction(GetPlayerId());
   if (!manager || !faction) return;
   // The menu's purchase spacing (ACR_PurchaseServer): a double click buys once.
-  float now = GetGame().GetWorld().GetWorldTime();
-  if (now - m_ACR_LastCommand < 300) return;
-  m_ACR_LastCommand = now;
+  if (ACR_TooSoon("2ictruck", 300)) return;
   Rpc(ACR_FeedbackOwner, ACR_TwoICSuggest.BuyTruck(manager, this, faction.GetFactionKey()));
  }
 
@@ -1637,9 +1635,15 @@ modded class SCR_PlayerController
   ACR_Manager manager = ACR_Manager.GetInstance();
   Faction faction = SCR_FactionManager.SGetPlayerFaction(GetPlayerId());
   if (!manager || !faction) return;
+  // Only a commander scores sites (review #15: any client could start the job for any id).
+  if (!manager.IsCommander(GetPlayerId()))
+  {
+   PrintFormat("[ACR] 2IC sites: player %1 isn't a commander", GetPlayerId());
+   return;
+  }
   // The unit establishing it: an ACA squad (a construction truck) or the player's command unit (a
-  // group of his side but no ACA squad); only where it is matters.
-  // (The sites are only shown, so any unit the id names will do.)
+  // group of his side but no ACA squad); only where it is matters. It has to be his side's group,
+  // or his own body.
   IEntity unit = SCR_EntityHelper.RplIdToEntity(groupId);
   if (!unit)
   {
@@ -1648,6 +1652,11 @@ modded class SCR_PlayerController
   }
   vector at = unit.GetOrigin();
   SCR_AIGroup group = SCR_AIGroup.Cast(unit);
+  if ((group && group.GetFaction() != faction) || (!group && unit != GetMainEntity() && unit != GetControlledEntity()))
+  {
+   PrintFormat("[ACR] 2IC sites: player %1 named a unit that isn't his side's", GetPlayerId());
+   return;
+  }
   if (group && group.GetLeaderEntity()) at = group.GetLeaderEntity().GetOrigin();
   ACR_Squad squad;
   if (group) squad = manager.FindSquadByGroup(group);

@@ -179,7 +179,24 @@ modded class SCR_PlayerController
  }
 
  // ---------------------------------------------------------------- requests
- protected float m_ACR_LastCommand = -1000;
+ // Server: when each kind of request last came (review #15: one shared stamp dropped a support call
+ // or a purchase that came soon after another kind, silently, while the client thought it went).
+ protected ref map<string, float> m_ACR_RequestAt = new map<string, float>();
+
+ // True when this kind of request came sooner than spacing ms after the last one; the player is
+ // told, so a double click doesn't leave him thinking the second one went through.
+ protected bool ACR_TooSoon(string kind, float spacing)
+ {
+  float now = GetGame().GetWorld().GetWorldTime();
+  float last;
+  if (m_ACR_RequestAt.Find(kind, last) && now >= last && now - last < spacing)
+  {
+   Rpc(ACR_FeedbackOwner, "Too fast: wait a moment and try again");
+   return true;
+  }
+  m_ACR_RequestAt.Set(kind, now);
+  return false;
+ }
  protected float m_ACR_CommandWindow = -1000;
  protected int m_ACR_CommandsInWindow;
  protected ref ACR_SameClickGuard m_ACR_SameClick = new ACR_SameClickGuard();
@@ -468,9 +485,7 @@ modded class SCR_PlayerController
  [RplRpc(RplChannel.Reliable, RplRcver.Server)]
  protected void ACR_SetupServer(string key)
  {
-  float now = GetGame().GetWorld().GetWorldTime();
-  if (now - m_ACR_LastCommand < 150) return;
-  m_ACR_LastCommand = now;
+  if (ACR_TooSoon("setup", 150)) return;
   string result = ACR_Setup.Handle(GetPlayerId(), key);
   PrintFormat("[ACR] SETUP player %1: %2", GetPlayerId(), result);
   Rpc(ACR_FeedbackOwner, result);
@@ -483,9 +498,7 @@ modded class SCR_PlayerController
  [RplRpc(RplChannel.Reliable, RplRcver.Server)]
  protected void ACR_SetupMoveServer(string name, float x, float z)
  {
-  float now = GetGame().GetWorld().GetWorldTime();
-  if (now - m_ACR_LastCommand < 150) return;
-  m_ACR_LastCommand = now;
+  if (ACR_TooSoon("setupmove", 150)) return;
   string result = ACR_Setup.HandleMove(GetPlayerId(), name, x, z);
   PrintFormat("[ACR] SETUP player %1: %2", GetPlayerId(), result);
   Rpc(ACR_FeedbackOwner, result);
@@ -2895,9 +2908,7 @@ modded class SCR_PlayerController
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager) return;
-  float now = GetGame().GetWorld().GetWorldTime();
-  if (now - m_ACR_LastCommand < 300) return;
-  m_ACR_LastCommand = now;
+  if (ACR_TooSoon("support", 300)) return;
   Rpc(ACR_SupportResultOwner, manager.CallSupport(this, index, target, group));
  }
  // The answer to a support call, also kept in the panel for a while (a refusal such as
@@ -2954,10 +2965,17 @@ modded class SCR_PlayerController
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager) return;
-  float now = GetGame().GetWorld().GetWorldTime();
-  if (now - m_ACR_LastCommand < 300) return;
-  m_ACR_LastCommand = now;
-  Rpc(ACR_FeedbackOwner, manager.Purchase(this, entryIndex, baseLabel, Vector(spotX, 0, spotZ), hasSpot));
+  if (ACR_TooSoon("purchase", 300)) return;
+  // A spot that isn't a number inside the world (only a modified client sends one) is ignored:
+  // the unit appears at a clear point in the ring, as without a click (review #15).
+  vector spot = Vector(spotX, 0, spotZ);
+  bool finite = spotX > -1000000 && spotX < 1000000 && spotZ > -1000000 && spotZ < 1000000;
+  if (hasSpot && (!finite || !ACR_Manager.OnMap(spot)))
+  {
+   hasSpot = false;
+   spot = vector.Zero;
+  }
+  Rpc(ACR_FeedbackOwner, manager.Purchase(this, entryIndex, baseLabel, spot, hasSpot));
  }
 
  // Test hook: buy entry at base without the UI.

@@ -166,8 +166,12 @@ class ACR_DeckClient
  static void Frame()
  {
   InputManager input = GetGame().GetInputManager();
-  if (input && ACR_SetupClient.IsActive()) input.ActivateContext("ACR_DeckContext");
-  if (input && input.GetActionTriggered("ACR_DeckEditor")) Toggle();
+  // Typing a deck's or a card's name: the map's keys (M closes the map) and F3 stay out of it, as
+  // in the squad list's search box (review #24).
+  bool typing = s_Editor && s_Editor.Typing();
+  if (input && typing) input.ActivateContext("ACR_SquadSearchContext");
+  if (input && !typing && ACR_SetupClient.IsActive()) input.ActivateContext("ACR_DeckContext");
+  if (input && !typing && input.GetActionTriggered("ACR_DeckEditor")) Toggle();
   SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
   bool mapOpen = mapEntity && mapEntity.IsOpen() && mapEntity.GetMapMenuRoot();
   if (s_bWantOpen && mapOpen)
@@ -217,7 +221,9 @@ class ACR_DeckClient
 
  static void Received()
  {
-  if (s_Editor) s_Editor.Refresh();
+  if (!s_Editor) return;
+  s_Editor.ReceivedSides();
+  s_Editor.Refresh();
  }
 
  static void Result(string text)
@@ -356,10 +362,45 @@ class ACR_DeckEditor
   ACR_PanelMover.TitleBar("deck", m_Root, 76, 70);
 
   m_iSide = 0;
-  Faction mine = SCR_FactionManager.SGetLocalPlayerFaction();
-  if (mine && mine.GetFactionKey() == ACR_FactionSelection.East()) m_iSide = 1;
+  m_bSideChosen = false;
+  OwnSide();
   SetStatus(ACR_DeckClient.s_sResult);
   Refresh();
+ }
+
+ // Whether a name box is being typed in.
+ bool Typing()
+ {
+  return (m_NameEdit && m_NameEdit.IsInWriteMode()) || (m_CardEdit && m_CardEdit.IsInWriteMode());
+ }
+
+ // Open on the player's own side: the tab whose faction the server named (ACR_DeckHeaderOwner) is
+ // his faction. A joined client doesn't know the match's pair (ACR_FactionSelection holds the
+ // server's choice only there), so a modded pair opened on Blue for everyone (review #24).
+ // Until he picks a tab himself, the catalogue's arrival can still move it.
+ protected bool m_bSideChosen;
+ protected void OwnSide()
+ {
+  if (m_bSideChosen) return;
+  Faction mine = SCR_FactionManager.SGetLocalPlayerFaction();
+  if (!mine) return;
+  string key = mine.GetFactionKey();
+  for (int side = 0; side < 2; side++)
+  {
+   ACR_DeckView view = ACR_DeckClient.View(side);
+   if (view && view.m_sFaction == key) { m_iSide = side; return; }
+  }
+  if (key == ACR_FactionSelection.East()) m_iSide = 1;
+ }
+
+ // The catalogue came: open on the player's side if he hasn't picked a tab.
+ void ReceivedSides()
+ {
+  int before = m_iSide;
+  OwnSide();
+  if (m_iSide == before) return;
+  m_iDeck = 0;
+  m_Custom = null;
  }
 
  void Destroy()
@@ -691,6 +732,7 @@ class ACR_DeckEditor
   if (action.StartsWith("side:"))
   {
    m_iSide = action.Substring(5, action.Length() - 5).ToInt();
+   m_bSideChosen = true;
    m_iDeck = 0;
    m_Custom = null;
    // The host may have changed the sides or the deck rows since: ask again.
