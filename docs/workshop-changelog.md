@@ -1,21 +1,35 @@
-0.5.12
+0.5.13
 
-Zombie mode. With the Project Outbreak mod loaded, the dead join the war. Needs Better Battle Buddies 0.1.10. Zombie mode needs Project Outbreak; without it nothing changes. A compat add-on, AC: Actual - Zombies, follows separately once this version is live.
+Decks and a deck builder, the reworked AI commander on by default, a growing insurgency, the rest of the contained outbreak and counter-battery fire. Needs Better Battle Buddies 0.1.11.
 
 NEW
 
-- Zombies (needs Project Outbreak): the setup screen gets a Zombies row (-acrZombies few or many, off by default). Nests sit in open towns away from both starting bases and in buildings out in the country: blood on the ground, burnt patches, smouldering fires, wrecked-car junk. When soldiers of either side come near, a nest pours out and hunts by sight and sound. Full nests send hordes to other towns, so a cleared town can be overrun again, and the men they kill join them. At night they wake from further out, spread faster and raid held bases near them. While zombies are inside a base it can't be captured or secured. The AI commander clears marked zombie areas by day, keeps out of them at night and keeps supply runs away from them.
-- Players versus zombies (Zombie mode row, -acrZombieMode tvz): your side alone against the dead. The other side sits out, its HQ becomes the hive, there are far more zombies, and zombies can overrun and take back bases you hold.
-- Contained outbreak (Outbreak start row, -acrOutbreak contain): the outbreak starts in one town, ground zero, and spreads from there. Towns it is heading for have survivors holed up: reach them first for 5 RP each. AI commanders send squads to rescue them too. Clearing a nest pays the side that cleared it. No timer and no way to lose.
-- Zombie counterattacks (idea from Poppi): take a town or clear a nest and the dead nearby come for it, fast, once per place every 15 minutes, with a warning first.
-- Still to come for zombie mode: civilian evacuation, airdrops and a truce with the other side.
+- Decks: each side buys from a deck of cards picked from its faction's catalogue within a points budget (Deck points row, -acrDeckPoints). The standard deck is the usual buy list, so nothing changes unless someone builds one.
+- Deck builder: press F3 on the map or during setup. Save several decks per faction, share them as one-line codes, add custom teams from your faction's own soldiers (optionally with a ride), and hand a deck in during setup. The Blue deck and Red deck rows pick what each side plays: standard, a handed-in deck, or a deck the AI commander builds from its doctrine. RHS and Ukrainian factions get extra kitted team cards.
+- Insurgency (with -acrGuerrillas): FIA hideouts recruit and spread to empty towns, plant roadside IEDs with a watching triggerman, send sabotage teams against FOBs and roadblocks, and run technicals from depots. Wiping out FIA teams marks roughly where their hideout is.
+- Counter-battery: firing a mortar gives it away. The other side gets a ring that narrows with every round heard, mortars answer pinned-down tubes, and AI mortar teams under fire move.
+- Contained outbreak: civilian evacuation (give a squad the Evac point order near a town marked Civilians, then drive them to a safe base for 5 RP each), supply airdrops worth 30 RP that either side can recover, and a truce between the two sides against the dead.
+- Truck supplies for FOBs, in every mode: park a construction truck by your FOB's HQ and unload its paid load into the FOB's store.
+- Mission intro in the Arma 2 style: a short orbit of your HQ with music and the title, then into your soldier. Space or Enter skips it; Mission intro row or -acrIntro 0 turns it off.
+- Civilians on the map: a vague violet ring where your people see civilians (with the Civil Population mod and its compat add-on).
+- The 2IC can build a FOB where you ask (Ask the 2IC menu, Build a FOB here).
 
 BETTER
 
-- 2IC (Experimental tab): the plain 2IC and I'm the 2IC are both choices again (off, 2IC, I'm the 2IC). 2IC (-acr2IC 1): the AI runs only the squads nobody leads and the buying, logistics and FOBs stay yours. I'm the 2IC (now -acr2IC 2): the AI runs your side and you keep every command power. Hosts who set -acr2IC 1 for I'm the 2IC in 0.5.11 now set 2.
+- The AI commander rework is on by default: one main push with a supporting attack, jobs weighed together, attack forecasts from its own intel, covered withdrawals. AI commander row set to classic (or -acrAICommander classic) brings back the old one for this release.
+- AI squads low on ammo go and get more, from an ammo truck when it is safe or at a quiet base.
+- Zombie mode: soldiers fight zombies like zombies (Better Battle Buddies 0.1.11), the outbreak keeps growing while nobody contains it, zombies show on the map as zombies, and nests send up smoke you can see from far off.
+- Taking the lead of a squad keeps its order until you give your first one.
+- F9 in the RTS camera goes straight back to the command map.
+- Soldiers who surrender (Better Battle Buddies 0.1.11) leave their squad and hold no base.
 
 FIXED
 
-- An AI commander at its squad limit still buys a fuel or repair truck it needs; service trucks never counted toward the limit.
-- AI service trucks waiting behind the front stop being re-sent to the same base every 15 seconds: each base now has a truck park on a nearby road.
-- With the experimental job allocator (-acrAIAllocator 2), an attack whose squads are moved to another job is no longer called off as beaten.
+- Riders get out of AI trucks only once the truck has stopped, and it waits until they are clear.
+- AI trucks that gave up stuck try their trip again, and stop being offered for rides right after they stall.
+- AI drivers judge a vehicle in the way by their own lane, so trucks side by side or nose to nose no longer block each other.
+- AI service trucks drop a job they can't finish instead of keeping it all match.
+- A worn-down AI squad that can't reach a base to refill tries another one.
+- The 2IC channel keeps open requests and their Cancel buttons; accepted defence advice isn't offered again.
+- A FOB with a supply depot really stores 3,000 supplies.
+- Zombie messages name the town again.

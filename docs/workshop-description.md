@@ -6,13 +6,13 @@ Command squads from the map, take over a friendly soldier and fight alongside th
 
 Requires the separate Better Battle Buddies (BBB) addon. Vanilla sides need no faction mods.
 
-## In 0.5.9: dig in and hold
+## Dig in and hold
 
-- Fortify a whole base: sandbag lines, MG nests, wire, bunkers and towers, planned town by town. A reserve mans the bags when the enemy comes.
-- Quick start opens the match at the front line. FIA guerrillas ambush roads from hideouts. Company kits shape each side's start and AI doctrine.
-- Recon flights, overheard enemy radio, QRF and road-ambush orders, minefields in any shape, convoys and an optional AI second-in-command.
-- A calmer command map: hover cards, a squad list, layer switches and control groups.
-- Ready for Arma Reforger 1.9.
+- Fortify a whole base: sandbag lines, MG nests, wire, bunkers and towers. A reserve mans the bags when the enemy comes.
+- Build your own deck of units within a points budget, share it as a code, or let the AI commander build one to its doctrine.
+- FIA insurgents ambush roads, plant IEDs, raid FOBs and run technicals from hideouts. Company kits shape each side's start and AI doctrine.
+- Recon flights, overheard enemy radio, counter-battery, QRF and road-ambush orders, minefields, convoys and an optional AI second-in-command.
+- Optional zombie modes with the Project Outbreak mod.
 
 ## Command and fight
 
