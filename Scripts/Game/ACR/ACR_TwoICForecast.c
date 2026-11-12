@@ -147,7 +147,7 @@ class ACR_TwoICForecast
  {
   foreach (ACR_TwoICAdvice a : s_Live)
   {
-   if (a.m_sFaction != faction) continue;
+   if (a.m_sFaction != faction || !a.m_Base) continue;
    string from = ACR_DefenceForecast.CompassOf(a.m_fBearing);
    positions.Insert(a.m_vWay);
    labels.Insert(string.Format("2IC: attack expected on %1 this way (from the %2)", a.m_Base.m_sName, from));
@@ -201,8 +201,14 @@ class ACR_TwoICForecast
   return CHANGED_ANGLE >= ACR_DefenceForecast.AngleBetween(bearing, s_DismissedWay.Get(key));
  }
 
- // Tests: a fresh look on the next tick, and nothing open.
- static void ResetForTest()
+ // Tests (srv:restart): what a match leaves here, and a look marked as if one had run.
+ static int StateCount() { return s_Live.Count() + s_NextLook.Count() + s_DismissedUntil.Count() + s_DismissedWay.Count(); }
+ static void MarkLookedForTest(string faction) { s_NextLook.Set(faction, GetGame().GetWorld().GetWorldTime() + LOOK_MS); }
+
+ // Per match (ACR_TwoIC.Reset, from ACR_Manager.Stop) and for tests: a fresh look on the next tick,
+ // and nothing open (old advice points at the last match's bases).
+ static void ResetForTest() { Reset(); }
+ static void Reset()
  {
   s_Live.Clear();
   s_NextLook.Clear();

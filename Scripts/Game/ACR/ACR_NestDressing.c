@@ -226,6 +226,13 @@ class ACR_NestDressing
   FxTick();
  }
 
+ // Per match (ACR_Manager.Stop): the repeating check stops with the match; the next one's first site
+ // starts it again.
+ static void StopFx()
+ {
+  if (GetGame()) GetGame().GetCallqueue().Remove(FxTick);
+ }
+
  // A client that joined: lay out what the record holds even if the replication callback didn't
  // run for the first snapshot (0.5.13 review). Idempotent, like every apply.
  static void ApplyLater()

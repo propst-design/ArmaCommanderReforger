@@ -305,3 +305,4 @@ quickstartfia|-acrQuickStartFIATest 1|90|Worlds/ACR_Everon.ent
 helidown|-acrHeliDownTest 1|160
 basedefenceskolguyev|-acrBaseDefencesTest 1|120|Worlds/ACR_Kolguyev.ent
 intro|-acrIntroTest 1|90
+stopstart|-acrStopStartTest 1|60

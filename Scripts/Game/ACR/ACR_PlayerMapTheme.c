@@ -45,6 +45,10 @@ modded class SCR_PlayerController
   m_aACR_PlaceRank.Clear();
   m_aACR_PlaceBase.Clear();
   m_iACR_PlaceBases = -1;
+  // The map's own names back on: its layer settings outlive this map (the next one, a vanilla map in
+  // another mode, opened without place names).
+  SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
+  if (mapEntity && m_bACR_NamesHidden) ACR_HideMapNames(mapEntity, false);
   m_bACR_NamesHidden = false;
   super.ACR_ClosePanel();
  }

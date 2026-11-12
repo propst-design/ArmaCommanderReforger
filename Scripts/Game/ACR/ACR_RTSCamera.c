@@ -1210,6 +1210,10 @@ class ACR_RTSCameraManager : Managed
 
   ChimeraCharacter character = ChimeraCharacter.Cast(localBody);
   if (character && character.GetCharacterController().IsUnconscious()) { Close(); return; }
+  // Game Master opened over it, or the match is over (end screen): the camera gives way. The pause
+  // menu doesn't close it (resume comes back to it).
+  SCR_BaseGameMode mode = SCR_BaseGameMode.Cast(GetGame().GetGameMode());
+  if (ACR_Manager.EditorOpenFor(pc.GetPlayerId()) || (mode && mode.GetState() == SCR_EGameModeState.POSTGAME)) { Close(); return; }
   ACR_MapHandoff.SetMenuControls(localBody, true);
   ACR_MapHandoff.ClearCharacterInput(localBody);
 
@@ -1665,7 +1669,8 @@ class ACR_RTSCameraManager : Managed
 		m_BaseMarkerPos.Clear();
 
   ACR_MapHandoff.ClearCharacterInput(m_Body);
-  ACR_MapHandoff.SetMenuControls(m_Body, false);
+  // Closed under a menu (the pause menu, the map, the end screen): the body stays still until it shuts.
+  ACR_MapHandoff.SetMenuControls(m_Body, GetGame().GetMenuManager().IsAnyMenuOpen());
   m_Body = null;
   m_Handler = null;
   m_InteractionLayer = null;

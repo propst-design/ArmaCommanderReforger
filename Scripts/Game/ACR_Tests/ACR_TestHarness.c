@@ -42,6 +42,7 @@ class ACR_TestHarness : Managed
  static const int MODE_DECK = 290; // the deck builder (#106)
  static const int MODE_CREWAUDIT = 270; // every bought vehicle gets its full crew, no riders (6 Nov)
  static const int MODE_FACEOFF = 271; // the drive watch's queue and back-up checks go by the vehicle's own lane (7 Nov soak)
+ static const int MODE_STOPSTART = 277; // a second match in one session: Stop clears the per-match state, Start runs again (server-capable)
  static const int MODE_INTRO = 275; // the mission intro: timeline, music fade, once per match, skip (server-capable)
  static const int MODE_COUNTERBATTERY = 274; // mortars heard firing: rings, counter-battery fire, displacing (271-273 left for open branches)
  static const int MODE_AMMORUN = 273; // squads low on ammo: the truck when safe, else back to a base (271-272 left for open branches)
@@ -176,6 +177,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrFaceOffTest", flag)) mode = MODE_FACEOFF;
   if (System.GetCLIParam("acrCounterBatteryTest", flag)) mode = MODE_COUNTERBATTERY;
   if (System.GetCLIParam("acrIntroTest", flag)) mode = MODE_INTRO;
+  if (System.GetCLIParam("acrStopStartTest", flag)) mode = MODE_STOPSTART;
   if (System.GetCLIParam("acrAmmoRunTest", flag)) mode = MODE_AMMORUN;
   if (System.GetCLIParam("acrDeckTest", flag)) mode = MODE_DECK;
   if (System.GetCLIParam("acrRoadHopsTest", flag)) mode = MODE_ROADHOPS;
@@ -361,6 +363,7 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_FACEOFF) { ACR_TestFaceOff.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_COUNTERBATTERY) { ACR_TestCounterBattery.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_INTRO) { ACR_TestIntro.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_STOPSTART) { ACR_TestStopStart.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_AMMORUN) { ACR_TestAmmoRun.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_DECK) { ACR_TestDecks.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_ROADHOPS) { ACR_TestRoadHops.Run(this, m_Ticks); return; }

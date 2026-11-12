@@ -2447,7 +2447,8 @@ modded class SCR_MapToolMenuUI
 
  override void OnMapOpen(MapConfiguration config)
  {
-  bool fullscreen = config && config.MapEntityMode == EMapEntityMode.FULLSCREEN;
+  // Only in ACA's own mode: no blank button on a Conflict or Game Master map.
+  bool fullscreen = config && config.MapEntityMode == EMapEntityMode.FULLSCREEN && ACR_Manager.GetInstance() != null;
   if (!m_ACR_MoonEntry && fullscreen && ACR_MapDeclutter.On())
   {
    m_ACR_MoonEntry = RegisterToolMenuEntry(s_sToolMenuIcons, "time", ACR_MOON_SORT);

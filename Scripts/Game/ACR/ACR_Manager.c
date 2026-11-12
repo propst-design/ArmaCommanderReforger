@@ -224,6 +224,9 @@ class ACR_Manager : Managed
   ACR_OrganEasterEgg.Reset();
   ACR_Intro.Reset();
   ACR_RTSCameraManager.Close();
+  ACR_RTSCameraManager.s_bAdminUnbound = false; // a listen host's /acr unbound ends with his match
+  ACR_NestDressing.StopFx();
+  ACR_CivilianSocket.Get().ResetMatch();
   ACR_Hud.Clear();
   ACR_Skirmish.Reset();
   ACR_TvZ.Reset();
@@ -272,6 +275,7 @@ class ACR_Manager : Managed
   ACR_Options.ForgetHeader();
   if (!s_Instance) return;
   if (GetGame()) GetGame().GetCallqueue().Remove(s_Instance.Tick);
+  if (s_Instance.m_Supports) s_Instance.m_Supports.CancelPending();
   BBB.Stop();
   ACR_SquadMarksmen.Reset();
   ACR_UALoadout.Reset();

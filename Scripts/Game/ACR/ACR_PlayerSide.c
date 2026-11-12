@@ -409,6 +409,12 @@ modded class SCR_MenuSpawnLogic
 
  override void OnPlayerEntityLost_S(int playerId)
  {
+  // Only in ACA's own mode: with ACA merely loaded (Game Master, Conflict) respawn stays vanilla.
+  if (!ACR_Manager.GetInstance())
+  {
+   super.OnPlayerEntityLost_S(playerId);
+   return;
+  }
   // The command unit died while its player controls a soldier: ACR_Respawn sends a new one,
   // the deploy screen stays shut.
   SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerManager().GetPlayerController(playerId));

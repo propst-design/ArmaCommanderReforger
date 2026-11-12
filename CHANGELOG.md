@@ -77,6 +77,13 @@
 - The server ignores a purchase spot outside the world, and only a commander can ask for the 2IC's FOB sites, for his own side's unit.
 - Deck editor: typing a deck or card name no longer triggers the map's keys (M closed the map and the editor), and a joined player with a modded faction pair opens it on his own side.
 
+### Fixes: a second match, setup and leftovers
+
+- A second match on the same server starts clean. The 2IC's defence advice from the last match is cleared (it could break the map feed when its base no longer existed, and held back new advice until the new match was as old as the last one); civilian-death feed lines, battery rounds, bomb runs and cook-offs still queued at the end of a match no longer carry over; the nest smoke check stops with the match; and a listen host's `/acr unbound` camera ends with his match.
+- The setup screen's 5-minute auto-start waits while the host or an admin is on the server (it used to start the match on an admin still picking options), and an empty server no longer starts a match on its own; the countdown begins afresh when the last admin leaves. A player who reconnects during setup gets the dialog and the base preview again.
+- With ACA loaded but not playing (Game Master, Conflict): respawn after possessing a soldier, the fullscreen map's tool bar (no more blank moon button), disconnects, composition navmesh rebuilds and the deploy screen's log are vanilla again.
+- The dark map gives the map its place names back when it closes. The 3D camera (F10) closes when Game Master opens or the match ends, and leaving it under a menu keeps your soldier still until the menu shuts.
+
 ## 0.5.12 — released
 
 Zombie mode on Project Outbreak, the 2IC back beside "I'm the 2IC", and AI logistics fixes. Needs Better Battle Buddies 0.1.10. The zombie modes need the **Project Outbreak** mod; without it nothing changes. A compat add-on, **AC: Actual - Zombies**, follows separately.

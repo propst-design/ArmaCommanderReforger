@@ -3,8 +3,8 @@
 // without a header), nothing starts until the host or an admin presses Start: no ticks,
 // no skirmish layout, no starting units, no player spawns. Meanwhile they see a dialog
 // with the match options; each click cycles one option on the server (ACR_Options.Set).
-// A dedicated server with nobody allowed to start begins by itself AUTO_START_S after the
-// first player joined.
+// A dedicated server with nobody allowed to start begins by itself AUTO_START_S after a
+// player joined; the countdown holds while a host or admin is on and clears when the server empties.
 class ACR_Setup
 {
  static const int AUTO_START_S = 300;
@@ -195,13 +195,32 @@ class ACR_Setup
   array<int> players = {};
   GetGame().GetPlayerManager().GetPlayers(players);
   float now = GetGame().GetWorld().GetWorldTime();
-  if (!players.IsEmpty() && s_fFirstPlayerAt < 0) s_fFirstPlayerAt = now;
+  // Players who left: their dialog and preview go again if they come back (a reconnect).
+  Prune(s_Sent, players);
+  Prune(s_PreviewSent, players);
+  // The countdown runs only while players are on and none of them may press Start: an admin who is on
+  // holds it (it starts afresh when he leaves), and an empty server clears it (review 0.5.13 #10).
+  if (players.IsEmpty() || StarterPresent(players)) s_fFirstPlayerAt = -1;
+  else if (s_fFirstPlayerAt < 0) s_fFirstPlayerAt = now;
   if (!GetGame().GetPlayerController() && s_fFirstPlayerAt >= 0 && now - s_fFirstPlayerAt >= AUTO_START_S * 1000)
   {
    Start("the timer (nobody pressed Start)");
    return;
   }
   Broadcast();
+ }
+
+ protected static bool StarterPresent(notnull array<int> players)
+ {
+  foreach (int id : players) if (ACR_Manager.IsHostOrAdmin(id)) return true;
+  return false;
+ }
+
+ protected static void Prune(notnull map<int, string> sent, notnull array<int> players)
+ {
+  array<int> gone = {};
+  foreach (int id, string unused : sent) if (!players.Contains(id)) gone.Insert(id);
+  foreach (int id : gone) sent.Remove(id);
  }
 
  static int SecondsLeft()

@@ -2100,6 +2100,18 @@ class ACR_Supports : Managed
   s_iBatteryImpacts = 0;
   s_aBatteryImpacts.Clear();
  }
+ // The match ends (ACR_Manager.Stop, before the manager goes): battery rounds, bomb runs, modules and
+ // cook-offs still in the call queue never land in the next match.
+ void CancelPending()
+ {
+  if (!GetGame()) return;
+  ScriptCallQueue queue = GetGame().GetCallqueue();
+  queue.Remove(FireBatteryRound);
+  queue.Remove(SpawnBombRunCallIn);
+  queue.Remove(SpawnModule);
+  queue.Remove(Explode);
+  queue.Remove(Secondary);
+ }
  protected ref array<IEntity> m_BatteryShells = {};
  protected ref array<vector> m_BatteryLast = {};
  protected ref array<vector> m_BatteryAim = {};
@@ -3201,7 +3213,7 @@ modded class SCR_BaseGameMode
   // entity, which was that soldier, and left his command unit standing with nobody in it
   // (audit 31 Oct; as ACR_Requests.ReturnToCommandUnit).
   SCR_PlayerController possessor = SCR_PlayerController.Cast(GetGame().GetPlayerManager().GetPlayerController(playerId));
-  if (Replication.IsServer() && possessor && possessor.IsPossessing())
+  if (Replication.IsServer() && possessor && possessor.IsPossessing() && ACR_Manager.GetInstance())
   {
    ACR_Manager owner = ACR_Manager.GetInstance();
    ACR_MapHandoff.Release(possessor, possessor.GetControlledEntity());

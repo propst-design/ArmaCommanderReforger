@@ -461,6 +461,7 @@ class ACR_TwoIC
  {
   ACR_TwoICRequests.ResetForTest();
   ACR_TwoICSuggest.ResetForTest();
+  ACR_TwoICForecast.Reset();
   s_Share.Clear();
   s_PanelOpen.Clear();
   s_PanelFresh.Clear();

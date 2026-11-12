@@ -101,6 +101,7 @@ modded class SCR_CampaignBuildingCompositionComponent
 
 	void ACR_OnCompositionSpawned(bool spawned)
 	{
+		if (!ACR_Manager.GetInstance()) return; // only in ACA's own mode
 		if (spawned && !m_bACRBuildRejected && Replication.IsServer()) ACR_Navmesh.RebuildAfterSpawn(GetOwner());
 		if (!spawned || m_bACRBuildCharged || m_bACRBuildRejected || !Replication.IsServer()) return;
 		if (GetProviderEntity() && ACR_FobProviderComponent.Cast(GetProviderEntity().FindComponent(ACR_FobProviderComponent)))

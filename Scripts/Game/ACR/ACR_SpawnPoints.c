@@ -293,7 +293,7 @@ modded class SCR_SpawnPointRequestUIComponent
  override void ShowAvailableSpawnPoints(Faction faction)
  {
   super.ShowAvailableSpawnPoints(faction);
-  if (!faction) return;
+  if (!faction || !ACR_Manager.GetInstance()) return;
   string known;
   foreach (SCR_SpawnPoint point : SCR_SpawnPoint.GetSpawnPoints())
   {

@@ -129,6 +129,15 @@ class ACR_CivilianSocket : Managed
   return "at " + ACR_Manager.Grid(at);
  }
 
+ // Per match (ACR_Manager.Stop): a batch queued at the end of a match is dropped, and the flag with it,
+ // or a flush lost at the world unload would keep the feed silent for the rest of the session.
+ void ResetMatch()
+ {
+  if (GetGame()) GetGame().GetCallqueue().Remove(Flush);
+  m_bFlushQueued = false;
+  m_Pending.Clear();
+ }
+
  // Tests: the line batch waiting to go out, and sending it now.
  int PendingDeaths()
  {
