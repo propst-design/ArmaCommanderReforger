@@ -50,6 +50,22 @@ class ACR_UnitMarker : SCR_MapMarkerBase
  {
   if (m_MarkerWidgetComp) m_MarkerWidgetComp.SetColor(color);
  }
+ // A marker with no click of its own: a click on it means the base whose name or icon is under it
+ // (ACR_MarkerClick). A zone's label (a town's "Civilians (n)" ring is centred on the town, so its
+ // label covered the town's name: a click on the name did nothing), a spotted enemy or zombie
+ // contact, our empty vehicle, a fellow commander's unit, an order's or the 2IC's tag. Bases, pings,
+ // our own command unit and squads' and soldiers' markers (ofSquad) keep their clicks.
+ // ofSquad comes from the controller's marker lists: m_GroupId can't tell, an unset RplId is valid (0).
+ bool PassesClickToBase(bool ofSquad)
+ {
+  if (m_BaseIndex >= 0 || m_iPingId >= 0 || m_Original) return false;
+  return m_bContact || m_bCommandUnit || !ofSquad;
+ }
+ // The marker's icon, symbol and caption on screen (native px; x, y, w, h each), for a click's hit test.
+ void ScreenRects(notnull array<float> rects)
+ {
+  if (m_MarkerWidgetComp && m_wRoot && m_wRoot.IsVisible()) m_MarkerWidgetComp.ACR_ScreenRects(rects);
+ }
  // Called every map frame: the widget is only touched when something changed.
  void RefreshStyle()
  {
@@ -137,7 +153,11 @@ class ACR_MarkerClick : ScriptedWidgetEventHandler
  ACR_UnitMarker m_Marker;
  override bool OnMouseButtonDown(Widget w, int x, int y, int button)
  {
-  if (button != 0 || !m_Marker || m_Marker.m_bContact) return false;
+  if (button != 0 || !m_Marker) return false;
+  // Markers drawn over a base's name (zone labels, zombie contacts) let the click reach the base.
+  SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
+  if (pc && pc.ACR_PassesClickToBase(m_Marker) && pc.ACR_ClickBaseUnderCursor()) return true;
+  if (m_Marker.m_bContact) return false;
   m_Marker.Select();
   return true;
  }
@@ -2945,6 +2965,44 @@ modded class SCR_PlayerController
   }
   if (best < 0) return false;
   ACR_ClickBase(m_ACR_Data.m_BaseNames[best], Vector(x, 0, z), true);
+  return true;
+ }
+
+ // The base whose name, icon or symbol is at screen x, y (native px), -1 none. Markers drawn later sit
+ // over the bases' and take the click first (ACR_UnitMarker.PassesClickToBase).
+ int ACR_BaseMarkerAt(float x, float y)
+ {
+  array<float> rects = {};
+  array<int> owners = {};
+  foreach (int i, ACR_UnitMarker marker : m_ACR_BaseMarkers)
+  {
+   if (!marker) continue;
+   marker.ScreenRects(rects);
+   while (owners.Count() * 4 < rects.Count()) owners.Insert(i);
+  }
+  int hit = ACR_MapMarkerHit.RectAt(rects, x, y);
+  if (hit < 0 || hit >= owners.Count()) return -1;
+  return owners[hit];
+ }
+
+ // Whether a click on this marker falls to the base under it (ACR_UnitMarker.PassesClickToBase).
+ bool ACR_PassesClickToBase(ACR_UnitMarker marker)
+ {
+  if (!marker) return false;
+  return marker.PassesClickToBase(m_ACR_GroupMarkers.Contains(marker) || m_ACR_Markers.Contains(marker));
+ }
+
+ // A click on a marker with no click of its own, over a base's name: the base's click (select it, list
+ // it on the calm map, or deploy the armed purchase there). False when no base is under the cursor,
+ // or a modifier makes it a ping or box select.
+ bool ACR_ClickBaseUnderCursor()
+ {
+  if (ACR_EditorOpen() || ACR_ModifierHeld("ACR_MapAlt") || ACR_ModifierHeld("ACR_MapShift") || ACR_ModifierHeld("ACR_MapCtrl")) return false;
+  int mx, my;
+  WidgetManager.GetMousePos(mx, my);
+  int b = ACR_BaseMarkerAt(mx, my);
+  if (b < 0 || b >= m_ACR_BaseMarkers.Count() || !m_ACR_BaseMarkers[b]) return false;
+  m_ACR_BaseMarkers[b].Select();
   return true;
  }
 

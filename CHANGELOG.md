@@ -53,6 +53,7 @@ Decks and a deck builder, the reworked AI commander on by default, insurgency wi
 - Zombie bounties, recovered pallets and delivered civilians no longer cut a side holding more than 1000 RP (a starting RP over 1000) down to 1000; they just add nothing above the cap.
 - Civilians loaded at an evac point aren't paid for at a FOB built on that point afterwards (or a town taken round it): they have to be driven to another base, as when an evac point is refused inside a base.
 - Zombie bounties are paid for settled nests only (not hordes on the move, counterattacks or raids), never more than ground zero's 60 RP, and split between the sides that fought there instead of paid to each in full.
+- A town's name on the command map can be clicked again while a zombie-mode marker sits on it. A town's "Civilians (n)" label (contained outbreak) covers the town's name, so a click on the name did nothing; zombie contacts, evac and airdrop labels, order tags and a fellow commander's unit did the same wherever they covered a name. A click on any of them now opens the town or base under it, as a click on its name does; squads, soldiers and pings keep their own clicks.
 
 ### Insurgency
 

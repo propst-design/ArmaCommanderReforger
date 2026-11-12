@@ -26,12 +26,47 @@ modded class SCR_MapToolInteractionUI
  }
 }
 
+// Where a click on the map fell among markers' rectangles (x, y, w, h per 4 floats, native px).
+class ACR_MapMarkerHit
+{
+ // The first rectangle holding x, y (its index, not the float's); -1 none.
+ static int RectAt(notnull array<float> rects, float x, float y)
+ {
+  for (int r = 0; r + 3 < rects.Count(); r += 4)
+  {
+   if (x >= rects[r] && x <= rects[r] + rects[r + 2] && y >= rects[r + 1] && y <= rects[r + 1] + rects[r + 3]) return r / 4;
+  }
+  return -1;
+ }
+}
+
 // Vanilla's SetTextVisible(true) enables hover text, then immediately hides the widget.
 // Keep compact base captions visible and expand them to full details on hover.
 // Other marker types retain their normal hover behaviour.
 modded class SCR_MapMarkerWidgetComponent
 {
  protected bool m_ACR_BaseHovered;
+
+ // The icon, military symbol and caption as drawn (ACR_UnitMarker.ScreenRects).
+ void ACR_ScreenRects(notnull array<float> rects)
+ {
+  ACR_AddRect(m_wMarkerIcon, rects);
+  ACR_AddRect(m_wSymbolRoot, rects);
+  ACR_AddRect(m_wMarkerText, rects);
+ }
+
+ protected void ACR_AddRect(Widget w, notnull array<float> rects)
+ {
+  if (!w || !w.IsVisible()) return;
+  float x, y, width, height;
+  w.GetScreenPos(x, y);
+  w.GetScreenSize(width, height);
+  if (width <= 0 || height <= 0) return;
+  rects.Insert(x);
+  rects.Insert(y);
+  rects.Insert(width);
+  rects.Insert(height);
+ }
  protected void ACR_KeepBaseCaptionVisible()
  {
   ACR_UnitMarker marker = ACR_UnitMarker.Cast(m_MarkerObject);

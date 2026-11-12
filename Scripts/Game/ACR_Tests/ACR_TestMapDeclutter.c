@@ -5,7 +5,7 @@
 // owner colours, the size pips, the corner marks, and the host option's default and setup row.
 class ACR_TestMapDeclutter
 {
- static const int CHECKS = 24;
+ static const int CHECKS = 25;
 
  static void Run(ACR_TestHarness h, int tick)
  {
@@ -17,6 +17,7 @@ class ACR_TestMapDeclutter
   CheckPlacement();
   CheckOption();
   CheckSquadsList();
+  CheckMarkerClicks();
   ACR_TestRegress.Complete("mapdeclutter", CHECKS);
  }
 
@@ -306,6 +307,31 @@ class ACR_TestMapDeclutter
   // (hidden); one in the open doesn't.
   bool onIt = ACR_MapDeclutter.OnAName(500, 524, 14, obstacles) && ACR_MapDeclutter.OnAName(552, 490, 14, obstacles) && !ACR_MapDeclutter.OnAName(700, 700, 14, obstacles);
   ACR_TestRegress.Check("mapdeclutter: soldiers' markers on a base's name or dot count as on it", onIt, string.Format("on %1", onIt));
+ }
+
+ // A click on a marker drawn over a base's name (a town's "Civilians (n)" ring label, a zombie contact)
+ // reaches the base; squads, pings, our command unit and bases keep their own clicks. The rectangles:
+ // Farm's name and icon, then Crossroads'; the click on Farm's name, where the zone's label sits.
+ static void CheckMarkerClicks()
+ {
+  ACR_UnitMarker zone = new ACR_UnitMarker();
+  ACR_UnitMarker contact = new ACR_UnitMarker();
+  contact.m_bContact = true;
+  ACR_UnitMarker ping = new ACR_UnitMarker();
+  ping.m_iPingId = 3;
+  ACR_UnitMarker own = new ACR_UnitMarker();
+  own.m_Original = true;
+  ACR_UnitMarker baseMarker = new ACR_UnitMarker();
+  baseMarker.m_BaseIndex = 0;
+  ACR_UnitMarker squad = new ACR_UnitMarker();
+  ACR_UnitMarker commandUnit = new ACR_UnitMarker();
+  commandUnit.m_bCommandUnit = true;
+  bool passes = zone.PassesClickToBase(false) && contact.PassesClickToBase(false) && commandUnit.PassesClickToBase(true) && !squad.PassesClickToBase(true) && !ping.PassesClickToBase(false) && !own.PassesClickToBase(true) && !baseMarker.PassesClickToBase(false);
+  array<float> rects = {500, 500, 16, 16, 518, 502, 60, 14, 800, 300, 16, 16, 818, 302, 90, 14};
+  bool hits = ACR_MapMarkerHit.RectAt(rects, 540, 508) == 1 && ACR_MapMarkerHit.RectAt(rects, 850, 309) == 3 && ACR_MapMarkerHit.RectAt(rects, 650, 650) == -1;
+  array<float> broken = {1, 2, 3};
+  bool safe = ACR_MapMarkerHit.RectAt(broken, 2, 3) == -1;
+  ACR_TestRegress.Check("mapdeclutter: a click on a zone label or zombie contact over a base's name reaches the base", passes && hits && safe, string.Format("passes %1 (zone %4, contact %5, squad %6, base %7), hits %2, safe %3", passes, hits, safe, zone.PassesClickToBase(false), contact.PassesClickToBase(false), squad.PassesClickToBase(true), baseMarker.PassesClickToBase(false)));
  }
 
  // The dark map's place names (#203): a name near a base gives way only while that base's name is
