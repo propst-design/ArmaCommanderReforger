@@ -512,7 +512,7 @@ modded class ACR_AICommander
   {
    if (!squad || squad.m_iAITask != ACR_EAITask.ROADBLOCK) continue;
    if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction) continue;
-   if (squad.m_Commander != 0 || squad.PlayerSteers()) continue;
+   if (squad.PlayerSteers()) continue;
    if (squad.OrderState() == ACR_EOrderState.BUILD_ROADBLOCK || PendingBuildOf(squad)) continue;
    if (squad.m_ActiveRoadblock && KeepsHolding(squad)) continue;
    squad.SetAITask(ACR_EAITask.POSTED);
@@ -796,7 +796,7 @@ modded class ACR_AICommander
    ACR_PendingBuild pending = m_aPendingBuilds[i];
    ACR_Squad squad = pending.m_Squad;
    string what = BuildName(pending.m_iTask);
-   bool gone = !squad || !m_Manager.m_Squads.Contains(squad) || squad.CountAlive() <= 0 || squad.PlayerSteers() || squad.m_Commander != 0 || squad.m_iAITask != pending.m_iTask;
+   bool gone = !squad || !m_Manager.m_Squads.Contains(squad) || squad.CountAlive() <= 0 || squad.PlayerSteers() || squad.m_iAITask != pending.m_iTask;
    if (gone || !pending.m_Base || pending.m_Base.m_sOwner != m_sFaction || now > pending.m_fDeadline)
    {
     m_aPendingBuilds.Remove(i);
@@ -905,7 +905,7 @@ modded class ACR_AICommander
    float fartherDistance = FAR_BUILDER;
    foreach (ACR_Squad squad : squads)
    {
-    if (!squad || squad.PlayerSteers() || squad.m_Commander != 0 || squad == m_ReserveSquad || IsScreen(squad) || IsSupportTeam(squad) || !ACR_Minefields.CanLay(squad)) continue;
+    if (!squad || squad.PlayerSteers() || squad == m_ReserveSquad || IsScreen(squad) || IsSupportTeam(squad) || !ACR_Minefields.CanLay(squad)) continue;
     if (squad.m_iAITask != ACR_EAITask.POSTED && squad.m_iAITask != ACR_EAITask.FREE) continue;
     if (squad.OrderState() == ACR_EOrderState.BUILD_ROADBLOCK || squad.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
     if (DueForRefit(squad)) continue;
@@ -1214,7 +1214,7 @@ modded class ACR_AICommander
   }
   foreach (ACR_Squad other : squads)
   {
-   if (!other || other.PlayerSteers() || other.m_Commander != 0 || other == m_ReserveSquad || IsScreen(other) || IsSupportTeam(other) || !ACR_Fortify.CanFortify(other) || DueForRefit(other)) continue;
+   if (!other || other.PlayerSteers() || other == m_ReserveSquad || IsScreen(other) || IsSupportTeam(other) || !ACR_Fortify.CanFortify(other) || DueForRefit(other)) continue;
    if (other.m_MinePlan || other.m_ActiveRoadblock || other.m_Fortification || other.OrderState() == ACR_EOrderState.BUILD_ROADBLOCK || other.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
    float d = vector.DistanceXZ(PositionOf(other), pos);
    bool isFree = (other.m_iAITask == ACR_EAITask.FREE || other.m_iAITask == ACR_EAITask.POSTED) && other.IsCombatUnit() && !IsRetreating(other);
@@ -1329,7 +1329,7 @@ modded class ACR_AICommander
  {
   foreach (ACR_Squad squad : m_Manager.m_Squads)
   {
-   if (squad && squad.m_Fortification == fort && IsHolder(squad) && !squad.PlayerSteers() && squad.m_Commander == 0) return squad;
+   if (squad && squad.m_Fortification == fort && IsHolder(squad) && !squad.PlayerSteers()) return squad;
   }
   return null;
  }
@@ -1358,7 +1358,7 @@ modded class ACR_AICommander
    // Still defending, or taken by something else since: it waits.
    if (squad.m_iAITask != ACR_EAITask.FREE && squad.m_iAITask != ACR_EAITask.POSTED) continue;
    done.Insert(squad);
-   if (squad.PlayerSteers() || squad.m_Commander != 0 || !Ours(squad) || ManningSquad(fort) != null) continue;
+   if (squad.PlayerSteers() || !Ours(squad) || ManningSquad(fort) != null) continue;
    if (Holding() >= m_Doctrine.m_iHolders) continue;
    if (!squad.ManFortification(fort)) continue;
    squad.SetAITask(ACR_EAITask.FORTIFY);
@@ -1375,7 +1375,7 @@ modded class ACR_AICommander
    }
    if (left.m_iAITask != ACR_EAITask.FREE && left.m_iAITask != ACR_EAITask.POSTED) continue;
    done.Insert(left);
-   if (left.PlayerSteers() || left.m_Commander != 0 || !Ours(left) || RoadblockManningSquad(rb) != null) continue;
+   if (left.PlayerSteers() || !Ours(left) || RoadblockManningSquad(rb) != null) continue;
    if (Holding() >= m_Doctrine.m_iHolders) continue;
    if (!left.ManRoadblock(rb)) continue;
    left.SetAITask(ACR_EAITask.ROADBLOCK);
@@ -1427,7 +1427,7 @@ modded class ACR_AICommander
   foreach (ACR_Squad squad : free)
   {
    if (!squad) continue;
-   if (squad.PlayerSteers() || squad.m_Commander != 0) players++;
+   if (squad.PlayerSteers()) players++;
    else if (squad == m_ReserveSquad) reserve++;
    else if (IsSupportTeam(squad)) support++;
    else if (squad.IsVehicle() && !squad.IsCombatUnit()) unarmed++;
@@ -1490,7 +1490,7 @@ modded class ACR_AICommander
   MySquads(squads, true);
   foreach (ACR_Squad squad : squads)
   {
-   if (!squad || squad.PlayerSteers() || squad.m_Commander != 0 || squad == m_ReserveSquad || IsSupportTeam(squad) || !ACR_Fortify.CanFortify(squad)) continue;
+   if (!squad || squad.PlayerSteers() || squad == m_ReserveSquad || IsSupportTeam(squad) || !ACR_Fortify.CanFortify(squad)) continue;
    if (squad.m_MinePlan || squad.OrderState() == ACR_EOrderState.BUILD_ROADBLOCK || squad.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
    if (squad.m_ActiveRoadblock || squad.m_Fortification) continue;
    if (DueForRefit(squad)) continue;

@@ -18,7 +18,7 @@ class ACR_CombatFlank : Managed
 
  static bool Eligible(ACR_Squad squad)
  {
-  if (!squad || !squad.m_Group || squad.m_Commander != 0 || squad.HasPlayer() || squad.IsMounted()) return false;
+  if (!squad || !squad.m_Group || squad.PlayerWith() || squad.IsMounted()) return false;
   if (squad.m_Mode != ACR_EMoveMode.COMBAT || squad.CountAlive() < 3 || !squad.IsCombatUnit()) return false;
   ACR_EOrderState state = squad.OrderState();
   if (state != ACR_EOrderState.MOVE && state != ACR_EOrderState.ASSAULT) return false;

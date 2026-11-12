@@ -3759,6 +3759,17 @@ class ACR_Squad : Managed
   return alive;
  }
 
+ // ---- who is in charge of this squad
+ // One family; pick the one whose meaning the call site needs rather than mixing them ad hoc:
+ //   m_Commander != 0     a player commands it natively (the commander possesses or leads it).
+ //   PlayerSteers()       m_Commander, or a player is its leader, its vehicle's driver, or drives from the gun.
+ //                        A player rifleman only rolls along (Jacob, 11 Nov): the AI keeps tasking the squad.
+ //   HasPlayer()          a player has a body in it, in any role (bodies teleported, seated, flown or sent off).
+ //   PlayerWith()         m_Commander or HasPlayer(): a player commands it or is in it.
+ //   HumanInCharge()      PlayerSteers(), or its current order is a player's (m_iOrderedBy).
+ //   PlayerInOrOrdered()  HasPlayer(), or its current order is a player's.
+ // BBB.HasPlayer(group) on an ACA squad's group is HasPlayer(): BBB reads members through
+ // ACR_BBBHooks.GetMembers, which returns GetAgents (the possessed leader included).
  bool HasPlayer()
  {
   array<AIAgent> agents = {};
@@ -3788,6 +3799,14 @@ class ACR_Squad : Managed
  // A human is in charge of this squad: one steers it (PlayerSteers), or its current order is a player's
  // (a commander's map order, m_iOrderedBy). BBB's hooks and the vehicle rules stand back for it.
  bool HumanInCharge() { return PlayerSteers() || m_iOrderedBy != 0; }
+
+ // A player commands this squad or has a body in it. The garrison-gun, flank and fortification
+ // rules and BBB's squad-tactics hooks stand back for it.
+ bool PlayerWith() { return m_Commander != 0 || HasPlayer(); }
+
+ // A player has a body in this squad, or its current order is a player's. Counter-battery and
+ // mortar relocation leave it alone.
+ bool PlayerInOrOrdered() { return HasPlayer() || m_iOrderedBy != 0; }
 
  protected void TrackBoarding(IEntity vehicle)
  {

@@ -248,7 +248,7 @@ modded class ACR_AICommander
  // not in an assault, not walking back for replacements (that refill restocks it too).
  protected bool AmmoRunCandidate(ACR_Squad squad)
  {
-  if (!squad || squad.PlayerSteers() || squad.m_Commander != 0 || squad.m_bMortar || squad.Aircraft() || !Ours(squad)) return false;
+  if (!squad || squad.PlayerSteers() || squad.m_bMortar || squad.Aircraft() || !Ours(squad)) return false;
   if (squad == m_FobBuilder || squad == m_FobEscort || OnRequest(squad) || InAssault(squad) || m_Refitting.Contains(squad)) return false;
   IEntity crewed = ACR_Transport.CrewedVehicle(squad);
   if (crewed && ACR_Logistics.ServiceOf(crewed) != 0) return false;
@@ -260,7 +260,7 @@ modded class ACR_AICommander
  // A truck crew free to drive out.
  protected bool AmmoCrewFree(ACR_Squad crew)
  {
-  if (!crew || crew.PlayerSteers() || crew.m_Commander != 0 || !Ours(crew) || m_ServiceJobs.Contains(crew) || StuckLately(crew)) return false;
+  if (!crew || crew.PlayerSteers() || !Ours(crew) || m_ServiceJobs.Contains(crew) || StuckLately(crew)) return false;
   if (crew.OrderState() == ACR_EOrderState.BUILD_FOB || crew.m_iAITask == ACR_EAITask.BUILD_FOB) return false;
   return !IsAssistingFobUpgrade(crew);
  }
@@ -512,7 +512,7 @@ modded class ACR_AICommander
   bool booked = crew && m_ServiceJobs.Find(crew, serving) && serving == squad;
   string lost = "";
   if (!crew || !truck || !m_Manager.m_Squads.Contains(crew) || ACR_Logistics.Health(truck) <= 0) lost = "the truck was lost";
-  else if (!booked || crew.PlayerSteers() || crew.m_Commander != 0) lost = "the truck was taken off the job";
+  else if (!booked || crew.PlayerSteers()) lost = "the truck was taken off the job";
   else if (StuckLately(crew) || crew.GaveUpUnreachable()) lost = "the truck can't get there";
   else if (run.m_fArrivedAt <= 0 && now >= run.m_fGiveUpAt) lost = "the truck never came";
   else if (logistics.StockOf(truck) < 1) lost = "the truck ran dry";

@@ -36,7 +36,7 @@ class ACR_GunHold
  // A static gun (not a vehicle) at the spot this squad holds.
  static bool IsHeld(ACR_Squad squad, IEntity gun)
  {
-  if (!squad || !gun || Vehicle.Cast(gun) || squad.HasPlayer() || squad.m_Commander != 0) return false;
+  if (!squad || !gun || Vehicle.Cast(gun) || squad.PlayerWith()) return false;
   if (squad.OrderState() != ACR_EOrderState.DEFEND) return false;
   float reach = Math.Max(squad.m_fOrderRadius, 15) + HOLD_REACH;
   return vector.DistanceXZ(gun.GetOrigin(), squad.m_MoveTarget) <= reach;

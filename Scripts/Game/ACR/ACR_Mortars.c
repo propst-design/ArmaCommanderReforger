@@ -975,7 +975,7 @@ class ACR_Mortars : Managed
   team.m_sStatus = "ready";
   // After the idle order above: an AI commander's team sets up again a little way off, as after
   // shoot-and-scoot (a team in range never moves on its own); a player's team waits for an order.
-  bool relocate = team.m_iDryMissions == DRY_MISSIONS && team.m_Squad && !team.m_Squad.HasPlayer() && team.m_Squad.m_iOrderedBy == 0;
+  bool relocate = team.m_iDryMissions == DRY_MISSIONS && team.m_Squad && !team.m_Squad.PlayerInOrOrdered();
   ACR_Manager manager = ACR_Manager.GetInstance();
   ACR_AICommander ai;
   if (manager) ai = manager.AICommanderFor(team.m_sFaction);

@@ -286,7 +286,7 @@ class ACR_CounterBattery
  static bool AIMoves(ACR_Manager manager, ACR_MortarTeam team)
  {
   ACR_Squad squad = team.m_Squad;
-  if (!squad || squad.HasPlayer() || squad.m_iOrderedBy != 0) return false;
+  if (!squad || squad.PlayerInOrOrdered()) return false;
   if (manager.m_Debug && manager.m_Debug.IsPaused(team.m_sFaction)) return false;
   ACR_FactionSettings settings = ACR_FactionSettings.Find(team.m_sFaction);
   ACR_AICommander ai = manager.AICommanderFor(team.m_sFaction);

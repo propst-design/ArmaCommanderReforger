@@ -2163,7 +2163,7 @@ class ACR_AICommander : Managed
  {
   foreach (ACR_Squad holder : m_Manager.m_Squads)
   {
-   if (!IsHolder(holder) || !holder.GetFaction() || holder.GetFaction().GetFactionKey() != m_sFaction || holder.PlayerSteers() || holder.m_Commander != 0) continue;
+   if (!IsHolder(holder) || !holder.GetFaction() || holder.GetFaction().GetFactionKey() != m_sFaction || holder.PlayerSteers()) continue;
    if (vector.DistanceXZ(PositionOf(holder), pos) > reach) continue;
    into.Insert(holder);
   }

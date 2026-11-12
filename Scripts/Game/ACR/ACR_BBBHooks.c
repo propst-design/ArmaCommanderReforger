@@ -104,7 +104,7 @@ class ACR_BBBHooks : BBB_Hooks
  static bool AttackerLeash(ACR_Squad squad, out vector centre, out float radius)
  {
   if (!SquadTacticsOn() || !squad || squad.m_iAITask != ACR_EAITask.ATTACK || !squad.m_AITarget) return false;
-  if (squad.HasPlayer() || squad.m_Commander != 0 || squad.m_bForced || squad.IsMounted() || ACR_Transport.CrewedVehicle(squad) || ACR_AirLift.Busy(squad)) return false;
+  if (squad.PlayerWith() || squad.m_bForced || squad.IsMounted() || ACR_Transport.CrewedVehicle(squad) || ACR_AirLift.Busy(squad)) return false;
   if (squad.OrderState() != ACR_EOrderState.ASSAULT || !squad.GetAnchor()) return false;
   centre = squad.m_AITarget.GetOrigin();
   radius = squad.m_AITarget.m_fRadius;
@@ -116,7 +116,7 @@ class ACR_BBBHooks : BBB_Hooks
  {
   if (!SquadTacticsOn() || !squad || !squad.m_AITarget || !squad.m_Group) return false;
   if (squad.m_iAITask != ACR_EAITask.DEFEND && squad.m_iAITask != ACR_EAITask.POSTED) return false;
-  if (squad.HasPlayer() || squad.m_Commander != 0 || squad.m_bForced || squad.IsMounted() || ACR_Transport.CrewedVehicle(squad) || ACR_AirLift.Busy(squad)) return false;
+  if (squad.PlayerWith() || squad.m_bForced || squad.IsMounted() || ACR_Transport.CrewedVehicle(squad) || ACR_AirLift.Busy(squad)) return false;
   if (squad.OrderState() != ACR_EOrderState.DEFEND || !squad.GetAnchor()) return false;
   // Only the plain Defend waypoint: garrisons stay in their buildings.
   AIWaypoint waypoint = squad.m_Group.GetCurrentWaypoint();
@@ -137,7 +137,7 @@ class ACR_BBBHooks : BBB_Hooks
  // incoming fire) stay inside its hold behind the line, not out past the wire (#93).
  static bool FortLeash(ACR_Squad squad, out vector centre, out float radius)
  {
-  if (!squad || !squad.m_Fortification || squad.HasPlayer() || squad.m_Commander != 0) return false;
+  if (!squad || !squad.m_Fortification || squad.PlayerWith()) return false;
   if (squad.OrderState() != ACR_EOrderState.DEFEND) return false;
   centre = ACR_Fortify.HoldCentre(squad.m_Fortification);
   radius = ACR_Fortify.HOLDER_RADIUS;
@@ -200,7 +200,7 @@ class ACR_BBBHooks : BBB_Hooks
  override bool HostOrder(SCR_AIGroup group)
  {
   ACR_Squad squad = SquadOf(group);
-  if (!squad || !squad.m_Waypoint || squad.m_Commander != 0 || BBB.HasPlayer(group)) return false;
+  if (!squad || !squad.m_Waypoint || squad.PlayerWith()) return false;
   return squad.IsOrderWaypoint(group.GetCurrentWaypoint());
  }
 
