@@ -28,8 +28,9 @@ class ACR_Intro : Managed
  static const string DEFAULT_MUSIC = "{C2C5BC05AC9625CD}Sounds/Music/ACR_IntroMusic.acp:SOUND_CLIFFHANGER";
  static const string ZOMBIE_MUSIC = "{C2C5BC05AC9625CD}Sounds/Music/ACR_IntroMusic.acp:SOUND_LOST_AS_SHIT";
 
- // Server: players who already had theirs this match.
- protected static ref array<int> s_Sent;
+ // Server: players who already had theirs this match, by identity (ACR_SpawnPoints.PlayerKey), so a
+ // reconnect that brings a new player id doesn't replay it.
+ protected static ref array<string> s_Sent;
  // Client: the intro playing (or waiting) on this machine, and whether this machine had one.
  protected static ref ACR_Intro s_Local;
  protected static bool s_bLocalDone;
@@ -83,12 +84,13 @@ class ACR_Intro : Managed
   GetGame().GetPlayerManager().GetPlayers(players);
   foreach (int id : players)
   {
-   if (s_Sent.Contains(id)) continue;
+   string who = ACR_SpawnPoints.PlayerKey(id);
+   if (s_Sent.Contains(who)) continue;
    SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerManager().GetPlayerController(id));
    if (!pc) continue;
    IEntity body = pc.GetControlledEntity();
    if (!ACR_Respawn.IsAlive(body)) continue;
-   s_Sent.Insert(id);
+   s_Sent.Insert(who);
    if (!On()) continue;
    Faction faction = SCR_FactionManager.SGetPlayerFaction(id);
    string key = "";
@@ -340,7 +342,9 @@ class ACR_Intro : Managed
    delete m_Camera;
    m_Camera = null;
   }
-  if (m_Body) ACR_MapHandoff.SetMenuControls(m_Body, false);
+  // Ended because the map or the RTS camera opened: the body's controls stay off under it (they come
+  // back when that closes), as when the player opens it normally.
+  if (m_Body) ACR_MapHandoff.SetMenuControls(m_Body, GetGame().GetMenuManager().IsAnyMenuOpen() || ACR_RTSCameraManager.IsActive());
   if (m_Root)
   {
    ACR_Hud.Remove(m_Root); // made through ACR_Hud.CreateLayer: untrack it too

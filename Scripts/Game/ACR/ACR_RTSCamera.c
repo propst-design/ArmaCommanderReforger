@@ -215,6 +215,9 @@ class ACR_RTSCameraManager : Managed
 	// ---------------------------------------------------------------- initialization
 	protected void InitCamera(SCR_PlayerController pc, IEntity localBody)
 	{
+		// F10 during the mission intro: end it first, so its camera hands back to the player's before we
+		// save it as the one to return to (it is deleted when the intro ends).
+		ACR_Intro.Stop("rts camera");
 		m_Body = localBody;
 		CameraManager cameras = GetGame().GetCameraManager();
 		if (cameras) m_PreviousCamera = cameras.CurrentCamera();

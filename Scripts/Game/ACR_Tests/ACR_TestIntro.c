@@ -4,7 +4,7 @@
 // sound project, and that an intro comes once per match and a skip ends it for good.
 class ACR_TestIntro
 {
- static const int CHECKS = 6;
+ static const int CHECKS = 7;
 
  static void Run(ACR_TestHarness h, int tick)
  {
@@ -42,6 +42,16 @@ class ACR_TestIntro
   ACR_Intro.Reset();
   bool fresh = !ACR_Intro.HasLocal() && !ACR_Intro.LocalDone();
   ACR_TestRegress.Check("intro: a new match lets it play again", fresh, "");
+  // F10 mid-intro (review 0.5.13 #4): the RTS camera ends the intro before it saves the camera to go
+  // back to (ACR_RTSCamera.InitCamera). A server can't open the RTS camera, so this checks the stop it
+  // makes is final, and that the server keys "had one" by identity, not by player id (a reconnect).
+  ACR_Intro.Receive("0 0 0", "test", "", false);
+  ACR_Intro.Stop("rts camera");
+  ACR_Intro.Receive("0 0 0", "test", "", false);
+  bool rts = !ACR_Intro.HasLocal() && ACR_Intro.LocalDone();
+  string key = ACR_SpawnPoints.PlayerKey(1);
+  ACR_TestRegress.Check("intro: the RTS camera ends it for good; the server remembers players by identity", rts && key != "" && key != "1", string.Format("rts %1, key '%2'", rts, key));
+  ACR_Intro.Reset();
   ACR_TestRegress.Complete("intro", CHECKS);
  }
 }
