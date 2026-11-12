@@ -1995,6 +1995,18 @@ modded class SCR_PlayerController
   }
  }
 
+ // The same rule for the soldier markers before they are made (review P1): a squad whose soldiers
+ // the calm map hides gets no soldier markers at all (ACR_PlayerController.ACR_UpdateSoldierMarkers).
+ override bool ACR_SoldiersHidden(RplId groupId)
+ {
+  if (!ACR_MapDeclutter.On()) return false;
+  if (m_ACR_Data.m_bDeclFar) return true;
+  if (m_ACR_Data.IsSelected(groupId)) return false;
+  int g = m_ACR_Data.m_GroupIds.Find(groupId);
+  if (g >= 0 && g < m_ACR_Data.m_DeclBaseOf.Count() && (m_ACR_Data.m_DeclBaseOf[g] >= 0 || m_ACR_Data.m_DeclAt[g] >= 0)) return true;
+  return m_ACR_Data.DeclHidden(g);
+ }
+
  // A squad's soldiers: hidden zoomed out, and while it sits at a base or is in its count (unless
  // selected). Our empty vehicles: hidden zoomed out.
  protected void ACR_DeclSoldiers(bool on)
@@ -2361,14 +2373,12 @@ modded class SCR_PlayerController
   hidden = 0;
   int onScreen;
   array<ACR_UnitMarker> markers = {};
+  // Hidden soldiers have no marker since review P1: count them from the roster; any marker of a
+  // hidden squad's soldier that is still on the map counts as on the screen.
+  foreach (int r, RplId unitId : m_ACR_Ids)
+   if (!m_ACR_Data.m_LeaderIds.Contains(unitId) && ACR_SoldiersHidden(m_ACR_UnitGroups[r])) hidden++;
   foreach (ACR_UnitMarker soldier : m_ACR_Markers)
-  {
-   if (!soldier || soldier.m_Original) continue;
-   bool hide = m_ACR_Data.m_bDeclFar;
-   int g = m_ACR_Data.m_GroupIds.Find(soldier.m_GroupId);
-   if (!hide && !m_ACR_Data.IsSelected(soldier.m_GroupId) && g >= 0 && g < m_ACR_Data.m_DeclBaseOf.Count() && (m_ACR_Data.m_DeclBaseOf[g] >= 0 || m_ACR_Data.m_DeclAt[g] >= 0)) hide = true;
-   if (hide) markers.Insert(soldier);
-  }
+   if (soldier && !soldier.m_Original && ACR_SoldiersHidden(soldier.m_GroupId)) markers.Insert(soldier);
   foreach (int i, ACR_UnitMarker squad : m_ACR_GroupMarkers)
   {
    if (squad && i < m_ACR_Data.m_DeclRep.Count() && !m_ACR_Data.m_DeclRep[i]) markers.Insert(squad);
@@ -2376,7 +2386,7 @@ modded class SCR_PlayerController
   WorkspaceWidget ws = GetGame().GetWorkspace();
   foreach (ACR_UnitMarker marker : markers)
   {
-   hidden++;
+   if (m_ACR_Markers.Find(marker) < 0) hidden++; // squads under a count; soldiers were counted above
    Widget root = marker.GetRootWidget();
    if (!root || !root.IsVisible()) continue;
    float x, y;

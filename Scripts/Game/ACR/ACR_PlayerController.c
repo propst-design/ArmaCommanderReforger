@@ -831,6 +831,10 @@ modded class SCR_PlayerController
  protected ref array<RplId> m_ACR_UnitGroups = {};
  protected vector m_ACR_OriginalPos;
  protected ref array<ref ACR_UnitMarker> m_ACR_Markers = {};
+ // Soldier markers by the soldier's RplId (the command unit's is m_ACR_OriginalMarker): a casualty
+ // or a purchase adds or drops only its own markers (review P1).
+ protected ref map<RplId, ACR_UnitMarker> m_ACR_MarkerById = new map<RplId, ACR_UnitMarker>();
+ protected ACR_UnitMarker m_ACR_OriginalMarker;
  protected bool m_ACR_MapWasOpen;
 
  void ACR_SendRoster(array<RplId> ids, array<vector> positions, array<int> states, array<string> labels, array<RplId> groupIds, vector original)
@@ -927,6 +931,8 @@ modded class SCR_PlayerController
   m_ACR_ZoneMarkers.Clear();
   m_ACR_BaseMarkers.Clear();
   m_ACR_Markers.Clear();
+  m_ACR_MarkerById.Clear();
+  m_ACR_OriginalMarker = null;
   m_ACR_GroupMarkers.Clear();
  }
  protected IEntity m_ACR_BodyAtMapClose;
@@ -1062,45 +1068,8 @@ modded class SCR_PlayerController
   ACR_UpdatePanel();
   ACR_UpdateBoxLayer();
   ACR_DrawOrders(mapEntity);
-  // Leaders are drawn by their group marker, so they get no plain soldier marker.
-  array<int> shown = {};
-  foreach (int rosterIndex, RplId unitId : m_ACR_Ids)
-   if (!m_ACR_Data.m_LeaderIds.Contains(unitId)) shown.Insert(rosterIndex);
-  int count = shown.Count();
-  if (m_ACR_Markers.Count() != count + 1)
-  {
-   foreach (ACR_UnitMarker old : m_ACR_Markers) manager.ACR_RemoveMarker(old);
-   m_ACR_Markers.Clear();
-   for (int i = 0; i <= count; i++)
-   {
-    ACR_UnitMarker marker = new ACR_UnitMarker();
-    marker.SetType(SCR_EMapMarkerType.SIMPLE);
-    marker.SetMarkerConfigID(1);
-    marker.SetCanBeRemovedByOwner(false);
-    marker.m_Original = i == count;
-    m_ACR_Markers.Insert(marker);
-    manager.InsertStaticMarker(marker, true);
-    // Not "owned" by the player, so vanilla doesn't open the marker edit dialog on click.
-    marker.SetMarkerOwnerID(-1);
-   }
-  }
-  for (int i = 0; i < count; i++)
-  {
-   int r = shown[i];
-   ACR_UnitMarker marker = m_ACR_Markers[i];
-   marker.m_UnitId = m_ACR_Ids[r];
-   marker.m_State = m_ACR_States[r];
-   marker.m_Label = m_ACR_Labels[r];
-   marker.m_GroupId = m_ACR_UnitGroups[r];
-   marker.m_Selected = ACR_IsSelected(marker.m_GroupId);
-   if (marker.m_State == 1) marker.m_Label += " [PLAYER]";
-   vector pos = m_ACR_Positions[r];
-   IEntity streamed = SCR_EntityHelper.RplIdToEntity(marker.m_UnitId);
-   if (streamed) pos = streamed.GetOrigin();
-   marker.SetWorldPos(pos[0], pos[2]);
-   marker.RefreshStyle();
-  }
-  ACR_UnitMarker original = m_ACR_Markers[count];
+  ACR_UpdateSoldierMarkers(manager);
+  ACR_UnitMarker original = m_ACR_OriginalMarker;
   original.m_Label = "COMMAND UNIT [F8]";
   original.SetWorldPos(m_ACR_OriginalPos[0], m_ACR_OriginalPos[2]);
   original.RefreshStyle();
@@ -1117,15 +1086,117 @@ modded class SCR_PlayerController
    m_ACR_Panel.SetFeed(feedLines);
   }
  }
+ // Soldier markers (review P1). Leaders are drawn by their group marker, and the soldiers of a
+ // squad the calm map hides (ACR_SoldiersHidden) get none at all: zoomed out that is every one, so
+ // nothing is updated. A marker is kept by its soldier's RplId, so a casualty or a purchase
+ // creates or removes only its own; the rest are moved and restyled in place.
+ protected void ACR_UpdateSoldierMarkers(SCR_MapMarkerManagerComponent manager)
+ {
+  if (!m_ACR_OriginalMarker)
+  {
+   m_ACR_OriginalMarker = ACR_NewSoldierMarker(manager);
+   m_ACR_OriginalMarker.m_Original = true;
+  }
+  map<RplId, bool> leaders = new map<RplId, bool>();
+  foreach (RplId leaderId : m_ACR_Data.m_LeaderIds) leaders.Set(leaderId, true);
+  map<RplId, bool> hiddenGroups = new map<RplId, bool>();
+  map<RplId, int> wanted = new map<RplId, int>();
+  foreach (int rosterIndex, RplId unitId : m_ACR_Ids)
+  {
+   if (leaders.Contains(unitId)) continue;
+   RplId groupId = m_ACR_UnitGroups[rosterIndex];
+   bool hidden;
+   if (!hiddenGroups.Find(groupId, hidden))
+   {
+    hidden = ACR_SoldiersHidden(groupId);
+    hiddenGroups.Set(groupId, hidden);
+   }
+   if (!hidden) wanted.Set(unitId, rosterIndex);
+  }
+  // Drop the markers of soldiers who are gone or now hidden.
+  for (int m = m_ACR_Markers.Count() - 1; m >= 0; m--)
+  {
+   ACR_UnitMarker old = m_ACR_Markers[m];
+   if (old == m_ACR_OriginalMarker) continue;
+   if (old && wanted.Contains(old.m_UnitId) && m_ACR_MarkerById.Get(old.m_UnitId) == old) continue;
+   if (old)
+   {
+    if (m_ACR_MarkerById.Get(old.m_UnitId) == old) m_ACR_MarkerById.Remove(old.m_UnitId);
+    manager.ACR_RemoveMarker(old);
+   }
+   m_ACR_Markers.Remove(m);
+  }
+  foreach (RplId shownId, int r : wanted)
+  {
+   ACR_UnitMarker marker = m_ACR_MarkerById.Get(shownId);
+   if (!marker)
+   {
+    marker = ACR_NewSoldierMarker(manager);
+    m_ACR_MarkerById.Set(shownId, marker);
+   }
+   marker.m_UnitId = shownId;
+   marker.m_State = m_ACR_States[r];
+   marker.m_Label = m_ACR_Labels[r];
+   marker.m_GroupId = m_ACR_UnitGroups[r];
+   marker.m_Selected = ACR_IsSelected(marker.m_GroupId);
+   if (marker.m_State == 1) marker.m_Label += " [PLAYER]";
+   vector pos = m_ACR_Positions[r];
+   IEntity streamed = SCR_EntityHelper.RplIdToEntity(shownId);
+   if (streamed) pos = streamed.GetOrigin();
+   marker.SetWorldPos(pos[0], pos[2]);
+   marker.RefreshStyle();
+  }
+ }
+
+ protected ACR_UnitMarker ACR_NewSoldierMarker(SCR_MapMarkerManagerComponent manager)
+ {
+  ACR_UnitMarker marker = new ACR_UnitMarker();
+  marker.SetType(SCR_EMapMarkerType.SIMPLE);
+  marker.SetMarkerConfigID(1);
+  marker.SetCanBeRemovedByOwner(false);
+  m_ACR_Markers.Insert(marker);
+  manager.InsertStaticMarker(marker, true);
+  // Not "owned" by the player, so vanilla doesn't open the marker edit dialog on click.
+  marker.SetMarkerOwnerID(-1);
+  return marker;
+ }
+
+ // Whether the calm map hides this squad's soldiers (ACR_PlayerMapDeclutter overrides it).
+ bool ACR_SoldiersHidden(RplId groupId)
+ {
+  return false;
+ }
+
  void ACR_UpdateGroupMarkers(SCR_MapMarkerManagerComponent manager)
  {
-  if (m_ACR_GroupMarkers.Count() != m_ACR_Data.m_LeaderIds.Count())
+  // The markers stay in the roster's squad order (other code reads m_ACR_GroupMarkers[g]); when the
+  // squads change, each squad keeps its own marker and only new squads get one (review P1).
+  bool same = m_ACR_GroupMarkers.Count() == m_ACR_Data.m_LeaderIds.Count();
+  for (int s = 0; same && s < m_ACR_GroupMarkers.Count(); s++)
+   if (!m_ACR_GroupMarkers[s] || m_ACR_GroupMarkers[s].m_GroupId != m_ACR_Data.m_GroupIds[s]) same = false;
+  if (!same)
   {
-   foreach (ACR_UnitMarker old : m_ACR_GroupMarkers) manager.ACR_RemoveMarker(old);
+   map<RplId, ACR_UnitMarker> kept = new map<RplId, ACR_UnitMarker>();
+   array<ref ACR_UnitMarker> holding = {};
+   foreach (ACR_UnitMarker old : m_ACR_GroupMarkers)
+   {
+    if (!old) continue;
+    holding.Insert(old);
+    kept.Set(old.m_GroupId, old);
+   }
    m_ACR_GroupMarkers.Clear();
    for (int i = 0; i < m_ACR_Data.m_LeaderIds.Count(); i++)
    {
+    int symbolKey = m_ACR_GroupSymbols[i * 4] * 1000 + m_ACR_GroupSymbols[i * 4 + 1] * 10 + m_ACR_GroupSymbols[i * 4 + 2];
+    ACR_UnitMarker reuse = kept.Get(m_ACR_Data.m_GroupIds[i]);
+    if (reuse && reuse.m_iSymbolKey == symbolKey)
+    {
+     kept.Remove(m_ACR_Data.m_GroupIds[i]);
+     m_ACR_GroupMarkers.Insert(reuse);
+     continue;
+    }
     ACR_UnitMarker marker = new ACR_UnitMarker();
+    marker.m_GroupId = m_ACR_Data.m_GroupIds[i];
     int icons = m_ACR_GroupSymbols[i * 4];
     int dimension = m_ACR_GroupSymbols[i * 4 + 1];
     SCR_MapMarkerBase prepared = manager.PrepareMilitaryMarker(EMilitarySymbolIdentity.BLUFOR, dimension, icons);
@@ -1146,6 +1217,8 @@ modded class SCR_PlayerController
     // Not "owned" by the player, so vanilla doesn't open the marker edit dialog on click.
     marker.SetMarkerOwnerID(-1);
    }
+   // Squads that are gone, and markers whose symbol changed, go.
+   foreach (RplId goneId, ACR_UnitMarker gone : kept) manager.ACR_RemoveMarker(gone);
   }
   for (int i = 0; i < m_ACR_GroupMarkers.Count(); i++)
   {
