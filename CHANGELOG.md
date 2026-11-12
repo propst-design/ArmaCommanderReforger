@@ -27,6 +27,7 @@
 - With the plain 2IC (`-acr2IC 1`), squads the AI had on refits, ammo runs, screens, road sweeps, evacs, pallets, its own FOB build or fortifying are freed when a player takes command; those tasks aren't run while he commands, so the squads used to keep them all spell (and their ammo trucks stayed booked).
 - Back in command after a player's spell, the AI no longer counts the spell as quiet time: it came back at its lowest pressure.
 - At the soldier cap, squads walking back to a base to refill still end their walk instead of waiting there, out of defences and attacks, until the side lost men.
+- Men who leave a squad alive through something else (AiO Recruit or Dismiss, a Game Master) come off its full strength, so the squad no longer shows them missing and gets them back at RP cost; men who fall are still refilled. A vehicle whose driver was taken gets another of its crew at the wheel, or, if he drives on for his new squad, is let go and its other men get out. Dismissed men who form a group of their own become a squad the AI commander can order, outside its unit cap.
 
 ### FOBs and logistics
 

@@ -767,11 +767,30 @@ class ACR_Manager : Managed
   foreach (IEntity finished : done) m_PendingCrewNames.Remove(finished);
  }
 
+ // Men who left an ACA squad alive (ACR_Squad.NoteLeavers): a group made of them is the leftovers of
+ // an AiO Dismiss. It is still registered (otherwise nobody would ever order them), but kept outside the
+ // AI's unit cap (ACR_Squad.m_bLeftovers; review #6, 12 Nov).
+ protected ref array<IEntity> m_aLeavers = {};
+ void NoteLeaver(IEntity body)
+ {
+  for (int i = m_aLeavers.Count() - 1; i >= 0; i--) if (!m_aLeavers[i]) m_aLeavers.Remove(i);
+  if (body && !m_aLeavers.Contains(body)) m_aLeavers.Insert(body);
+ }
+
  ACR_Squad Register(SCR_AIGroup group)
  {
   m_SquadNumber++;
   ACR_Squad squad = new ACR_Squad(group, m_SquadNumber);
   m_Squads.Insert(squad);
+  array<AIAgent> joined = {};
+  group.GetAgents(joined);
+  foreach (AIAgent member : joined)
+  {
+   IEntity body = member.GetControlledEntity();
+   if (!body || !m_aLeavers.Contains(body)) continue;
+   squad.m_bLeftovers = true;
+   m_aLeavers.RemoveItem(body);
+  }
   array<IEntity> vehicles = {};
   squad.GetVehicles(vehicles);
   foreach (IEntity vehicle : vehicles)

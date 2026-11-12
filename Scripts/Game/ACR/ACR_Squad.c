@@ -184,8 +184,73 @@ class ACR_Squad : Managed
   }
  }
 
+ // Its men as last seen, to tell a man who left alive (AiO Recruit or Dismiss, a Game Master) from one
+ // who fell. A leaver's place is taken off the full strength, so he isn't "missing" and refilled at RP
+ // cost; one who fell still is (Jacob's ruling on review #6, 12 Nov).
+ protected ref array<IEntity> m_aMembers = {};
+ // Made of men who left other squads (AiO Dismiss): a squad like any, but outside the AI's unit cap.
+ bool m_bLeftovers;
+
+ protected void NoteLeavers()
+ {
+  array<AIAgent> agents = {};
+  GetAgents(agents);
+  array<IEntity> bodies = {};
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (body) bodies.Insert(body);
+  }
+  int left;
+  bool driverLeft;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  foreach (IEntity was : m_aMembers)
+  {
+   if (!was || bodies.Contains(was)) continue;
+   ChimeraCharacter man = ChimeraCharacter.Cast(was);
+   if (!man || man.GetCharacterController().IsDead() || !man.GetPrefabData()) continue; // fallen: missing, refilled
+   ResourceName prefab = man.GetPrefabData().GetPrefabName();
+   int full;
+   if (m_FullStrength.Find(prefab, full) && full > 0) m_FullStrength.Set(prefab, full - 1);
+   if (m_OwnVehicle && ACR_Transport.VehicleOf(was) == m_OwnVehicle && DriverOf(m_OwnVehicle) == man) driverLeft = true;
+   if (manager) manager.NoteLeaver(was);
+   left++;
+  }
+  m_aMembers.Copy(bodies);
+  if (left == 0) return;
+  PrintFormat("[ACR] %1: %2 man/men left the squad alive (not by ACA): full strength now %3", m_Name, left, FullSize());
+  CrewAfterLeavers(driverLeft);
+ }
+
+ // Its driver went with them: his seat is taken again by one of ours aboard, or, when he drives on for
+ // his new squad, the vehicle is let go and our men aboard get out (review #6).
+ protected void CrewAfterLeavers(bool driverLeft)
+ {
+  IEntity vehicle = m_OwnVehicle;
+  if (!vehicle || !driverLeft) return;
+  ChimeraCharacter driver = DriverOf(vehicle);
+  if (driver)
+  {
+   PrintFormat("[ACR] %1: its driver drives %2 for another squad now: the vehicle is let go", m_Name, vehicle);
+   m_OwnVehicle = null;
+   if (IsMounted() && !PlayerSteers()) GetOut();
+   return;
+  }
+  if (!IsMounted()) return; // all on foot: Recrew puts them back in as for any crew
+  m_bDriverBailed = true; // Recrew tries again if this doesn't take
+  if (ReseatDriver(vehicle)) PrintFormat("[ACR] %1: lost its driver, another of its men takes the wheel", m_Name);
+ }
+
+ int FullSize()
+ {
+  int full;
+  foreach (ResourceName prefab, int count : m_FullStrength) full += count;
+  return full;
+ }
+
  void TrackStrength()
  {
+  NoteLeavers();
   map<ResourceName, int> now = new map<ResourceName, int>();
   CountByPrefab(now);
   foreach (ResourceName prefab, int count : now)

@@ -7129,6 +7129,7 @@ class ACR_AICommander : Managed
  // (the soldier cap still bounds the total).
  protected float CapSlots(ACR_Squad squad)
  {
+  if (squad.m_bLeftovers) return 0; // men a player dismissed from other squads: not a unit it bought
   if (m_Doctrine.m_bSmallTeamsFree && !ACR_Transport.CrewedVehicle(squad) && FullSizeOf(squad) <= 3) return 0.5;
   return 1;
  }
