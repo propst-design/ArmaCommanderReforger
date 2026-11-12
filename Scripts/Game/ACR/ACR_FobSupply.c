@@ -63,6 +63,41 @@ class ACR_FobProviderComponent : SCR_CampaignBuildingProviderComponent
   Replication.BumpMe();
  }
 
+ // The FOB this provider belongs to, for clients (ACR_Base exists only on the server): vanilla
+ // links a truck's "Unload supplies" and the FOB arsenals through SCR_ResourceContainer.IsAllowed
+ // on the client too, so ServesFrom/TakesFrom must be decidable there (0.5.13 review #3).
+ [RplProp()]
+ protected vector m_vACRFobCenter;
+ [RplProp()]
+ protected float m_fACRFobRadius;
+ [RplProp()]
+ protected string m_sACRFobOwner;
+ [RplProp()]
+ protected bool m_bACRFobOnline;
+
+ // Server: mirror the FOB's state (FobSupply.Bind, then every structures tick).
+ void ACR_SyncFob(ACR_Base base)
+ {
+  if (!base) return;
+  vector center = base.GetOrigin();
+  bool online = base.m_bBuilt && !base.m_bRetired && !base.m_bHqLost;
+  if (vector.DistanceXZ(center, m_vACRFobCenter) < 0.5 && m_fACRFobRadius == base.m_fRadius && m_sACRFobOwner == base.m_sOwner && m_bACRFobOnline == online) return;
+  m_vACRFobCenter = center;
+  m_fACRFobRadius = base.m_fRadius;
+  m_sACRFobOwner = base.m_sOwner;
+  m_bACRFobOnline = online;
+  Replication.BumpMe();
+ }
+
+ // Online (built, HQ standing) with its centre, radius and owner, as last mirrored.
+ bool ACR_FobState(out vector center, out float radius, out string owner)
+ {
+  center = m_vACRFobCenter;
+  radius = m_fACRFobRadius;
+  owner = m_sACRFobOwner;
+  return m_bACRFobOnline && radius > 0;
+ }
+
  override int GetBudgetValue(EEditableEntityBudget type, out SCR_CampaignBuildingProviderComponent componentToUse)
  {
   if (type != EEditableEntityBudget.CAMPAIGN) return super.GetBudgetValue(type, componentToUse);
@@ -203,6 +238,7 @@ class ACR_FobSupply
     if (interactor && !SCR_ResourceEncapsulator.Cast(interactor)) interactor.UnregisterContainer(store);
   }
   if (provider) provider.BindCommandPost(commandPost);
+  if (provider) provider.ACR_SyncFob(base);
  }
 
  static ACR_Base AtProvider(IEntity provider)
@@ -211,6 +247,24 @@ class ACR_FobSupply
   foreach (ACR_Base base : ACR_Base.s_All)
    if (!base.m_bRetired && base.m_bBuilt && base.m_FobSupply == provider) return base;
   return null;
+ }
+
+ // The provider's FOB: online (built, HQ standing), with its centre, radius and owner. The server
+ // reads the base itself; a client reads the provider's mirror (ACR_FobProviderComponent.ACR_SyncFob).
+ static bool FobAt(IEntity provider, out vector center, out float radius, out string owner)
+ {
+  if (!provider) return false;
+  if (Replication.IsServer())
+  {
+   ACR_Base base = AtProvider(provider);
+   if (!base || base.m_bHqLost) return false;
+   center = base.GetOrigin();
+   radius = base.m_fRadius;
+   owner = base.m_sOwner;
+   return true;
+  }
+  ACR_FobProviderComponent mirror = ACR_FobProviderComponent.Cast(provider.FindComponent(ACR_FobProviderComponent));
+  return mirror && mirror.ACR_FobState(center, radius, owner);
  }
 
  // #156: the FOB's own arsenals and resupply points (the ammo dump's arsenal boxes) draw on the
@@ -225,10 +279,12 @@ class ACR_FobSupply
   if (!owner) return false;
   for (IEntity part = owner; part; part = part.GetParent())
    if (Vehicle.Cast(part)) return false;
-  ACR_Base base = AtProvider(provider);
-  if (!base || base.m_bHqLost || vector.DistanceXZ(owner.GetOrigin(), base.GetOrigin()) > base.m_fRadius) return false;
+  vector center;
+  float radius;
+  string side;
+  if (!FobAt(provider, center, radius, side) || vector.DistanceXZ(owner.GetOrigin(), center) > radius) return false;
   FactionAffiliationComponent affiliation = interactor.GetComponent().GetFactionAffiliationComponent();
-  if (affiliation && affiliation.GetAffiliatedFaction() && affiliation.GetAffiliatedFaction().GetFactionKey() != base.m_sOwner) return false;
+  if (affiliation && affiliation.GetAffiliatedFaction() && affiliation.GetAffiliatedFaction().GetFactionKey() != side) return false;
   return true;
  }
 
@@ -249,9 +305,11 @@ class ACR_FobSupply
   // The truck itself, not its cargo box (a part's position lags a moved truck by a frame).
   IEntity truck = owner.GetRootParent();
   if (!Vehicle.Cast(truck)) return false;
-  ACR_Base base = AtProvider(provider);
-  if (!base || base.m_bHqLost) return false;
-  return vector.DistanceXZ(truck.GetOrigin(), base.GetOrigin()) <= base.m_fRadius;
+  vector center;
+  float radius;
+  string side;
+  if (!FobAt(provider, center, radius, side)) return false;
+  return vector.DistanceXZ(truck.GetOrigin(), center) <= radius;
  }
 
  // Any other container inside a built FOB (a supply depot's crates, which vanilla lets a truck
@@ -350,6 +408,7 @@ class ACR_FobSupply
   }
   ACR_FobProviderComponent provider = ACR_FobProviderComponent.Cast(base.m_FobSupply.FindComponent(ACR_FobProviderComponent));
   if (provider) provider.SetBlocked(base.m_bContested || base.m_bHqLost);
+  if (provider) provider.ACR_SyncFob(base);
   if (base.m_iSupplyDelivery <= 0 || base.m_bContested || base.m_bHqLost) return;
   base.m_fSupplyDeliveryLeft = Math.Max(0, base.m_fSupplyDeliveryLeft - Math.Max(0, elapsed));
   if (base.m_fSupplyDeliveryLeft > 0) return;

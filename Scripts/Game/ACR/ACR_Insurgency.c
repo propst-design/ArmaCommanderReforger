@@ -89,9 +89,11 @@ class ACR_Insurgency
  static bool Friendly(string a, string b)
  {
   if (a == b) return true;
+  // The TvTvZ truce (#107) first: FIA can be a main side, and then it holds for FIA too (0.5.13 review).
+  if (ACR_Truce.Between(a, b)) return true;
   if (a == ACR_Pockets.FACTION) return s_aFriends.Contains(b);
   if (b == ACR_Pockets.FACTION) return s_aFriends.Contains(a);
-  return ACR_Truce.Between(a, b); // the TvTvZ truce (#107)
+  return false;
  }
 
  // Server, once the layout is applied (ACR_Skirmish.ApplyOnce): the game's factions, and the ally

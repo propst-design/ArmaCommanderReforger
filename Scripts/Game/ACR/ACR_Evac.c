@@ -141,6 +141,10 @@ class ACR_Evac
   if (!ACR_Containment.On()) return "evac points are for zombie containment (-acrOutbreak contain)";
   if (side.IsEmpty() || ACR_TvZ.IsAbsent(side)) return "no side";
   if (CountFor(side) >= MOST_PER_SIDE) return string.Format("%1 evac points already open: bring those people out first", MOST_PER_SIDE);
+  // Not where a ride would be paid for on the spot (0.5.13 review #12): an XP inside or beside a
+  // base DeliveryBase pays at loaded its civilians straight into a vehicle that was already there.
+  ACR_Base payer = PayingBaseNear(at, XP_RADIUS);
+  if (payer) return string.Format("too close to %1: set it outside the base, the civilians have to be driven out", payer.m_sName);
   int town = TownNear(at);
   if (town < 0) return string.Format("no civilians within %1 m: set it near a town holding out (the rings on the map)", VILLAGE_REACH);
   ACR_SurvivorSite site = ACR_Containment.SiteAt(town);
@@ -456,12 +460,41 @@ class ACR_Evac
  // ---------------------------------------------------------------- delivery
 
  // A base a living side holds with no zombie in it that 'at' is inside, or null.
+ // A base DeliveryBase could pay at within its reach plus 'margin' of 'at' (zombies or not), or null.
+ static ACR_Base PayingBaseNear(vector at, float margin)
+ {
+  array<string> sides = ACR_Containment.Sides();
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || (base.m_bBuilt && base.m_bHqLost) || !sides.Contains(base.m_sOwner)) continue;
+   if (vector.DistanceXZ(base.GetOrigin(), at) <= Math.Max(base.m_fRadius, 60) + margin) return base;
+  }
+  return null;
+ }
+
+ // 'at', or the nearest spot just outside any base an XP there would be refused for (PayingBaseNear),
+ // straight out from that base's middle: where the AI sets an XP for a town it holds.
+ static vector OutsideBases(vector at)
+ {
+  for (int tries = 0; tries < 3; tries++)
+  {
+   ACR_Base payer = PayingBaseNear(at, XP_RADIUS);
+   if (!payer) break;
+   vector away = at - payer.GetOrigin();
+   away[1] = 0;
+   if (away.Length() < 1) away = Vector(1, 0, 0);
+   away.Normalize();
+   at = ACR_Manager.Ground(payer.GetOrigin() + away * (Math.Max(payer.m_fRadius, 60) + XP_RADIUS + 15));
+  }
+  return at;
+ }
+
  static ACR_Base DeliveryBase(vector at)
  {
   array<string> sides = ACR_Containment.Sides();
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (!base || base.m_bRetired || base.m_bHidden || !sides.Contains(base.m_sOwner)) continue;
+   if (!base || base.m_bRetired || (base.m_bBuilt && base.m_bHqLost) || !sides.Contains(base.m_sOwner)) continue;
    float reach = Math.Max(base.m_fRadius, 60);
    if (vector.DistanceXZ(base.GetOrigin(), at) > reach) continue;
    if (ACR_Containment.ZombiesNear(base.GetOrigin(), reach)) continue;

@@ -16,7 +16,7 @@ class ACR_TestContainment
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const ResourceName HELI = "{70BAEEFC2D3FEE64}Prefabs/Vehicles/Helicopters/UH1H/UH1H.et";
- static const int EXPECTED = 29;
+ static const int EXPECTED = 30;
  protected static ACR_DefenderPost s_Zero;
  protected static ref ACR_EvacPoint s_Evac; // ref: a finished XP leaves the list
  protected static IEntity s_Heli;
@@ -128,6 +128,17 @@ class ACR_TestContainment
   ACR_EvacPoint none;
   string far = ACR_Evac.Place("US", Vector(10, 0, 10), none);
   Check("evac: no evac point far from any town holding out", !far.IsEmpty() && !none, far);
+  // 0.5.13 review #12: not in a held base (a vehicle there was paid for on the spot); the AI's spot
+  // for a town it holds moves out past the base.
+  ACR_Base hq = ACR_DoctrineKits.HQOf("US");
+  string inBase = "no HQ";
+  vector outside;
+  if (hq)
+  {
+   inBase = ACR_Evac.Place("US", hq.GetOrigin(), none);
+   outside = ACR_Evac.OutsideBases(hq.GetOrigin());
+  }
+  Check("evac: no evac point inside a held base; the AI's spot moves out of it", hq && inBase.Contains("too close") && !none && !ACR_Evac.PayingBaseNear(outside, ACR_Evac.XP_RADIUS), string.Format("%1; moved %2 m", inBase, (int)vector.DistanceXZ(outside, hq.GetOrigin())));
   vector dir = Vector(6400, 0, 6400) - site.m_vPos;
   dir[1] = 0;
   dir.Normalize();

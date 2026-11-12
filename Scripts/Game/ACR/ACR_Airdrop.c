@@ -29,6 +29,7 @@ class ACR_Airdrop
  static const float DROP_MIN = 600;         // m from the side's HQ
  static const float DROP_MAX = 2500;
  static const float BASE_CLEAR = 250;       // m: never this close to a base
+ static const float RECOVER_HEIGHT = 4;     // m above or below it (on the ground, not flying over)
  static const float RECOVER_RANGE = 25;     // m: a soldier this close recovers it ...
  static const float ZOMBIE_CLEAR = 40;      // ... with no zombie this close
  static const int RP_PALLET = 30;
@@ -45,6 +46,7 @@ class ACR_Airdrop
  static int s_iDropped;    // tests
  static int s_iRecovered;  // tests
  static int s_iStolen;     // tests
+ protected static int s_iMatch;   // bumped by Reset: a plane queued before it lands nothing
 
  static void ACR_InitStatics()
  {
@@ -61,6 +63,8 @@ class ACR_Airdrop
   s_iDropped = 0;
   s_iRecovered = 0;
   s_iStolen = 0;
+  // A plane still in the air lands nothing in the next match (0.5.13 review: its CallLater outlives Reset).
+  s_iMatch++;
  }
 
  static int Count() { return s_aPallets.Count(); }
@@ -101,7 +105,7 @@ class ACR_Airdrop
    vector spot;
    if (!Spot(side, spot)) continue;
    Fly(side, spot);
-   GetGame().GetCallqueue().CallLater(LandLater, (PLANE_LEAD / PLANE_SPEED + LAND_S) * 1000, false, side, spot);
+   GetGame().GetCallqueue().CallLater(LandLater, (PLANE_LEAD / PLANE_SPEED + LAND_S) * 1000, false, side, spot, s_iMatch);
   }
   if (seconds % 2 == 0) Check(manager, now);
  }
@@ -158,7 +162,10 @@ class ACR_Airdrop
   ACR_Containment.Feed(side, string.Format("%1 supply drop inbound near %2", name, ACR_Manager.Grid(spot)), spot);
  }
 
- protected static void LandLater(string side, vector spot) { Land(side, spot); }
+ protected static void LandLater(string side, vector spot, int match)
+ {
+  if (match == s_iMatch) Land(side, spot);
+ }
 
  // The pallet is down: it shows on both maps, and the dead near it stir.
  static ACR_Pallet Land(string side, vector spot)
@@ -200,15 +207,42 @@ class ACR_Airdrop
    if (ACR_Containment.ZombiesNear(pallet.m_vPos, ZOMBIE_CLEAR)) continue;
    // Its own side first, if both are there.
    string taker;
-   if (ACR_Outbreak.SideNear(manager, pallet.m_sFor, pallet.m_vPos, RECOVER_RANGE)) taker = pallet.m_sFor;
+   if (GroundNear(manager, pallet.m_sFor, pallet.m_vPos)) taker = pallet.m_sFor;
    else
    {
     foreach (string side : sides)
-     if (side != pallet.m_sFor && MayTake(pallet, side) && ACR_Outbreak.SideNear(manager, side, pallet.m_vPos, RECOVER_RANGE)) { taker = side; break; }
+     if (side != pallet.m_sFor && MayTake(pallet, side) && GroundNear(manager, side, pallet.m_vPos)) { taker = side; break; }
    }
    if (taker.IsEmpty()) continue;
    Recover(manager, i, taker);
   }
+ }
+
+ // A living soldier of 'side' within RECOVER_RANGE of the pallet and level with it (0.5.13 review: a
+ // helicopter flying over at any height used to take it; one landed beside it, or a truck driven up,
+ // still does): a squad's leader, or a player.
+ static bool GroundNear(ACR_Manager manager, string side, vector pos)
+ {
+  foreach (ACR_Squad squad : manager.m_Squads)
+  {
+   if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() != side) continue;
+   if (Recovers(squad.GetAnchor(), pos)) return true;
+  }
+  array<int> players = {};
+  GetGame().GetPlayerManager().GetPlayers(players);
+  foreach (int id : players)
+  {
+   IEntity player = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
+   if (player && ACR_Intel.FactionKeyOf(player) == side && Recovers(player, pos)) return true;
+  }
+  return false;
+ }
+
+ protected static bool Recovers(IEntity soldier, vector pos)
+ {
+  if (!soldier || !ACR_Respawn.IsAlive(soldier)) return false;
+  vector at = soldier.GetOrigin();
+  return vector.DistanceXZ(at, pos) <= RECOVER_RANGE && Math.AbsFloat(at[1] - pos[1]) <= RECOVER_HEIGHT;
  }
 
  protected static void Recover(ACR_Manager manager, int i, string side)

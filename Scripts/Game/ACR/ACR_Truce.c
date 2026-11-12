@@ -200,13 +200,23 @@ class ACR_Truce
 
  protected static void SetFriendly(bool friendly)
  {
+  ApplyFactions(friendly, true);
+  // Vanilla replicates friendliness only through SCR_DelegateFactionManagerComponent, which a
+  // world may not have (0.5.13 review): clients apply it themselves from the game mode's flag.
+  SCR_BaseGameMode mode = SCR_BaseGameMode.Cast(GetGame().GetGameMode());
+  if (mode) mode.ACR_SetTruceFriendly(friendly);
+ }
+
+ // This machine's faction relation between the two sides ('updateAIs': the server's AI targets).
+ static void ApplyFactions(bool friendly, bool updateAIs)
+ {
   SCR_FactionManager factions = SCR_FactionManager.Cast(GetGame().GetFactionManager());
   if (!factions) return;
   SCR_Faction west = SCR_Faction.Cast(factions.GetFactionByKey(ACR_FactionSelection.West()));
   SCR_Faction east = SCR_Faction.Cast(factions.GetFactionByKey(ACR_FactionSelection.East()));
   if (!west || !east || west == east) return;
-  if (friendly) factions.SetFactionsFriendly(west, east);
-  else factions.SetFactionsHostile(west, east);
+  if (friendly) factions.SetFactionsFriendly(west, east, -1, updateAIs);
+  else factions.SetFactionsHostile(west, east, -1, updateAIs);
  }
 
  // Tests: run the break's warning out now.
@@ -214,5 +224,24 @@ class ACR_Truce
  {
   if (s_iState == ACR_ETruce.BREAKING) s_fSince = -BREAK_WARN_MS;
   Expire(GetGame().GetWorld().GetWorldTime());
+ }
+}
+
+// The truce's faction relation for clients (ACR_Truce.SetFriendly), joiners too.
+modded class SCR_BaseGameMode
+{
+ [RplProp(onRplName: "ACR_OnTruceFriendly")]
+ protected bool m_bACRTruceFriendly;
+
+ void ACR_SetTruceFriendly(bool friendly)
+ {
+  if (m_bACRTruceFriendly == friendly) return;
+  m_bACRTruceFriendly = friendly;
+  Replication.BumpMe();
+ }
+
+ protected void ACR_OnTruceFriendly()
+ {
+  if (!Replication.IsServer()) ACR_Truce.ApplyFactions(m_bACRTruceFriendly, false);
  }
 }

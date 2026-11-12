@@ -8157,7 +8157,7 @@ class ACR_AICommander : Managed
     most = site.m_iCount;
     town = i;
     taxi = candidate;
-    goal = site.m_vPos;
+    goal = ACR_Evac.OutsideBases(site.m_vPos);
    }
   }
   if (!pick && town < 0) return;
@@ -8243,7 +8243,7 @@ class ACR_AICommander : Managed
   float bestDistance = float.MAX;
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (!base || base.m_bRetired || base.m_bHidden || base.m_sOwner != m_sFaction) continue;
+   if (!base || base.m_bRetired || (base.m_bBuilt && base.m_bHqLost) || base.m_sOwner != m_sFaction) continue;
    if (ACR_Containment.ZombiesNear(base.GetOrigin(), Math.Max(base.m_fRadius, 60))) continue;
    float d = vector.DistanceXZ(base.GetOrigin(), at);
    if (d < bestDistance) { bestDistance = d; best = base; }

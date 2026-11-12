@@ -24,10 +24,10 @@ class ACR_NestDressing
  static const int FX_MAX = 12;            // at most this many, the nearest
  static const float FX_TICK_MS = 5000;
  static const int WRECK_KINDS = 5;
- protected static ref array<vector> s_aDressed;
+ // Nothing static to build: the sites this machine has dressed live on the game mode, so a second
+ // match in the same session dresses them again (0.5.13 review).
  static void ACR_InitStatics()
  {
-  s_aDressed = {};
  }
  static int s_iDecals;                    // laid on this machine (tests)
  static int s_iFires;                     // live sites set burning on this machine
@@ -103,7 +103,6 @@ class ACR_NestDressing
   Piles(site);
   Wrecks(mode, index, site, tier);
   PlaceRemains(site, tier);
-  DressLocal(site);
   mode.ACR_ApplyNestSites();
   PrintFormat("[ACR] ZOMBIES nest dressed at %1: tier %2, %3 wrecks (%4 laid here), %5 remains, %6 piles so far", ACR_Manager.Grid(site), tier, mode.ACR_NestWreckCount(index), s_iWrecks, s_iRemains, s_iPiles);
  }
@@ -189,11 +188,11 @@ class ACR_NestDressing
   if (GetGame().SpawnEntityPrefabLocal(resource, GetGame().GetWorld(), params)) s_iWrecks++;
  }
 
- // This machine lays out the site's blood and burns (once).
- static void DressLocal(vector site)
+ // This machine lays out the site's blood and burns (once: 'dressed' is the game mode's list).
+ static void DressLocal(vector site, notnull array<vector> dressed)
  {
-  foreach (vector done : s_aDressed) if (vector.DistanceXZ(done, site) < 1) return;
-  s_aDressed.Insert(site);
+  foreach (vector done : dressed) if (vector.DistanceXZ(done, site) < 1) return;
+  dressed.Insert(site);
   if (System.IsConsoleApp()) return;
   RandomGenerator rng = Rng(site, 1);
   int blood = 6 + (int)(rng.RandFloat01() * 3.99);
@@ -225,6 +224,15 @@ class ACR_NestDressing
   GetGame().GetCallqueue().Remove(FxTick);
   GetGame().GetCallqueue().CallLater(FxTick, FX_TICK_MS, true);
   FxTick();
+ }
+
+ // A client that joined: lay out what the record holds even if the replication callback didn't
+ // run for the first snapshot (0.5.13 review). Idempotent, like every apply.
+ static void ApplyLater()
+ {
+  if (!GetGame()) return;
+  SCR_BaseGameMode mode = SCR_BaseGameMode.Cast(GetGame().GetGameMode());
+  if (mode) mode.ACR_ApplyNestSites();
  }
 
  static void FxTick()
@@ -301,6 +309,7 @@ modded class SCR_BaseGameMode
  [RplProp(onRplName: "ACR_ApplyNestSites")]
  protected ref array<int> m_aACRNestWrecks = {};
  protected int m_iACRWrecksLaid;
+ protected ref array<vector> m_aACRNestDressed = {}; // sites this machine has laid decals at
  protected bool m_bACRNestFx;
  protected ref array<IEntity> m_aACRNestFx = {};
  protected ref array<int> m_aACRNestFxSite = {};     // the site of each, and the tier it burns at
@@ -385,6 +394,14 @@ modded class SCR_BaseGameMode
   return m_aACRNestFx.Count();
  }
 
+ override void EOnInit(IEntity owner)
+ {
+  super.EOnInit(owner);
+  if (!GetGame().InPlayMode() || Replication.IsServer()) return;
+  GetGame().GetCallqueue().CallLater(ACR_NestDressing.ApplyLater, 5000);
+  GetGame().GetCallqueue().CallLater(ACR_NestDressing.ApplyLater, 20000);
+ }
+
  // Every machine (the server after a change, clients when the record arrives): dress new sites,
  // lay new wrecks, keep the smoke going.
  void ACR_ApplyNestSites()
@@ -393,7 +410,7 @@ modded class SCR_BaseGameMode
   {
    float x = m_aACRNestSites[i] * 0.1;
    float z = m_aACRNestSites[i + 1] * 0.1;
-   ACR_NestDressing.DressLocal(Vector(x, GetGame().GetWorld().GetSurfaceY(x, z), z));
+   ACR_NestDressing.DressLocal(Vector(x, GetGame().GetWorld().GetSurfaceY(x, z), z), m_aACRNestDressed);
   }
   while (m_iACRWrecksLaid * 4 + 3 < m_aACRNestWrecks.Count())
   {
