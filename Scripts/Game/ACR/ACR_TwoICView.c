@@ -2134,7 +2134,7 @@ modded class SCR_PlayerController
   m_ACR_Panel.SetFeedTop(feedTop);
  }
 
- // Zoomed out (ACR_TwoICCompact.ZoomedOut): the card is a pill.
+ // Zoomed out (ACR_MapDeclutter.IsFar): the card is a pill.
  protected bool ACR_TwoICZoomedOut()
  {
   SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
