@@ -57,7 +57,8 @@ config's mod list. Nothing spawns until an admin presses Start on the setup scre
 does, the server starts by itself 5 minutes after the first player joins. Every setup-screen row
 also has a launch parameter (`-acr...`), so a server can preset its match: see
 [Host options](MISSION-MAKING.md#host-options) for the full list. BBB's own options are
-`-bbb...` parameters or a BBB preset (see the BBB README).
+`-bbb...` parameters or a BBB preset (see the BBB README). To match the AI load to your server
+and player count, or to run ACA in a big mod stack, see [SERVER-SETUPS.md](SERVER-SETUPS.md).
 
 ## The game
 
@@ -205,6 +206,8 @@ Users of the older single-addon ZIP must download the paired ZIP once; after tha
 
 - [MISSION-MAKING.md](MISSION-MAKING.md): build an AC: Actual map in your own addon, every
   World Editor setting and every `-acr...` host option.
+- [SERVER-SETUPS.md](SERVER-SETUPS.md): what each AI limit does and starting setups by server
+  size and player count.
 - [CONTRIBUTING.md](CONTRIBUTING.md): set up a working copy, test and open a pull request.
   The pinned **Roadmap** issue lists what is being worked on.
 
