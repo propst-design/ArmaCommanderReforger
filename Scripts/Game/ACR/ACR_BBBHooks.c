@@ -156,7 +156,7 @@ class ACR_BBBHooks : BBB_Hooks
  {
   ACR_Squad squad = SquadOf(group);
   if (!squad) return true;
-  if (squad.HasPlayer() || squad.m_Commander != 0) return false;
+  if (squad.PlayerWith()) return false;
   ACR_EOrderState state = squad.OrderState();
   if (state == ACR_EOrderState.COMMANDED || state == ACR_EOrderState.DRIVEN || squad.Evading()) return false;
   Faction faction = squad.GetFaction();
