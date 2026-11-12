@@ -4293,7 +4293,9 @@ class ACR_Squad : Managed
     ACR_Transport.PassengerSquads(manager, vehicle, aboard);
     aboard.RemoveItem(this);
     if (!aboard.IsEmpty() && stalled < helpless + DRIVE_OUT_RIDERS_S) return;
-    if (aboard.IsEmpty() && DriveOut(vehicle, now, "stopped under fire, unarmed"))
+    // Already on its way out of fire and stopped again (hung up turning, or the road it was sent to): one fresh
+    // try from where it faces now, before the crew gets out (srv:stall, 12 Nov: half the runs bailed 10-15 m out).
+    if (aboard.IsEmpty() && DriveOut(vehicle, now, "stopped under fire, unarmed", m_bFireEvade))
     {
      m_bDroveOut = true;
      m_fStallSince = now;
@@ -5459,15 +5461,16 @@ class ACR_Squad : Managed
 
  // Drives the vehicle out of fire (see above). False: it couldn't (no enemy to drive from and no
  // order to push on with, water that way, a player's say).
- protected bool DriveOut(IEntity vehicle, float now, string why)
+ // 'again': it is already driving out of fire and stopped: a fresh way, off the roads, keeping the order to restore.
+ protected bool DriveOut(IEntity vehicle, float now, string why, bool again = false)
  {
-  if (!vehicle || !m_Group || m_Evade || PlayerHasSay(vehicle)) return false;
+  if (!vehicle || !m_Group || (m_Evade && !again) || PlayerHasSay(vehicle)) return false;
   vector at = vehicle.GetOrigin();
   vector enemy;
   bool known = NearestKnownEnemy(DRIVE_OUT_ENEMY, enemy);
   bool moving = OrderState() == ACR_EOrderState.MOVE || OrderState() == ACR_EOrderState.RETURN || OrderState() == ACR_EOrderState.DEFEND;
   // On along its order when that gets it away (or no enemy is known: hit by someone unseen).
-  if (moving && !m_sOrderPrefab.IsEmpty() && (!known || OnIsAway(at, m_MoveTarget, enemy)))
+  if (!again && moving && !m_sOrderPrefab.IsEmpty() && (!known || OnIsAway(at, m_MoveTarget, enemy)))
   {
    int kind = m_OrderKind;
    if (!IssueWaypoint(m_sOrderPrefab, m_MoveTarget, m_fOrderRadius, true)) return false;
@@ -5483,9 +5486,11 @@ class ACR_Squad : Managed
   away.Normalize();
   vector target = at + DriveOutDir(away, vehicle.GetTransformAxis(2)) * DRIVE_OUT_M;
   vector road;
-  if (BBB_Terrain.RoadPointNear(target, 150, road)) target = road;
+  if (!again && BBB_Terrain.RoadPointNear(target, 150, road)) target = road;
   else if (BBB_Terrain.IsWaterAt(target)) return false;
-  ACR_OrderSnapshot snapshot = SnapshotOrder();
+  // Driving out again keeps the order it had before the first drive out.
+  ACR_OrderSnapshot snapshot = m_Evade;
+  if (!snapshot) snapshot = SnapshotOrder();
   if (!IssueWaypoint(WP_MOVE, target, 25, true)) return false;
   m_Evade = snapshot;
   m_bFireEvade = true;
@@ -5494,7 +5499,9 @@ class ACR_Squad : Managed
   m_fEvadeClearAt = now + EVADE_CLEAR_MS;
   m_fNextDriveOut = now + DRIVE_OUT_AGAIN_MS;
   SetOrder("Getting away", ACR_EOrderState.MOVE);
-  PrintFormat("[ACR] DRIVE %1: %2, drives out %3 m away from the enemy %4 m off", m_Name, why, (int)DRIVE_OUT_M, Math.Round(vector.DistanceXZ(at, enemy)));
+  string how = "";
+  if (again) how = ", again a fresh way";
+  PrintFormat("[ACR] DRIVE %1: %2, drives out %3 m away from the enemy %4 m off%5", m_Name, why, (int)DRIVE_OUT_M, Math.Round(vector.DistanceXZ(at, enemy)), how);
   return true;
  }
 
