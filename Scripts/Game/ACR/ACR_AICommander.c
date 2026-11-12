@@ -2132,7 +2132,7 @@ class ACR_AICommander : Managed
   {
    if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction) continue;
    if (m_bHandedOnly && !squad.m_bAICommanded) continue; // a player commands the side: only squads handed to us
-   if (squad.HasPlayer() || !squad.GetAnchor()) continue; // players lead themselves
+   if (squad.PlayerSteers() || !squad.GetAnchor()) continue; // players lead themselves
    if (squad.m_bMortar) continue; // mortar teams: PositionMortars
    if (squad.Aircraft()) continue; // helicopter crews: AI can't fly
    if (ACR_AirLift.Busy(squad)) continue; // flown somewhere: leave it until it has landed
@@ -3112,7 +3112,7 @@ class ACR_AICommander : Managed
  {
   foreach (ACR_Squad holder : m_Manager.m_Squads)
   {
-   if (!IsHolder(holder) || !holder.GetFaction() || holder.GetFaction().GetFactionKey() != m_sFaction || holder.HasPlayer() || holder.m_Commander != 0) continue;
+   if (!IsHolder(holder) || !holder.GetFaction() || holder.GetFaction().GetFactionKey() != m_sFaction || holder.PlayerSteers() || holder.m_Commander != 0) continue;
    if (vector.DistanceXZ(PositionOf(holder), pos) > reach) continue;
    into.Insert(holder);
   }
@@ -3193,7 +3193,7 @@ class ACR_AICommander : Managed
    }
    // Only a reserve still posted: one sent into an attack (or a sweep, a resupply) meanwhile kept
    // m_ReserveSquad, and was then also committed here and pulled between the two jobs.
-   if (needed > 0 && m_ReserveSquad && m_ReserveSquad.m_iAITask == ACR_EAITask.POSTED && !m_ReserveSquad.HasPlayer() && m_ReserveSquad.CountAlive() > 0 && m_ReserveSquad.KnownEnemies(250) == 0 && !KeepsWorksManned(m_ReserveSquad, base, outnumbered))
+   if (needed > 0 && m_ReserveSquad && m_ReserveSquad.m_iAITask == ACR_EAITask.POSTED && !m_ReserveSquad.PlayerSteers() && m_ReserveSquad.CountAlive() > 0 && m_ReserveSquad.KnownEnemies(250) == 0 && !KeepsWorksManned(m_ReserveSquad, base, outnumbered))
    {
     ACR_Squad qrf = m_ReserveSquad;
     m_ReserveSquad = null;
@@ -3337,7 +3337,7 @@ class ACR_AICommander : Managed
   // Forget squads that no longer defend (freed, fallen back, taken over, gone).
   array<ACR_Squad> stale = {};
   foreach (ACR_Squad held, vector heldAt : m_ForwardAt)
-   if (!held || !m_Manager.m_Squads.Contains(held) || held.HasPlayer() || held.m_iAITask != ACR_EAITask.DEFEND || !held.m_AITarget) stale.Insert(held);
+   if (!held || !m_Manager.m_Squads.Contains(held) || held.PlayerSteers() || held.m_iAITask != ACR_EAITask.DEFEND || !held.m_AITarget) stale.Insert(held);
   foreach (ACR_Squad gone : stale) m_ForwardAt.Remove(gone);
   foreach (ACR_Base base : ACR_Base.s_All)
   {
@@ -3346,7 +3346,7 @@ class ACR_AICommander : Managed
    array<ACR_Squad> defenders = {};
    foreach (ACR_Squad squad : m_Manager.m_Squads)
    {
-    if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction || squad.HasPlayer() || !squad.GetAnchor()) continue;
+    if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction || squad.PlayerSteers() || !squad.GetAnchor()) continue;
     if (m_bHandedOnly && !squad.m_bAICommanded) continue;
     if (squad == m_FobEscort || squad == m_ReserveSquad || IsScreen(squad) || squad.m_bMortar || squad.Aircraft() || ACR_AirLift.Busy(squad)) continue;
     bool defending = squad.m_iAITask == ACR_EAITask.DEFEND && squad.m_AITarget == base;
@@ -4390,7 +4390,7 @@ class ACR_AICommander : Managed
  {
   why = "";
   if (!m_Manager || !m_Manager.m_Supports || (m_bHandedOnly && !m_bTwoICAll)) return false; // paid: not for handed squads (CallSupport), but the lazy commander's 2IC may
-  if (!squad || !squad.m_Group || squad.HasPlayer()) return false;
+  if (!squad || !squad.m_Group || squad.PlayerSteers()) return false;
   if (squad.IsMounted() || ACR_Transport.CrewedVehicle(squad) || squad.m_bMortar || squad.Aircraft()) return false;
   if (ACR_AirLift.Busy(squad)) return false;
   if (!ACR_Manager.OnMap(destination)) return false;
@@ -4581,7 +4581,7 @@ class ACR_AICommander : Managed
   // (A retired FOB keeps its owner: its HQ is gone, so it is lost all the same.)
   if (trip.m_Base && (trip.m_Base.m_bRetired || trip.m_Base.m_sOwner != m_sFaction)) return "base lost";
   if (vector.DistanceXZ(PositionOf(squad), trip.m_vTo) <= TRIP_ARRIVED) return "arrived";
-  if (squad.HasPlayer()) return "a player leads it";
+  if (squad.PlayerSteers()) return "a player leads it";
   if (squad.KnownEnemies(300) > 0) return "contact";
   if (ACR_AirLift.Busy(squad)) return "";
   ACR_Ride ride;
@@ -5232,7 +5232,7 @@ class ACR_AICommander : Managed
    for (int s = attack.m_Squads.Count() - 1; s >= 0; s--)
    {
     ACR_Squad squad = attack.m_Squads[s];
-    if (!squad || !m_Manager.m_Squads.Contains(squad) || squad.HasPlayer())
+    if (!squad || !m_Manager.m_Squads.Contains(squad) || squad.PlayerSteers())
     {
      // A player took it: free it, or it stayed tasked ATTACK and the AI never used it again.
      if (squad && squad.m_iAITask == ACR_EAITask.ATTACK) squad.SetAITask(ACR_EAITask.FREE);
@@ -5727,7 +5727,7 @@ class ACR_AICommander : Managed
    ACR_ScreenPost post = m_Screens[i];
    ACR_Squad squad = post.m_Squad;
    // Someone else has it now (a player, a defence, a refit), or it's gone.
-   if (!squad || !m_Manager.m_Squads.Contains(squad) || squad.CountAlive() == 0 || squad.HasPlayer() || !Ours(squad) || squad.m_iAITask != ACR_EAITask.POSTED || !post.m_Base || post.m_Base.m_sOwner != m_sFaction)
+   if (!squad || !m_Manager.m_Squads.Contains(squad) || squad.CountAlive() == 0 || squad.PlayerSteers() || !Ours(squad) || squad.m_iAITask != ACR_EAITask.POSTED || !post.m_Base || post.m_Base.m_sOwner != m_sFaction)
    {
     m_Screens.Remove(i);
     continue;
@@ -5913,7 +5913,7 @@ class ACR_AICommander : Managed
    bool hasFoot = false;
    foreach (ACR_Squad foot : m_Manager.m_Squads)
    {
-    if (!foot.GetFaction() || foot.GetFaction().GetFactionKey() != m_sFaction || foot.HasPlayer()) continue;
+    if (!foot.GetFaction() || foot.GetFaction().GetFactionKey() != m_sFaction || foot.PlayerSteers()) continue;
     if (foot.IsMounted() || ACR_Transport.CrewedVehicle(foot) || foot.m_bMortar || foot.Aircraft()) continue;
     if (foot.m_iAITask != ACR_EAITask.FREE && foot.m_iAITask != ACR_EAITask.POSTED) continue;
     if (vector.DistanceXZ(PositionOf(foot), base.GetOrigin()) <= base.m_fRadius + 150) { hasFoot = true; break; }
@@ -6568,7 +6568,7 @@ class ACR_AICommander : Managed
   foreach (ACR_MortarTeam team : teams)
   {
    ACR_Squad squad = team.m_Squad;
-   if (!squad || squad.HasPlayer() || team.m_bLost || team.m_bFiring || team.m_eState != ACR_EMortarState.DEPLOYED) continue;
+   if (!squad || squad.PlayerSteers() || team.m_bLost || team.m_bFiring || team.m_eState != ACR_EMortarState.DEPLOYED) continue;
    if (m_bHandedOnly && (squad.m_bClaimed || squad.m_Commander != 0)) continue; // a team the player ordered is theirs
    vector from;
    if (!ACR_CounterBattery.UnderFire(team, now, from)) continue;
@@ -6595,7 +6595,7 @@ class ACR_AICommander : Managed
   foreach (ACR_MortarTeam team : teams)
   {
    ACR_Squad squad = team.m_Squad;
-   if (!squad || squad.HasPlayer() || team.m_bLost || team.m_bFiring) continue;
+   if (!squad || squad.PlayerSteers() || team.m_bLost || team.m_bFiring) continue;
    if (m_bHandedOnly && (squad.m_bClaimed || squad.m_Commander != 0)) continue; // the lazy commander's 2IC: a team the player ordered is theirs
    if (team.m_eState == ACR_EMortarState.PACKING || team.m_eState == ACR_EMortarState.DEPLOYING) continue;
    // Shoot-and-scoot: after firing a mission, displace slightly so counter-battery misses
@@ -6706,7 +6706,7 @@ class ACR_AICommander : Managed
   float now = GetGame().GetWorld().GetWorldTime();
   foreach (ACR_Squad squad : all)
   {
-   if (!squad || squad.HasPlayer() || squad.m_bMortar || squad.Aircraft() || ACR_Transport.CrewedVehicle(squad)) continue;
+   if (!squad || squad.PlayerSteers() || squad.m_bMortar || squad.Aircraft() || ACR_Transport.CrewedVehicle(squad)) continue;
    if (InAssault(squad)) continue;
    float retryAt;
    if (m_ReinforceRetryAt.Find(squad, retryAt))
@@ -7381,7 +7381,7 @@ class ACR_AICommander : Managed
     if (!station || best < ACR_Logistics.SERVICE_RANGE) continue; // none, or already being served
     ACR_Squad crew = CrewOf(station);
     bool holding = squad.m_iAITask == ACR_EAITask.DEFEND || squad.m_iAITask == ACR_EAITask.POSTED || !squad.m_Group.GetCurrentWaypoint();
-    bool crewFree = crew && !crew.HasPlayer() && Ours(crew) && !m_ServiceJobs.Contains(crew) && !StuckLately(crew);
+    bool crewFree = crew && !crew.PlayerSteers() && Ours(crew) && !m_ServiceJobs.Contains(crew) && !StuckLately(crew);
     string what = ACR_Logistics.ServiceName(service);
     if (crewFree && !m_ServiceSnub.Contains(squad) && (holding || squad.IsMounted() == false && best > 800) && !DangerOnTheWay(crew, PositionOf(squad)))
     {
@@ -7417,7 +7417,7 @@ class ACR_AICommander : Managed
   {
    IEntity serviceVehicle = ACR_Transport.CrewedVehicle(idleCrew);
    int serviceMask = ACR_Logistics.ServiceOf(serviceVehicle) & ~ACR_EService.CONSTRUCTION;
-   if (!serviceVehicle || serviceMask == 0 || idleCrew.HasPlayer() || m_ServiceJobs.Contains(idleCrew)) continue;
+   if (!serviceVehicle || serviceMask == 0 || idleCrew.PlayerSteers() || m_ServiceJobs.Contains(idleCrew)) continue;
    if (idleCrew.OrderState() == ACR_EOrderState.BUILD_FOB || idleCrew.m_iAITask == ACR_EAITask.BUILD_FOB) continue;
    if (IsAssistingFobUpgrade(idleCrew) || StuckLately(idleCrew)) continue;
    ACR_Base goal = supplyPoint;
@@ -7521,7 +7521,7 @@ class ACR_AICommander : Managed
  // not in an assault, not walking back for replacements (that refill restocks it too).
  protected bool AmmoRunCandidate(ACR_Squad squad)
  {
-  if (!squad || squad.HasPlayer() || squad.m_Commander != 0 || squad.m_bMortar || squad.Aircraft() || !Ours(squad)) return false;
+  if (!squad || squad.PlayerSteers() || squad.m_Commander != 0 || squad.m_bMortar || squad.Aircraft() || !Ours(squad)) return false;
   if (squad == m_FobBuilder || squad == m_FobEscort || OnRequest(squad) || InAssault(squad) || m_Refitting.Contains(squad)) return false;
   IEntity crewed = ACR_Transport.CrewedVehicle(squad);
   if (crewed && ACR_Logistics.ServiceOf(crewed) != 0) return false;
@@ -7533,7 +7533,7 @@ class ACR_AICommander : Managed
  // A truck crew free to drive out.
  protected bool AmmoCrewFree(ACR_Squad crew)
  {
-  if (!crew || crew.HasPlayer() || crew.m_Commander != 0 || !Ours(crew) || m_ServiceJobs.Contains(crew) || StuckLately(crew)) return false;
+  if (!crew || crew.PlayerSteers() || crew.m_Commander != 0 || !Ours(crew) || m_ServiceJobs.Contains(crew) || StuckLately(crew)) return false;
   if (crew.OrderState() == ACR_EOrderState.BUILD_FOB || crew.m_iAITask == ACR_EAITask.BUILD_FOB) return false;
   return !IsAssistingFobUpgrade(crew);
  }
@@ -7777,7 +7777,7 @@ class ACR_AICommander : Managed
  {
   ACR_AmmoRun run = AmmoRunOf(squad);
   if (!run) return;
-  if (!m_Manager.m_Squads.Contains(squad) || squad.CountAlive() <= 0 || squad.HasPlayer() || !Ours(squad))
+  if (!m_Manager.m_Squads.Contains(squad) || squad.CountAlive() <= 0 || squad.PlayerSteers() || !Ours(squad))
   {
    EndAmmoRun(squad, "", false, now);
    return;
@@ -7806,7 +7806,7 @@ class ACR_AICommander : Managed
   bool booked = crew && m_ServiceJobs.Find(crew, serving) && serving == squad;
   string lost = "";
   if (!crew || !truck || !m_Manager.m_Squads.Contains(crew) || ACR_Logistics.Health(truck) <= 0) lost = "the truck was lost";
-  else if (!booked || crew.HasPlayer() || crew.m_Commander != 0) lost = "the truck was taken off the job";
+  else if (!booked || crew.PlayerSteers() || crew.m_Commander != 0) lost = "the truck was taken off the job";
   else if (StuckLately(crew) || crew.GaveUpUnreachable()) lost = "the truck can't get there";
   else if (run.m_fArrivedAt <= 0 && now >= run.m_fGiveUpAt) lost = "the truck never came";
   else if (logistics.StockOf(truck) < 1) lost = "the truck ran dry";
@@ -8062,7 +8062,7 @@ class ACR_AICommander : Managed
   {
    if (road.m_sSide != m_sFaction) continue;
    ACR_Squad sweeper = road.m_Sweeper;
-   if (sweeper && (!m_Manager.m_Squads.Contains(sweeper) || sweeper.CountAlive() <= 0 || sweeper.HasPlayer() || sweeper.m_iAITask != ACR_EAITask.SWEEP || sweeper.GaveUpUnreachable() || now - road.m_fSweepSince > SWEEP_MAX_MS))
+   if (sweeper && (!m_Manager.m_Squads.Contains(sweeper) || sweeper.CountAlive() <= 0 || sweeper.PlayerSteers() || sweeper.m_iAITask != ACR_EAITask.SWEEP || sweeper.GaveUpUnreachable() || now - road.m_fSweepSince > SWEEP_MAX_MS))
    {
     if (sweeper.m_iAITask == ACR_EAITask.SWEEP) sweeper.SetAITask(ACR_EAITask.FREE);
     road.m_Sweeper = null;
@@ -8151,7 +8151,7 @@ class ACR_AICommander : Managed
   if (m_EvacTaxi)
   {
    IEntity vehicle = ACR_Transport.CrewedVehicle(m_EvacTaxi);
-   bool going = ours && vehicle && m_Manager.m_Squads.Contains(m_EvacTaxi) && m_EvacTaxi.CountAlive() > 0 && !m_EvacTaxi.HasPlayer() && m_EvacTaxi.m_iAITask == ACR_EAITask.RESCUE && now - m_fEvacSince <= EVAC_MAX_MS;
+   bool going = ours && vehicle && m_Manager.m_Squads.Contains(m_EvacTaxi) && m_EvacTaxi.CountAlive() > 0 && !m_EvacTaxi.PlayerSteers() && m_EvacTaxi.m_iAITask == ACR_EAITask.RESCUE && now - m_fEvacSince <= EVAC_MAX_MS;
    string done = "";
    if (!going) done = "called off";
    else done = EvacStep(vehicle, now);
@@ -8299,7 +8299,7 @@ class ACR_AICommander : Managed
   bool ours = !m_bTwoICAll || ACR_Evac.TwoICExtracts(m_sFaction);
   if (m_PalletSquad)
   {
-   bool going = ours && ACR_Airdrop.Has(m_PalletTarget) && ACR_Airdrop.MayTake(m_PalletTarget, m_sFaction) && m_Manager.m_Squads.Contains(m_PalletSquad) && m_PalletSquad.CountAlive() > 0 && !m_PalletSquad.HasPlayer() && m_PalletSquad.m_iAITask == ACR_EAITask.PALLET && !m_PalletSquad.GaveUpUnreachable() && now - m_fPalletSince <= SWEEP_MAX_MS;
+   bool going = ours && ACR_Airdrop.Has(m_PalletTarget) && ACR_Airdrop.MayTake(m_PalletTarget, m_sFaction) && m_Manager.m_Squads.Contains(m_PalletSquad) && m_PalletSquad.CountAlive() > 0 && !m_PalletSquad.PlayerSteers() && m_PalletSquad.m_iAITask == ACR_EAITask.PALLET && !m_PalletSquad.GaveUpUnreachable() && now - m_fPalletSince <= SWEEP_MAX_MS;
    if (going) return;
    if (m_PalletSquad.m_iAITask == ACR_EAITask.PALLET) m_PalletSquad.SetAITask(ACR_EAITask.FREE);
    m_PalletSquad = null;
@@ -8626,7 +8626,7 @@ class ACR_AICommander : Managed
   MySquads(mine, false);
   foreach (ACR_Squad squad : mine)
   {
-   if (!squad || squad.HasPlayer() || squad.CountAlive() <= 0 || squad == m_FobEscort) continue;
+   if (!squad || squad.PlayerSteers() || squad.CountAlive() <= 0 || squad == m_FobEscort) continue;
    if (squad.m_iAITask == ACR_EAITask.ATTACK || squad.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
    // Not a squad giving or taking a ride (1 Nov live: a Humvee carrying medics was sent to build).
    if (m_Manager.m_Rides && m_Manager.m_Rides.RideOf(squad)) continue;
@@ -8687,7 +8687,7 @@ class ACR_AICommander : Managed
   if (builder) SortByDistance(free, PositionOf(builder));
   foreach (ACR_Squad squad : free)
   {
-   if (!squad || squad == builder || squad.HasPlayer() || squad.CountAlive() <= 0 || IsSupportTeam(squad)) continue;
+   if (!squad || squad == builder || squad.PlayerSteers() || squad.CountAlive() <= 0 || IsSupportTeam(squad)) continue;
    if (squad.IsCombatUnit()) return squad;
   }
   return null;
@@ -8808,7 +8808,7 @@ class ACR_AICommander : Managed
    // was cancelled by the move, a player's squad is his.
    int task = squad.m_iAITask;
    if (task != ACR_EAITask.FREE && task != ACR_EAITask.POSTED && task != ACR_EAITask.DEFEND) continue;
-   if (squad.HasJob() || squad.HasPlayer()) continue;
+   if (squad.HasJob() || squad.PlayerSteers()) continue;
    float d = vector.DistanceXZ(PositionOf(squad), chargePos);
    if (d < bestDist)
    {
@@ -8978,7 +8978,7 @@ class ACR_AICommander : Managed
   MySquads(mine, false);
   foreach (ACR_Squad squad : mine)
   {
-   if (!squad || squad.HasPlayer() || squad.CountAlive() <= 0) continue;
+   if (!squad || squad.PlayerSteers() || squad.CountAlive() <= 0) continue;
    // Only squads with nothing else to do: sappers laying mines, roadblock and Fortify holders,
    // sweepers, refits, rides out to build and the reserve were re-routed every 15 s, their paid
    // jobs cancelled (audit 31 Oct; RespondToCharge has the same rule).
@@ -9021,7 +9021,7 @@ class ACR_AICommander : Managed
   {
    if (!squad || squad.m_iAITask != ACR_EAITask.ROADBLOCK) continue;
    if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction) continue;
-   if (squad.m_Commander != 0 || squad.HasPlayer()) continue;
+   if (squad.m_Commander != 0 || squad.PlayerSteers()) continue;
    if (squad.OrderState() == ACR_EOrderState.BUILD_ROADBLOCK || PendingBuildOf(squad)) continue;
    if (squad.m_ActiveRoadblock && KeepsHolding(squad)) continue;
    squad.SetAITask(ACR_EAITask.POSTED);
@@ -9198,7 +9198,7 @@ class ACR_AICommander : Managed
     float fartherDistance = FAR_BUILDER;
     foreach (ACR_Squad squad : squads)
     {
-     if (!squad || squad.HasPlayer() || squad.CountAlive() <= 0 || squad.IsVehicle() || IsSupportTeam(squad)) continue;
+     if (!squad || squad.PlayerSteers() || squad.CountAlive() <= 0 || squad.IsVehicle() || IsSupportTeam(squad)) continue;
      if (squad == m_ReserveSquad || IsScreen(squad) || squad.m_Commander != 0) continue;
      if (squad.OrderState() == ACR_EOrderState.BUILD_ROADBLOCK || squad.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
      if (squad.m_iAITask != ACR_EAITask.POSTED && squad.m_iAITask != ACR_EAITask.FREE) continue;
@@ -9331,7 +9331,7 @@ class ACR_AICommander : Managed
    ACR_PendingBuild pending = m_aPendingBuilds[i];
    ACR_Squad squad = pending.m_Squad;
    string what = BuildName(pending.m_iTask);
-   bool gone = !squad || !m_Manager.m_Squads.Contains(squad) || squad.CountAlive() <= 0 || squad.HasPlayer() || squad.m_Commander != 0 || squad.m_iAITask != pending.m_iTask;
+   bool gone = !squad || !m_Manager.m_Squads.Contains(squad) || squad.CountAlive() <= 0 || squad.PlayerSteers() || squad.m_Commander != 0 || squad.m_iAITask != pending.m_iTask;
    if (gone || !pending.m_Base || pending.m_Base.m_sOwner != m_sFaction || now > pending.m_fDeadline)
    {
     m_aPendingBuilds.Remove(i);
@@ -9438,7 +9438,7 @@ class ACR_AICommander : Managed
    float fartherDistance = FAR_BUILDER;
    foreach (ACR_Squad squad : squads)
    {
-    if (!squad || squad.HasPlayer() || squad.m_Commander != 0 || squad == m_ReserveSquad || IsScreen(squad) || IsSupportTeam(squad) || !ACR_Minefields.CanLay(squad)) continue;
+    if (!squad || squad.PlayerSteers() || squad.m_Commander != 0 || squad == m_ReserveSquad || IsScreen(squad) || IsSupportTeam(squad) || !ACR_Minefields.CanLay(squad)) continue;
     if (squad.m_iAITask != ACR_EAITask.POSTED && squad.m_iAITask != ACR_EAITask.FREE) continue;
     if (squad.OrderState() == ACR_EOrderState.BUILD_ROADBLOCK || squad.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
     if (DueForRefit(squad)) continue;
@@ -9770,7 +9770,7 @@ class ACR_AICommander : Managed
   }
   foreach (ACR_Squad other : squads)
   {
-   if (!other || other.HasPlayer() || other.m_Commander != 0 || other == m_ReserveSquad || IsScreen(other) || IsSupportTeam(other) || !ACR_Fortify.CanFortify(other) || DueForRefit(other)) continue;
+   if (!other || other.PlayerSteers() || other.m_Commander != 0 || other == m_ReserveSquad || IsScreen(other) || IsSupportTeam(other) || !ACR_Fortify.CanFortify(other) || DueForRefit(other)) continue;
    if (other.m_MinePlan || other.m_ActiveRoadblock || other.m_Fortification || other.OrderState() == ACR_EOrderState.BUILD_ROADBLOCK || other.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
    float d = vector.DistanceXZ(PositionOf(other), pos);
    bool isFree = (other.m_iAITask == ACR_EAITask.FREE || other.m_iAITask == ACR_EAITask.POSTED) && other.IsCombatUnit() && !IsRetreating(other);
@@ -9889,7 +9889,7 @@ class ACR_AICommander : Managed
  {
   foreach (ACR_Squad squad : m_Manager.m_Squads)
   {
-   if (squad && squad.m_Fortification == fort && IsHolder(squad) && !squad.HasPlayer() && squad.m_Commander == 0) return squad;
+   if (squad && squad.m_Fortification == fort && IsHolder(squad) && !squad.PlayerSteers() && squad.m_Commander == 0) return squad;
   }
   return null;
  }
@@ -9942,7 +9942,7 @@ class ACR_AICommander : Managed
    // Still defending, or taken by something else since: it waits.
    if (squad.m_iAITask != ACR_EAITask.FREE && squad.m_iAITask != ACR_EAITask.POSTED) continue;
    done.Insert(squad);
-   if (squad.HasPlayer() || squad.m_Commander != 0 || !Ours(squad) || ManningSquad(fort) != null) continue;
+   if (squad.PlayerSteers() || squad.m_Commander != 0 || !Ours(squad) || ManningSquad(fort) != null) continue;
    if (Holding() >= m_Doctrine.m_iHolders) continue;
    if (!squad.ManFortification(fort)) continue;
    squad.SetAITask(ACR_EAITask.FORTIFY);
@@ -9959,7 +9959,7 @@ class ACR_AICommander : Managed
    }
    if (left.m_iAITask != ACR_EAITask.FREE && left.m_iAITask != ACR_EAITask.POSTED) continue;
    done.Insert(left);
-   if (left.HasPlayer() || left.m_Commander != 0 || !Ours(left) || RoadblockManningSquad(rb) != null) continue;
+   if (left.PlayerSteers() || left.m_Commander != 0 || !Ours(left) || RoadblockManningSquad(rb) != null) continue;
    if (Holding() >= m_Doctrine.m_iHolders) continue;
    if (!left.ManRoadblock(rb)) continue;
    left.SetAITask(ACR_EAITask.ROADBLOCK);
@@ -10016,7 +10016,7 @@ class ACR_AICommander : Managed
   foreach (ACR_Squad squad : free)
   {
    if (!squad) continue;
-   if (squad.HasPlayer() || squad.m_Commander != 0) players++;
+   if (squad.PlayerSteers() || squad.m_Commander != 0) players++;
    else if (squad == m_ReserveSquad) reserve++;
    else if (IsSupportTeam(squad)) support++;
    else if (squad.IsVehicle() && !squad.IsCombatUnit()) unarmed++;
@@ -10079,7 +10079,7 @@ class ACR_AICommander : Managed
   MySquads(squads, true);
   foreach (ACR_Squad squad : squads)
   {
-   if (!squad || squad.HasPlayer() || squad.m_Commander != 0 || squad == m_ReserveSquad || IsSupportTeam(squad) || !ACR_Fortify.CanFortify(squad)) continue;
+   if (!squad || squad.PlayerSteers() || squad.m_Commander != 0 || squad == m_ReserveSquad || IsSupportTeam(squad) || !ACR_Fortify.CanFortify(squad)) continue;
    if (squad.m_MinePlan || squad.OrderState() == ACR_EOrderState.BUILD_ROADBLOCK || squad.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
    if (squad.m_ActiveRoadblock || squad.m_Fortification) continue;
    if (DueForRefit(squad)) continue;

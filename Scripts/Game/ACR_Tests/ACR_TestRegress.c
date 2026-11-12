@@ -383,37 +383,37 @@ class ACR_TestRegress
   }
  }
 
- // A player taking the lead keeps the squad's order as its waypoint; his first order (here a waypoint
- // queued behind it, as the command wheel and AiO add theirs) replaces it.
+ // A player taking the lead keeps the squad's order as its objective on the player's own group (the AI
+ // men's group gets none: they follow him); his first order (a waypoint on the AI group, as the command
+ // wheel and AiO give theirs) replaces it.
  static void CheckTakeoverKeepsOrder(ACR_Manager manager)
  {
+  string name = "takeover: the order stays the objective on the player's group, his first order replaces it";
   ACR_Squad fixture;
   foreach (ACR_Squad candidate : manager.m_Squads)
-   if (candidate.m_Group && candidate.GetAnchor() && candidate.CountConscious() > 0 && !candidate.HasPlayer() && !candidate.IsMounted() && candidate.m_Commander == 0 && !candidate.HasJob()) { fixture = candidate; break; }
+   if (candidate.m_Group && candidate.m_CommandGroup && candidate.GetAnchor() && candidate.CountConscious() > 0 && !candidate.HasPlayer() && !candidate.IsMounted() && candidate.m_Commander == 0 && !candidate.HasJob()) { fixture = candidate; break; }
   if (!fixture)
   {
-   Check("takeover: the squad keeps its order, the player's first order replaces it", true, "no foot squad found");
+   Check(name, true, "no foot squad found");
    return;
   }
   ACR_OrderSnapshot saved = fixture.SnapshotOrder();
-  vector goal = ACR_Manager.Ground(fixture.GetAnchor().GetOrigin() + Vector(40, 0, 0));
+  vector goal = ACR_Manager.Ground(fixture.GetAnchor().GetOrigin() + Vector(60, 0, 0));
   fixture.MoveTo(goal);
   fixture.TakeLeadForTest(991);
-  array<AIWaypoint> after = {};
-  fixture.m_Group.GetWaypoints(after);
-  AIWaypoint first = fixture.m_Group.GetCurrentWaypoint();
-  bool kept = fixture.KeptOrderForTest() && after.Count() == 1 && first && vector.DistanceXZ(first.GetOrigin(), goal) < 1 && fixture.OrderState() == ACR_EOrderState.COMMANDED;
-  string keptDetail = string.Format("kept %1, waypoints %2, order '%3'", fixture.KeptOrderForTest(), after.Count(), fixture.m_Order);
+  array<AIWaypoint> aiOrders = {};
+  fixture.m_Group.GetWaypoints(aiOrders);
+  AIWaypoint objective = fixture.m_CommandGroup.GetCurrentWaypoint();
+  bool kept = fixture.KeptOrderForTest() && aiOrders.IsEmpty() && objective && vector.DistanceXZ(objective.GetOrigin(), goal) < 1 && fixture.OrderState() == ACR_EOrderState.COMMANDED;
+  string keptDetail = string.Format("kept %1, AI group waypoints %2, objective %3, order '%4'", fixture.KeptOrderForTest(), aiOrders.Count(), objective != null, fixture.m_Order);
   EntitySpawnParams params = new EntitySpawnParams();
   params.TransformMode = ETransformMode.WORLD;
-  params.Transform[3] = ACR_Manager.Ground(fixture.GetAnchor().GetOrigin() + Vector(0, 0, 40));
+  params.Transform[3] = ACR_Manager.Ground(fixture.GetAnchor().GetOrigin() + Vector(0, 0, 60));
   AIWaypoint wheel = AIWaypoint.Cast(GetGame().SpawnEntityPrefabLocal(Resource.Load(ACR_Squad.WP_MOVE), null, params));
   if (wheel) fixture.m_Group.AddWaypoint(wheel);
   fixture.WatchKeptOrderForTest();
-  array<AIWaypoint> replaced = {};
-  fixture.m_Group.GetWaypoints(replaced);
-  bool gaveWay = wheel && !fixture.KeptOrderForTest() && replaced.Count() == 1 && fixture.m_Group.GetCurrentWaypoint() == wheel && fixture.m_Order == "Following you";
-  Check("takeover: the squad keeps its order, the player's first order replaces it", kept && gaveWay, string.Format("%1; after the wheel order: kept %2, waypoints %3, order '%4'", keptDetail, fixture.KeptOrderForTest(), replaced.Count(), fixture.m_Order));
+  bool gaveWay = wheel && !fixture.KeptOrderForTest() && !fixture.m_CommandGroup.GetCurrentWaypoint() && fixture.m_Group.GetCurrentWaypoint() == wheel && fixture.m_Order == "Following you";
+  Check(name, kept && gaveWay, string.Format("%1; after the wheel order: kept %2, objective left %3, order '%4'", keptDetail, fixture.KeptOrderForTest(), fixture.m_CommandGroup.GetCurrentWaypoint() != null, fixture.m_Order));
   fixture.m_Commander = 0;
   fixture.ClearOrders();
   // (The wheel waypoint entity is left: deleting it in the frame it is removed trips the group's activity.)

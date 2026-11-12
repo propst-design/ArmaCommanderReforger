@@ -412,7 +412,7 @@ class ACR_TwoIC
    {
     panel.m_Doings.Insert(squad.m_Order);
     int leader = ACR_Squad.FindController(squad.GetLeader());
-    if (squad.HasPlayer()) flags |= ROW_LOCKED;
+    if (squad.PlayerSteers()) flags |= ROW_LOCKED;
     if (leader > 0) panel.m_RunBys.Insert(GetGame().GetPlayerManager().GetPlayerName(leader));
     else if (!why.IsEmpty()) panel.m_RunBys.Insert("commander (" + why + ")");
     else panel.m_RunBys.Insert("commander");

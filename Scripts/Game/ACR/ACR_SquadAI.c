@@ -66,7 +66,7 @@ class ACR_SquadAI
   foreach (ACR_Squad squad : manager.m_Squads)
   {
    if (!squad || !squad.GetFaction() || squad.GetFaction().GetFactionKey() != faction) continue;
-   if (squad.HasPlayer() || squad.m_Commander != 0)
+   if (squad.PlayerSteers())
    {
     if (squad.m_bAICommanded) Release(squad, false);
     squad.m_bClaimed = true;
@@ -87,7 +87,7 @@ class ACR_SquadAI
  static bool CanHand(ACR_Squad squad, out string refusal)
  {
   refusal = "";
-  if (squad.HasPlayer()) refusal = "a player is leading it";
+  if (squad.PlayerSteers()) refusal = "a player is leading it";
   else if (squad.m_bMortar) refusal = "mortar teams stay with you (fire missions)";
   else if (squad.Aircraft()) refusal = "the AI can't fly helicopters";
   else if (ACR_AirLift.Busy(squad)) refusal = "it is on an air lift";

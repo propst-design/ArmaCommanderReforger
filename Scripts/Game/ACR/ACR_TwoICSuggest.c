@@ -216,7 +216,7 @@ class ACR_TwoICSuggest
  // A squad Send truck can take: the side's, no player in it, a construction truck with its loads.
  static bool TruckFor(ACR_Squad squad, string faction)
  {
-  if (!squad || !squad.GetFaction() || squad.GetFaction().GetFactionKey() != faction || squad.HasPlayer() || !squad.CanEstablishFob()) return false;
+  if (!squad || !squad.GetFaction() || squad.GetFaction().GetFactionKey() != faction || squad.PlayerSteers() || !squad.CanEstablishFob()) return false;
   return squad.GetAnchor() != null;
  }
 

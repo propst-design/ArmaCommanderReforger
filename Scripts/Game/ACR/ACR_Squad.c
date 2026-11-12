@@ -337,15 +337,13 @@ class ACR_Squad : Managed
    m_DetachedLeader = null;
   }
   if (previous) previous.SetCanDeleteIfNoPlayer(m_PreviousDeleteIfEmpty);
+  DropKeptOrder(); // the objective was his to walk the squad to (KeepOrder)
   // Back to the map order it had before, unless the player left it busy with one of his own.
   if (m_Aside && m_Group)
   {
    array<AIWaypoint> current = {};
    m_Group.GetWaypoints(current);
-   // Still on the order it carried on with (KeepOrder): the map order is set up again in full.
-   bool onlyKept = m_KeptWaypoint && current.Count() == 1 && current[0] == m_KeptWaypoint;
-   if (onlyKept) ClearOrders();
-   if (current.IsEmpty() || onlyKept)
+   if (current.IsEmpty())
    {
     // A standing plan (QRF, ambush, a held position) is set up again, not just its waypoint
     // and label: FollowCommander's NewOrder ended it, and "QRF: standing by" with no QRF
@@ -543,21 +541,22 @@ class ACR_Squad : Managed
   PrintFormat("[ACR] %1: native command granted player=%2 group=%3 linked=%4", m_Name, leaderPlayer, component.GetGroupID(), m_CommandGroup.GetSlave() == m_Group);
  }
 
- // A player taking the lead doesn't remove the squad's order (Jacob, 11 Nov): it carries on with it as a
- // plain waypoint of the same kind, which the map and AiO's order marker show, while the AI commander's
- // plan behind it has ended (FollowCommander: no more orders from the AI). The player's first order
- // replaces it instead of queuing behind it (WatchKeptOrder): the command wheel, AiO's whole-squad
- // orders, a map order (ClearOrders). Not a paid job's or a ride's (m_Aside is null for those): those
- // are cleared as before. When he leaves still on it, the map order is put back as before (Release).
+ // A player taking the lead doesn't remove the squad's order (Jacob, 11 Nov): it stays the squad's
+ // objective, a waypoint of the same kind on the player's own group (m_CommandGroup), which the map and
+ // AiO's order marker show. The AI men don't drive it: their group has no waypoint, so they follow him
+ // in formation as any player-led squad does, and he walks them there himself ("wouldnt the squad just
+ // follow me to that waypoint?"). The AI commander's plan behind it has ended (FollowCommander). His
+ // first order replaces it (WatchKeptOrder): the command wheel and AiO give theirs to the AI group, a
+ // map order clears it (ClearOrders). It ends when he gets there, or lets go (Release: the map order
+ // comes back as before). Not a paid job's or a ride's (m_Aside is null for those): cleared as before.
  protected AIWaypoint m_KeptWaypoint;
+ static const float KEPT_REACHED_M = 15;
  protected void KeepOrder(ACR_OrderSnapshot order, string label)
  {
-  if (!order || !m_Group || Aircraft() || order.m_Target == vector.Zero) return;
+  if (!order || !m_Group || !m_CommandGroup || Aircraft() || order.m_Target == vector.Zero) return;
   ResourceName prefab = order.m_sPrefab;
   if (prefab == WP_GARRISON) prefab = WP_DEFEND;
   if (prefab != WP_MOVE && prefab != WP_DEFEND && prefab != WP_SEARCH_DESTROY) return; // a boarding or the like: not carried on
-  // As IssueWaypoint: a vehicle crew never gets the game's Defend (its turret men get out).
-  if (prefab == WP_DEFEND && ACR_Transport.CrewedVehicle(this)) prefab = WP_MOVE;
   Resource resource = Resource.Load(prefab);
   if (!resource.IsValid()) return;
   EntitySpawnParams params = new EntitySpawnParams();
@@ -566,31 +565,45 @@ class ACR_Squad : Managed
   AIWaypoint waypoint = AIWaypoint.Cast(GetGame().SpawnEntityPrefabLocal(resource, null, params));
   if (!waypoint) return;
   if (order.m_fRadius > 0) waypoint.SetCompletionRadius(order.m_fRadius);
-  m_Group.AddWaypoint(waypoint);
+  m_CommandGroup.AddWaypoint(waypoint);
   m_KeptWaypoint = waypoint;
-  SetOrder("Following you, carrying on: " + label, ACR_EOrderState.COMMANDED);
-  PrintFormat("[ACR] %1: led by a player, carries on with its order (%2) to %3", m_Name, label, ACR_Manager.Grid(order.m_Target));
+  SetOrder("Following you, objective: " + label, ACR_EOrderState.COMMANDED);
+  PrintFormat("[ACR] %1: led by a player, keeps its order (%2) as the objective at %3", m_Name, label, ACR_Manager.Grid(order.m_Target));
  }
 
- // The kept order ends when the squad gets there (or anyone removes it), and gives way to the player's
- // first order: one queued behind it from the wheel or AiO, or any other waypoint in front of it.
+ // The objective gives way to the player's first order (any waypoint on the AI group: the wheel, AiO,
+ // a Game Master), ends when the player gets there or anyone removes it, and goes when he lets go.
  protected void WatchKeptOrder()
  {
   if (!m_KeptWaypoint) return;
-  if (!m_Group)
+  string why;
+  array<AIWaypoint> ordered = {};
+  if (m_Group) m_Group.GetWaypoints(ordered);
+  array<AIWaypoint> kept = {};
+  if (m_CommandGroup) m_CommandGroup.GetWaypoints(kept);
+  IEntity leader = GetLeader();
+  float reach = Math.Max(KEPT_REACHED_M, m_KeptWaypoint.GetCompletionRadius());
+  if (m_Commander == 0) why = "no player leads it";
+  else if (!ordered.IsEmpty()) why = "the player's own order replaces it";
+  else if (!kept.Contains(m_KeptWaypoint)) why = "removed";
+  else if (leader && vector.DistanceXZ(leader.GetOrigin(), m_KeptWaypoint.GetOrigin()) <= reach) why = "reached";
+  if (why.IsEmpty()) return;
+  DropKeptOrder();
+  if (OrderState() == ACR_EOrderState.COMMANDED) SetOrder("Following you", ACR_EOrderState.COMMANDED);
+  PrintFormat("[ACR] %1: objective ended (%2)", m_Name, why);
+ }
+
+ protected void DropKeptOrder()
+ {
+  if (!m_KeptWaypoint) return;
+  if (m_CommandGroup)
   {
-   m_KeptWaypoint = null;
-   return;
+   array<AIWaypoint> kept = {};
+   m_CommandGroup.GetWaypoints(kept);
+   if (kept.Contains(m_KeptWaypoint)) m_CommandGroup.RemoveWaypoint(m_KeptWaypoint);
   }
-  array<AIWaypoint> current = {};
-  m_Group.GetWaypoints(current);
-  bool there = current.Contains(m_KeptWaypoint);
-  if (there && current.Count() == 1) return;
-  if (there) m_Group.RemoveWaypoint(m_KeptWaypoint);
   DeleteWaypointSoon(m_KeptWaypoint);
   m_KeptWaypoint = null;
-  if (OrderState() == ACR_EOrderState.COMMANDED) SetOrder("Following you", ACR_EOrderState.COMMANDED);
-  if (there) PrintFormat("[ACR] %1: the player's own order replaces the one it carried on with", m_Name);
  }
 
  bool KeptOrderForTest() { return m_KeptWaypoint != null; }
@@ -980,8 +993,7 @@ class ACR_Squad : Managed
   DeleteWaypointSoon(m_Waypoint);
   DropQueuedHop();
   m_Waypoint = null;
-  DeleteWaypointSoon(m_KeptWaypoint);
-  m_KeptWaypoint = null;
+  DropKeptOrder();
  }
 
  // A replaced waypoint goes a moment later, not in the frame it is removed: the group's running
@@ -4478,7 +4490,7 @@ class ACR_Squad : Managed
   // Saved to try again later (HoldRetryWatch). Not a ride: it ends with this hold, its riders walk on.
   bool ride = manager && manager.m_Rides && (manager.m_Rides.RideOf(this) || manager.m_Rides.Unloading(this));
   ACR_OrderSnapshot retry = null;
-  if (!ride && !HasPlayer()) retry = OrderToRetry();
+  if (!ride && !PlayerSteers()) retry = OrderToRetry();
   if (manager)
   {
    array<ACR_Squad> riders = {};
@@ -4546,7 +4558,7 @@ class ACR_Squad : Managed
  protected void HoldRetryWatch(float now)
  {
   if (!m_HoldRetryOrder) return;
-  if (m_iOrderSerial != m_iHoldRetrySerial || HasPlayer())
+  if (m_iOrderSerial != m_iHoldRetrySerial || PlayerSteers())
   {
    m_HoldRetryOrder = null; // given another order meanwhile
    return;
@@ -5017,6 +5029,23 @@ class ACR_Squad : Managed
   foreach (AIAgent agent : agents)
    if (FindController(agent.GetControlledEntity())) return true;
   return false;
+ }
+
+ // A player steers this squad: he leads it, drives its vehicle, or drives it from the gun. A player in
+ // one of its other men only rolls along as a rifleman (Jacob, 11 Nov): the AI leader leads, and the
+ // AI commander (or the 2IC) keeps ordering and re-tasking the squad as before.
+ bool PlayerSteers()
+ {
+  if (m_Commander != 0) return true;
+  if (!HasPlayer()) return false;
+  IEntity leader = GetLeader();
+  if (leader && FindController(leader)) return true;
+  IEntity vehicle = ACR_Transport.CrewedVehicle(this);
+  if (!vehicle) return false;
+  ChimeraCharacter driver = DriverOf(vehicle);
+  if (driver && FindController(driver)) return true;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  return manager && manager.IsGunnerDriven(vehicle);
  }
 
  // Board a specific vehicle if one is within 30 m of the point, otherwise the nearest free one.
