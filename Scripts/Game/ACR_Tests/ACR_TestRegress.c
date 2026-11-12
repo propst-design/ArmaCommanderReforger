@@ -1541,7 +1541,7 @@ class ACR_TestRegress
  // falls back to the default, and off means none. A srv: run has no players, so nothing is sent.
  static void IntroOptionCheck()
  {
-  bool onByDefault = ACR_Intro.On() && ACR_Setup.Current("intro") == "1" && ACR_SetupDialog.Tab("intro") == 1;
+  bool onByDefault = ACR_Intro.On() && ACR_Setup.Current("intro") == "1" && ACR_SetupDialog.Tab("intro") == 0; // Battlefield tab (Command is full, 11 Nov)
   ACR_Options.Set("acrIntro", "0");
   bool off = !ACR_Intro.On() && ACR_Setup.Current("intro") == "0";
   ACR_Options.Unset("acrIntro");
