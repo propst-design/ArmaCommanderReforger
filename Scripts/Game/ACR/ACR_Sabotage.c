@@ -51,6 +51,8 @@ class ACR_Raid : Managed
  float m_fAtTargetSince;
  float m_fOrderedAt;
  IEntity m_Charge;
+ bool m_bWatchCharge;          // planted and not yet gone or disarmed: watched whatever becomes of the team
+ bool m_bBlown;                // the charge went off
  string m_sName;
 
  static ref array<ref ACR_Raid> s_aRaids;
@@ -185,9 +187,11 @@ class ACR_Raid : Managed
   for (int i = s_aRaids.Count() - 1; i >= 0; i--)
   {
    ACR_Raid raid = s_aRaids[i];
+   // The charge first: the team may be dead or home (packed up: DONE) before it goes.
+   if (raid.m_bWatchCharge) raid.WatchCharge();
    if (raid.m_eState == ACR_ERaidState.DONE)
    {
-    if (!raid.m_Post || raid.m_Post.m_bGone) s_aRaids.RemoveOrdered(i);
+    if ((!raid.m_Post || raid.m_Post.m_bGone) && !raid.m_bWatchCharge) s_aRaids.RemoveOrdered(i);
     continue;
    }
    raid.Step(manager, now);
@@ -214,8 +218,7 @@ class ACR_Raid : Managed
     ACR_FIAIntel.Wiped(m_vTarget, m_From, "dead saboteurs");
     End("the team is dead");
    }
-   else if (!m_Charge) End("the charge went");
-   return;
+   return; // planted: Tick watches the charge (WatchCharge) whatever becomes of the team
   }
   if (m_eState == ACR_ERaidState.APPROACH)
   {
@@ -244,7 +247,14 @@ class ACR_Raid : Managed
    }
    return;
   }
-  // Planted: watch the charge go (or get disarmed).
+  // Planted: Tick watches the charge (WatchCharge).
+ }
+
+ // The planted charge: gone means it went off (Blown), unfused means disarmed. Runs every Tick
+ // until one of those, even after the team is dead or packed up (else a roadblock outlived the
+ // blast that should have taken it down).
+ void WatchCharge()
+ {
   if (m_Charge)
   {
    SCR_ExplosiveChargeComponent chargeComp = ACR_SapperDemo.ChargeComponent(m_Charge);
@@ -252,9 +262,11 @@ class ACR_Raid : Managed
    PrintFormat("[ACR] RAID charge at %1 disarmed", m_sName);
    SCR_EntityHelper.DeleteEntityAndChildren(m_Charge);
    m_Charge = null;
+   m_bWatchCharge = false;
    m_eState = ACR_ERaidState.DONE;
    return;
   }
+  m_bWatchCharge = false;
   Blown();
  }
 
@@ -320,6 +332,7 @@ class ACR_Raid : Managed
   chargeComp.SetFuzeTime(FUSE_S, true);
   chargeComp.ArmWithTimedFuze();
   m_eState = ACR_ERaidState.PLANTED;
+  m_bWatchCharge = true;
   PrintFormat("[ACR] RAID charge set at %1 (%2 s fuze), leaving", m_sName, (int)FUSE_S);
   Withdraw();
  }
@@ -328,6 +341,7 @@ class ACR_Raid : Managed
  protected void Blown()
  {
   m_eState = ACR_ERaidState.DONE;
+  m_bBlown = true;
   PrintFormat("[ACR] RAID charge at %1 went off", m_sName);
   if (!m_Roadblock || !m_Roadblock.m_Entity || vector.DistanceXZ(m_Roadblock.m_vPos, m_vTarget) > ROADBLOCK_BLAST) return;
   string side = m_Roadblock.m_sFaction;

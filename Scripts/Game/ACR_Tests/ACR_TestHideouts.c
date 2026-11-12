@@ -9,7 +9,8 @@
 // spread turns only an empty neutral base (never one held lately) into a hidden pocket.
 // Sabotage (#96 part 2, ACR_Raid): a raid on an unguarded Soviet FOB plants a charge and the HQ
 // goes down; a guarded FOB is never picked and a raid sent at it plants nothing; only built FOBs
-// are targets (never a starting HQ).
+// are targets (never a starting HQ); saboteurs killed right after planting: the charge is still
+// watched and goes off (review 0.5.13 #10).
 // Intel (#96, ACR_FIAIntel): a cell wiped out by the US gives the US (not USSR) an "FIA activity"
 // ring that holds the hideout feeding it; a second lead tightens it and still holds it.
 class ACR_TestHideouts
@@ -23,6 +24,7 @@ class ACR_TestHideouts
  protected static ACR_Base s_Fob2;
  protected static ref ACR_Raid s_Raid;
  protected static ref ACR_Raid s_Raid2;
+ protected static bool s_bPlantersKilled;
 
  static void Run(int second)
  {
@@ -47,6 +49,8 @@ class ACR_TestHideouts
   if (second == 73) IntelRings(manager);
   if (second == 74) RaidStart(manager);
   if (!s_Raid) return;
+  // Review 0.5.13 #10: the saboteurs die the moment they have planted; the charge is still watched.
+  if (second > 74 && second < 125 && !s_bPlantersKilled && s_Raid.m_eState == ACR_ERaidState.PLANTED) KillPlanters();
   if (second == 100) GuardedFob(manager);
   if (second == 125) RaidBlown(manager);
   if (second == 126) GuardedRaid(manager);
@@ -400,6 +404,20 @@ class ACR_TestHideouts
  protected static void RaidBlown(ACR_Manager manager)
  {
   ACR_TestRegress.Check("hideouts: the raid on the unguarded FOB plants and the HQ goes down", s_Fob.m_bHqLost && manager.m_Structures.HqEntityOf(s_Fob) == null, string.Format("state %1, HQ lost %2", s_Raid.m_eState, s_Fob.m_bHqLost));
+  ACR_TestRegress.Check("hideouts: saboteurs killed after planting: the raid still sees its charge go off", s_bPlantersKilled && s_Raid.m_bBlown && !s_Raid.m_bWatchCharge, string.Format("killed %1, blown %2, still watching %3", s_bPlantersKilled, s_Raid.m_bBlown, s_Raid.m_bWatchCharge));
+ }
+
+ protected static void KillPlanters()
+ {
+  s_bPlantersKilled = true;
+  if (!s_Raid.m_Post || !s_Raid.m_Post.m_Group) return;
+  array<AIAgent> agents = {};
+  s_Raid.m_Post.m_Group.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   ChimeraCharacter body = ChimeraCharacter.Cast(agent.GetControlledEntity());
+   if (body && body.GetCharacterController()) body.GetCharacterController().ForceDeath();
+  }
  }
 
  // The guarded FOB: not picked; a raid sent at it anyway plants nothing while the guard is there.
@@ -410,7 +428,7 @@ class ACR_TestHideouts
   {
    ACR_TestRegress.Skip("hideouts: a guarded FOB is never picked", "no second FOB");
    ACR_TestRegress.Skip("hideouts: a raid at a guarded FOB plants nothing", "no second FOB");
-   ACR_TestRegress.Complete("hideouts", 16);
+   ACR_TestRegress.Complete("hideouts", 17);
    return;
   }
   ACR_Base fob;
@@ -427,7 +445,7 @@ class ACR_TestHideouts
   ACR_Raid.s_fStageForTest = 0;
   if (!s_Raid2) return;
   ACR_TestRegress.Check("hideouts: a raid at a guarded FOB plants nothing", !s_Fob2.m_bHqLost && s_Raid2.m_eState != ACR_ERaidState.PLANTED && !s_Raid2.m_Charge, string.Format("state %1, HQ lost %2", s_Raid2.m_eState, s_Fob2.m_bHqLost));
-  ACR_TestRegress.Complete("hideouts", 16);
+  ACR_TestRegress.Complete("hideouts", 17);
  }
 
  protected static void Spawn(ACR_Manager manager, string name, vector at, float distance)
