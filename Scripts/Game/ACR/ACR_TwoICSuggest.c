@@ -581,18 +581,6 @@ class ACR_TwoICSuggest
   return count;
  }
 
- // The side's first sent site (tests).
- static bool SentAt(string faction, out vector pos)
- {
-  foreach (ACR_TwoICSent sent : s_Sent)
-  {
-   if (sent.m_sFaction != faction) continue;
-   pos = sent.m_vPos;
-   return true;
-  }
-  return false;
- }
-
  static const int RING_KIND = 3; // after ACR_ETwoICAsk's three
 
  static string RingsSig(string faction)
