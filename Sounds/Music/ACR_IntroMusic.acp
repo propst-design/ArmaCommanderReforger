@@ -76,7 +76,7 @@ AudioClass {
    name "Lost As Shit"
    version 7
    tl -256 0
-   Volume -8
+   Volume 0
    Samples {
     AudioBankSampleClass Sample {
      Filename "{D9BBAA82A51B8B9C}Sounds/Music/Campaign/Samples/Layers/MU_LostAsShit_Full.snd"
@@ -88,7 +88,7 @@ AudioClass {
    name "Cliffhanger"
    version 7
    tl -256 256
-   Volume -16
+   Volume -4
    Samples {
     AudioBankSampleClass Sample {
      Filename "{4B01DB429C6640D9}Sounds/Music/KS/Samples/MU_Cliffhanger.snd"
