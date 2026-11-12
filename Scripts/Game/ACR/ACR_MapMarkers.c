@@ -11,6 +11,19 @@ modded class SCR_MapMarkerManagerComponent
   m_aStaticMarkers.RemoveItem(marker);
   m_aDisabledMarkers.RemoveItem(marker);
  }
+
+ // One of ACA's plain markers: simple, not removable, kept in 'pool', and owned by nobody, so vanilla
+ // doesn't open its marker edit dialog on a click. Whatever styles it as its widget is made
+ // (m_bContact, m_State, m_BaseIndex) is set on it before this.
+ void ACR_AddSimpleMarker(notnull ACR_UnitMarker marker, notnull array<ref ACR_UnitMarker> pool)
+ {
+  marker.SetType(SCR_EMapMarkerType.SIMPLE);
+  marker.SetMarkerConfigID(1);
+  marker.SetCanBeRemovedByOwner(false);
+  pool.Insert(marker);
+  InsertStaticMarker(marker, true);
+  marker.SetMarkerOwnerID(-1);
+ }
 }
 
 // A marker is a draggable map element (vanilla MapMarkerBase.layout), and ACA rebuilds its unit,

@@ -133,26 +133,8 @@ class ACR_MapDeclutter
  }
 
  // ---------------------------------------------------------------- colours
- // An sRGB colour (the sketch's hex) as widgets and the map canvas want it: linear.
- static Color Rgb(int r, int g, int b, float a = 1)
- {
-  return new Color(Linear(r), Linear(g), Linear(b), a);
- }
-
- // A table of the 256 values, made on first use (review P9: three Math.Pow per colour, for every
- // colour drawn every frame). Declared bare and filled here: static initializer budget.
- protected static ref array<float> s_aLinear;
- static float Linear(int channel)
- {
-  if (!s_aLinear)
-  {
-   s_aLinear = {};
-   for (int i = 0; i < 256; i++) s_aLinear.Insert(Math.Pow(i / 255.0, 2.2));
-  }
-  if (channel < 0) channel = 0;
-  if (channel > 255) channel = 255;
-  return s_aLinear[channel];
- }
+ // An sRGB colour (the sketch's hex) as widgets and the map canvas want it: linear (ACR_TwoICStyle's table).
+ static Color Rgb(int r, int g, int b, float a = 1) { return ACR_TwoICStyle.Rgb(r, g, b, a); }
 
  static Color PanelColor() { return Rgb(24, 27, 30, 0.96); }
  static Color AccentBlue() { return Rgb(90, 166, 240); }   // #5AA6F0: headers
@@ -760,35 +742,5 @@ class ACR_MapDeclutter
    best = b / 2;
   }
   return best;
- }
-
- // ---------------------------------------------------------------- canvas shapes
- // A filled shape the game can triangulate and that shows on a width x height canvas (0: unknown):
- // three points or more, some area, finite, not wholly off it. The calm map's dots and marks go
- // through this; once map-polygon-guard (#62) is in, ACR_OrderDisplay.AddPolygon does the same.
- static bool ShapeOk(array<float> vertices, float width, float height)
- {
-  if (!vertices || vertices.Count() < 6 || vertices.Count() % 2 != 0) return false;
-  float minX = vertices[0];
-  float maxX = minX;
-  float minY = vertices[1];
-  float maxY = minY;
-  float twiceArea = 0;
-  int points = vertices.Count() / 2;
-  for (int p = 0; p < points; p++)
-  {
-   float x = vertices[p * 2];
-   float y = vertices[p * 2 + 1];
-   if (!(Math.AbsFloat(x) < 1000000) || !(Math.AbsFloat(y) < 1000000)) return false;
-   minX = Math.Min(minX, x);
-   maxX = Math.Max(maxX, x);
-   minY = Math.Min(minY, y);
-   maxY = Math.Max(maxY, y);
-   int q = (p + 1) % points;
-   twiceArea += (x - vertices[0]) * (vertices[q * 2 + 1] - vertices[1]) - (vertices[q * 2] - vertices[0]) * (y - vertices[1]);
-  }
-  if (Math.AbsFloat(twiceArea) < 0.1) return false;
-  if (width <= 0 || height <= 0) return true;
-  return maxX >= -2 && maxY >= -2 && minX <= width + 2 && minY <= height + 2;
  }
 }

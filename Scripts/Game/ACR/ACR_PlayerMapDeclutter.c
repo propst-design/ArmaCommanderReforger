@@ -110,25 +110,6 @@ modded class ACR_OrderDisplay
   s_iDeclFrames++;
  }
 
- protected void DeclCanvasSize(out float width, out float height)
- {
-  width = 0;
-  height = 0;
-  if (m_Canvas) m_Canvas.GetScreenSize(width, height);
-  WorkspaceWidget workspace = GetGame().GetWorkspace();
-  if (!workspace) return;
-  width = Math.Max(width, workspace.GetWidth());
-  height = Math.Max(height, workspace.GetHeight());
- }
-
- // Filled shapes go through here (ACR_MapDeclutter.ShapeOk; AddPolygon once #62 is in).
- protected void DeclFill(PolygonDrawCommand polygon)
- {
-  float width, height;
-  DeclCanvasSize(width, height);
-  if (ACR_MapDeclutter.ShapeOk(polygon.m_Vertices, width, height)) m_Commands.Insert(polygon);
- }
-
  protected void DeclDisc(float x, float y, float radius, int color)
  {
   if (radius < 1) return;
@@ -136,7 +117,7 @@ modded class ACR_OrderDisplay
   disc.m_iColor = color;
   disc.m_Vertices = {};
   m_Canvas.TessellateCircle(Vector(x, y, 0), radius, 16, disc.m_Vertices);
-  DeclFill(disc);
+  AddPolygon(disc);
  }
 
  protected void DeclShape(array<float> vertices, int color)
@@ -144,7 +125,7 @@ modded class ACR_OrderDisplay
   PolygonDrawCommand shape = new PolygonDrawCommand();
   shape.m_iColor = color;
   shape.m_Vertices = vertices;
-  DeclFill(shape);
+  AddPolygon(shape);
  }
 
  protected float Px(float size)
@@ -700,7 +681,7 @@ modded class ACR_CommandPanel
   FrameSlot.SetPos(m_FeedRoot, 110, 96); // clear of the map toolbar on the left
   FrameSlot.SetSizeToContent(m_FeedRoot, true);
   m_FeedRoot.SetZOrder(1000);
-  DeclFill(m_FeedRoot);
+  ACR_TwoICStyle.Fill(m_FeedRoot, ACR_MapDeclutter.PanelColor());
   SizeLayoutWidget size = SizeLayoutWidget.Cast(ws.CreateWidget(WidgetType.SizeLayoutWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR, Color.FromInt(Color.WHITE), 1, m_FeedRoot));
   size.EnableWidthOverride(true);
   if (ACR_MapDeclutter.Compact()) size.SetWidthOverride(330);
@@ -731,14 +712,6 @@ modded class ACR_CommandPanel
    m_FeedLines.Insert(line);
   }
   DeclBars(parent);
- }
-
- // A stretched panel colour behind an overlay's other children.
- protected void DeclFill(Widget overlay)
- {
-  Widget image = GetGame().GetWorkspace().CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.BLEND | WidgetFlags.STRETCH | WidgetFlags.IGNORE_CURSOR, ACR_MapDeclutter.PanelColor(), 0, overlay);
-  AlignableSlot.SetHorizontalAlign(image, LayoutHorizontalAlign.Stretch);
-  AlignableSlot.SetVerticalAlign(image, LayoutVerticalAlign.Stretch);
  }
 
  // The lines are already merged (SCR_PlayerController.ACR_FeedLines): the first INTEL_SHOWN, and
@@ -781,7 +754,7 @@ modded class ACR_CommandPanel
   FrameSlot.SetPos(m_DeclIntelBar, 110, 96);
   FrameSlot.SetSizeToContent(m_DeclIntelBar, true);
   m_DeclIntelBar.SetZOrder(1000);
-  DeclFill(m_DeclIntelBar);
+  ACR_TwoICStyle.Fill(m_DeclIntelBar, ACR_MapDeclutter.PanelColor());
   SizeLayoutWidget intelSize = SizeLayoutWidget.Cast(ws.CreateWidget(WidgetType.SizeLayoutWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR, Color.FromInt(Color.WHITE), 1, m_DeclIntelBar));
   AlignableSlot.SetPadding(intelSize, 12, 6, 14, 6);
   Widget intelRow = ws.CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR, Color.FromInt(Color.WHITE), 0, intelSize);
@@ -807,7 +780,7 @@ modded class ACR_CommandPanel
   FrameSlot.SetPos(m_DeclAcaBar, -24, 96);
   FrameSlot.SetSizeToContent(m_DeclAcaBar, true);
   m_DeclAcaBar.SetZOrder(1000);
-  DeclFill(m_DeclAcaBar);
+  ACR_TwoICStyle.Fill(m_DeclAcaBar, ACR_MapDeclutter.PanelColor());
   SizeLayoutWidget acaSize = SizeLayoutWidget.Cast(ws.CreateWidget(WidgetType.SizeLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 1, m_DeclAcaBar));
   AlignableSlot.SetPadding(acaSize, 12, 4, 6, 4);
   Widget acaRow = ws.CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, acaSize);
@@ -1833,22 +1806,7 @@ modded class SCR_PlayerController
    if (m_bDeclTouched) ACR_DeclBaseIcons(1);
    return;
   }
-  if (m_ACR_BaseMarkers.Count() != m_ACR_Data.m_BaseNames.Count())
-  {
-   foreach (ACR_UnitMarker old : m_ACR_BaseMarkers) manager.ACR_RemoveMarker(old);
-   m_ACR_BaseMarkers.Clear();
-   for (int i = 0; i < m_ACR_Data.m_BaseNames.Count(); i++)
-   {
-    ACR_UnitMarker created = new ACR_UnitMarker();
-    created.SetType(SCR_EMapMarkerType.SIMPLE);
-    created.SetMarkerConfigID(1);
-    created.SetCanBeRemovedByOwner(false);
-    created.m_BaseIndex = i;
-    m_ACR_BaseMarkers.Insert(created);
-    manager.InsertStaticMarker(created, true);
-    created.SetMarkerOwnerID(-1);
-   }
-  }
+  ACR_MatchBaseMarkers(manager);
   foreach (int b, ACR_UnitMarker marker : m_ACR_BaseMarkers)
   {
    marker.m_BaseIndex = b;

@@ -122,7 +122,7 @@ class ACR_TestMapDeclutter
   array<float> onCanvas = {100, 100, 110, 100, 110, 110, 100, 110};
   array<float> offCanvas = {-500, -500, -490, -500, -490, -490};
   array<float> flat = {10, 10, 20, 20, 30, 30};
-  ACR_TestRegress.Check("mapdeclutter: the calm map's filled shapes are on-canvas and non-degenerate", ACR_MapDeclutter.ShapeOk(onCanvas, 1920, 1080) && !ACR_MapDeclutter.ShapeOk(offCanvas, 1920, 1080) && !ACR_MapDeclutter.ShapeOk(flat, 1920, 1080), "");
+  ACR_TestRegress.Check("mapdeclutter: the calm map's filled shapes are on-canvas and non-degenerate", ACR_OrderDisplay.PolygonDrawable(onCanvas, 1920, 1080) && !ACR_OrderDisplay.PolygonDrawable(offCanvas, 1920, 1080) && !ACR_OrderDisplay.PolygonDrawable(flat, 1920, 1080), "");
  }
 
  static void CheckSquads()

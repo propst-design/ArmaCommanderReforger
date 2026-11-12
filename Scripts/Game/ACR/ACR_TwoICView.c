@@ -1985,12 +1985,7 @@ modded class SCR_PlayerController
    for (int i = 0; i < wanted; i++)
    {
     ACR_UnitMarker marker = new ACR_UnitMarker();
-    marker.SetType(SCR_EMapMarkerType.SIMPLE);
-    marker.SetMarkerConfigID(1);
-    marker.SetCanBeRemovedByOwner(false);
-    m_ACR_TwoICRingMarkers.Insert(marker);
-    manager.InsertStaticMarker(marker, true);
-    marker.SetMarkerOwnerID(-1);
+    manager.ACR_AddSimpleMarker(marker, m_ACR_TwoICRingMarkers);
    }
   }
   foreach (int n, ACR_UnitMarker ring : m_ACR_TwoICRingMarkers)
@@ -2146,7 +2141,7 @@ modded class SCR_PlayerController
  {
   SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
   if (!mapEntity) return false;
-  return ACR_TwoICCompact.ZoomedOut(mapEntity.GetCurrentZoom(), mapEntity.GetMinZoom());
+  return ACR_MapDeclutter.IsFar(mapEntity.GetCurrentZoom(), mapEntity.GetMinZoom()); // the calm map's zoomed-out rule: the card is a pill
  }
 
  // The 2IC hidden: the tool bar's 2IC button counts the lines that need the player (sketch 4).

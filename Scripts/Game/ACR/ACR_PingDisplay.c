@@ -122,12 +122,7 @@ class ACR_PingDisplay
    for (int m = 0; m < live.Count(); m++)
    {
     ACR_UnitMarker marker = new ACR_UnitMarker();
-    marker.SetType(SCR_EMapMarkerType.SIMPLE);
-    marker.SetMarkerConfigID(1);
-    marker.SetCanBeRemovedByOwner(false);
-    s_Markers.Insert(marker);
-    manager.InsertStaticMarker(marker, true);
-    marker.SetMarkerOwnerID(-1);
+    manager.ACR_AddSimpleMarker(marker, s_Markers);
    }
   }
   foreach (int k, ACR_UnitMarker marker : s_Markers)

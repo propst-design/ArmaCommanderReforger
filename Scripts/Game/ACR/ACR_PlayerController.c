@@ -1262,13 +1262,7 @@ modded class SCR_PlayerController
  protected ACR_UnitMarker ACR_NewSoldierMarker(SCR_MapMarkerManagerComponent manager)
  {
   ACR_UnitMarker marker = new ACR_UnitMarker();
-  marker.SetType(SCR_EMapMarkerType.SIMPLE);
-  marker.SetMarkerConfigID(1);
-  marker.SetCanBeRemovedByOwner(false);
-  m_ACR_Markers.Insert(marker);
-  manager.InsertStaticMarker(marker, true);
-  // Not "owned" by the player, so vanilla doesn't open the marker edit dialog on click.
-  marker.SetMarkerOwnerID(-1);
+  manager.ACR_AddSimpleMarker(marker, m_ACR_Markers);
   return marker;
  }
 
@@ -2545,12 +2539,7 @@ modded class SCR_PlayerController
     ACR_UnitMarker marker = new ACR_UnitMarker();
     marker.m_bContact = true; // clicks go through: right-click next to it for Get in
     marker.m_State = 4; // before it is inserted: creating its widget styles it (no contact pip)
-    marker.SetType(SCR_EMapMarkerType.SIMPLE);
-    marker.SetMarkerConfigID(1);
-    marker.SetCanBeRemovedByOwner(false);
-    m_ACR_VehicleMarkers.Insert(marker);
-    manager.InsertStaticMarker(marker, true);
-    marker.SetMarkerOwnerID(-1);
+    manager.ACR_AddSimpleMarker(marker, m_ACR_VehicleMarkers);
    }
   }
   foreach (int v, ACR_UnitMarker vehicleMarker : m_ACR_VehicleMarkers)
@@ -2718,12 +2707,7 @@ modded class SCR_PlayerController
    for (int i = 0; i < m_ACR_Data.m_ZoneLabels.Count(); i++)
    {
     ACR_UnitMarker marker = new ACR_UnitMarker();
-    marker.SetType(SCR_EMapMarkerType.SIMPLE);
-    marker.SetMarkerConfigID(1);
-    marker.SetCanBeRemovedByOwner(false);
-    m_ACR_ZoneMarkers.Insert(marker);
-    manager.InsertStaticMarker(marker, true);
-    marker.SetMarkerOwnerID(-1);
+    manager.ACR_AddSimpleMarker(marker, m_ACR_ZoneMarkers);
    }
   }
   foreach (int i, ACR_UnitMarker marker : m_ACR_ZoneMarkers)
@@ -2834,24 +2818,23 @@ modded class SCR_PlayerController
   return symbol + label;
  }
 
+ // One marker per base, remade when the count changes (the classic and the calm map both).
+ protected void ACR_MatchBaseMarkers(SCR_MapMarkerManagerComponent manager)
+ {
+  if (m_ACR_BaseMarkers.Count() == m_ACR_Data.m_BaseNames.Count()) return;
+  foreach (ACR_UnitMarker old : m_ACR_BaseMarkers) manager.ACR_RemoveMarker(old);
+  m_ACR_BaseMarkers.Clear();
+  for (int i = 0; i < m_ACR_Data.m_BaseNames.Count(); i++)
+  {
+   ACR_UnitMarker marker = new ACR_UnitMarker();
+   marker.m_BaseIndex = i;
+   manager.ACR_AddSimpleMarker(marker, m_ACR_BaseMarkers);
+  }
+ }
+
  protected void ACR_UpdateBaseMarkers(SCR_MapMarkerManagerComponent manager)
  {
-  if (m_ACR_BaseMarkers.Count() != m_ACR_Data.m_BaseNames.Count())
-  {
-   foreach (ACR_UnitMarker old : m_ACR_BaseMarkers) manager.ACR_RemoveMarker(old);
-   m_ACR_BaseMarkers.Clear();
-   for (int i = 0; i < m_ACR_Data.m_BaseNames.Count(); i++)
-   {
-    ACR_UnitMarker marker = new ACR_UnitMarker();
-    marker.SetType(SCR_EMapMarkerType.SIMPLE);
-    marker.SetMarkerConfigID(1);
-    marker.SetCanBeRemovedByOwner(false);
-    marker.m_BaseIndex = i;
-    m_ACR_BaseMarkers.Insert(marker);
-    manager.InsertStaticMarker(marker, true);
-    marker.SetMarkerOwnerID(-1);
-   }
-  }
+  ACR_MatchBaseMarkers(manager);
   foreach (int i, ACR_UnitMarker marker : m_ACR_BaseMarkers)
   {
    marker.m_BaseIndex = i;

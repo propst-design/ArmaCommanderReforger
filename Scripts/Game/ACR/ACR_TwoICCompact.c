@@ -39,7 +39,6 @@ class ACR_TwoICCompact
  static const int TRUCK_SENDABLE = 2;     // a truck is ready now: "Send truck" again
  static const int TRUCK_RETRY = 3;        // another reason (the site, the truck's order): "Send truck" again
  static const string NEEDS_YOU = "Needs you";
- static const float ZOOMED_OUT_FROM_MIN = 1.25; // zoomed out: within this of the map's own widest zoom
  static const int FACTS = 8;              // ints per FOB site (Facts)
 
  // ---------------------------------------------------------------- the channel
@@ -387,15 +386,6 @@ class ACR_TwoICCompact
    }
   }
   if (start < length) parts.Insert(text.Substring(start, length - start));
- }
-
- // Zoomed out, really far (the card is a pill): zoom, the map's pixels per metre, at most
- // ZOOMED_OUT_FROM_MIN times minZoom, its widest (SCR_MapEntity.GetCurrentZoom / GetMinZoom). The
- // same on any map: Arland's usual view (zoom 1, widest 0.53) is not zoomed out; within a quarter
- // of the widest, on Arland or Everon, it is. pn12f's shots: "within 2x" caught Arland's usual view.
- static bool ZoomedOut(float zoom, float minZoom)
- {
-  return zoom > 0 && minZoom > 0 && zoom <= minZoom * ZOOMED_OUT_FROM_MIN;
  }
 
  // ---------------------------------------------------------------- FOB sites

@@ -445,8 +445,8 @@ class ACR_TestTwoICDeclutter
   string single = ACR_TwoICCompact.Doing("nothing yet");
   // Arland's usual view (pn12f: zoom 1, widest 0.527) isn't zoomed out; its widest is, and a
   // quarter in from it; Everon's widest too; nothing without a zoom.
-  bool zoom = !ACR_TwoICCompact.ZoomedOut(1, 0.527344) && ACR_TwoICCompact.ZoomedOut(0.527344, 0.527344) && ACR_TwoICCompact.ZoomedOut(0.65, 0.527344) && !ACR_TwoICCompact.ZoomedOut(0.7, 0.527344);
-  zoom = zoom && ACR_TwoICCompact.ZoomedOut(0.15, 0.15) && !ACR_TwoICCompact.ZoomedOut(0.5, 0.15) && !ACR_TwoICCompact.ZoomedOut(0, 0.5) && !ACR_TwoICCompact.ZoomedOut(0.3, 0);
+  bool zoom = !ACR_MapDeclutter.IsFar(1, 0.527344) && ACR_MapDeclutter.IsFar(0.527344, 0.527344) && ACR_MapDeclutter.IsFar(0.65, 0.527344) && !ACR_MapDeclutter.IsFar(0.7, 0.527344);
+  zoom = zoom && ACR_MapDeclutter.IsFar(0.15, 0.15) && !ACR_MapDeclutter.IsFar(0.5, 0.15) && !ACR_MapDeclutter.IsFar(0, 0.5) && !ACR_MapDeclutter.IsFar(0.3, 0);
   bool ok = stats == "11/11 squads  ·  no FOB  ·  reserve 15/100" && pill == "2IC  ·  13/14 squads  ·  1 FOB" && off == "13/14 squads  ·  1 FOB  ·  reserve off";
   ok = ok && doing == "Taking Le Moule (1st Squad, 2nd Squad)  ·  +3 more" && single == "Nothing yet" && zoom;
   ACR_TestRegress.Check("twoicdeclutter: the card's three lines (squads · FOBs · reserve; what first · +N more) and its pill zoomed out", ok, string.Format("'%1' | '%2' | '%3' | '%4' | '%5' | zoom %6", stats, pill, off, doing, single, zoom));
