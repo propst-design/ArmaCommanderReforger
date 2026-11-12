@@ -342,7 +342,10 @@ class ACR_Squad : Managed
   {
    array<AIWaypoint> current = {};
    m_Group.GetWaypoints(current);
-   if (current.IsEmpty())
+   // Still on the order it carried on with (KeepOrder): the map order is set up again in full.
+   bool onlyKept = m_KeptWaypoint && current.Count() == 1 && current[0] == m_KeptWaypoint;
+   if (onlyKept) ClearOrders();
+   if (current.IsEmpty() || onlyKept)
    {
     // A standing plan (QRF, ambush, a held position) is set up again, not just its waypoint
     // and label: FollowCommander's NewOrder ended it, and "QRF: standing by" with no QRF
@@ -482,6 +485,7 @@ class ACR_Squad : Managed
   if (leader) leaderPlayer = FindController(leader);
   SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerManager().GetPlayerController(leaderPlayer));
   if (!IsLeader(pc)) leaderPlayer = 0;
+  WatchKeptOrder();
   if (m_Commander == leaderPlayer) return;
   Release();
   if (!leaderPlayer) return;
@@ -533,9 +537,73 @@ class ACR_Squad : Managed
   }
   m_AsideFort = null;
   if (m_Aside) m_AsideFort = m_Fortification;
+  string carried = m_Order;
   FollowCommander();
+  KeepOrder(m_Aside, carried);
   PrintFormat("[ACR] %1: native command granted player=%2 group=%3 linked=%4", m_Name, leaderPlayer, component.GetGroupID(), m_CommandGroup.GetSlave() == m_Group);
  }
+
+ // A player taking the lead doesn't remove the squad's order (Jacob, 11 Nov): it carries on with it as a
+ // plain waypoint of the same kind, which the map and AiO's order marker show, while the AI commander's
+ // plan behind it has ended (FollowCommander: no more orders from the AI). The player's first order
+ // replaces it instead of queuing behind it (WatchKeptOrder): the command wheel, AiO's whole-squad
+ // orders, a map order (ClearOrders). Not a paid job's or a ride's (m_Aside is null for those): those
+ // are cleared as before. When he leaves still on it, the map order is put back as before (Release).
+ protected AIWaypoint m_KeptWaypoint;
+ protected void KeepOrder(ACR_OrderSnapshot order, string label)
+ {
+  if (!order || !m_Group || Aircraft() || order.m_Target == vector.Zero) return;
+  ResourceName prefab = order.m_sPrefab;
+  if (prefab == WP_GARRISON) prefab = WP_DEFEND;
+  if (prefab != WP_MOVE && prefab != WP_DEFEND && prefab != WP_SEARCH_DESTROY) return; // a boarding or the like: not carried on
+  // As IssueWaypoint: a vehicle crew never gets the game's Defend (its turret men get out).
+  if (prefab == WP_DEFEND && ACR_Transport.CrewedVehicle(this)) prefab = WP_MOVE;
+  Resource resource = Resource.Load(prefab);
+  if (!resource.IsValid()) return;
+  EntitySpawnParams params = new EntitySpawnParams();
+  params.TransformMode = ETransformMode.WORLD;
+  params.Transform[3] = order.m_Target;
+  AIWaypoint waypoint = AIWaypoint.Cast(GetGame().SpawnEntityPrefabLocal(resource, null, params));
+  if (!waypoint) return;
+  if (order.m_fRadius > 0) waypoint.SetCompletionRadius(order.m_fRadius);
+  m_Group.AddWaypoint(waypoint);
+  m_KeptWaypoint = waypoint;
+  SetOrder("Following you, carrying on: " + label, ACR_EOrderState.COMMANDED);
+  PrintFormat("[ACR] %1: led by a player, carries on with its order (%2) to %3", m_Name, label, ACR_Manager.Grid(order.m_Target));
+ }
+
+ // The kept order ends when the squad gets there (or anyone removes it), and gives way to the player's
+ // first order: one queued behind it from the wheel or AiO, or any other waypoint in front of it.
+ protected void WatchKeptOrder()
+ {
+  if (!m_KeptWaypoint) return;
+  if (!m_Group)
+  {
+   m_KeptWaypoint = null;
+   return;
+  }
+  array<AIWaypoint> current = {};
+  m_Group.GetWaypoints(current);
+  bool there = current.Contains(m_KeptWaypoint);
+  if (there && current.Count() == 1) return;
+  if (there) m_Group.RemoveWaypoint(m_KeptWaypoint);
+  DeleteWaypointSoon(m_KeptWaypoint);
+  m_KeptWaypoint = null;
+  if (OrderState() == ACR_EOrderState.COMMANDED) SetOrder("Following you", ACR_EOrderState.COMMANDED);
+  if (there) PrintFormat("[ACR] %1: the player's own order replaces the one it carried on with", m_Name);
+ }
+
+ bool KeptOrderForTest() { return m_KeptWaypoint != null; }
+ // Tests: a player takes the lead as Refresh does it (without the group change), and the watch.
+ void TakeLeadForTest(int player)
+ {
+  ACR_OrderSnapshot order = SnapshotOrder();
+  string carried = m_Order;
+  m_Commander = player;
+  FollowCommander();
+  KeepOrder(order, carried);
+ }
+ void WatchKeptOrderForTest() { WatchKeptOrder(); }
 
  // The squad follows the player leading it. Not an order from anyone: a ride under way
  // sees m_iCommandSerial and carries on.
@@ -912,6 +980,8 @@ class ACR_Squad : Managed
   DeleteWaypointSoon(m_Waypoint);
   DropQueuedHop();
   m_Waypoint = null;
+  DeleteWaypointSoon(m_KeptWaypoint);
+  m_KeptWaypoint = null;
  }
 
  // A replaced waypoint goes a moment later, not in the frame it is removed: the group's running
