@@ -15,6 +15,7 @@ class ACR_Depot : Managed
 {
  ACR_Base m_Base;
  ref array<IEntity> m_aVehicles = {};
+ ref array<vector> m_aSpots = {};   // where each was parked (m_aVehicles' order)
  IEntity m_Out;              // the technical out on a raid
  SCR_AIGroup m_Crew;
  int m_iState;               // ACR_Depots.IDLE ...
@@ -27,6 +28,7 @@ class ACR_Depot : Managed
  int m_iNudges;              // re-orders while it sits in the yard (vanilla AI's move sometimes fails: "Failed move")
  float m_fNudgedAt;             // where its first technical was parked: home for every trip
  float m_fEmptySince;        // the technical out stood empty since (its crew got out to fight, or can't drive it)
+ float m_fRestUntil;         // a raid that never got there: no new one before this
 }
 
 class ACR_Depots
@@ -47,6 +49,8 @@ class ACR_Depots
  static const float EMPTY_MS = 30000;
  static const float NUDGE_MS = 20000;
  static const int NUDGES = 3;
+ static const float REST_MS = 600000;     // after a raid that never reached its target (no route there)
+ static const float WALK_MAX_MS = 600000; // on foot this long without getting there: they join it anyway, out of contact
  static float s_fStrikeMsForTest;         // tests shorten the strike (0: STRIKE_MS)
  static ref array<ref ACR_Depot> s_aDepots;
  protected static ref array<ResourceName> s_aTechnicals; // FIA's armed UAZs, from its catalog
@@ -76,12 +80,42 @@ class ACR_Depots
   return 2;
  }
 
+ // FIA's technicals: those in the yards of depots it still holds, and any out on a raid.
  static int Technicals()
  {
   int count;
   foreach (ACR_Depot depot : s_aDepots)
-   foreach (IEntity vehicle : depot.m_aVehicles) if (vehicle && ACR_Logistics.Health(vehicle) > 0) count++;
+  {
+   Prune(depot);
+   if (Active(depot)) count += depot.m_aVehicles.Count();
+   else if (depot.m_Out) count++;
+  }
   return count;
+ }
+
+ // In its yard: near where it was parked, or the depot's home spot (where raids drive back to).
+ static bool AtHome(ACR_Depot depot, int i)
+ {
+  IEntity vehicle = depot.m_aVehicles[i];
+  if (vector.DistanceXZ(vehicle.GetOrigin(), Yard(depot)) <= HOME) return true;
+  return i < depot.m_aSpots.Count() && vector.DistanceXZ(vehicle.GetOrigin(), depot.m_aSpots[i]) <= HOME;
+ }
+
+ // Wrecks and technicals left away from the yard (the crew lost or killed out there, or players
+ // took it) are no longer the depot's: it never relaunches one wherever it stands, and has room
+ // to buy another. The one out on a raid stays until the raid is over.
+ static void Prune(ACR_Depot depot)
+ {
+  for (int i = depot.m_aVehicles.Count() - 1; i >= 0; i--)
+  {
+   IEntity vehicle = depot.m_aVehicles[i];
+   if (vehicle && vehicle == depot.m_Out) continue;
+   bool dead = !vehicle || ACR_Logistics.Health(vehicle) <= 0;
+   if (!dead && AtHome(depot, i)) continue;
+   if (!dead) PrintFormat("[ACR] DEPOTS %1: a technical left %2 m from the yard is no longer the depot's", depot.m_Base.m_sName, (int)vector.DistanceXZ(vehicle.GetOrigin(), Yard(depot)));
+   depot.m_aVehicles.RemoveOrdered(i);
+   if (i < depot.m_aSpots.Count()) depot.m_aSpots.RemoveOrdered(i);
+  }
  }
 
  // FIA's armed UAZs and BRDM from its own vehicle catalog (no prefab of ours: a mod that replaces
@@ -150,6 +184,7 @@ class ACR_Depots
   IEntity vehicle = ACR_Manager.SpawnPrefab(prefab, spot);
   if (!vehicle) return false;
   depot.m_aVehicles.Insert(vehicle);
+  depot.m_aSpots.Insert(spot);
   if (depot.m_vYard == vector.Zero) depot.m_vYard = spot;
   return true;
  }
@@ -192,7 +227,7 @@ class ACR_Depots
     Step(manager, depot, now);
     continue;
    }
-   if (s_iSeconds % 5 != 0 || !Active(depot)) continue;
+   if (s_iSeconds % 5 != 0 || !Active(depot) || now < depot.m_fRestUntil) continue;
    vector target;
    if (FindTarget(manager, depot, target)) Launch(depot, target);
   }
@@ -223,10 +258,11 @@ class ACR_Depots
   return false;
  }
 
- // One parked technical out with a crew of two, driving at the target.
+ // One technical parked in the yard out with a crew of two, driving at the target.
  static bool Launch(ACR_Depot depot, vector target)
  {
   if (depot.m_iState != IDLE || depot.m_Crew) return false;
+  Prune(depot);
   ACR_Manager manager = ACR_Manager.GetInstance();
   IEntity vehicle;
   foreach (IEntity parked : depot.m_aVehicles) if (!vehicle && parked && ACR_Logistics.Health(parked) > 0 && !Occupied(parked)) vehicle = parked;
@@ -299,6 +335,12 @@ class ACR_Depots
   if (depot.m_iState == WALK)
   {
    if (CrewNear(depot.m_Crew, depot.m_vWalkTo, JOIN)) Join(manager, depot);
+   // No way there: once out of contact they join it all the same (as any post packs up).
+   else if (now - depot.m_fStateAt >= WALK_MAX_MS && !CrewInContact(depot.m_Crew))
+   {
+    PrintFormat("[ACR] DEPOTS %1: the technical's crew never got there on foot", depot.m_Base.m_sName);
+    Join(manager, depot);
+   }
    return;
   }
   // The vehicle lost (burnt, or empty for EMPTY_MS: nobody can drive it): they walk to the nearest
@@ -333,6 +375,14 @@ class ACR_Depots
     depot.m_fNudgedAt = now;
     ACR_Guerrillas.Order(depot.m_Crew, ACR_Squad.WP_MOVE, depot.m_vTarget, 30, false);
     PrintFormat("[ACR] DEPOTS %1: the technical hasn't set off, ordered again", depot.m_Base.m_sName);
+   }
+   // Still in the yard after every re-order: no route there. Stand down now (not after
+   // TRIP_MAX_MS), and EndRaid rests the depot so it doesn't relaunch at the same target.
+   else if (depot.m_iNudges >= NUDGES && depot.m_fArrivedAt <= 0 && now - depot.m_fNudgedAt >= NUDGE_MS && vector.DistanceXZ(depot.m_Out.GetOrigin(), Yard(depot)) < 20)
+   {
+    PrintFormat("[ACR] DEPOTS %1: the technical never got going, its crew stands down", depot.m_Base.m_sName);
+    EndRaid(manager, depot);
+    return;
    }
    if (depot.m_fArrivedAt <= 0 && vector.DistanceXZ(depot.m_Out.GetOrigin(), depot.m_vTarget) <= ARRIVE)
    {
@@ -394,6 +444,7 @@ class ACR_Depots
    depot.m_vWalkTo = post.m_vPos;
   }
   depot.m_iState = WALK;
+  depot.m_fStateAt = GetGame().GetWorld().GetWorldTime();
   depot.m_Out = null;
   ACR_Guerrillas.SetCombatMode(depot.m_Crew, EAIGroupCombatMode.RETURN_FIRE);
   ACR_Guerrillas.Order(depot.m_Crew, ACR_Squad.WP_MOVE, depot.m_vWalkTo, 15, false);
@@ -427,9 +478,25 @@ class ACR_Depots
   return false;
  }
 
- // The raid is over: the crew stands down (out of the vehicle and gone), the technical stays.
+ // A hostile of FIA's near one of the crew's living men.
+ protected static bool CrewInContact(SCR_AIGroup crew)
+ {
+  array<AIAgent> agents = {};
+  crew.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (body && ACR_Respawn.IsAlive(body) && ACR_IED.HostileNear(ACR_Pockets.FACTION, body.GetOrigin(), ACR_Guerrillas.CLEAR)) return true;
+  }
+  return false;
+ }
+
+ // The raid is over: the crew stands down (out of the vehicle and gone), the technical stays
+ // (in the yard: parked for the next raid; anywhere else: Prune drops it). A raid that never got
+ // there rests the depot (an unreachable target would relaunch it every few minutes).
  protected static void EndRaid(ACR_Manager manager, ACR_Depot depot)
  {
+  if (depot.m_iState != IDLE && depot.m_fArrivedAt <= 0) depot.m_fRestUntil = GetGame().GetWorld().GetWorldTime() + REST_MS;
   if (depot.m_Crew)
   {
    array<AIAgent> agents = {};

@@ -9,7 +9,8 @@
 // ambush there.
 // Depots (#96 part 3, ACR_Depots): a depot pocket parks a technical; it drives out with a crew of
 // two to a road 300 m off, strikes and drives home, where the crew stands down; a crew that loses
-// its vehicle walks to the nearest cell and joins it.
+// its vehicle walks to the nearest cell and joins it; a technical left away from the yard is no
+// longer the depot's (never relaunched there), one in the yard still is.
 class ACR_TestGuerrillas
 {
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
@@ -23,6 +24,7 @@ class ACR_TestGuerrillas
  protected static int s_iJoinBefore;
  protected static bool s_bWalked;
  protected static IEntity s_Lost;
+ protected static ResourceName s_sTechPrefab;
 
  static void Run(int second)
  {
@@ -71,6 +73,7 @@ class ACR_TestGuerrillas
   if (second >= 210 && second < 224 && s_Depot.m_iState == ACR_Depots.WALK) s_bWalked = true;
   if (second == 217) Walking(manager);
   if (second == 224) Joined(manager);
+  if (second == 226) StrayPruned(manager);
  }
 
  protected static void Placement(ACR_Manager manager)
@@ -287,7 +290,11 @@ class ACR_TestGuerrillas
   if (pocket && !s_Depot) s_Depot = ACR_Depots.MakeDepot(pocket);
   bool parked = s_Depot && !s_Depot.m_aVehicles.IsEmpty() && vector.DistanceXZ(s_Depot.m_aVehicles[0].GetOrigin(), pocket.GetOrigin()) <= pocket.m_fRadius + 60;
   string vehicle = "none";
-  if (s_Depot && !s_Depot.m_aVehicles.IsEmpty()) vehicle = ACR_Vehicles.NameOf(s_Depot.m_aVehicles[0]);
+  if (s_Depot && !s_Depot.m_aVehicles.IsEmpty() && s_Depot.m_aVehicles[0])
+  {
+   vehicle = ACR_Vehicles.NameOf(s_Depot.m_aVehicles[0]);
+   if (s_Depot.m_aVehicles[0].GetPrefabData()) s_sTechPrefab = s_Depot.m_aVehicles[0].GetPrefabData().GetPrefabName();
+  }
   Check("guerrillas: a depot pocket parks an FIA technical in its yard", parked, string.Format("pocket %1, technical %2", pocket != null, vehicle));
   if (!s_Depot)
   {
@@ -411,12 +418,31 @@ class ACR_TestGuerrillas
   if (s_Depot.m_WalkTo) to = s_Depot.m_WalkTo.m_sName;
   Check("guerrillas: a crew that loses its technical walks to the nearest cell and joins it", s_bWalked && joined && (!s_Depot.m_WalkTo || after > s_iJoinBefore), string.Format("walked %1, to %2, reserve %3 -> %4, state %5", s_bWalked, to, s_iJoinBefore, after, s_Depot.m_iState));
   ACR_Depots.s_fStrikeMsForTest = 0;
+ }
+
+ // Review 0.5.13 #5: a technical left out at the road (its crew killed there, or players parked
+ // it) is dropped from the depot, so it is never relaunched where it stands; one in the yard stays.
+ protected static void StrayPruned(ACR_Manager manager)
+ {
+  if (s_sTechPrefab.IsEmpty())
+  {
+   ACR_TestRegress.Skip("guerrillas: a technical left away from the yard is no longer the depot's, one in the yard is", "no technical prefab");
+   Finish();
+   return;
+  }
+  IEntity stray = ACR_Manager.SpawnPrefab(s_sTechPrefab, ACR_Manager.Ground(s_vDepotTarget + Vector(0, 0, 6)));
+  IEntity parked = ACR_Manager.SpawnPrefab(s_sTechPrefab, ACR_Manager.Ground(ACR_Depots.Yard(s_Depot)));
+  if (stray) s_Depot.m_aVehicles.Insert(stray);
+  if (parked) s_Depot.m_aVehicles.Insert(parked);
+  // What Launch and Technicals do first.
+  ACR_Depots.Prune(s_Depot);
+  Check("guerrillas: a technical left away from the yard is no longer the depot's, one in the yard is", stray && parked && !s_Depot.m_aVehicles.Contains(stray) && s_Depot.m_aVehicles.Contains(parked), string.Format("spawned %1/%2, stray kept %3, parked kept %4", stray != null, parked != null, s_Depot.m_aVehicles.Contains(stray), s_Depot.m_aVehicles.Contains(parked)));
   Finish();
  }
 
  protected static void Finish()
  {
-  ACR_TestRegress.Complete("guerrillas", 22);
+  ACR_TestRegress.Complete("guerrillas", 23);
  }
 
  protected static EAIGroupCombatMode CombatMode(SCR_AIGroup group)
