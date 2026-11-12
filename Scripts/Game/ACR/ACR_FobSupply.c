@@ -312,6 +312,45 @@ class ACR_FobSupply
   return vector.DistanceXZ(truck.GetOrigin(), center) <= radius;
  }
 
+
+ // #107 (Jacob, 11 Nov: "Only paid loads unload"): server, a truck's vanilla unload. True when the
+ // truck stands in an online FOB's ring (where TakesFrom/Strands leave the FOB store as the only
+ // target); 'paid' is then the most it may unload: the paid part of its load (ACR_Logistics.PaidOf).
+ static bool PaidCap(IEntity actionOwner, out float paid)
+ {
+  paid = 0;
+  if (!actionOwner || !Replication.IsServer()) return false;
+  IEntity truck = actionOwner.GetRootParent();
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!Vehicle.Cast(truck) || !manager || !manager.m_Logistics) return false;
+  vector at = truck.GetOrigin();
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base.FobOnline() || !base.m_FobSupply || vector.DistanceXZ(at, base.GetOrigin()) > base.m_fRadius) continue;
+   paid = manager.m_Logistics.PaidSupplies(truck);
+   return true;
+  }
+  return false;
+ }
+
+ // After a capped unload: the paid count drops by what went in, and the player hears why the rest
+ // stayed aboard. 'wanted' is what vanilla would have moved. Returns the line told ("" none).
+ static string Unloaded(IEntity actionOwner, float moved, float wanted, int playerId)
+ {
+  IEntity truck = actionOwner.GetRootParent();
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!truck || !manager || !manager.m_Logistics) return "";
+  if (moved > 0) manager.m_Logistics.UnloadedPaid(truck, moved);
+  int kept = (int)Math.Round(wanted - Math.Max(0, moved));
+  if (kept < 1) return "";
+  string line;
+  if (moved < 1) line = "Nothing unloaded: this truck carries no paid supplies. Only the load a truck was bought with goes into a FOB; base refills serve its own jobs";
+  else line = string.Format("%1 paid supplies unloaded; %2 more are base refills and stay in the truck (only paid loads go into a FOB)", (int)Math.Round(moved), kept);
+  PrintFormat("[ACR] FOB UNLOAD %1: %2 of %3 moved (paid only)", truck, (int)Math.Round(moved), (int)Math.Round(wanted));
+  if (playerId > 0) manager.Notify(playerId, line);
+  return line;
+ }
+
  // Any other container inside a built FOB (a supply depot's crates, which vanilla lets a truck
  // unload into) refuses a truck's load: ACA builds and serves only from the CP store, so it would
  // be lost there. Park beside the HQ instead (vanilla unload reaches 12 m).
@@ -496,5 +535,42 @@ modded class SCR_CampaignBuildingStartUserAction
    }
   }
   return super.GetActionNameScript(outName);
+ }
+}
+
+// #107 "Only paid loads unload" (ACR_FobSupply.PaidCap): vanilla's Unload supplies moves at most the
+// truck's paid supplies into a FOB, and says so when it moves less than it would have.
+modded class SCR_ResourceContainerVehicleUnloadAction
+{
+ protected float m_fACRWanted;     // what vanilla would have moved this time
+ protected float m_fACRToldAt;     // world time of the last line to the player (continuous action)
+
+ protected override void GetResourceValues(out float currentResource, out float maxResource, out float transferAmount)
+ {
+  super.GetResourceValues(currentResource, maxResource, transferAmount);
+  m_fACRWanted = transferAmount;
+  float paid;
+  if (ACR_FobSupply.PaidCap(GetOwner(), paid) && transferAmount > paid) transferAmount = Math.Max(0, paid);
+ }
+
+ override void PerformAction(IEntity pOwnerEntity, IEntity pUserEntity)
+ {
+  float paid;
+  if (!ACR_FobSupply.PaidCap(pOwnerEntity, paid))
+  {
+   super.PerformAction(pOwnerEntity, pUserEntity);
+   return;
+  }
+  SCR_ResourceContainer cargo = ACR_Logistics.SupplyContainer(pOwnerEntity.GetRootParent());
+  float before;
+  if (cargo) before = cargo.GetResourceValue();
+  m_fACRWanted = 0;
+  super.PerformAction(pOwnerEntity, pUserEntity);
+  float moved;
+  if (cargo) moved = before - cargo.GetResourceValue();
+  int playerId = GetGame().GetPlayerManager().GetPlayerIdFromControlledEntity(pUserEntity);
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (now - m_fACRToldAt < 10000 && moved < 1) playerId = 0; // once per 10 s while refused
+  if (!ACR_FobSupply.Unloaded(pOwnerEntity, moved, m_fACRWanted, playerId).IsEmpty() && playerId > 0) m_fACRToldAt = now;
  }
 }

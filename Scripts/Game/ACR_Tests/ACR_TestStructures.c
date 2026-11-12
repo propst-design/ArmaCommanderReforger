@@ -303,6 +303,26 @@ class ACR_TestStructures
    why = string.Format("takes %1, truck side %2, truck at %3 m, cargo %4", ACR_FobSupply.TakesFrom(fob.m_FobSupply, store, unloader), side, vector.DistanceXZ(s_Construction.GetOrigin(), fob.GetOrigin()), unloader.GetOwner());
   }
   ACR_TestRegress.Check("FOB: truck in the ring may unload into the store", inside, why);
+  // #107 "Only paid loads unload" (Jacob, 11 Nov): this truck was placed, not bought, so it may put
+  // nothing into the FOB; a bought load may, a paid load spent on other jobs stops counting, a base
+  // refill never counts, and what went in comes off the paid count.
+  ACR_Logistics log = ACR_Manager.GetInstance().m_Logistics;
+  float per = ACR_Logistics.SUPPLIES_PER_LOAD_CONSTRUCTION;
+  float freeCap = -1;
+  bool inFob = ACR_FobSupply.PaidCap(s_Construction, freeCap);
+  log.AddStock(s_Construction, ACR_Logistics.CAPACITY_CONSTRUCTION);
+  log.MarkPaid(s_Construction);
+  float paidFull = log.PaidOf(s_Construction);
+  log.Use(s_Construction, 10);
+  float afterUse = log.PaidOf(s_Construction);
+  log.AddStock(s_Construction, 10);
+  float afterRefill = log.PaidOf(s_Construction);
+  log.UnloadedPaid(s_Construction, 5 * per);
+  float afterUnload = log.PaidOf(s_Construction);
+  float cap = -1;
+  ACR_FobSupply.PaidCap(s_Construction, cap);
+  bool paidOk = inFob && freeCap == 0 && paidFull > 39 && Math.AbsFloat(afterUse - (paidFull - 10)) < 0.01 && Math.AbsFloat(afterRefill - afterUse) < 0.01 && Math.AbsFloat(afterUnload - (afterUse - 5)) < 0.01 && Math.AbsFloat(cap - afterUnload * per) < 0.5;
+  ACR_TestRegress.Check("FOB: only paid loads unload (free truck refused; spent and refilled loads tracked)", paidOk, string.Format("in FOB %1, free cap %2, paid %3 -> used %4 -> refilled %5 -> unloaded %6 loads, cap %7", inFob, freeCap, paidFull, afterUse, afterRefill, afterUnload, cap));
   s_Construction.SetOrigin(was);
  }
 
@@ -759,7 +779,7 @@ class ACR_TestStructures
    ACR_TestRegress.Check("structures: pad gone with its helipad", last.Faction() == "", last.Faction());
    ACR_TestRegress.Check("FOB: supply provider removed with command post", s_Fob && !s_Fob.m_FobSupply && s_Fob.m_iSupplyDelivery == 0, "");
    ACR_TestSapperLive.Final();
-   ACR_TestRegress.Complete("structures", 97 + ACR_TestLogisticsRules.CHECKS + ACR_TestFobRelay.CHECKS + ACR_TestFobBuild.CHECKS + ACR_TestFobSlots.CHECKS + ACR_TestFobUpgrades.CHECKS + ACR_TestFobDefences.CHECKS + ACR_TestFobIntel.CHECKS + ACR_TestFobPatrol.CHECKS + ACR_TestSapperDemo.CHECKS + ACR_TestFobDesign.CHECKS + ACR_TestFobBuiltRace.CHECKS + ACR_TestSapperLive.CHECKS);
+   ACR_TestRegress.Complete("structures", 98 + ACR_TestLogisticsRules.CHECKS + ACR_TestFobRelay.CHECKS + ACR_TestFobBuild.CHECKS + ACR_TestFobSlots.CHECKS + ACR_TestFobUpgrades.CHECKS + ACR_TestFobDefences.CHECKS + ACR_TestFobIntel.CHECKS + ACR_TestFobPatrol.CHECKS + ACR_TestSapperDemo.CHECKS + ACR_TestFobDesign.CHECKS + ACR_TestFobBuiltRace.CHECKS + ACR_TestSapperLive.CHECKS);
   }
  }
 

@@ -47,6 +47,11 @@ class ACR_Logistics : Managed
  protected ref map<IEntity, float> m_Stock = new map<IEntity, float>();
  protected ref map<IEntity, float> m_SoldierServedAt = new map<IEntity, float>();
  protected ref map<IEntity, float> m_GameSupplies = new map<IEntity, float>(); // container value after our last write
+ // #107 (Jacob, 11 Nov: "Only paid loads unload"): loads of a truck's stock that were paid for with
+ // RP (the load a truck is bought with, MarkPaid). Only these unload into a FOB (ACR_FobSupply.PaidCap).
+ // Never more than the stock: free stock (base refills, loads taken on by hand) is spent first, and
+ // once the stock falls below the paid loads, the paid loads fall with it (SetStock).
+ protected ref map<IEntity, float> m_Paid = new map<IEntity, float>();
  protected static ref map<ResourceName, int> s_ServiceCache;
  // Called by ACR_StaticInit at game start (static initializer budget: HANDBOOK Pitfalls).
  static void ACR_InitStatics()
@@ -198,11 +203,15 @@ class ACR_Logistics : Managed
    if (!fob) return false;
    return ACR_FobSupply.SpendBuild(fob.m_FobSupply, Math.Ceil(amount * ACR_LogisticsRules.ServiceCost()));
   }
+  int flags = ServiceOf(vehicle);
+  bool game = SCR_ResourceSystemHelper.IsGlobalResourceTypeEnabled() && flags != 0;
+  // What the game took or added since the last tick first (an unload, the arsenal), or the write
+  // below would put it back.
+  if (game) ReadGameSupplies(vehicle, flags);
   float stock = StockOf(vehicle);
   if (stock < amount) return false;
-  m_Stock.Set(vehicle, stock - amount);
-  int flags = ServiceOf(vehicle);
-  if (SCR_ResourceSystemHelper.IsGlobalResourceTypeEnabled() && flags != 0) WriteGameSupplies(vehicle, flags);
+  SetStock(vehicle, stock - amount);
+  if (game) WriteGameSupplies(vehicle, flags);
   return true;
  }
 
@@ -212,9 +221,50 @@ class ACR_Logistics : Managed
   int flags = ServiceOf(vehicle);
   if (flags == 0) return;
   float cap = Capacity(flags);
+  bool game = SCR_ResourceSystemHelper.IsGlobalResourceTypeEnabled();
+  if (game) ReadGameSupplies(vehicle, flags);
   float stock = StockOf(vehicle);
-  m_Stock.Set(vehicle, Math.Clamp(stock + amount, 0, cap));
-  if (SCR_ResourceSystemHelper.IsGlobalResourceTypeEnabled()) WriteGameSupplies(vehicle, flags);
+  SetStock(vehicle, Math.Clamp(stock + amount, 0, cap));
+  if (game) WriteGameSupplies(vehicle, flags);
+ }
+
+ // The stock, keeping the paid loads at or below it.
+ protected void SetStock(IEntity vehicle, float stock)
+ {
+  m_Stock.Set(vehicle, stock);
+  float paid;
+  if (m_Paid.Find(vehicle, paid) && paid > stock) m_Paid.Set(vehicle, Math.Max(0, stock));
+ }
+
+ // A truck bought with RP: its whole load (as it arrives) is paid.
+ void MarkPaid(IEntity vehicle)
+ {
+  if (!vehicle || ServiceOf(vehicle) == 0) return;
+  m_Paid.Set(vehicle, StockOf(vehicle));
+ }
+
+ // Paid loads in the truck now, and the same in game supplies.
+ float PaidOf(IEntity vehicle)
+ {
+  float paid;
+  if (!vehicle || !m_Paid.Find(vehicle, paid)) return 0;
+  return Math.Max(0, Math.Min(paid, StockOf(vehicle)));
+ }
+
+ float PaidSupplies(IEntity vehicle)
+ {
+  return PaidOf(vehicle) * SuppliesPerLoad(ServiceOf(vehicle));
+ }
+
+ // 'supplies' of the paid load went into a FOB; the stock catches up with the container now.
+ void UnloadedPaid(IEntity vehicle, float supplies)
+ {
+  int flags = ServiceOf(vehicle);
+  float perLoad = SuppliesPerLoad(flags);
+  if (!vehicle || perLoad <= 0) return;
+  float paid = PaidOf(vehicle);
+  if (m_Paid.Contains(vehicle)) m_Paid.Set(vehicle, Math.Max(0, paid - Math.Max(0, supplies) / perLoad));
+  if (SCR_ResourceSystemHelper.IsGlobalResourceTypeEnabled()) ReadGameSupplies(vehicle, flags);
  }
 
  ACR_Base ServiceFob(IEntity station)
@@ -271,7 +321,7 @@ class ACR_Logistics : Managed
   float delta = container.GetResourceValue() - written;
   if (Math.AbsFloat(delta) < 0.01) return;
   float stock = StockOf(station);
-  m_Stock.Set(station, Math.Clamp(stock + delta / perLoad, 0, Capacity(flags)));
+  SetStock(station, Math.Clamp(stock + delta / perLoad, 0, Capacity(flags)));
   m_GameSupplies.Set(station, container.GetResourceValue());
  }
 
@@ -689,7 +739,7 @@ class ACR_Logistics : Managed
   {
    if (base.m_bBuilt || base.m_bRetired || base.m_bContested || base.m_sOwner != faction || !ACR_LogisticsRules.CanDeploy(base)) continue;
    if (vector.DistanceXZ(base.GetOrigin(), station.GetOrigin()) > base.m_fRadius) continue;
-   m_Stock.Set(station, Math.Min(capacity, stock + capacity * RESTOCK_PER_TICK));
+   SetStock(station, Math.Min(capacity, stock + capacity * RESTOCK_PER_TICK)); // free: never paid
    return;
   }
  }

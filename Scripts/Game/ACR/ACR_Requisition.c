@@ -417,6 +417,8 @@ class ACR_Requisition : Managed
    purchase.m_Vehicle = vehicle;
    if (m_Manager.m_Cleanup) m_Manager.m_Cleanup.Watch(vehicle);
    ACR_Vehicles.SetOwner(vehicle, faction);
+   // A service truck bought with RP: its load is paid, the part that may unload into a FOB (#107).
+   if (purchase.m_iPaid > 0 && m_Manager.m_Logistics) m_Manager.m_Logistics.MarkPaid(vehicle);
    if (crewed)
    {
     purchase.m_bCrewed = true;
