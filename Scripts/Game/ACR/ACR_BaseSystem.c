@@ -243,7 +243,7 @@ class ACR_BaseSystem : Managed
  {
   ChimeraCharacter character = ChimeraCharacter.Cast(entity);
   if (!character || m_Bodies.Contains(character) || character.GetCharacterController().IsDead() || character.GetCharacterController().IsUnconscious()) return;
-  // A BBB prisoner (BBB 0.1.11+) kneels unarmed with the engine's disarmed flag, which vanilla
+  // A BBB prisoner (BBB 0.2.0+) kneels unarmed with the engine's disarmed flag, which vanilla
   // otherwise sets only for the downed (skipped above). Read through vanilla, not BBB_Morale.IsPrisoner,
   // so ACA builds against BBB pins with or without surrender.
   PerceivableComponent perceivable = PerceivableComponent.Cast(character.FindComponent(PerceivableComponent));

@@ -2,7 +2,7 @@
 // and potential attack vectors"). Step 1 of the defence rework (design: docs/handoff/ai-allocator-
 // design.md, "Defence: read the attack before it lands"): a forecast, built only from what the side
 // knows, logged and shown in AC:A Think so it can be judged before anything acts on it.
-// -acrDefenceForecast 1 logs it, 2 (the default from 0.5.13, #232) also acts on it; 0 or -acrAICommander
+// -acrDefenceForecast 1 logs it, 2 (the default from 0.6.0, #232) also acts on it; 0 or -acrAICommander
 // classic turns it off.
 //
 // Today the commander only counts enemies already inside THREAT_DISTANCE of a base. The forecast looks

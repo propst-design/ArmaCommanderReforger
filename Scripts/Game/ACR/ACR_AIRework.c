@@ -1,6 +1,6 @@
 // The AI commander rework (#232): lanes (ACR_AILanes), the job allocator (ACR_AICommander.AllocatorMode),
 // the defence forecast with screens (ACR_DefenceForecast, ACR_DefenceScreen) and covered fall-back
-// (ACR_Squad.CoveredFallBackOn). On by default from 0.5.13 (they were the 0.5.9 Experimental tab, off).
+// (ACR_Squad.CoveredFallBackOn). On by default from 0.6.0 (they were the 0.5.9 Experimental tab, off).
 // One switch keeps the commander from before for one release so players can compare (#232 "Done when"):
 // -acrAICommander classic (setup row "AI commander", mission header m_sAcrAICommander). Each part's own
 // flag still wins over it (-acrAIStrategy, -acrAIAllocator, -acrDefenceForecast, -acrCoveredFallBack),

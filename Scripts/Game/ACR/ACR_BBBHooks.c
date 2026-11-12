@@ -369,13 +369,13 @@ class ACR_BBBHooks : BBB_Hooks
   return SquadOf(group) == null;
  }
 
- // Surrender policy (BBB AllowSurrender, BBB 0.1.11+): allowed for every squad, BBB's own default,
+ // Surrender policy (BBB AllowSurrender, BBB 0.2.0+): allowed for every squad, BBB's own default,
  // so there is deliberately no override: ACA must also build against BBB pins that predate the hook.
  // Squad retreats are ACA's (AllowMorale), but one cornered man giving up is a soldier's decision:
  // he leaves the squad (counted missing, refilled by Reinforce like a death) and ACR_BaseSystem
  // leaves prisoners out of holding and contesting bases. Override here only once the pin has the hook.
 
- // Zombie rules (BBB_Zombies, BBB 0.1.11+; these overrides need a pin that has the hooks): no surrender to
+ // Zombie rules (BBB_Zombies, BBB 0.2.0+; these overrides need a pin that has the hooks): no surrender to
  // zombies, keep distance, no flanks or suppression on them, clear them before healing, dragging or looting.
  // ACA's zombie modes switch the rules on; otherwise BBB decides (-bbbZombies auto: on whenever Project
  // Outbreak is loaded). A host's -bbbZombies 0 or 1 still wins. BBB judges per threat: the other side's

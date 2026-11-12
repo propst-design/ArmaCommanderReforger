@@ -231,7 +231,7 @@ class ACR_Intel : Managed
     // Identified enemies too: a target moves from DETECTED to ENEMY once it is made out, and intel read only the
     // first list, so a squad watching an enemy walk in gave one sighting and then none (forecastdefend, 4 Nov:
     // the contact aged to 81 s while the screen had him at 300 m). As ACR_Ambush reads them.
-    // Only with the defence forecast on (on by default from 0.5.13, #232; off with the classic commander):
+    // Only with the defence forecast on (on by default from 0.6.0, #232; off with the classic commander):
     // it changes threat counts, fire missions, the feed and the map for everyone.
     array<BaseTarget> targets = {};
     if (identified)

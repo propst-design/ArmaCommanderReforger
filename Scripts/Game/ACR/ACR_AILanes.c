@@ -15,7 +15,7 @@
 // called off, or nothing in it it can muster for), or once held a while, a clearly better lane
 // opens. Defence and counterattacks come first, as before. The lane is told to its own side's 2IC
 // channel and nowhere else: the enemy works it out from its intel, as a player would.
-// On by default from 0.5.13 (#232; experimental and off in 0.5.9-0.5.12): -acrAIStrategy 0 or
+// On by default from 0.6.0 (#232; experimental and off in 0.5.9-0.5.12): -acrAIStrategy 0 or
 // -acrAICommander classic (ACR_AIRework) turns it off; off is the commander from before. The geometry and scores here are pure
 // functions of positions, so ACR_TestLanes can check them without a world.
 class ACR_AILane : Managed

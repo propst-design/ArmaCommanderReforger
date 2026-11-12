@@ -707,7 +707,7 @@ class ACR_Setup
   if (key == "capscale") return "off";
   if (key == "declutter" && value == "0") return "off (the classic map)";
   if (key == "declutter") return "on";
-  if (key == "aicommander" && value == "classic") return "classic (before 0.5.13)";
+  if (key == "aicommander" && value == "classic") return "classic (before 0.6.0)";
   if (key == "aicommander") return "new (lanes, allocator, forecast)";
   if (key == "evadearmour" && value == "1") return "on (needs BBB's setting too)";
   if (key == "twoic" && value == "1") return "2IC: runs the squads nobody leads";

@@ -63,7 +63,7 @@ class ACR_TestLanes
   bool rush = ACR_AIDoctrine.Find("blitz").m_fRushMinutes < ACR_AIDoctrine.Find("balanced").m_fRushMinutes;
   ACR_TestRegress.Check("lanes: doctrines fight down a lane (Raider raids everywhere), Fortress guards flanks hardest", used && raider && fronts && works && rush, "");
 
-  // On by default from 0.5.13 (#232); -acrAIStrategy 0 or the classic commander turns them off, and the
+  // On by default from 0.6.0 (#232); -acrAIStrategy 0 or the classic commander turns them off, and the
   // part's own flag wins over the classic switch.
   bool onByDefault = ACR_AILanes.On();
   ACR_Options.Set("acrAIStrategy", "0");

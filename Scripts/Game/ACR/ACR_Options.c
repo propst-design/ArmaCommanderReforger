@@ -124,7 +124,7 @@ class ACR_MissionHeader : SCR_MissionHeader
  string m_sAcrPricing;
  [Attribute("", UIWidgets.EditBox, "AI commanders: both, none or a faction key (-acrAI)")]
  string m_sAcrAI;
- [Attribute("", UIWidgets.EditBox, "AI commander: new (default: lanes, job allocator, defence forecast, covered fall-back) or classic (as before 0.5.13) (-acrAICommander)")]
+ [Attribute("", UIWidgets.EditBox, "AI commander: new (default: lanes, job allocator, defence forecast, covered fall-back) or classic (as before 0.6.0) (-acrAICommander)")]
  string m_sAcrAICommander;
  [Attribute("", UIWidgets.EditBox, "Blue side AI doctrine: random, balanced, blitz, firepower, fortress or raider (-acrDoctrineWest)")]
  string m_sAcrDoctrineWest;

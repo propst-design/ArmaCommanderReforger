@@ -2860,7 +2860,7 @@ class ACR_Squad : Managed
   return true;
  }
 
- // Covered fall-back: on by default from 0.5.13 (#232; off in 0.5.9-0.5.12): -acrCoveredFallBack 0 or the
+ // Covered fall-back: on by default from 0.6.0 (#232; off in 0.5.9-0.5.12): -acrCoveredFallBack 0 or the
  // classic commander (ACR_AIRework) turns it off.
  static bool CoveredFallBackOn() { return ACR_LogisticsRules.Choice("acrCoveredFallBack", ACR_AIRework.Default("1")) == "1"; }
 

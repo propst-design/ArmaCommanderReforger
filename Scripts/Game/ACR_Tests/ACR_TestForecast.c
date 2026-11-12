@@ -103,7 +103,7 @@ class ACR_TestForecast
 
  static void CheckOption()
  {
-  // Acting on it by default from 0.5.13 (#232); 1 only logs; 0 or the classic commander turns it off.
+  // Acting on it by default from 0.6.0 (#232); 1 only logs; 0 or the classic commander turns it off.
   bool actsByDefault = ACR_DefenceForecast.On() && ACR_DefenceForecast.Acts();
   ACR_Options.Set("acrDefenceForecast", "1");
   bool logs = ACR_DefenceForecast.On() && !ACR_DefenceForecast.Acts();
