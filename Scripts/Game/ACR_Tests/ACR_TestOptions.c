@@ -14,23 +14,26 @@ class ACR_TestOptions
   else
    ACR_TestRegress.Skip("options: our scenarios use ACR_MissionHeader", "no mission header on this server (started from a world)");
 
+  // The flag this regress run was started with (regressdriver runs it with the scripted driver on).
+  string flag = "acrRegressTest";
+  if (System.IsCLIParam("acrRegressDriverTest")) flag = "acrRegressDriverTest";
   header.Set("acrThreat", "high");
   header.Set("acrGameMasterAll", "0");
-  header.Set("acrRegressTest", "header");
+  header.Set(flag, "header");
   ACR_Options.UseHeaderForTest(header);
   string value;
   bool fromHeader = ACR_Options.Get("acrThreat", value) && value == "high" && ACR_Options.Source("acrThreat") == "header";
   ACR_TestRegress.Check("options: a header value applies when nothing else sets it", fromHeader, string.Format("acrThreat=%1 (%2)", value, ACR_Options.Source("acrThreat")));
 
   string flagValue;
-  bool flagWins = ACR_Options.Get("acrRegressTest", flagValue) && flagValue == "1" && ACR_Options.Source("acrRegressTest") == "flag";
-  ACR_TestRegress.Check("options: a command-line flag beats the header", flagWins, string.Format("acrRegressTest=%1 (%2)", flagValue, ACR_Options.Source("acrRegressTest")));
+  bool flagWins = ACR_Options.Get(flag, flagValue) && flagValue == "1" && ACR_Options.Source(flag) == "flag";
+  ACR_TestRegress.Check("options: a command-line flag beats the header", flagWins, string.Format("%1=%2 (%3)", flag, flagValue, ACR_Options.Source(flag)));
 
   ACR_Options.Set("acrThreat", "low");
-  ACR_Options.Set("acrRegressTest", "screen");
+  ACR_Options.Set(flag, "screen");
   string screenThreat, screenFlag;
   ACR_Options.Get("acrThreat", screenThreat);
-  ACR_Options.Get("acrRegressTest", screenFlag);
+  ACR_Options.Get(flag, screenFlag);
   bool screenWins = screenThreat == "low" && screenFlag == "screen" && ACR_Options.Source("acrThreat") == "screen";
   ACR_Options.ClearSet();
   string after;

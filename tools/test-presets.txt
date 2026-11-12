@@ -43,6 +43,7 @@ tags|-acrTagsTest 1|90
 shared|-acrSharedTest 1|150
 maphandoff|-acrMapHandoffTest 1|100
 regress|-acrRegressTest 1|100
+regressdriver|-acrRegressDriverTest 1|100
 getout|-acrGetOutTest 1|150
 getoutold|-acrGetOutOldTest 1|110
 mortar|-acrMortarTest 1|360

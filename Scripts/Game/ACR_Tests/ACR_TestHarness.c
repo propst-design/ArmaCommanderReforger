@@ -205,7 +205,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrSpawnSpotTest", flag)) mode = MODE_SPAWNSPOT;
   if (System.GetCLIParam("acrTagsTest", flag)) mode = MODE_TAGS;
   if (System.GetCLIParam("acrSharedTest", flag)) mode = MODE_SHARED;
-  if (System.GetCLIParam("acrRegressTest", flag)) mode = MODE_REGRESS;
+  if (System.GetCLIParam("acrRegressTest", flag) || System.GetCLIParam("acrRegressDriverTest", flag)) mode = MODE_REGRESS;
   if (System.GetCLIParam("acrMapPolygonTest", flag)) mode = MODE_MAPPOLYGON;
   if (System.GetCLIParam("acrMortarTest", flag)) mode = MODE_MORTAR;
   if (System.GetCLIParam("acrBatteryTest", flag)) mode = MODE_BATTERY;
@@ -389,7 +389,12 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_SPAWNSPOT) { m_Logistics.TestSpawnSpot(); return; }
   if (m_Mode == MODE_TAGS) { ACR_TestShared.TestTags(this, m_Ticks); return; }
   if (m_Mode == MODE_SHARED) { ACR_TestShared.TestShared(this, m_Ticks); return; }
-  if (m_Mode == MODE_REGRESS) { ACR_TestRegress.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_REGRESS)
+  {
+   if (System.IsCLIParam("acrRegressDriverTest")) BBB_Drive.s_bOn = true; // regress with BBB's scripted driver on
+   ACR_TestRegress.Run(this, m_Ticks);
+   return;
+  }
   if (m_Mode == MODE_MAPPOLYGON) { ACR_TestMapPolygon.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_GETOUT) { ACR_TestGetOut.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_MORTAR) { ACR_TestMortar.Run(this, m_Ticks); return; }
