@@ -4,8 +4,10 @@
 //
 // Each side's picture is built once per second (ACR_FeedFrame), not once per
 // player. A section is only sent to a player when it changed since the last
-// one he got (positions of soldiers and squad leaders always are), plus a full
-// resend every FULL_EVERY_MS. Ages and countdowns go out as "seconds at send
+// one he got, plus a full resend every FULL_EVERY_MS. The roster's and squads'
+// names and labels are sections like the rest; their positions go on their own,
+// unreliable, only while the player has the map or the RTS camera open (and
+// reliably with every full resend), tagged with the roster they belong to (review P3). Ages and countdowns go out as "seconds at send
 // time" and the client counts on from there, so they don't count as changes.
 class ACR_FeedFrame : Managed
 {
@@ -17,6 +19,7 @@ class ACR_FeedFrame : Managed
  ref array<int> m_RosterStates = {};
  ref array<string> m_RosterLabels = {};
  ref array<RplId> m_RosterGroups = {};
+ string m_sRosterSig; // ids, states, labels, groups: not positions
  // group markers
  ref array<RplId> m_Leaders = {};
  ref array<vector> m_LeaderPos = {};
@@ -26,6 +29,8 @@ class ACR_FeedFrame : Managed
  ref array<int> m_Commandable = {};
  ref array<RplId> m_GroupIds = {};
  ref array<string> m_Details = {};
+ ref array<int> m_LeaderFlags = {}; // per group: leader state | commandable << 4 (one RPC parameter for both)
+ string m_sGroupsSig; // everything but the leaders' positions
  ref array<int> m_Status = {};       // per group: hp, ammo, fuel, stock, ordered by, order age (s)
  string m_sStatusSig;
  // orders
@@ -67,7 +72,8 @@ class ACR_FeedFrame : Managed
  ref array<string> m_Feed = {};
  ref array<int> m_FeedAges = {};
  ref array<vector> m_FeedPos = {}; // where each line happened (vector.Zero: nowhere)
- string m_sIntelSig;
+ string m_sIntelSig;   // contacts
+ string m_sFeedSig;    // the feed's lines, on their own: a contact moving doesn't resend them
  ref array<vector> m_VehiclePos = {};
  ref array<string> m_VehicleNames = {};
  ref array<int> m_VehicleAges = {};
@@ -186,14 +192,20 @@ class ACR_MapFeed
 
  protected static void SendFrame(ACR_Manager manager, SCR_PlayerController pc, int id, ACR_FeedFrame frame, bool full)
  {
-  // Always: soldier and leader positions.
-  IEntity original = pc.GetMainEntity();
-  vector originalPos;
-  if (original) originalPos = original.GetOrigin();
-  pc.ACR_SendRoster(frame.m_RosterIds, frame.m_RosterPos, frame.m_RosterStates, frame.m_RosterLabels, frame.m_RosterGroups, originalPos);
-  Count(frame, "roster");
-  pc.ACR_SendGroupMarkers(frame.m_Leaders, frame.m_LeaderPos, frame.m_GroupNames, frame.m_Symbols, frame.m_LeaderStates, frame.m_Commandable, frame.m_GroupIds, frame.m_Details);
-  Count(frame, "groups");
+  // Soldiers and squads: names, labels and symbols when they changed; positions while the
+  // player looks at the map or through the RTS camera, and with every full resend.
+  int rosterVersion = frame.m_sRosterSig.Hash();
+  int groupsVersion = frame.m_sGroupsSig.Hash();
+  if (Changed(id, "roster", frame.m_sRosterSig, full)) { pc.ACR_SendRosterInfo(rosterVersion, frame.m_RosterIds, frame.m_RosterStates, frame.m_RosterLabels, frame.m_RosterGroups); Count(frame, "roster"); }
+  if (Changed(id, "groups", frame.m_sGroupsSig, full)) { pc.ACR_SendGroupInfo(groupsVersion, frame.m_Leaders, frame.m_GroupNames, frame.m_Symbols, frame.m_LeaderFlags, frame.m_GroupIds, frame.m_Details); Count(frame, "groups"); }
+  if (full || pc.ACR_IsViewingMap())
+  {
+   IEntity original = pc.GetMainEntity();
+   vector originalPos;
+   if (original) originalPos = original.GetOrigin();
+   pc.ACR_SendPositions(rosterVersion, frame.m_RosterPos, originalPos, groupsVersion, frame.m_LeaderPos, full);
+   Count(frame, "positions");
+  }
   if (Changed(id, "status", frame.m_sStatusSig, full)) { pc.ACR_SendGroupStatus(frame.m_GroupIds, frame.m_Status); Count(frame, "status"); }
   // Per player: command status (the countdown is counted on by the client).
   string key = frame.m_sKey;
@@ -230,7 +242,8 @@ class ACR_MapFeed
   if (Changed(id, "mineshapes", frame.m_sMineShapesSig, full)) { pc.ACR_SendMineShapes(frame.m_MineShapeCorners, frame.m_MineShapeCounts); Count(frame, "mineshapes"); }
   if (Changed(id, "orders", frame.m_sOrdersSig, full)) { pc.ACR_SendOrders(frame.m_OrderGroups, frame.m_OrderTargets, frame.m_OrderKinds, frame.m_OrderIssuers); Count(frame, "orders"); }
   PublishCapture(pc, key);
-  if (Changed(id, "intel", frame.m_sIntelSig, full)) { pc.ACR_SendIntel(frame.m_ContactPos, frame.m_ContactKinds, frame.m_ContactCounts, frame.m_ContactAges, frame.m_ContactDetails, frame.m_Feed, frame.m_FeedAges, frame.m_FeedPos); Count(frame, "intel"); }
+  if (Changed(id, "intel", frame.m_sIntelSig, full)) { pc.ACR_SendIntel(frame.m_ContactPos, frame.m_ContactKinds, frame.m_ContactCounts, frame.m_ContactAges, frame.m_ContactDetails); Count(frame, "intel"); }
+  if (Changed(id, "feed", frame.m_sFeedSig, full)) { pc.ACR_SendFeed(frame.m_Feed, frame.m_FeedAges, frame.m_FeedPos); Count(frame, "feed"); }
   if (Changed(id, "vehicles", frame.m_sVehiclesSig, full)) { pc.ACR_SendVehicles(frame.m_VehiclePos, frame.m_VehicleNames, frame.m_VehicleAges); Count(frame, "vehicles"); }
   if (Changed(id, "cmd", frame.m_sCmdSig, full)) { pc.ACR_SendCommanders(frame.m_CmdIds, frame.m_CmdTags, frame.m_CmdActions, frame.m_CmdActionAges, frame.m_SelGroups, frame.m_SelOwners); Count(frame, "cmd"); }
   if (Changed(id, "pings", frame.m_sPingsSig, full)) { pc.ACR_SendPings(frame.m_PingIds, frame.m_PingKinds, frame.m_PingPos, frame.m_PingOwners, frame.m_PingTags, frame.m_PingAges, frame.m_PingAnswers); Count(frame, "pings"); }
@@ -323,6 +336,7 @@ class ACR_MapFeed
  {
   array<AIAgent> agents = {};
   int bytes;
+  string rosterSig = "";
   foreach (ACR_Squad squad : manager.m_Squads)
   {
    if (squad.GetFaction() != frame.m_Faction) continue;
@@ -340,10 +354,13 @@ class ACR_MapFeed
     int state = 0;
     if (ACR_Squad.FindController(soldier) != 0) state = 1;
     frame.m_RosterStates.Insert(state);
-    bytes += 4 + 12 + 4 + label.Length() + 4 + 4;
+    bytes += 4 + 4 + label.Length() + 4 + 4;
+    rosterSig += frame.m_RosterIds[frame.m_RosterIds.Count() - 1].AsString() + "," + state.ToString() + "," + label + "," + groupId.AsString() + ";";
    }
   }
+  frame.m_sRosterSig = rosterSig;
   frame.m_Bytes.Set("roster", bytes + 12);
+  frame.m_Bytes.Set("positions", frame.m_RosterPos.Count() * 12 + 40);
  }
 
  // A named, role-symbol marker at the leader of every friendly group: our
@@ -510,7 +527,19 @@ class ACR_MapFeed
     statusSig += "-;" + id.AsString() + ";";
    }
   }
-  frame.m_Bytes.Set("groups", bytes + 32);
+  // The squads' signature (not their positions) and the packed leader state.
+  string groupsSig = "";
+  foreach (int gi, RplId leaderId : frame.m_Leaders)
+  {
+   int flags = frame.m_LeaderStates[gi] | (frame.m_Commandable[gi] << 4);
+   frame.m_LeaderFlags.Insert(flags);
+   groupsSig += leaderId.AsString() + "," + frame.m_GroupIds[gi].AsString() + "," + frame.m_GroupNames[gi] + "," + flags.ToString() + ",";
+   for (int si = gi * 4; si < gi * 4 + 4 && si < frame.m_Symbols.Count(); si++) groupsSig += frame.m_Symbols[si].ToString() + ",";
+   groupsSig += frame.m_Details[gi] + ";";
+  }
+  frame.m_sGroupsSig = groupsSig;
+  frame.m_Bytes.Set("groups", bytes - frame.m_Leaders.Count() * 12 + 32);
+  frame.m_Bytes.Set("positions", frame.m_Bytes.Get("positions") + frame.m_LeaderPos.Count() * 12);
   frame.m_Bytes.Set("status", frame.m_GroupIds.Count() * 28 + 8);
   // The status list is keyed by the group list, which can change on its own.
   foreach (RplId g : frame.m_GroupIds) statusSig += g.AsString() + ";";
@@ -729,6 +758,7 @@ class ACR_MapFeed
    sig += P(contact.m_Pos) + kind.ToString() + "," + contact.m_iCount.ToString() + "," + seen.ToString() + "," + icons.ToString() + "," + heading.ToString() + ";";
   }
   int feedBytes;
+  string feedSig = "";
   foreach (int i, string line : intel.m_Feed)
   {
    int seconds = (now - intel.m_FeedTime[i]) / 1000;
@@ -739,11 +769,13 @@ class ACR_MapFeed
    if (i < intel.m_FeedPos.Count()) spot = intel.m_FeedPos[i];
    frame.m_FeedPos.Insert(spot);
    int at = intel.m_FeedTime[i] / 1000;
-   sig += line + at.ToString() + ";";
+   feedSig += line + at.ToString() + ";";
    feedBytes += line.Length() + 20;
   }
   frame.m_sIntelSig = sig;
-  frame.m_Bytes.Set("intel", frame.m_ContactPos.Count() * 36 + feedBytes + 28);
+  frame.m_sFeedSig = feedSig;
+  frame.m_Bytes.Set("intel", frame.m_ContactPos.Count() * 36 + 20);
+  frame.m_Bytes.Set("feed", feedBytes + 12);
   string vehicleSig = "";
   int vehicleBytes;
   foreach (IEntity vehicle, float seenAt : intel.m_VehicleSeen)

@@ -1917,7 +1917,7 @@ modded class SCR_PlayerController
  // The feed merged (ACR_MapDeclutter.MergeFeed): texts and ages, newest first, 10 minutes back.
  protected void ACR_DeclFeed(notnull array<string> texts, notnull array<int> ages)
  {
-  int since = ACR_MapData.Since(m_ACR_IntelAt);
+  int since = ACR_MapData.Since(m_ACR_FeedAt);
   array<string> raw = {};
   array<int> rawAges = {};
   array<vector> rawSpots = {};

@@ -837,19 +837,80 @@ modded class SCR_PlayerController
  protected ACR_UnitMarker m_ACR_OriginalMarker;
  protected bool m_ACR_MapWasOpen;
 
- void ACR_SendRoster(array<RplId> ids, array<vector> positions, array<int> states, array<string> labels, array<RplId> groupIds, vector original)
+ // The roster's names and labels, when they changed (ACR_MapFeed, review P3). Positions come on
+ // their own (ACR_PositionsOwner) for the roster they were sent with (its version); until then a
+ // soldier who was already on the list keeps his last position, and a new one has none.
+ protected int m_ACR_RosterVersion;
+ protected int m_ACR_GroupsVersion;
+ void ACR_SendRosterInfo(int version, array<RplId> ids, array<int> states, array<string> labels, array<RplId> groupIds)
  {
-  Rpc(ACR_RosterOwner, ids, positions, states, labels, groupIds, original);
+  Rpc(ACR_RosterInfoOwner, version, ids, states, labels, groupIds);
  }
  [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
- protected void ACR_RosterOwner(array<RplId> ids, array<vector> positions, array<int> states, array<string> labels, array<RplId> groupIds, vector original)
+ protected void ACR_RosterInfoOwner(int version, array<RplId> ids, array<int> states, array<string> labels, array<RplId> groupIds)
  {
+  ACR_Realign(m_ACR_Ids, m_ACR_Positions, ids);
+  m_ACR_RosterVersion = version;
   m_ACR_UnitGroups.Copy(groupIds);
   m_ACR_Ids.Copy(ids);
-  m_ACR_Positions.Copy(positions);
   m_ACR_States.Copy(states);
   m_ACR_Labels.Copy(labels);
+ }
+
+ // Positions follow their ids to the new list's order; ids new to it get vector.Zero (not drawn).
+ protected static void ACR_Realign(array<RplId> oldIds, array<vector> positions, array<RplId> newIds)
+ {
+  map<RplId, vector> byId = new map<RplId, vector>();
+  for (int i = 0; i < oldIds.Count() && i < positions.Count(); i++) byId.Set(oldIds[i], positions[i]);
+  positions.Clear();
+  foreach (RplId id : newIds)
+  {
+   vector pos = vector.Zero;
+   byId.Find(id, pos);
+   positions.Insert(pos);
+  }
+ }
+
+ // Soldier and squad-leader positions: unreliable once a second while this player has the map or
+ // the RTS camera open, reliable with the feed's full resend (a lost one is replaced a second
+ // later). Kept only for the roster and squad list they were sent for.
+ void ACR_SendPositions(int rosterVersion, array<vector> rosterPos, vector original, int groupsVersion, array<vector> leaderPos, bool reliable)
+ {
+  if (reliable) Rpc(ACR_PositionsReliableOwner, rosterVersion, rosterPos, original, groupsVersion, leaderPos);
+  else Rpc(ACR_PositionsOwner, rosterVersion, rosterPos, original, groupsVersion, leaderPos);
+ }
+ [RplRpc(RplChannel.Unreliable, RplRcver.Owner)]
+ protected void ACR_PositionsOwner(int rosterVersion, array<vector> rosterPos, vector original, int groupsVersion, array<vector> leaderPos)
+ {
+  ACR_TakePositions(rosterVersion, rosterPos, original, groupsVersion, leaderPos);
+ }
+ [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
+ protected void ACR_PositionsReliableOwner(int rosterVersion, array<vector> rosterPos, vector original, int groupsVersion, array<vector> leaderPos)
+ {
+  ACR_TakePositions(rosterVersion, rosterPos, original, groupsVersion, leaderPos);
+ }
+ protected void ACR_TakePositions(int rosterVersion, array<vector> rosterPos, vector original, int groupsVersion, array<vector> leaderPos)
+ {
   m_ACR_OriginalPos = original;
+  if (rosterVersion == m_ACR_RosterVersion && rosterPos.Count() == m_ACR_Ids.Count()) m_ACR_Positions.Copy(rosterPos);
+  if (groupsVersion == m_ACR_GroupsVersion && leaderPos.Count() == m_ACR_Data.m_LeaderIds.Count()) m_ACR_Data.m_LeaderPositions.Copy(leaderPos);
+ }
+
+ // Server: whether this player looks at the map or through the RTS camera (positions go to him then).
+ protected bool m_bACR_Viewing;
+ protected bool m_bACR_ViewingSent;
+ bool ACR_IsViewingMap() { return m_bACR_Viewing; }
+ protected void ACR_SendViewing(bool viewing)
+ {
+  if (viewing == m_bACR_ViewingSent) return;
+  m_bACR_ViewingSent = viewing;
+  m_bACR_Viewing = viewing; // a listen-server host is its own server
+  Rpc(ACR_ViewingServer, viewing);
+ }
+ [RplRpc(RplChannel.Reliable, RplRcver.Server)]
+ protected void ACR_ViewingServer(bool viewing)
+ {
+  m_bACR_Viewing = viewing;
  }
 
  // ---------------------------------------------------------------- group leaders
@@ -858,21 +919,29 @@ modded class SCR_PlayerController
  protected ref array<string> m_ACR_GroupDetails = {};
  protected ref array<ref ACR_UnitMarker> m_ACR_GroupMarkers = {};
 
- void ACR_SendGroupMarkers(array<RplId> leaders, array<vector> positions, array<string> names, array<int> symbols, array<int> states, array<int> commandable, array<RplId> groupIds, array<string> details)
+ // The squads' names, symbols and details, when they changed (review P3); flags: per squad, the
+ // leader's state | commandable << 4. Positions come with ACR_PositionsOwner.
+ void ACR_SendGroupInfo(int version, array<RplId> leaders, array<string> names, array<int> symbols, array<int> flags, array<RplId> groupIds, array<string> details)
  {
-  Rpc(ACR_GroupMarkersOwner, leaders, positions, names, symbols, states, commandable, groupIds, details);
+  Rpc(ACR_GroupInfoOwner, version, leaders, names, symbols, flags, groupIds, details);
  }
  [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
- protected void ACR_GroupMarkersOwner(array<RplId> leaders, array<vector> positions, array<string> names, array<int> symbols, array<int> states, array<int> commandable, array<RplId> groupIds, array<string> details)
+ protected void ACR_GroupInfoOwner(int version, array<RplId> leaders, array<string> names, array<int> symbols, array<int> flags, array<RplId> groupIds, array<string> details)
  {
+  ACR_Realign(m_ACR_Data.m_LeaderIds, m_ACR_Data.m_LeaderPositions, leaders);
+  m_ACR_GroupsVersion = version;
   m_ACR_Data.m_GroupIds.Copy(groupIds);
   m_ACR_GroupDetails.Copy(details);
   m_ACR_Data.m_LeaderIds.Copy(leaders);
-  m_ACR_Data.m_LeaderPositions.Copy(positions);
   m_ACR_Data.m_GroupNames.Copy(names);
   m_ACR_GroupSymbols.Copy(symbols);
-  m_ACR_LeaderStates.Copy(states);
-  m_ACR_Data.m_Commandable.Copy(commandable);
+  m_ACR_LeaderStates.Clear();
+  m_ACR_Data.m_Commandable.Clear();
+  foreach (int flag : flags)
+  {
+   m_ACR_LeaderStates.Insert(flag & 15);
+   m_ACR_Data.m_Commandable.Insert((flag >> 4) & 1);
+  }
   // Squads that are gone drop out of the selection, so no order is sent for them
   // (the server refuses an order for a group it can't find; R04, 5 Oct review).
   for (int i = m_ACR_Data.m_Selected.Count() - 1; i >= 0; i--)
@@ -1022,6 +1091,7 @@ modded class SCR_PlayerController
  {
   SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
   bool open = mapEntity && mapEntity.IsOpen();
+  ACR_SendViewing(open || ACR_RTSCamera.IsActive());
   m_ACR_Data.m_iMyId = GetPlayerId();
   if (!open)
   {
@@ -1140,9 +1210,11 @@ modded class SCR_PlayerController
    marker.m_GroupId = m_ACR_UnitGroups[r];
    marker.m_Selected = ACR_IsSelected(marker.m_GroupId);
    if (marker.m_State == 1) marker.m_Label += " [PLAYER]";
-   vector pos = m_ACR_Positions[r];
+   vector pos = vector.Zero;
+   if (r < m_ACR_Positions.Count()) pos = m_ACR_Positions[r];
    IEntity streamed = SCR_EntityHelper.RplIdToEntity(shownId);
    if (streamed) pos = streamed.GetOrigin();
+   if (pos == vector.Zero) pos = Vector(-100000, 0, -100000); // off the map until its position comes
    marker.SetWorldPos(pos[0], pos[2]);
    marker.RefreshStyle();
   }
@@ -2295,22 +2367,33 @@ modded class SCR_PlayerController
  // a click on the line jumps the map there (ACR_FeedClick).
  protected ref array<vector> m_ACR_FeedShownPos = {};
  protected int m_ACR_IntelAt;
- void ACR_SendIntel(array<vector> positions, array<int> kinds, array<int> counts, array<int> ages, array<int> details, array<string> feed, array<int> feedAges, array<vector> feedPos)
+ protected int m_ACR_FeedAt;
+ void ACR_SendIntel(array<vector> positions, array<int> kinds, array<int> counts, array<int> ages, array<int> details)
  {
-  Rpc(ACR_IntelOwner, positions, kinds, counts, ages, details, feed, feedAges, feedPos);
+  Rpc(ACR_IntelOwner, positions, kinds, counts, ages, details);
  }
  [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
- protected void ACR_IntelOwner(array<vector> positions, array<int> kinds, array<int> counts, array<int> ages, array<int> details, array<string> feed, array<int> feedAges, array<vector> feedPos)
+ protected void ACR_IntelOwner(array<vector> positions, array<int> kinds, array<int> counts, array<int> ages, array<int> details)
  {
   m_ACR_ContactPositions.Copy(positions);
   m_ACR_ContactKinds.Copy(kinds);
   m_ACR_ContactCounts.Copy(counts);
   m_ACR_ContactAges.Copy(ages);
   m_ACR_ContactDetails.Copy(details);
+  m_ACR_IntelAt = System.GetTickCount();
+ }
+ // The side's feed, on its own since review P3 (a contact moving no longer resends the lines).
+ void ACR_SendFeed(array<string> feed, array<int> feedAges, array<vector> feedPos)
+ {
+  Rpc(ACR_FeedOwner, feed, feedAges, feedPos);
+ }
+ [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
+ protected void ACR_FeedOwner(array<string> feed, array<int> feedAges, array<vector> feedPos)
+ {
   m_ACR_Feed.Copy(feed);
   m_ACR_FeedAges.Copy(feedAges);
   m_ACR_FeedPos.Copy(feedPos);
-  m_ACR_IntelAt = System.GetTickCount();
+  m_ACR_FeedAt = System.GetTickCount();
  }
 
  // The feed as shown: "[12s] line", newest first, nothing older than 10 min.
@@ -2318,7 +2401,7 @@ modded class SCR_PlayerController
  {
   lines.Clear();
   m_ACR_FeedShownPos.Clear();
-  int since = ACR_MapData.Since(m_ACR_IntelAt);
+  int since = ACR_MapData.Since(m_ACR_FeedAt);
   foreach (int i, string line : m_ACR_Feed)
   {
    int seconds = since;
