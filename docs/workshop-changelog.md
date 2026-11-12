@@ -29,6 +29,7 @@ FIXED
 - Riders get out of AI trucks only once the truck has stopped, and it waits until they are clear.
 - AI trucks that gave up stuck try their trip again, and stop being offered for rides right after they stall.
 - AI drivers judge a vehicle in the way by their own lane, so trucks side by side or nose to nose no longer block each other.
+- An unarmed AI vehicle driving out of fire that gets hung up on the way tries once more before its crew bails out.
 - AI service trucks drop a job they can't finish instead of keeping it all match.
 - A worn-down AI squad that can't reach a base to refill tries another one.
 - The 2IC channel keeps open requests and their Cancel buttons; accepted defence advice isn't offered again.
