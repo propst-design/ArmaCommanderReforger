@@ -2213,10 +2213,25 @@ class ACR_Squad : Managed
    float left = ahead.Length();
    float step = Math.Min(WALK_STEP_M * (plan.m_iWalkRetries - 2), WALK_STEP_MOST_M);
    vector spot;
-   if (left > 1 && ReachableNear(at + ahead * (Math.Min(step, left) / left), WALK_STEP_M, spot) && ACR_BaseSystem.ReachesOpen(spot, ACR_BaseSystem.Pathing(null)))
+   if (left > 1)
    {
-    anchor.SetOrigin(spot);
-    how = string.Format("leader stepped %1 m ahead", (int)vector.DistanceXZ(at, spot));
+    // Straight at the site first, then turned off either side: the one spot ahead can be a wall or a building
+    // where he stuck, and he stayed put till a longer step (baseworks: stuck at ~200 m, try 3 never stepped).
+    vector dir = ahead * (1 / left);
+    float reach = Math.Min(step, left);
+    array<float> turns = {0, 35, -35, 70, -70};
+    foreach (float turn : turns)
+    {
+     float c = Math.Cos(turn * Math.DEG2RAD);
+     float s = Math.Sin(turn * Math.DEG2RAD);
+     vector way = Vector(dir[0] * c - dir[2] * s, 0, dir[0] * s + dir[2] * c);
+     if (!ReachableNear(at + way * reach, WALK_STEP_M, spot) || !ACR_BaseSystem.ReachesOpen(spot, ACR_BaseSystem.Pathing(null))) continue;
+     // Only a step that brings him nearer the site.
+     if (vector.DistanceXZ(spot, plan.m_vStage) >= left - 1) continue;
+     anchor.SetOrigin(spot);
+     how = string.Format("leader stepped %1 m ahead, turned %2", (int)vector.DistanceXZ(at, spot), (int)turn);
+     break;
+    }
    }
   }
   IssueWaypoint(WP_MOVE, plan.m_vStage, 4.0);

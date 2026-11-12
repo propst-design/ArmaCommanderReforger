@@ -36,6 +36,7 @@
 - A FOB's store can't be filled or emptied by hand. The inventory's own supply moves (dragging supplies from a truck or crate into the FOB's crates, or splitting a crate out of them) skipped every FOB rule, so a truck's free supplies could still go in that way and supplies could be taken out. The store now fills only through a truck's Unload supplies and the supply order.
 - A captured town's base works are planned again for the new owner: tiers still to build faced the old owner's enemy, so the new owner paid for works facing his own rear. What stands is kept and can be repaired. Capturing a fully built town no longer lets a later 1 RP repair raise its whole reserve.
 - At the cap (12 fortified positions or 400 mines per side) a new position or minefield nearer the front takes down the side's one farthest from it, instead of being refused for the rest of the match.
+- A squad walking to a fortification site that stays stuck has its leader stepped ahead from the third try even when the spot straight toward the site is blocked: a step turned off to either side is tried before waiting for a longer one.
 
 ### Zombies
 
