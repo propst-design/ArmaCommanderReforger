@@ -12,7 +12,7 @@ Requires the separate Better Battle Buddies (BBB) addon. Vanilla sides need no f
 - Build your own deck of units within a points budget, share it as a code, or let the AI commander build one to its doctrine.
 - FIA insurgents ambush roads, plant IEDs, raid FOBs and run technicals from hideouts. Company kits shape each side's start and AI doctrine.
 - Recon flights, overheard enemy radio, counter-battery, QRF and road-ambush orders, minefields, convoys and an optional AI second-in-command.
-- Optional zombie modes with the Project Outbreak mod.
+- Optional zombie modes with the Project Outbreak mod: nests to clear, or an outbreak that spreads from one town, with civilian evacuations, supply airdrops and a truce between the living that any hostile fire breaks.
 
 ## Command and fight
 

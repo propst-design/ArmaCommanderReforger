@@ -19,14 +19,14 @@ play side against side.
 An unofficial Reforger rebuild of Arma 3's **Arma Commander**, licensed under
 APL-SA. Original authors and contributors are credited below and in [LICENSE.md](LICENSE.md).
 
-The current Workshop release is **0.5.8**, with **Better Battle Buddies 0.1.7**.
+The current Workshop release is **0.5.12**, with **Better Battle Buddies 0.1.10**; `main` is
+heading for 0.6.0 with Better Battle Buddies 0.2.0.
 See [CHANGELOG.md](CHANGELOG.md) for the release history and what is waiting for the next one.
 
 ## Requirements
 
-- **Arma Reforger 1.9.** `main` has the 1.9 fixes (AI drivers backing up, pulling over and
-  gunner drive work again with 1.9's gearbox); they reach Workshop with ACA 0.5.9 and
-  Better Battle Buddies 0.1.8.
+- **Arma Reforger 1.9** (the 1.9 fixes have been on Workshop since ACA 0.5.9 and
+  Better Battle Buddies 0.1.8).
 - **[Better Battle Buddies](https://github.com/propst-design/BetterBattleBuddies)** (BBB),
   available separately on Workshop. It is a declared dependency: let Workshop install it when
   prompted. BBB runs every soldier's fighting behaviour; ACA runs the commanders, economy and orders.
@@ -87,7 +87,8 @@ mission overrides any deck, and the **Decks** row turns them off.
 
 **FOBs.** **Establish FOB** with a squad and a construction truck carrying 500 supplies: pick a
 clear site and keep the squad there for the 90-second build. A FOB's store starts empty
-(1,000 supplies); order 500 supplies for 20 RP, delivered after 60 uncontested seconds. Its
+(1,000 supplies); order 500 supplies for 20 RP, delivered after 60 uncontested seconds, or
+(from 0.6.0) unload a construction truck's paid load beside its HQ. Its
 eight upgrade spots take a hospital, maintenance bay, ammo dump, fuel, helipad, radio relay,
 barracks and supply depot. By default a FOB needs a finished radio relay before it can deploy
 units or reinforce. The setup screen's **Logistics** page changes these rules.
@@ -100,13 +101,20 @@ any shape. AI commanders build too.
 Raider) and change it when it isn't working. FIA can hold pockets of resistance, run guerrilla
 cells and hideouts, and side with whoever treats it best. Each is a setup-screen row.
 
+**Zombies.** With the Project Outbreak mod loaded, the setup screen adds zombie nests in open
+towns and the countryside, a players-against-the-dead mode and a contained outbreak that spreads
+from one town, with civilian evacuations, supply airdrops and a truce between the two sides
+(0.6.0; any hostile fire breaks it). Clearing a settled nest pays a bounty of at most 60 RP. See
+`-acrZombies`, `-acrZombieMode` and `-acrOutbreak` in [Host options](MISSION-MAKING.md#host-options).
+
 ## Command map and controls
 
 Open the command map with **F9** (no map item needed) or the game map with **M**:
 
 - Left-click a squad or soldier marker to select that squad; left-click empty map to deselect.
 - The ACA panel on the right shows the squad. **Switch to squad** takes over its leader (or
-  another free soldier).
+  another free soldier). From 0.6.0 the squad keeps its current order when you take over: the men
+  follow you to it, and your first order replaces it.
 - Commander only: **Combat / Fast / Silent** set how the squad moves; **right-click** the map to
   move it there. Arm **Defend**, **Get in**, **Fortify**, a roadblock or a minefield, then
   right-click (or right-drag to aim it). **Get out** dismounts the squad; **Unload** dismounts

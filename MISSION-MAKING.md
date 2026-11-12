@@ -136,7 +136,11 @@ Add these components to the game mode object. The Arland map has working example
   Construction and automatic services share this one balance. Supplies are charged when placing a blueprint; completing
   it does not charge again. Destroying/dismantling the command post removes its store and loses any
   pending paid delivery; there is no refund. Built FOBs never provide free truck restocking, and paid
-  stock cannot be loaded into trucks. Existing non-built friendly deployment bases retain truck
+  stock cannot be loaded into trucks. From AC: Actual 0.6.0 a construction truck parked beside a built
+  FOB's HQ can fill the store with the game's own **Unload supplies**, but only its paid load moves:
+  what the truck was bought with goes in, while free refills from deployment bases (and a starting
+  truck's load) stay aboard for the truck's own jobs. A FOB whose HQ is destroyed takes nothing
+  (not yet checked in multiplayer on a dedicated server). Existing non-built friendly deployment bases retain truck
   restocking. Losing the last depot reduces capacity to 1,000 and loses excess stored stock;
   a paid delivery that no longer fits waits until space is available. Depot bonuses never add
   supplies themselves. AI base/helipad building is not implemented.
