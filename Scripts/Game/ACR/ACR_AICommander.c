@@ -8303,10 +8303,17 @@ class ACR_AICommander : Managed
   return best;
  }
  void ManageEvacsForTest() { ManageEvacs(); }
- // Containment airdrops (ACR_Airdrop): one combat squad at a time goes for the nearest pallet it may
- // take (ours, or the enemy's while no truce holds: ACR_Airdrop.MayTake) within SWEEP_REACH; freed once
- // the pallet is gone, or as a sweeper would be. Under "I'm the 2IC" the commander can keep pallets
- // with evacs (ACR_Evac.TwoICExtracts).
+ // Containment airdrops (ACR_Airdrop): one runner at a time goes for the nearest pallet it may take
+ // (ours, or the enemy's while no truce holds: ACR_Airdrop.MayTake); freed once the pallet is gone, or
+ // as a sweeper would be. Under "I'm the 2IC" the commander can keep pallets with evacs
+ // (ACR_Evac.TwoICExtracts). The runner (PalletRunner) is a free combat squad within SWEEP_REACH; else
+ // one on a grab of an empty base within PALLET_DIVERT and not yet near it (a grab is the cheapest job:
+ // defenders and real attacks are never taken); else, with no zombie near the pallet, a free truck
+ // within EVAC_REACH that drives up to it. Jacob, 12 Nov: the AI never went for a pallet, as every
+ // combat squad was out grabbing bases all match and only a free one was looked for.
+ static const float PALLET_DIVERT = 1500;      // m: a grab squad this close to the pallet may be diverted
+ static const float PALLET_GRAB_NEAR = 300;    // m: one this close to its grab finishes it first
+ static const float PALLET_TRUCK_ZOMBIES = 150; // m: no truck goes while the dead are this close to it
  protected ACR_Pallet m_PalletTarget;
  protected ACR_Squad m_PalletSquad;
  protected float m_fPalletSince;
@@ -8332,7 +8339,7 @@ class ACR_AICommander : Managed
   {
    ACR_Pallet pallet = ACR_Airdrop.At(i);
    if (!ACR_Airdrop.MayTake(pallet, m_sFaction)) continue;
-   ACR_Squad near = FindSweeper(pallet.m_vPos);
+   ACR_Squad near = PalletRunner(pallet.m_vPos);
    if (!near) continue;
    float d = vector.DistanceXZ(PositionOf(near), pallet.m_vPos);
    if (pallet.m_sFor != m_sFaction) d += 500; // ours first
@@ -8342,16 +8349,66 @@ class ACR_AICommander : Managed
    squad = near;
   }
   if (!pick) return;
+  string how = "";
+  if (OnGrab(squad))
+  {
+   if (squad.m_AITarget) how = string.Format(" (off its grab of %1)", squad.m_AITarget.m_sName);
+   LeaveAttacks(squad); // the grab ends without a "failed" report (m_bGivenAway); it may be planned again
+   squad.m_AITarget = null;
+  }
+  else if (!squad.IsCombatUnit()) how = " (a truck)";
   m_PalletTarget = pick;
   m_PalletSquad = squad;
   m_fPalletSince = now;
   squad.SetAITask(ACR_EAITask.PALLET);
-  squad.SetMode(ACR_EMoveMode.COMBAT);
+  if (squad.IsCombatUnit()) squad.SetMode(ACR_EMoveMode.COMBAT);
+  else squad.SetMode(ACR_EMoveMode.FAST);
   Travel(squad, pick.m_vPos, false, 0);
   string whose = "our";
   if (pick.m_sFor != m_sFaction) whose = "the enemy's";
-  Say(string.Format("[ACR] AI %1: %2 goes for %3 supply pallet at %4", m_sFaction, squad.GetName(), whose, ACR_Manager.Grid(pick.m_vPos)));
+  Say(string.Format("[ACR] AI %1: %2 goes for %3 supply pallet at %4%5", m_sFaction, squad.GetName(), whose, ACR_Manager.Grid(pick.m_vPos), how));
  }
+
+ // Who goes for a pallet at 'at' (see the note above ManagePallets), or null.
+ protected ACR_Squad PalletRunner(vector at)
+ {
+  ACR_Squad runner = FindSweeper(at);
+  if (runner) return runner;
+  float best = PALLET_DIVERT;
+  foreach (ACR_AIAttack attack : m_Attacks)
+  {
+   if (!attack.m_bGrab || !attack.m_Target) continue;
+   foreach (ACR_Squad grabber : attack.m_Squads)
+   {
+    if (!grabber || !Ours(grabber) || grabber.PlayerSteers() || !grabber.GetAnchor() || ACR_AirLift.Busy(grabber)) continue;
+    if (grabber.CountAlive() < 2 || IsSupportTeam(grabber) || !grabber.IsCombatUnit() || grabber == m_ReserveSquad) continue;
+    if (grabber.m_iAITask != ACR_EAITask.ATTACK || grabber.KnownEnemies(300) > 0) continue;
+    vector from = PositionOf(grabber);
+    if (vector.DistanceXZ(from, attack.m_Target.GetOrigin()) < PALLET_GRAB_NEAR) continue;
+    float d = vector.DistanceXZ(from, at);
+    if (d >= best) continue;
+    best = d;
+    runner = grabber;
+   }
+  }
+  if (runner) return runner;
+  if (ACR_Containment.ZombiesNear(at, PALLET_TRUCK_ZOMBIES)) return null;
+  best = EVAC_REACH;
+  foreach (ACR_Squad squad : m_Manager.m_Squads)
+  {
+   if (m_bHandedOnly && !squad.m_bAICommanded) continue;
+   if (!m_Manager.m_Rides.IsFreeTransport(squad, m_sFaction) || StuckLately(squad)) continue;
+   if (squad.m_iAITask != ACR_EAITask.FREE && squad.m_iAITask != ACR_EAITask.POSTED) continue;
+   IEntity vehicle = ACR_Transport.CrewedVehicle(squad);
+   if (!vehicle) continue;
+   float d = vector.DistanceXZ(vehicle.GetOrigin(), at);
+   if (d >= best) continue;
+   best = d;
+   runner = squad;
+  }
+  return runner;
+ }
+ void StartGrabForTest(ACR_Squad runner, ACR_Base empty) { StartGrab(runner, empty); }
  void ManagePalletsForTest() { ManagePallets(); }
  ACR_Squad PalletSquadForTest() { return m_PalletSquad; }
  // Truce (ACR_Truce, TvTvZ): an AI commander in command of its side accepts an offer, or offers one, when

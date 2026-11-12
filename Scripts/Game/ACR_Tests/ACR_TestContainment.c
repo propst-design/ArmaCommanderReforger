@@ -7,7 +7,7 @@
 // a US truck parked on it gets them aboard, and brought to the US HQ they pay on delivery; a horde
 // reaching civilians with nobody there takes them; an AI commander sets an XP and sends a free
 // truck (kept out of rides meanwhile); airdrops: a pallet lands in the open, its side recovers it,
-// the other side can steal one, the AI sends a squad for one; a truce (TvTvZ) is made, spares bases and pallets, is broken
+// the other side can steal one, the AI sends a squad for one (off a grab, as none is free) and it recovers it; a truce (TvTvZ) is made, spares bases and pallets, is broken
 // with a warning, and an AI answers an offer; ground zero's bounty and the RP cap; a town taken near a nest is counterattacked
 // (once per place); the spread is reported; messages name towns (#241); left alone it escalates and
 // hordes stay 15+ (#240).
@@ -16,7 +16,7 @@ class ACR_TestContainment
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const ResourceName HELI = "{70BAEEFC2D3FEE64}Prefabs/Vehicles/Helicopters/UH1H/UH1H.et";
- static const int EXPECTED = 33;
+ static const int EXPECTED = 34;
  protected static ACR_DefenderPost s_Zero;
  protected static ref ACR_EvacPoint s_Evac; // ref: a finished XP leaves the list
  protected static IEntity s_Heli;
@@ -28,6 +28,8 @@ class ACR_TestContainment
  protected static string s_sHome;
  protected static int s_iRPBefore;
  protected static int s_iLostBefore;
+ protected static int s_iAIRecoveredBefore;
+ protected static bool s_bAIPalletDone;
 
  static void Run(int second)
  {
@@ -55,12 +57,14 @@ class ACR_TestContainment
   if (second == 90) PalletSetup(manager);
   if (second == 104) PalletChecks(manager);
   if (second == 106) AIPalletSetup(manager);
+  if (second == 110) AIPalletGrab(manager);
   if (second == 118) AIPallet(manager);
   if (second == 120) TruceMake();
   if (second == 122) TruceBreak();
   if (second == 124) TruceAI(manager);
   if (second == 126) TruceFire(manager);
   if (second == 130) Spread();
+  if (second >= 132) AIPalletRecovered(manager, second);
  }
 
  protected static void SetHour(int hour)
@@ -303,13 +307,35 @@ class ACR_TestContainment
   Check("airdrop: in TvTvZ the other side can steal a pallet", s_Theirs && !ACR_Airdrop.Has(s_Theirs) && ACR_Airdrop.s_iStolen >= 1, string.Format("stolen %1", ACR_Airdrop.s_iStolen));
  }
 
- // A US pallet 700 m from a free US team: the AI sends it.
+ // A US pallet 120 m from a US team that is out grabbing an empty base (Jacob, 12 Nov: every combat
+ // squad was on a grab all match and the AI never went for a pallet): the AI takes it off the grab and
+ // sends it, and it walks up and recovers the pallet.
  protected static void AIPalletSetup(ACR_Manager manager)
  {
   vector spot;
   if (!ACR_Airdrop.Spot("US", spot)) return;
   s_AIPallet = ACR_Airdrop.DropForTest("US", spot);
-  Spawn(manager, "Pallet Runners", spot, 700);
+  s_iAIRecoveredBefore = ACR_Airdrop.s_iRecovered;
+  Spawn(manager, "Pallet Runners", spot, 120);
+ }
+
+ protected static void AIPalletGrab(ACR_Manager manager)
+ {
+  ACR_AICommander ai = manager.FobAICommanderFor("US");
+  ACR_Squad runners = Named(manager, "Pallet Runners");
+  if (!ai || !runners || !runners.GetAnchor()) return;
+  vector at = runners.GetAnchor().GetOrigin();
+  ACR_Base empty;
+  float best = float.MAX;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || !base.m_sOwner.IsEmpty()) continue;
+   float d = vector.DistanceXZ(base.GetOrigin(), at);
+   if (d < 600 || d > best) continue;
+   best = d;
+   empty = base;
+  }
+  if (empty) ai.StartGrabForTest(runners, empty);
  }
 
  protected static void AIPallet(ACR_Manager manager)
@@ -320,7 +346,21 @@ class ACR_TestContainment
   if (ai) squad = ai.PalletSquadForTest();
   string name = "none";
   if (squad) name = squad.GetName();
-  Check("airdrop: an AI commander sends a squad for a pallet", squad && squad.m_iAITask == ACR_EAITask.PALLET, string.Format("ai %1, squad %2, pallets %3", ai != null, name, ACR_Airdrop.Count()));
+  Check("airdrop: an AI commander sends a squad for a pallet, taking one off a grab when none is free", squad && squad.m_iAITask == ACR_EAITask.PALLET && squad.GetName() == "Pallet Runners", string.Format("ai %1, squad %2, pallets %3", ai != null, name, ACR_Airdrop.Count()));
+ }
+
+ // The AI's runners walk up and recover it, paid as a player's recovery is (ACR_Airdrop.Check).
+ protected static void AIPalletRecovered(ACR_Manager manager, int second)
+ {
+  if (s_bAIPalletDone) return;
+  bool recovered = s_AIPallet && !ACR_Airdrop.Has(s_AIPallet) && ACR_Airdrop.s_iRecovered > s_iAIRecoveredBefore;
+  if (!recovered && second < 190) return;
+  s_bAIPalletDone = true;
+  string where = "no runners";
+  ACR_Squad runners = Named(manager, "Pallet Runners");
+  if (runners && runners.GetAnchor() && s_AIPallet) where = string.Format("%1 m from it", (int)vector.DistanceXZ(runners.GetAnchor().GetOrigin(), s_AIPallet.m_vPos));
+  Check("airdrop: the AI's squad reaches the pallet and recovers it", recovered, string.Format("second %1, recovered %2 -> %3, runners %4, zombies near %5", second, s_iAIRecoveredBefore, ACR_Airdrop.s_iRecovered, where, s_AIPallet && ACR_Containment.ZombiesNear(s_AIPallet.m_vPos, ACR_Airdrop.ZOMBIE_CLEAR)));
+  ACR_TestRegress.Complete("containment", EXPECTED);
  }
 
  // Truce (ACR_Truce, TvTvZ): USSR offers, US accepts; the sides are friendly, neither takes the other's
@@ -466,7 +506,6 @@ class ACR_TestContainment
   int fromZero = ACR_Outbreak.HordeCount(s_Zero);
   s_Zero.m_iReserve = zeroReserve;
   Check("containment: hordes are 15 or more, and a town nest sends one from 30", thirty == ACR_Containment.HORDE_FLOOR && under == 0 && fromZero >= ACR_Containment.HORDE_FLOOR, string.Format("30 -> %1, 29 -> %2, ground zero at %3 -> %4", thirty, under, ACR_Containment.GZ_HORDE_MIN, fromZero));
-  ACR_TestRegress.Complete("containment", EXPECTED);
  }
 
  protected static void Spawn(ACR_Manager manager, string name, vector at, float distance)
