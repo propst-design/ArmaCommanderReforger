@@ -2253,9 +2253,9 @@ modded class ACR_MapData
 
 modded class ACR_OrderDisplay
 {
- override void Draw(SCR_MapEntity mapEntity, ACR_MapData data, bool boxing, vector boxStart)
+ override protected void DrawLayers(SCR_MapEntity mapEntity, ACR_MapData data, bool boxing, vector boxStart)
  {
-  super.Draw(mapEntity, data, boxing, boxStart);
+  super.DrawLayers(mapEntity, data, boxing, boxStart);
   if (m_Canvas) DrawTwoICIcon(data);
   if (!m_Canvas || !data || !data.m_bTwoICShown) return;
   bool sites = data.m_bTwoICEstablishing && !data.m_TwoICSites.IsEmpty();
@@ -2285,7 +2285,6 @@ modded class ACR_OrderDisplay
     TwoICSite(mapEntity, site, fill, edge);
    }
   }
-  m_Canvas.SetDrawCommands(m_Commands);
  }
 
  protected void TwoICSite(SCR_MapEntity mapEntity, vector pos, int fill, int edge)

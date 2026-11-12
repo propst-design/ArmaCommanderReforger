@@ -139,10 +139,19 @@ class ACR_MapDeclutter
   return new Color(Linear(r), Linear(g), Linear(b), a);
  }
 
+ // A table of the 256 values, made on first use (review P9: three Math.Pow per colour, for every
+ // colour drawn every frame). Declared bare and filled here: static initializer budget.
+ protected static ref array<float> s_aLinear;
  static float Linear(int channel)
  {
-  float c = channel / 255.0;
-  return Math.Pow(c, 2.2);
+  if (!s_aLinear)
+  {
+   s_aLinear = {};
+   for (int i = 0; i < 256; i++) s_aLinear.Insert(Math.Pow(i / 255.0, 2.2));
+  }
+  if (channel < 0) channel = 0;
+  if (channel > 255) channel = 255;
+  return s_aLinear[channel];
  }
 
  static Color PanelColor() { return Rgb(24, 27, 30, 0.96); }

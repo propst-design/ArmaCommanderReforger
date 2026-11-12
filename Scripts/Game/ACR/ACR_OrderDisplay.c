@@ -48,10 +48,18 @@ class ACR_OrderDisplay : Managed
  }
 
  // ---------------------------------------------------------------- frame
+ // One SetDrawCommands a frame (review P9: the calm map and the 2IC each handed the list to the
+ // canvas again after adding to it). Layers add their commands in DrawLayers.
  void Draw(SCR_MapEntity mapEntity, ACR_MapData data, bool boxing, vector boxStart)
  {
   if (!m_Canvas) return;
   m_Commands.Clear();
+  DrawLayers(mapEntity, data, boxing, boxStart);
+  m_Canvas.SetDrawCommands(m_Commands);
+ }
+
+ protected void DrawLayers(SCR_MapEntity mapEntity, ACR_MapData data, bool boxing, vector boxStart)
+ {
   DrawBaseAreas(mapEntity, data);
   DrawZones(mapEntity, data);
   DrawMineShapes(mapEntity, data);
@@ -64,7 +72,6 @@ class ACR_OrderDisplay : Managed
   if (data.m_bAiming) DrawAim(mapEntity, data.m_vAimFrom, data.m_vAimTo);
   DrawMinePreview(mapEntity, data);
   ACR_PingDisplay.DrawOnMap(this, mapEntity, data);
-  m_Canvas.SetDrawCommands(m_Commands);
  }
 
  void Add(CanvasWidgetCommand command)

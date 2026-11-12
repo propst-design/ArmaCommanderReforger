@@ -101,14 +101,13 @@ modded class ACR_OrderDisplay
 {
  static int s_iDeclFrames; // frames drawn calm (the shots test checks it)
 
- override void Draw(SCR_MapEntity mapEntity, ACR_MapData data, bool boxing, vector boxStart)
+ override protected void DrawLayers(SCR_MapEntity mapEntity, ACR_MapData data, bool boxing, vector boxStart)
  {
-  super.Draw(mapEntity, data, boxing, boxStart);
+  super.DrawLayers(mapEntity, data, boxing, boxStart);
   if (!m_Canvas || !data || !data.m_bDeclOn) return;
   DeclLegendGlyphs(data);
   DeclMoon();
   s_iDeclFrames++;
-  m_Canvas.SetDrawCommands(m_Commands);
  }
 
  protected void DeclCanvasSize(out float width, out float height)

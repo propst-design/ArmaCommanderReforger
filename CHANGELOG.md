@@ -68,6 +68,15 @@
 
 - Civilians on the map: where your soldiers, players or bases have civilians around them, your map shows a thin violet ring over that part of town, "Civilians seen: a few / some / many", with how long ago if it's old news. They are not the red "Civilians (n)" towns holding out from the dead. It's vague on purpose: no pins and no headings, and anyone who turns hostile drops out of it and shows as an enemy once your people see them. Civilians come from the **Civil Population** mod through its compat add-on (update the add-on with this version), or from anything else that registers them with ACA. The rings hide with the map's zones layer. AI commanders don't use them.
 
+### Performance and multiplayer
+
+- The command map's soldier markers are kept per soldier: a casualty or a purchase no longer deletes and rebuilds every marker, and soldiers the calm map hides (zoomed out, or a squad sitting at a base) get no marker at all, so nothing is updated for them each frame. Squad markers likewise keep their marker when squads come and go.
+- The map feed sends less: the soldiers' and squads' names, labels and descriptions go only when they change, their positions only while you have the map or the RTS camera open (and with the 10 s full resend), and the intel feed's lines no longer go again every time a contact moves.
+- The map's canvas is handed to the game once a frame instead of up to three times, and its colours come from a table.
+- A purchase, support call, setup click or 2IC truck sent right after another kind of request is no longer dropped silently: each has its own spacing, and one sent too fast says so.
+- The server ignores a purchase spot outside the world, and only a commander can ask for the 2IC's FOB sites, for his own side's unit.
+- Deck editor: typing a deck or card name no longer triggers the map's keys (M closed the map and the editor), and a joined player with a modded faction pair opens it on his own side.
+
 ## 0.5.12 — released
 
 Zombie mode on Project Outbreak, the 2IC back beside "I'm the 2IC", and AI logistics fixes. Needs Better Battle Buddies 0.1.10. The zombie modes need the **Project Outbreak** mod; without it nothing changes. A compat add-on, **AC: Actual - Zombies**, follows separately.
