@@ -32,6 +32,8 @@ class ACR_Truce
  protected static float s_fCooldownUntil;
  static int s_iHeld;                        // truces made this match (tests)
  static int s_iBroken;                      // truces broken (tests)
+ static string s_sFiredBy;                  // the side whose fire broke the last one (tests)
+ static const float STRIKE_REACH = 150;     // m: a strike this close to the partner's soldiers is on them
 
  static void Reset()
  {
@@ -42,6 +44,7 @@ class ACR_Truce
   s_fCooldownUntil = 0;
   s_iHeld = 0;
   s_iBroken = 0;
+  s_sFiredBy = "";
  }
 
  static int State() { return s_iState; }
@@ -153,6 +156,57 @@ class ACR_Truce
   foreach (string told : sides) manager.NotifyFaction(told, string.Format("The truce is being broken: shooting is allowed in %1 s", BREAK_WARN_MS / 1000));
  }
 
+ // Fire breaks the truce (Jacob, 12 Nov): 'breaker' fired on its truce partner (direct fire hit its
+ // soldiers or vehicles, or a strike was called on them). It ends at once, no warning: the factions
+ // turn hostile now (AI targets updated) and both sides hear who broke it. Also during a break's warning.
+ static void FireBreak(string breaker, string how, vector where = vector.Zero)
+ {
+  if (!Holds() || breaker.IsEmpty()) return;
+  string partner = Other(breaker);
+  if (partner.IsEmpty()) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  s_iState = ACR_ETruce.NONE;
+  s_sBy = "";
+  s_fCooldownUntil = now + COOLDOWN_MS;
+  s_iBroken++;
+  s_sFiredBy = breaker;
+  Hostile();
+  string name = ACR_FactionSelection.DisplayName(breaker);
+  PrintFormat("[ACR] TRUCE broken by fire: %1 (%2)", breaker, how);
+  ACR_Containment.Feed(breaker, string.Format("We broke the truce: %1. Weapons free", how), where);
+  ACR_Containment.Feed(partner, string.Format("%1 broke the truce: %2. Weapons free", name, how), where);
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager) return;
+  manager.NotifyFaction(breaker, string.Format("We broke the truce: %1", how));
+  manager.NotifyFaction(partner, string.Format("%1 broke the truce: %2", name, how));
+ }
+
+ // A strike 'side' called at 'target' (ACR_Supports.Call): on its partner when the partner has a
+ // soldier within STRIKE_REACH or holds a base there.
+ static void StrikeCalled(ACR_Manager manager, string side, vector target, string support)
+ {
+  if (!Holds() || !manager) return;
+  string partner = Other(side);
+  if (partner.IsEmpty()) return;
+  bool onThem = ACR_Outbreak.SideNear(manager, partner, target, STRIKE_REACH);
+  if (!onThem)
+   foreach (ACR_Base base : ACR_Base.s_All)
+    if (!base.m_bRetired && base.m_sOwner == partner && vector.DistanceXZ(base.GetOrigin(), target) <= base.m_fRadius + STRIKE_REACH * 0.5) onThem = true;
+  if (onThem) FireBreak(side, string.Format("%1 called on our positions", support), target);
+ }
+
+ // A hit with a shooter (ACR_TruceFire: characters and vehicles): 'victim' of one side, 'shooter' of the other.
+ static void Hit(IEntity victim, IEntity shooter)
+ {
+  if (!Holds() || !victim || !shooter || victim == shooter) return;
+  string hurt = ACR_Intel.FactionKeyOf(victim);
+  string by = ACR_Intel.FactionKeyOf(shooter);
+  if (!Between(hurt, by)) return;
+  string how = "fire on our soldiers";
+  if (Vehicle.Cast(victim)) how = "fire on our vehicles";
+  FireBreak(by, how, victim.GetOrigin());
+ }
+
  // ---------------------------------------------------------------- every second (ACR_Containment.Tick / ACR_Manager)
 
  static void Tick()
@@ -243,5 +297,26 @@ modded class SCR_BaseGameMode
  protected void ACR_OnTruceFriendly()
  {
   if (!Replication.IsServer()) ACR_Truce.ApplyFactions(m_bACRTruceFriendly, false);
+ }
+}
+
+// Fire breaks the truce (ACR_Truce.Hit): any damage with a shooter, on the server, while a truce holds.
+modded class SCR_CharacterDamageManagerComponent
+{
+ protected override void OnDamage(notnull BaseDamageContext damageContext)
+ {
+  super.OnDamage(damageContext);
+  if (damageContext.damageValue <= 0 || !damageContext.instigator || !ACR_Truce.Holds() || !Replication.IsServer()) return;
+  ACR_Truce.Hit(GetOwner(), damageContext.instigator.GetInstigatorEntity());
+ }
+}
+
+modded class SCR_VehicleDamageManagerComponent
+{
+ override protected void OnDamage(notnull BaseDamageContext damageContext)
+ {
+  super.OnDamage(damageContext);
+  if (damageContext.damageValue <= 0 || !damageContext.instigator || !ACR_Truce.Holds() || !Replication.IsServer()) return;
+  ACR_Truce.Hit(GetOwner(), damageContext.instigator.GetInstigatorEntity());
  }
 }

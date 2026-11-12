@@ -227,6 +227,7 @@ class ACR_TestOutbreak
   // A dedicated server draws no blood or fire; the garbage it spawns (replicated) shows it dressed them.
   Check("zombies: nest sites are dressed (garbage piles from the server)", ACR_NestDressing.s_iPiles * 2 >= atBases + country, string.Format("%1 piles for %2 nests", ACR_NestDressing.s_iPiles, atBases + country));
   NestLook(atBases + country);
+  TruceHit(manager);
   if (!s_Nest) Finish();
  }
 
@@ -257,6 +258,30 @@ class ACR_TestOutbreak
   ACR_NestDressing.Add(other.m_vPos, other.m_Nest.m_iSize);
   int again = mode.ACR_NestSiteTier(other.m_vPos);
   Check("zombies: a cleared nest goes out, and burns again when the dead come back (no second dressing)", before > 0 && cleared == -before && again == before && ACR_NestDressing.s_iWrecks == wrecksBefore, string.Format("tier %1 -> %2 -> %3, wrecks %4 -> %5", before, cleared, again, wrecksBefore, ACR_NestDressing.s_iWrecks));
+ }
+
+ // Fire breaks the truce (Jacob, 12 Nov): a US soldier's hit on a Soviet one ends it at once.
+ protected static void TruceHit(ACR_Manager manager)
+ {
+  IEntity us, ussr;
+  foreach (ACR_Squad squad : manager.m_Squads)
+  {
+   if (!squad.GetFaction()) continue;
+   IEntity anchor = squad.GetAnchor();
+   if (!anchor || !ACR_Respawn.IsAlive(anchor)) continue;
+   string key = squad.GetFaction().GetFactionKey();
+   if (!us && key == "US") us = anchor;
+   if (!ussr && key == "USSR") ussr = anchor;
+  }
+  ACR_Truce.Reset();
+  bool possible = ACR_Truce.Possible();
+  ACR_Truce.Offer("USSR");
+  ACR_Truce.Offer("US");
+  bool held = ACR_Truce.Holds();
+  ACR_Truce.Hit(ussr, us);
+  bool broken = !ACR_Truce.Holds() && ACR_Truce.s_sFiredBy == "US";
+  Check("zombies: a hit on the truce partner breaks the truce at once", possible && us && ussr && held && broken, string.Format("possible %1, soldiers %2/%3, held %4, broken %5 by '%6'", possible, us != null, ussr != null, held, broken, ACR_Truce.s_sFiredBy));
+  ACR_Truce.Reset();
  }
 
  protected static void Approach(ACR_Manager manager)
@@ -381,7 +406,7 @@ class ACR_TestOutbreak
 
  protected static void Finish()
  {
-  ACR_TestRegress.Complete("zombies", 23);
+  ACR_TestRegress.Complete("zombies", 24);
  }
 
  protected static ACR_Squad Squad(ACR_Manager manager, string name)

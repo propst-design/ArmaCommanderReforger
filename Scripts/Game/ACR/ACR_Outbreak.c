@@ -767,11 +767,16 @@ class ACR_Outbreak
    int bounty = ACR_Containment.Bounty(post);
    string place = Place(post);
    array<string> sides = {ACR_FactionSelection.West(), ACR_FactionSelection.East()};
+   // Split between the sides that fought there (Jacob, 12 Nov), not paid to each in full.
+   int fought;
+   foreach (string present : sides) if (SideNear(manager, present, post.m_vPos, STAY_RANGE + 200)) fought++;
+   int share = bounty;
+   if (fought > 1) share = bounty / fought;
    foreach (string side : sides)
    {
     if (!SideNear(manager, side, post.m_vPos, STAY_RANGE + 200)) continue;
     string line = string.Format("Zombies cleared at %1", place);
-    int paid = ACR_Containment.Give(manager, side, bounty);
+    int paid = ACR_Containment.Give(manager, side, share);
     if (paid > 0) line = string.Format("Zombies cleared at %1: +%2 RP", place, paid);
     if (paid > 0) PrintFormat("[ACR] CONTAIN %1 paid %2 RP for clearing %3", side, paid, place);
     ACR_Intel intel = manager.IntelFor(side);

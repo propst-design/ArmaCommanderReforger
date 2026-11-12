@@ -16,7 +16,7 @@ class ACR_TestContainment
  static const ResourceName FIRE_TEAM = "{84E5BBAB25EA23E5}Prefabs/Groups/BLUFOR/Group_US_FireTeam.et";
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const ResourceName HELI = "{70BAEEFC2D3FEE64}Prefabs/Vehicles/Helicopters/UH1H/UH1H.et";
- static const int EXPECTED = 31;
+ static const int EXPECTED = 33;
  protected static ACR_DefenderPost s_Zero;
  protected static ref ACR_EvacPoint s_Evac; // ref: a finished XP leaves the list
  protected static IEntity s_Heli;
@@ -59,6 +59,7 @@ class ACR_TestContainment
   if (second == 120) TruceMake();
   if (second == 122) TruceBreak();
   if (second == 124) TruceAI(manager);
+  if (second == 126) TruceFire(manager);
   if (second == 130) Spread();
  }
 
@@ -364,6 +365,23 @@ class ACR_TestContainment
   ACR_Truce.Reset();
  }
 
+ // Fire breaks the truce (Jacob, 12 Nov): a strike far from the partner doesn't; one called on its HQ
+ // ends the truce at once, the factions hostile again and the breaker named.
+ protected static void TruceFire(ACR_Manager manager)
+ {
+  ACR_Truce.Reset();
+  ACR_Truce.Offer("USSR");
+  ACR_Truce.Offer("US");
+  bool held = ACR_Truce.Holds();
+  ACR_Truce.StrikeCalled(manager, "US", Vector(10, 0, 10), "Test strike");
+  bool farKept = ACR_Truce.Holds();
+  ACR_Base hq = ACR_DoctrineKits.HQOf("USSR");
+  if (hq) ACR_Truce.StrikeCalled(manager, "US", hq.GetOrigin(), "Test strike");
+  bool broken = !ACR_Truce.Holds() && ACR_Truce.State() == ACR_ETruce.NONE && ACR_Truce.s_sFiredBy == "US" && !FactionsFriendly() && !ACR_Insurgency.Friendly("US", "USSR");
+  Check("truce: fire breaks it at once (a strike on the partner), naming who broke it", held && farKept && hq && broken, string.Format("held %1, far strike kept it %2, broken %3 (by '%4', state %5, factions friendly %6)", held, farKept, broken, ACR_Truce.s_sFiredBy, ACR_Truce.State(), FactionsFriendly()));
+  ACR_Truce.Reset();
+ }
+
  protected static bool FactionsFriendly()
  {
   FactionManager factions = GetGame().GetFactionManager();
@@ -385,6 +403,18 @@ class ACR_TestContainment
   int given = ACR_Containment.Give(manager, "US", 30);
   Check("containment: a side over the cap keeps its RP when paid", given == 0 && us.m_iRP == 1500, string.Format("given %1, rp %2", given, us.m_iRP));
   us.m_iRP = rp;
+  // Jacob, 12 Nov "Settled nests, capped": a big settled nest pays at most ground zero's; a horde on
+  // the move or a raid pays nothing.
+  ACR_DefenderPost fake = new ACR_DefenderPost();
+  fake.m_Nest = new ACR_ZombieNest();
+  fake.m_Nest.m_iSize = 50;
+  int settled = ACR_Containment.Bounty(fake);
+  fake.m_Nest.m_bRoaming = true;
+  int roaming = ACR_Containment.Bounty(fake);
+  fake.m_Nest.m_bRoaming = false;
+  fake.m_Nest.m_Raid = ACR_DoctrineKits.HQOf("US");
+  int raid = ACR_Containment.Bounty(fake);
+  Check("containment: bounties for settled nests only, capped at ground zero's", settled == ACR_Containment.RP_GROUND_ZERO && roaming == 0 && (raid == 0 || !fake.m_Nest.m_Raid), string.Format("settled 50: %1, roaming %2, raid %3", settled, roaming, raid));
  }
 
  protected static void Counterattack()

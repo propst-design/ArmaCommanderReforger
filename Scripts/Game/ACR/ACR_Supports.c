@@ -2492,6 +2492,10 @@ class ACR_Supports : Managed
   }
   if (!m_Manager.m_Bases.Spend(factionKey, entry.m_iCost)) return string.Format("Not enough RP for %1 (%2 needed)", entry.m_sName, entry.m_iCost);
   entry.m_fReadyAt = now + entry.m_iCooldown * 1000;
+  // Fire breaks the truce (Jacob, 12 Nov): a strike called on the partner ends it now. Recon, smoke
+  // and flares harm nobody; mortar teams fire real shells, caught where they hit (ACR_Truce.Hit).
+  if (entry.m_eType != ACR_ESupportType.RECON_FLIGHT && entry.m_eType != ACR_ESupportType.MORTAR_SMOKE && entry.m_eType != ACR_ESupportType.ILLUMINATION)
+   ACR_Truce.StrikeCalled(m_Manager, factionKey, target, entry.m_sName);
   target[1] = GetGame().GetWorld().GetSurfaceY(target[0], target[2]);
   vector dir = ApproachDirection(factionKey, target);
   string where = ACR_Manager.Grid(target);

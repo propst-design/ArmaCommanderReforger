@@ -284,8 +284,11 @@ class ACR_Containment
  static int Bounty(ACR_DefenderPost post)
  {
   if (!s_bOn || !post.m_Nest) return 0;
+  // Settled nests only, capped at ground zero's (Jacob, 12 Nov: "Settled nests, capped"): a horde on
+  // the move, a counterattack or a raid still walking, or a raid killed inside a base, pays nothing.
+  if (post.m_Nest.m_bRoaming || post.m_Nest.m_Raid) return 0;
   if (post.m_Nest.m_bGroundZero) return RP_GROUND_ZERO;
-  return Math.Max(post.m_Nest.m_iSize, 4) * RP_PER_ZOMBIE;
+  return Math.Min(Math.Max(post.m_Nest.m_iSize, 4) * RP_PER_ZOMBIE, RP_GROUND_ZERO);
  }
 
  // Adds RP to a side up to the cap; what it actually got.
