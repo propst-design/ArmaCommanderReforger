@@ -1013,8 +1013,15 @@ class ACR_Rides : Managed
    case ACR_ERideState.PULLING_UP:
    {
     // Bailed out meanwhile (all of them out already): on to the objective, it waits till they're clear.
+    // Out for a new order given aboard: that order stands (Finish would send them to the ride's old one).
     if (aboard == 0)
     {
+     if (ride.m_iAfterStop == AFTER_NEW_ORDER)
+     {
+      Log(ride, "riders out before it stopped, on with their new order");
+      WaitForUnload(ride, "Halted");
+      return false;
+     }
      Log(ride, "riders out before it stopped, continuing on foot");
      Finish(ride, false);
      WaitForUnload(ride, "Halted");
