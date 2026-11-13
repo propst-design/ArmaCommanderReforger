@@ -208,13 +208,20 @@ class ACR_TwoICRequests
      r.Set(ACR_ETwoICState.DONE, "dropped (not kept queued): " + r.m_sAnswer);
     }
    }
-   Show(r);
+   // A full channel (ACR_TwoIC.Trim at LINES_MAX) can drop a live request's line: with no
+   // Cancel or Release left, a hold would keep its squad all match. It ends instead.
+   if (!Show(r) && r.Live())
+   {
+    if (ai) ai.EndTwoICRequest(r);
+    r.Set(ACR_ETwoICState.CANCELLED, "dropped: the 2IC channel was full");
+    PrintFormat("[ACR] 2IC %1: request %2 ended (its line left the full channel)", r.m_sFaction, r.m_iId);
+   }
    if (!r.Live()) s_Live.RemoveOrdered(i);
   }
  }
 
- // Its channel line: status, answer and buttons.
- static void Show(ACR_TwoICRequest r)
+ // Its channel line: status, answer and buttons; false when the line is gone.
+ static bool Show(ACR_TwoICRequest r)
  {
   int actions;
   string status = StatusText(r);
@@ -228,7 +235,7 @@ class ACR_TwoICRequests
   else if (state == ACR_ETwoICState.HOLDING || state == ACR_ETwoICState.SUPPORTING) actions = ACT_RELEASE;
   string answer = "";
   if (!r.m_sAnswer.IsEmpty()) answer = "2IC: " + r.m_sAnswer;
-  ACR_TwoIC.SetLine(r.m_sFaction, r.m_iId, status, answer, actions, r.m_iPlayer);
+  return ACR_TwoIC.SetLine(r.m_sFaction, r.m_iId, status, answer, actions, r.m_iPlayer);
  }
 
  static string StatusText(ACR_TwoICRequest r)
