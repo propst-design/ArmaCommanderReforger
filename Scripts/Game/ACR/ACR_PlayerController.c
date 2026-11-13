@@ -1338,6 +1338,7 @@ modded class SCR_PlayerController
    if (marker.m_State == 1) marker.m_Label += " [PLAYER LEADER]";
    else marker.m_Label += " [AI LEADER]";
    vector pos = m_ACR_Data.m_LeaderPositions[i];
+   if (pos == vector.Zero) pos = Vector(-100000, 0, -100000); // a new squad: off the map until its position comes
    marker.SetWorldPos(pos[0], pos[2]);
    if (!marker.m_GroupSymbol) marker.m_GroupSymbol = new SCR_MilitarySymbol();
    marker.m_GroupSymbol.Set(EMilitarySymbolIdentity.BLUFOR, m_ACR_GroupSymbols[i * 4 + 1], m_ACR_GroupSymbols[i * 4], m_ACR_GroupSymbols[i * 4 + 2]);

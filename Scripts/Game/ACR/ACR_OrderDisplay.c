@@ -207,6 +207,7 @@ class ACR_OrderDisplay : Managed
    int g = data.m_GroupIds.Find(groupId);
    if (g < 0 || g >= data.m_LeaderIds.Count()) continue;
    vector from = data.LeaderPos(g);
+   if (from == vector.Zero) continue; // a new squad whose position hasn't come yet: no line from the map corner
    // Later entries of the same squad are the rest of its plan: chain them.
    bool chained = i > 0 && data.m_OrderGroups[i - 1] == groupId;
    if (chained) from = data.m_OrderTargets[i - 1];
@@ -290,6 +291,7 @@ class ACR_OrderDisplay : Managed
    int g = data.m_GroupIds.Find(groupId);
    if (g < 0 || g >= data.m_LeaderIds.Count()) continue;
    vector pos = data.LeaderPos(g);
+   if (pos == vector.Zero) continue; // position not come yet
    int sx, sy;
    mapEntity.WorldToScreen(pos[0], pos[2], sx, sy, true);
    Ring(sx, sy, 17, color, 1.5);
@@ -310,6 +312,7 @@ class ACR_OrderDisplay : Managed
    int g = data.m_GroupIds.Find(groupId);
    if (g < 0 || g >= data.m_LeaderPositions.Count()) continue;
    vector pos = data.LeaderPos(g);
+   if (pos == vector.Zero) continue; // position not come yet
    int sx, sy;
    mapEntity.WorldToScreen(pos[0], pos[2], sx, sy, true);
    float x = sx - 15;

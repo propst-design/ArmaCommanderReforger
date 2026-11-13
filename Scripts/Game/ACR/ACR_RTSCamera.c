@@ -1581,6 +1581,14 @@ class ACR_RTSCameraManager : Managed
 			for (int i = 0; i < squads; i++)
 			{
 				vector pos = data.LeaderPos(i);
+				if (pos == vector.Zero)
+				{
+					// A new squad whose position hasn't come yet: hidden, not drawn at the world origin.
+					while (m_SquadMarkers.Count() <= i) m_SquadMarkers.Insert(CreateMarker());
+					m_SquadMarkers[i].SetVisible(false);
+					m_SquadMarkerPos.Insert(Vector(0, 0, -1));
+					continue;
+				}
 				bool selected = data.IsSelected(data.m_GroupIds[i]);
 				Color color = playerColor;
 				if (i < data.m_Commandable.Count() && data.m_Commandable[i] == 1) color = commandColor;

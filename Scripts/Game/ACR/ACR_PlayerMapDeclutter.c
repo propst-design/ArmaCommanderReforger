@@ -219,6 +219,7 @@ modded class ACR_OrderDisplay
    bool selected = data.IsSelected(groupId);
    if (data.m_bDeclFar && !selected) continue;
    vector from = data.LeaderPos(g);
+   if (from == vector.Zero) continue; // a new squad whose position hasn't come yet: no line from the map corner
    int sx0, sy0, sx1, sy1;
    mapEntity.WorldToScreen(from[0], from[2], sx0, sy0, true);
    float x0 = sx0;
@@ -284,6 +285,7 @@ modded class ACR_OrderDisplay
    int g = data.m_GroupIds.Find(groupId);
    if (g < 0 || g >= data.m_LeaderIds.Count() || data.ShownByOther(g)) continue;
    vector pos = data.LeaderPos(g);
+   if (pos == vector.Zero) continue; // position not come yet
    int sx, sy;
    mapEntity.WorldToScreen(pos[0], pos[2], sx, sy, true);
    Ring(sx, sy, 17, white.PackToInt(), 1.5);
@@ -311,6 +313,7 @@ modded class ACR_OrderDisplay
     int g = data.m_GroupIds.Find(groupId);
     if (g < 0 || g >= data.m_LeaderPositions.Count() || data.ShownByOther(g)) continue;
     vector pos = data.LeaderPos(g);
+    if (pos == vector.Zero) continue; // position not come yet
     int sx, sy;
     mapEntity.WorldToScreen(pos[0], pos[2], sx, sy, true);
     float x = sx - 15;
@@ -376,6 +379,7 @@ modded class ACR_OrderDisplay
   {
    if (mark < 0 || data.ShownByOther(g) || g >= data.m_LeaderPositions.Count()) continue;
    vector pos = data.LeaderPos(g);
+   if (pos == vector.Zero) continue; // position not come yet
    int sx, sy;
    mapEntity.WorldToScreen(pos[0], pos[2], sx, sy, true);
    float w = Px(30);
