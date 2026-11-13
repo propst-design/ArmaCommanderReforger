@@ -8539,6 +8539,7 @@ class ACR_AICommander : Managed
  static const float FOB_SITE_STEP_MS = 5000;        // between the steps of a site search (ACR_FobSiting)
 
  protected ACR_Squad m_FobBuilder;
+ protected bool m_bFobProject; // m_FobBuilder was set: a wiped builder (weak ref gone null) still ends the project
  protected ACR_Squad m_FobEscort;
  protected vector m_vFobTargetSite;
  protected float m_fNextFobEval;
@@ -8551,20 +8552,23 @@ class ACR_AICommander : Managed
 
  bool HasActiveFobProject()
  {
-  if (m_FobBuilder)
+  // A wiped-out builder squad is disposed and its weak reference goes null: the project still ends
+  // here (site avoided, escort freed), or the AI bought truck after truck for the same deadly site.
+  if (m_FobBuilder || m_bFobProject)
   {
-   if (m_FobBuilder.CountAlive() > 0 && m_FobBuilder.OrderState() == ACR_EOrderState.BUILD_FOB) return true;
+   if (m_FobBuilder && m_FobBuilder.CountAlive() > 0 && m_FobBuilder.OrderState() == ACR_EOrderState.BUILD_FOB) return true;
    // A regroup on the way (up to a minute) goes back to the build: not given up.
-   if (m_FobBuilder.CountAlive() > 0 && m_FobBuilder.OrderState() == ACR_EOrderState.REGROUP && m_FobBuilder.m_iAITask == ACR_EAITask.BUILD_FOB) return true;
+   if (m_FobBuilder && m_FobBuilder.CountAlive() > 0 && m_FobBuilder.OrderState() == ACR_EOrderState.REGROUP && m_FobBuilder.m_iAITask == ACR_EAITask.BUILD_FOB) return true;
    // Given up (3 min without progress) or wiped out short of completion: avoid that site for a while.
    bool finished = false;
    foreach (ACR_Base built : ACR_Base.s_All)
     if (built && built.m_bBuilt && !built.m_bRetired && vector.DistanceXZ(built.GetOrigin(), m_vFobTargetSite) < 20) finished = true;
    // Finished just now: the FOB appears on the next structures tick, after its HQ (a check in
    // that gap used to avoid the new FOB's own site).
-   if (!finished && m_FobBuilder.BuiltFobAt(m_vFobTargetSite)) finished = true;
+   if (!finished && m_FobBuilder && m_FobBuilder.BuiltFobAt(m_vFobTargetSite)) finished = true;
    if (!finished) AvoidSite(m_vFobTargetSite);
    m_FobBuilder = null;
+   m_bFobProject = false;
    if (m_FobEscort && m_FobEscort.m_iAITask == ACR_EAITask.DEFEND && !m_FobEscort.m_AITarget)
    {
     m_FobEscort.SetAITask(ACR_EAITask.FREE);
@@ -8750,10 +8754,13 @@ class ACR_AICommander : Managed
   int cost = data.m_aRequisitions[pick].m_iCost;
   if (Purse(data) < cost + FOB_RP_COMBAT_RESERVE) return false;
 
+  // PurchaseAt answers refusals too ("under attack", "Not enough RP"): only RP spent is a truck.
+  int before = data.m_iRP;
   string bought = m_Manager.PurchaseAt(m_sFaction, pick, spawn);
   Say(string.Format("[ACR] AI %1 requisition (FOB construction truck): %2", m_sFaction, bought));
-  if (!bought.IsEmpty()) m_fFobTruckBoughtAt = now;
-  return !bought.IsEmpty();
+  bool paid = data.m_iRP < before || cost <= 0; // a free truck (mission config) can't be told apart: as before
+  if (paid) m_fFobTruckBoughtAt = now;
+  return paid;
  }
 
  ACR_Squad FindEscortSquad(ACR_Squad builder)
@@ -8818,6 +8825,7 @@ class ACR_AICommander : Managed
   }
 
   m_FobBuilder = builder;
+  m_bFobProject = true;
   m_vFobTargetSite = site;
 
   ACR_Squad escort = FindEscortSquad(builder);
@@ -10620,6 +10628,7 @@ class ACR_AICommander : Managed
   {
    if (squad.OrderState() == ACR_EOrderState.BUILD_FOB || squad.m_iAITask == ACR_EAITask.BUILD_FOB) squad.CancelEstablishFob();
    m_FobBuilder = null;
+   m_bFobProject = false;
    if (m_FobEscort && m_FobEscort.m_iAITask == ACR_EAITask.DEFEND && !m_FobEscort.m_AITarget) m_FobEscort.SetAITask(ACR_EAITask.FREE);
    m_FobEscort = null;
   }
@@ -10677,6 +10686,7 @@ class ACR_AICommander : Managed
     return;
    }
    m_FobBuilder = builder;
+   m_bFobProject = true;
    m_vFobTargetSite = cleared;
    r.m_vPos = cleared;
    string with = "";
@@ -10927,6 +10937,7 @@ class ACR_AICommander : Managed
   m_EvacTaxi = null;
   m_PalletSquad = null;
   m_FobBuilder = null;
+  m_bFobProject = false;
   m_FobEscort = null;
   Say(string.Format("[ACR] AI %1: a player took command (plain 2IC): %2 squad(s) freed from tasks it won't run", m_sFaction, freed));
  }
@@ -10945,7 +10956,11 @@ class ACR_AICommander : Managed
   m_ForwardAt.Remove(squad);
   m_Trips.Remove(squad);
   if (m_ReserveSquad == squad) m_ReserveSquad = null;
-  if (m_FobBuilder == squad) m_FobBuilder = null;
+  if (m_FobBuilder == squad)
+  {
+   m_FobBuilder = null;
+   m_bFobProject = false;
+  }
   if (m_FobEscort == squad) m_FobEscort = null;
  }
 
@@ -10979,6 +10994,7 @@ class ACR_AICommander : Managed
   m_iSaveForEntry = -1;
   m_iLastSavedLog = -1;
   m_FobBuilder = null;
+  m_bFobProject = false;
   m_FobEscort = null;
   m_aPendingBuilds.Clear();
  }
