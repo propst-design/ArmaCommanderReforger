@@ -195,6 +195,14 @@ class ACR_Truce
   if (onThem) FireBreak(side, string.Format("%1 called on our positions", support), target);
  }
 
+ // Damage that goes on after the hit (bleeding, burning) carries the original shooter as instigator
+ // (vanilla's bleeding takes the damage manager's last instigator): a wound from before the truce
+ // would break it on the next tick and name the wrong side. Only fresh hits break it.
+ static bool Lingering(EDamageType type)
+ {
+  return type == EDamageType.BLEEDING || type == EDamageType.FIRE;
+ }
+
  // A hit with a shooter (ACR_TruceFire: characters and vehicles): 'victim' of one side, 'shooter' of the other.
  static void Hit(IEntity victim, IEntity shooter)
  {
@@ -307,6 +315,7 @@ modded class SCR_CharacterDamageManagerComponent
  {
   super.OnDamage(damageContext);
   if (damageContext.damageValue <= 0 || !damageContext.instigator || !ACR_Truce.Holds() || !Replication.IsServer()) return;
+  if (ACR_Truce.Lingering(damageContext.damageType)) return;
   ACR_Truce.Hit(GetOwner(), damageContext.instigator.GetInstigatorEntity());
  }
 }
@@ -317,6 +326,7 @@ modded class SCR_VehicleDamageManagerComponent
  {
   super.OnDamage(damageContext);
   if (damageContext.damageValue <= 0 || !damageContext.instigator || !ACR_Truce.Holds() || !Replication.IsServer()) return;
+  if (ACR_Truce.Lingering(damageContext.damageType)) return;
   ACR_Truce.Hit(GetOwner(), damageContext.instigator.GetInstigatorEntity());
  }
 }
