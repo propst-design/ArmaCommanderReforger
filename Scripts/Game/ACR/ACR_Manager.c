@@ -574,6 +574,8 @@ class ACR_Manager : Managed
   int tickStarted = t;
   if (!m_bHostOptionsApplied) ApplyHostOptions();
   if (!m_bCapsScaled) ScaleCapsToMap();
+  // Leavers first, so a dismissed men's group registered below is known as leftovers (m_bLeftovers).
+  foreach (ACR_Squad known : m_Squads) if (known) known.NoteLeaversNow();
   ScanForSquads();
   ResolveCrewNames();
   m_Requisition.TickPending();

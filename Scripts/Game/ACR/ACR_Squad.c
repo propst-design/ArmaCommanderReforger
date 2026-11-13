@@ -253,6 +253,13 @@ class ACR_Squad : Managed
   return full;
  }
 
+ // Manager.Tick, before ScanForSquads: a group made of this squad's leavers (AiO Dismiss moves them in
+ // one RPC) must find them in the manager's leaver list when it registers, the same tick.
+ void NoteLeaversNow()
+ {
+  if (IsAlive()) NoteLeavers();
+ }
+
  void TrackStrength()
  {
   NoteLeavers();
