@@ -226,6 +226,7 @@ class ACR_Manager : Managed
   ACR_RTSCameraManager.Close();
   ACR_RTSCameraManager.s_bAdminUnbound = false; // a listen host's /acr unbound ends with his match
   ACR_NestDressing.StopFx();
+  ACR_Airdrop.EndMatch();
   ACR_CivilianSocket.Get().ResetMatch();
   ACR_Hud.Clear();
   ACR_Skirmish.Reset();

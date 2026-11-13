@@ -67,6 +67,14 @@ class ACR_Airdrop
   s_iMatch++;
  }
 
+ // The match ends (ACR_Manager.Stop): a plane still in the air lands nothing. Reset runs only at the
+ // next match's Apply, after its setup phase, so a drop due within ~53 s of the end landed in the
+ // next world (old coordinates, maybe another map).
+ static void EndMatch()
+ {
+  s_iMatch++;
+ }
+
  static int Count() { return s_aPallets.Count(); }
  static ACR_Pallet At(int i) { return s_aPallets[i]; }
  static bool Has(ACR_Pallet pallet) { return pallet != null && s_aPallets.Contains(pallet); }
