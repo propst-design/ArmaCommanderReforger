@@ -282,6 +282,27 @@ class ACR_TestOutbreak
   bool broken = !ACR_Truce.Holds() && ACR_Truce.s_sFiredBy == "US";
   Check("zombies: a hit on the truce partner breaks the truce at once", possible && us && ussr && held && broken, string.Format("possible %1, soldiers %2/%3, held %4, broken %5 by '%6'", possible, us != null, ussr != null, held, broken, ACR_Truce.s_sFiredBy));
   ACR_Truce.Reset();
+  // Through the damage manager (ACR_Truce's OnDamage hooks): a bleeding tick whose instigator is the
+  // man who shot him before the truce leaves it standing; a fresh kinetic hit through the same path
+  // still breaks it (so the first part can't pass by the hook never running).
+  SCR_CharacterDamageManagerComponent dmg;
+  if (ussr) dmg = SCR_CharacterDamageManagerComponent.Cast(ussr.FindComponent(SCR_CharacterDamageManagerComponent));
+  bool afterBleed, afterShot;
+  string firedBy;
+  if (dmg && us)
+  {
+   ACR_Truce.Offer("USSR");
+   ACR_Truce.Offer("US");
+   vector hit[3];
+   hit[0] = ussr.GetOrigin();
+   dmg.HandleDamage(new SCR_DamageContext(EDamageType.BLEEDING, 1, hit, ussr, dmg.GetDefaultHitZone(), Instigator.CreateInstigator(us), null, -1, -1));
+   afterBleed = ACR_Truce.Holds();
+   dmg.HandleDamage(new SCR_DamageContext(EDamageType.KINETIC, 1, hit, ussr, dmg.GetDefaultHitZone(), Instigator.CreateInstigator(us), null, -1, -1));
+   afterShot = ACR_Truce.Holds();
+   firedBy = ACR_Truce.s_sFiredBy;
+  }
+  Check("zombies: an old wound bleeding on doesn't break the truce, a fresh hit does", dmg && afterBleed && !afterShot && firedBy == "US", string.Format("damage manager %1, holds after bleeding %2, after a hit %3 (by '%4')", dmg != null, afterBleed, afterShot, firedBy));
+  ACR_Truce.Reset();
  }
 
  protected static void Approach(ACR_Manager manager)
