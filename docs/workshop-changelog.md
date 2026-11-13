@@ -46,4 +46,7 @@ FIXED
 - A captured town's base works are planned for its new owner, and at the cap a new fortified position or minefield replaces the side's farthest one.
 - Rides no longer wait for unconscious riders, and an air lift that runs out of time sets its squad down.
 - Garrisons stand down when only civilians are in town.
+- The 3D camera (F10) shows squads moving live, and a newly bought squad no longer flashes up in the map's corner.
+- Soldiers who surrender are replaced by reinforcements like the fallen, and groups of men dismissed through AiO don't count against the AI commander's unit limit.
+- The AI in a squad whose leader you've taken over no longer call orders at you, and a wound or fire from before a truce no longer breaks it.
 - A town's name on the command map can be clicked again when a zombie-mode marker or label covers it.
