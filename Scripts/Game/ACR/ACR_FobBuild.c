@@ -410,7 +410,8 @@ class ACR_FobBuild
 		array<AIAgent> agents = {};
 		foreach (ACR_Squad squad : manager.m_Squads)
 		{
-			if (!squad || !squad.GetFaction() || squad.GetFaction().GetFactionKey() == faction) continue;
+			// Allies (the TvTvZ truce partner, FIA friends) don't contest, as in Defenders.EnemyWithin.
+			if (!squad || !squad.GetFaction() || ACR_Insurgency.Friendly(squad.GetFaction().GetFactionKey(), faction)) continue;
 			IEntity anchor = squad.GetAnchor();
 			if (!anchor) continue;
 			if (Awake(anchor))
