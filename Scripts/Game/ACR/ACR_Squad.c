@@ -3489,7 +3489,9 @@ class ACR_Squad : Managed
  protected void FollowRoute()
  {
   FollowQueue();
-  if (m_aRoute.IsEmpty() || m_bRegrouping || !m_Group) return;
+  // Getting away (Evade / DriveOut) keeps the route for EvadeTick's RestoreOrder, but the escape
+  // waypoint is not a leg: handing over near it sent the vehicle down the next hop, back into fire.
+  if (m_aRoute.IsEmpty() || m_bRegrouping || !m_Group || m_Evade) return;
   array<AIWaypoint> waypoints = {};
   m_Group.GetWaypoints(waypoints);
   IEntity leader = GetLeader();
