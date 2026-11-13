@@ -100,6 +100,7 @@ class ACR_Garrison
   array<IEntity> posts = s_Posts.Get(group);
   if (!posts) return;
   s_Posts.Remove(group);
+  ForgetWatch(group, posts);
   if (s_Posts.IsEmpty())
   {
    // nobody garrisons now: forget the men watched on the way in (dead or deleted ones included)
@@ -138,8 +139,32 @@ class ACR_Garrison
    array<IEntity> posts = s_Posts.GetElement(i);
    ACR_BagHold.Forget(group);
    s_Posts.RemoveElement(i);
+   ForgetWatch(group, posts);
    if (!posts) continue;
    foreach (IEntity post : posts) DeletePost(post);
+  }
+  // Groups deleted before their posts were swept leave null keys: prune them by index.
+  for (int t = s_Tight.Count() - 1; t >= 0; t--)
+   if (!s_Tight.GetKey(t)) s_Tight.RemoveElement(t);
+  for (int r = s_Replans.Count() - 1; r >= 0; r--)
+   if (!s_Replans.GetKey(r)) s_Replans.RemoveElement(r);
+ }
+
+ // A group's posts are gone: forget their stuck counts and its replan and spread bookkeeping
+ // (hard rule 5; these were cleared only at match end).
+ protected static void ForgetWatch(SCR_AIGroup group, array<IEntity> posts)
+ {
+  if (group)
+  {
+   s_Tight.Remove(group);
+   s_Replans.Remove(group);
+  }
+  if (!posts) return;
+  foreach (IEntity post : posts)
+  {
+   if (!post) continue;
+   s_Stuck.Remove(post);
+   s_LastPos.Remove(post);
   }
  }
 
