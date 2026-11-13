@@ -785,9 +785,13 @@ class ACR_Outbreak
    string clearedBy = "";
    foreach (string near : sides) if (clearedBy.IsEmpty() && SideNear(manager, near, post.m_vPos, STAY_RANGE + 200)) clearedBy = near;
    ACR_Containment.Cleared(post);
-   ACR_NestDressing.Cleared(post.m_vPos);
+   // Only a settled nest has a site to douse and provokes a counterattack (as Containment.Cleared
+   // and Bounty): a horde or raid killed beside its parent nest put out the live nest's smoke, and
+   // a counterattack horde killed sent the next one at once.
+   bool settled = !nest.m_bRoaming && !nest.m_Raid;
+   if (settled) ACR_NestDressing.Cleared(post.m_vPos);
    ACR_Defenders.Remove(post);
-   if (!clearedBy.IsEmpty()) CounterAttack(post.m_vPos, place, null, clearedBy);
+   if (settled && !clearedBy.IsEmpty()) CounterAttack(post.m_vPos, place, null, clearedBy);
    return;
   }
   if (nest.m_Raid)
