@@ -209,6 +209,11 @@ class ACR_Squad : Managed
    if (!was || bodies.Contains(was)) continue;
    ChimeraCharacter man = ChimeraCharacter.Cast(was);
    if (!man || man.GetCharacterController().IsDead() || !man.GetPrefabData()) continue; // fallen: missing, refilled
+   // A BBB prisoner (surrender takes him out of the group alive, disarmed flag set in the same
+   // call) fell too: missing and refilled, as ACR_BBBHooks' surrender policy says. Read through
+   // vanilla, like ACR_BaseSystem.AddBody, so ACA builds against BBB pins without surrender.
+   PerceivableComponent perceivable = PerceivableComponent.Cast(man.FindComponent(PerceivableComponent));
+   if (perceivable && perceivable.IsDisarmed()) continue;
    ResourceName prefab = man.GetPrefabData().GetPrefabName();
    int full;
    if (m_FullStrength.Find(prefab, full) && full > 0) m_FullStrength.Set(prefab, full - 1);
