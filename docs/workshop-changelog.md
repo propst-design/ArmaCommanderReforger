@@ -6,9 +6,9 @@ NEW
 
 - Decks: each side buys from a deck of cards picked from its faction's catalogue within a points budget (Deck points row, -acrDeckPoints). The standard deck is the usual buy list, so nothing changes unless someone builds one.
 - Deck builder: press F3 on the map or during setup. Save several decks per faction, share them as one-line codes, add custom teams from your faction's own soldiers (optionally with a ride), and hand a deck in during setup. The Blue deck and Red deck rows pick what each side plays: standard, a handed-in deck, or a deck the AI commander builds from its doctrine. RHS and Ukrainian factions get extra kitted team cards.
-- Insurgency (with -acrGuerrillas): FIA hideouts recruit and spread to empty towns, plant roadside IEDs with a watching triggerman, send sabotage teams against FOBs and roadblocks, and run technicals from depots. Wiping out FIA teams marks roughly where their hideout is.
+- Insurgency (with -acrGuerrillas): FIA hideouts recruit and spread to empty towns, plant roadside IEDs with a watching triggerman, send sabotage teams against FOBs and roadblocks, and run technicals from depots. Wiping out FIA teams marks roughly where their hideout is; finding the hideout takes men on foot, not a vehicle driving past.
 - Counter-battery: firing a mortar gives it away. The other side gets a ring that narrows with every round heard, mortars answer pinned-down tubes, and AI mortar teams under fire move.
-- Contained outbreak: civilian evacuation (give a squad the Evac point order near a town marked Civilians, then drive them to a safe base for 5 RP each), supply airdrops worth 30 RP that either side can recover, and a truce between the two sides against the dead, which any shot or strike on the other side breaks at once.
+- Contained outbreak: civilian evacuation (give a squad the Evac point order near a town marked Civilians, then drive them to a safe base for 5 RP each), supply airdrops worth 30 RP that either side can recover (AI commanders send a free squad, a nearby squad or an idle truck, never their defenders), and a truce between the two sides against the dead, which any shot or strike on the other side breaks at once.
 - Truck supplies for FOBs, in every mode: park a construction truck by your FOB's HQ and unload its paid load into the FOB's store.
 - Mission intro in the Arma 2 style: a short orbit of your HQ with music and the title, then into your soldier. Space or Enter skips it; Mission intro row or -acrIntro 0 turns it off.
 - Civilians on the map: a vague violet ring where your people see civilians (with the Civil Population mod and its compat add-on).
@@ -46,3 +46,4 @@ FIXED
 - A captured town's base works are planned for its new owner, and at the cap a new fortified position or minefield replaces the side's farthest one.
 - Rides no longer wait for unconscious riders, and an air lift that runs out of time sets its squad down.
 - Garrisons stand down when only civilians are in town.
+- A town's name on the command map can be clicked again when a zombie-mode marker or label covers it.
