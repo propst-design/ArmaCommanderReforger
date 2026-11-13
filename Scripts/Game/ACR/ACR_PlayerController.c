@@ -933,6 +933,7 @@ modded class SCR_PlayerController
  protected bool m_bACR_Viewing;
  protected bool m_bACR_ViewingSent;
  bool ACR_IsViewingMap() { return m_bACR_Viewing; }
+ void ACR_MarkViewing(bool viewing) { ACR_SendViewing(viewing); }
  protected void ACR_SendViewing(bool viewing)
  {
   if (viewing == m_bACR_ViewingSent) return;

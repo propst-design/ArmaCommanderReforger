@@ -1443,7 +1443,14 @@ class ACR_Manager : Managed
   if (mapOpen && ACR_RTSCameraManager.IsActive()) ACR_RTSCameraManager.Close();
   bool rtsWasActive = ACR_RTSCameraManager.IsActive();
   ACR_RTSCameraManager.Frame(pc);
-  if (rtsWasActive) return;
+  if (rtsWasActive)
+  {
+   // ACR_UpdateMap below is skipped while the camera is up, so report "viewing" here: a camera
+   // opened with F10 on foot (after this frame's ACR_UpdateMap sent false) otherwise kept the
+   // server's position feed off and its squads moved only on the 10 s full resend.
+   pc.ACR_MarkViewing(ACR_RTSCameraManager.IsActive());
+   return;
+  }
   // Activate independently of the character context: possession changes its update order.
   if (mapOpen) input.ActivateContext("ACR_MapContext");
   else input.ActivateContext("ACR_TestContext");
