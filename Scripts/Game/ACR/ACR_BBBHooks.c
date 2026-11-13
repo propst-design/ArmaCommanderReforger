@@ -382,6 +382,21 @@ class ACR_BBBHooks : BBB_Hooks
   return AttackerLeash(SquadOf(group), centre, radius);
  }
 
+ // Callouts (BBB_Callouts) come from the engine's group leader, which can be another AI while a
+ // player possesses the designated leader (ACR_Squad.GetLeader keeps him). A squad a player leads
+ // stays quiet, as BBB keeps any player-led group; a player riding as a rifleman leaves the AI
+ // leader's voice alone (he leads, Jacob 11 Nov).
+ override bool AllowCallouts(SCR_AIGroup group)
+ {
+  ACR_Squad squad = SquadOf(group);
+  if (squad)
+  {
+   IEntity leader = squad.GetLeader();
+   if (leader && ACR_Squad.FindController(leader) != 0) return false;
+  }
+  return super.AllowCallouts(group);
+ }
+
  override bool AllowMorale(SCR_AIGroup group)
  {
   return SquadOf(group) == null;
