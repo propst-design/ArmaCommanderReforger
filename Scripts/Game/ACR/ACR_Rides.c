@@ -1201,7 +1201,10 @@ class ACR_Rides : Managed
   {
    rider.DismountAndContinue(ride.m_sFinalPrefab, ride.m_Final, ride.m_fFinalRadius, ride.m_sFinalOrder, ride.m_iFinalKind);
    string faction = FactionOf(rider);
-   if (!faction.IsEmpty()) m_Manager.NotifyFaction(faction, rider.GetName() + ": dropped off at " + ACR_Manager.Grid(ride.m_Vehicle.GetOrigin()));
+   // The lead vehicle may be deleted while riders sit in a convoy vehicle: grid from the riders.
+   IEntity dropAt = ride.m_Vehicle;
+   if (!dropAt) dropAt = rider.GetAnchor();
+   if (!faction.IsEmpty() && dropAt) m_Manager.NotifyFaction(faction, rider.GetName() + ": dropped off at " + ACR_Manager.Grid(dropAt.GetOrigin()));
    return;
   }
   if (ride.m_sFinalPrefab.IsEmpty())

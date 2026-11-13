@@ -1280,13 +1280,15 @@ class ACR_AirLift : ACR_SupportRun
    if (m_Squad && m_Squad.m_Group && Alive(m_Squad) > 0)
    {
     m_Squad.ForgetResume();
-    if (!m_sFinalPrefab.IsEmpty())
+    // Led by a player now (as the two-spot landing above): his orders, not the lift's.
+    bool ledNow = m_Squad.PlayerSteers();
+    if (!ledNow && !m_sFinalPrefab.IsEmpty())
     {
      vector finalDest = m_FinalTarget;
      if (finalDest == vector.Zero) finalDest = m_Drops[0];
      m_Squad.RestoreOrder(ACR_OrderSnapshot.Make(m_sFinalPrefab, finalDest, m_fFinalRadius, m_sFinalOrder, ACR_Squad.StateOfLabel(m_sFinalOrder), m_iFinalKind));
     }
-    else
+    else if (!ledNow)
     {
      m_Squad.Defend(m_Drops[0]);
     }
