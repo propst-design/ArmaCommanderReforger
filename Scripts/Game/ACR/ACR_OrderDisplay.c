@@ -254,6 +254,7 @@ class ACR_OrderDisplay : Managed
    {
     ACR_UnitMarker marker = new ACR_UnitMarker();
     marker.m_bContact = true; // clicks go through to the map
+    marker.m_State = 5;       // an order tag before its widget is made (not an enemy pip)
     marker.SetType(SCR_EMapMarkerType.SIMPLE);
     marker.SetMarkerConfigID(1);
     marker.SetCanBeRemovedByOwner(false);

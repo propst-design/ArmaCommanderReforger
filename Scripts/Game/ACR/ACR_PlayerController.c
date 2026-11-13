@@ -91,8 +91,9 @@ class ACR_UnitMarker : SCR_MapMarkerBase
   if (m_fAlpha < 1) color = new Color(color.R(), color.G(), color.B(), color.A() * m_fAlpha);
   m_MarkerWidgetComp.SetColor(color);
   if (m_GroupSymbol) m_MarkerWidgetComp.UpdateMilitarySymbol(m_GroupSymbol);
-  // A spotted enemy's reticle; not our empty vehicles (state 4), which use m_bContact for click-through
-  if (m_bContact && m_State != 4 && m_wRoot && !m_wPip)
+  // A spotted enemy's reticle; not our empty vehicles (state 4) or order tags (state 5), which use
+  // m_bContact for click-through
+  if (m_bContact && m_State != 4 && m_State != 5 && m_wRoot && !m_wPip)
   {
    WorkspaceWidget ws = GetGame().GetWorkspace();
    if (ws)
@@ -1175,7 +1176,11 @@ modded class SCR_PlayerController
   ACR_UpdateSoldierMarkers(manager);
   ACR_UnitMarker original = m_ACR_OriginalMarker;
   original.m_Label = "COMMAND UNIT [F8]";
-  original.SetWorldPos(m_ACR_OriginalPos[0], m_ACR_OriginalPos[2]);
+  // Off the map until its position comes (first open after joining, or no command unit), like
+  // the squad and soldier markers: not in the map's corner.
+  vector originalAt = m_ACR_OriginalPos;
+  if (originalAt == vector.Zero) originalAt = Vector(-100000, 0, -100000);
+  original.SetWorldPos(originalAt[0], originalAt[2]);
   original.RefreshStyle();
   ACR_UpdateGroupMarkers(manager);
   ACR_UpdateBaseMarkers(manager);
@@ -1323,8 +1328,11 @@ modded class SCR_PlayerController
     // Not "owned" by the player, so vanilla doesn't open the marker edit dialog on click.
     marker.SetMarkerOwnerID(-1);
    }
-   // Squads that are gone, and markers whose symbol changed, go.
-   foreach (RplId goneId, ACR_UnitMarker gone : kept) manager.ACR_RemoveMarker(gone);
+   // Squads that are gone, and markers whose symbol changed, go. Every old marker not reused, not
+   // just those left in 'kept': separate commander markers all carry RplId.Invalid(), so with two
+   // commanders 'kept' remembered only one and the others stayed on the map as frozen ghosts.
+   foreach (ACR_UnitMarker gone : holding)
+    if (!m_ACR_GroupMarkers.Contains(gone)) manager.ACR_RemoveMarker(gone);
   }
   for (int i = 0; i < m_ACR_GroupMarkers.Count(); i++)
   {
