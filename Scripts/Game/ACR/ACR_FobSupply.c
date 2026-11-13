@@ -451,6 +451,14 @@ class ACR_FobSupply
    affiliation.SetAffiliatedFaction(base.GetOwnerFaction());
   if (base.m_iSupplyDelivery > 0 && base.m_sSupplyDeliveryFaction != base.m_sOwner)
   {
+   // The FOB changed hands with a delivery on its way: the orderer gets the RP back, as when its
+   // HQ is lost (ACR_Base.MarkHqLost). It was lost without a word.
+   ACR_Manager owner = ACR_Manager.GetInstance();
+   if (!base.m_sSupplyDeliveryFaction.IsEmpty() && owner && owner.m_Bases)
+   {
+    owner.m_Bases.Refund(base.m_sSupplyDeliveryFaction, DELIVERY_COST);
+    PrintFormat("[ACR] BASE %1 supply delivery called off (captured): %2 RP refunded to %3", base.m_sName, DELIVERY_COST, base.m_sSupplyDeliveryFaction);
+   }
    base.m_iSupplyDelivery = 0;
    base.m_fSupplyDeliveryLeft = 0;
   }
