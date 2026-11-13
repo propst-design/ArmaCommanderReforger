@@ -2734,7 +2734,11 @@ class ACR_Supports : Managed
   }
   m_Manager.m_Bases.Spend(factionKey, entry.m_iCost);
   ACR_MortarTeam started = m_Manager.Mortars().m_LastStarted;
-  if (started && started.m_bFiring) started.m_iPaid = entry.m_iCost;
+  if (started && started.m_bFiring)
+  {
+   started.m_iPaid = entry.m_iCost;
+   started.m_ePaidType = entry.m_eType;
+  }
   float now = GetGame().GetWorld().GetWorldTime();
   entry.m_fReadyAt = now + entry.m_iCooldown * 1000;
   PrintFormat("[ACR] SUPPORT %1 %2 at %3 by %4 (ETA %5 s)", factionKey, entry.m_sName, target, team, eta);

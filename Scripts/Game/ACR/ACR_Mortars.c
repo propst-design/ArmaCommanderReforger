@@ -47,6 +47,7 @@ class ACR_MortarTeam : Managed
  int m_iReserveRounds; // paid mission rounds not yet issued to a gunner
  int m_iDryMissions;   // missions in a row that timed out with nothing fired (reset when the tube goes up again)
  int m_iPaid;          // RP this mission cost its side (given back if it fires nothing)
+ ACR_ESupportType m_ePaidType; // the support call that paid it (its cooldown goes back with the RP)
  bool m_bNoSpotLogged;
  ref map<IEntity, ResourceName> m_Backpacks = new map<IEntity, ResourceName>(); // carriers' own packs while they carry parts
  bool m_bPartsChecked;
@@ -946,7 +947,18 @@ class ACR_Mortars : Managed
   if (team.m_iFired == 0 && team.m_iPaid > 0)
   {
    ACR_Manager owner = ACR_Manager.GetInstance();
-   if (owner && owner.m_Bases) owner.m_Bases.Refund(team.m_sFaction, team.m_iPaid);
+   if (owner && owner.m_Bases)
+   {
+    owner.m_Bases.Refund(team.m_sFaction, team.m_iPaid);
+    // ...and the call's cooldown, as a bomb run or helicopter that never started (ACR_Supports.Call).
+    ACR_FactionData data = owner.m_Bases.GetFaction(team.m_sFaction);
+    float readyNow = GetGame().GetWorld().GetWorldTime();
+    if (data && data.m_aSupports)
+    {
+     foreach (ACR_SupportEntry paidEntry : data.m_aSupports)
+      if (paidEntry && paidEntry.m_eType == team.m_ePaidType && paidEntry.m_fReadyAt > readyNow) paidEntry.m_fReadyAt = readyNow;
+    }
+   }
    PrintFormat("[ACR] MORTAR %1 fired nothing: %2 RP refunded to %3", team.m_sName, team.m_iPaid, team.m_sFaction);
   }
   team.m_iPaid = 0;
