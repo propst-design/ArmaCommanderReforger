@@ -50,3 +50,9 @@ FIXED
 - Soldiers who surrender are replaced by reinforcements like the fallen, and groups of men dismissed through AiO don't count against the AI commander's unit limit.
 - The AI in a squad whose leader you've taken over no longer call orders at you, and a wound or fire from before a truce no longer breaks it.
 - A town's name on the command map can be clicked again when a zombie-mode marker or label covers it.
+- A 2IC request pushed out of a full 2IC channel ends instead of holding its squad all match.
+- An unarmed vehicle getting away from fire on a road no longer turns back toward the enemy.
+- AI commanders whose FOB builder is wiped out stop buying truck after truck for that site.
+- Wiping out a horde or a raid no longer sets off a counterattack from its nest, a support that fails to start no longer breaks a truce, and a plane in the air at match end no longer drops its pallet into the next match.
+- A FOB captured with a supply delivery on the way refunds it, allied squads no longer contest your FOB, and a mortar mission that fires nothing resets its cooldown.
+- With two or more commanders on a side, no more ghost command unit markers or red dots on each other's order tags.

@@ -110,6 +110,21 @@ Decks and a deck builder, the reworked AI commander on by default, insurgency wi
 - With ACA loaded but not playing (Game Master, Conflict): respawn after possessing a soldier, the fullscreen map's tool bar (no more blank moon button), disconnects, composition navmesh rebuilds and the deploy screen's log are vanilla again.
 - The dark map gives the map its place names back when it closes. The 3D camera (F10) closes when Game Master opens or the match ends, and leaving it under a menu keeps your soldier still until the menu shuts.
 
+### Fixes from the release review
+
+- A 2IC request whose line is pushed out of a full 2IC channel now ends, instead of staying live with no Cancel button (a hold kept its squad all match and used up your request slots).
+- Wiping out a horde on the move or a raid no longer counts as clearing the nest it came from: it no longer sends a fresh counterattack or puts out that nest's smoke.
+- A FOB captured while a supply delivery is on its way refunds the 20 RP paid for it.
+- Squads on your side (a truce partner, FIA fighting with you) no longer count as contesting your FOB, so its upgrades and orders carry on.
+- An unarmed vehicle getting away from fire on a road no longer turns back toward the enemy for the next leg of its route.
+- A ride whose lead vehicle is deleted no longer stops with a script error, and a sequential air lift no longer gives its last AI order to a squad a player leads.
+- A support that fails to start (no helicopter, for example) no longer breaks a truce; it is still refunded.
+- A mortar mission that fires nothing resets its cooldown as well as refunding its RP.
+- AI commanders whose FOB builder is wiped out drop that site instead of buying truck after truck for it, and a refused truck purchase no longer stops them buying for 5 minutes.
+- With two or more commanders on a side, the map no longer shows ghost "Command unit" markers, a red enemy dot on a fellow commander's order tags, or a command unit at the map's corner before its position arrives.
+- A supply plane still in the air when a match ends no longer drops its pallet into the next match.
+- Garrisons no longer build up memory over a long match.
+
 ## 0.5.12 — released
 
 Zombie mode on Project Outbreak, the 2IC back beside "I'm the 2IC", and AI logistics fixes. Needs Better Battle Buddies 0.1.10. The zombie modes need the **Project Outbreak** mod; without it nothing changes. A compat add-on, **AC: Actual - Zombies**, follows separately.
