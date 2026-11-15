@@ -375,6 +375,7 @@ class ACR_Rides : Managed
   if (trip < MIN_TRIP) { why = string.Format("too close to need a ride (under %1 m)", (int)MIN_TRIP); return null; }
   // After the trip check: a refused short hop kept sending the squad's waiting truck home. Its own
   // taxi has to be free again before FindTransport, so the rest still cancels first.
+  bool hadRide = RideOf(rider) != null;
   CancelFor(rider);
   int seats = rider.CountAlive();
   float fetch;
@@ -396,6 +397,7 @@ class ACR_Rides : Managed
    }
    float limit = Math.Min(maxFetch, trip * shareFetch);
    why = string.Format("no free transport with %1 seats within %2 m", seats, (int)limit) + NearestTaxiNote(rider, faction, from, limit, seats, carriersToo);
+   Stranded(rider, hadRide);
    return null;
   }
   // Only worth it if driving beats walking. Where the roads (which the game's own
@@ -411,6 +413,7 @@ class ACR_Rides : Managed
    if (driveSeconds > walkSeconds * 0.8)
    {
     why = string.Format("no quick road there (%1 m by road for %2 m): walking is faster", (int)BBB_Roads.s_fLastLength, (int)trip);
+    Stranded(rider, hadRide);
     return null;
    }
   }
@@ -620,6 +623,14 @@ class ACR_Rides : Managed
  }
 
  // A new order for either squad ends its ride (riders already aboard get out).
+ // A new ride refused after the squad's old one was called off (its taxi sent home first, so
+ // FindTransport could take it): it no longer waits for a ride nobody is bringing. It stood in
+ // "Waiting for ride" for good (nothing clears an orphaned RIDE state).
+ protected void Stranded(ACR_Squad rider, bool hadRide)
+ {
+  if (hadRide && rider && rider.OrderState() == ACR_EOrderState.RIDE) rider.Halt("Holding position");
+ }
+
  void CancelFor(ACR_Squad squad)
  {
   for (int i = m_Rides.Count() - 1; i >= 0; i--)
