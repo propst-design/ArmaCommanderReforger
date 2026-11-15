@@ -1396,6 +1396,9 @@ class ACR_AICommander : Managed
    int task = candidate.m_iAITask;
    if (task != ACR_EAITask.FREE && task != ACR_EAITask.POSTED && task != ACR_EAITask.ATTACK && task != ACR_EAITask.DEFEND) continue;
    if (task == ACR_EAITask.DEFEND && (OnRequest(candidate) || candidate == m_FobEscort || !candidate.m_AITarget)) continue;
+   // Sent to defuse a charge (RespondToCharge, called once per charge): kept while it is primed, as
+   // AssignDefenders does. With no known threat there is no defence job, and it was re-tasked away.
+   if (task == ACR_EAITask.DEFEND && m_Manager.HasPrimedDemolition(candidate.m_AITarget)) continue;
    if (!candidate.IsCombatUnit() || IsRetreating(candidate) || IsReconTeam(candidate) || IsScreen(candidate)) continue;
    if ((task == ACR_EAITask.FREE || task == ACR_EAITask.POSTED) && AmmoShortForAttack(candidate)) continue; // rearms first (ManageAmmoRuns)
    pool.Insert(candidate);
