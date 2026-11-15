@@ -1423,6 +1423,16 @@ class ACR_Manager : Managed
  protected IEntity m_LastDriveVehicle;
  protected IEntity m_LastRide;
 
+ // The 3D-view HUD is updated only while the local player has a body and the 3D camera is down
+ // (OnFrame returns early otherwise): clear what it drew and drop a half-made Ping press.
+ protected static void HideBodyHud(SCR_PlayerController pc)
+ {
+  if (pc && pc.ACR_GetData()) ACR_PingDisplay.UpdateHud(pc.ACR_GetData(), null, false);
+  ACR_PingDisplay.ShowHoldHint(-1);
+  ACR_KeyHints.Update(false, false, null);
+  if (pc) pc.ACR_CancelPingPress();
+ }
+
  void OnFrame()
  {
   ACR_SetupClient.Frame();
@@ -1436,8 +1446,7 @@ class ACR_Manager : Managed
    ACR_RTSCameraManager.Close();
    // Dead or on the deploy screen: the HUD pings and the hold hint are drawn only with a body,
    // so the last frame's stayed frozen on screen until the next spawn.
-   if (pc && pc.ACR_GetData()) ACR_PingDisplay.UpdateHud(pc.ACR_GetData(), null, false);
-   ACR_PingDisplay.ShowHoldHint(-1);
+   HideBodyHud(pc);
    return;
   }
   InputManager input = GetGame().GetInputManager();
@@ -1452,6 +1461,9 @@ class ACR_Manager : Managed
    // opened with F10 on foot (after this frame's ACR_UpdateMap sent false) otherwise kept the
    // server's position feed off and its squads moved only on the 10 s full resend.
    pc.ACR_MarkViewing(ACR_RTSCameraManager.IsActive());
+   // The soldier's HUD (layer 800) shows through the camera's click layer: its pings, key-hint
+   // bar and ping hold hint froze where they were, and a Ping press held into F10 fired on close.
+   HideBodyHud(pc);
    return;
   }
   // Activate independently of the character context: possession changes its update order.

@@ -3283,6 +3283,14 @@ modded class SCR_PlayerController
  protected bool m_ACR_PingOnMap;      // the current press started with the map open
  protected bool m_ACR_PingPickerShown; // map hold: the picker is already up
 
+ // A press that can't finish where it started (camera opened, body lost): forget it, so letting
+ // go later doesn't place a ping nobody aimed.
+ void ACR_CancelPingPress()
+ {
+  m_ACR_PingDownAt = -1;
+  m_ACR_PingPickerShown = false;
+ }
+
  void ACR_UpdateWorldPing(bool mapOpen)
  {
   InputManager input = GetGame().GetInputManager();
