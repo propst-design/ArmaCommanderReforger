@@ -56,3 +56,5 @@ FIXED
 - Wiping out a horde or a raid no longer sets off a counterattack from its nest, a support that fails to start no longer breaks a truce, and a plane in the air at match end no longer drops its pallet into the next match.
 - A FOB captured with a supply delivery on the way refunds it, allied squads no longer contest your FOB, and a mortar mission that fires nothing resets its cooldown.
 - With two or more commanders on a side, no more ghost command unit markers or red dots on each other's order tags.
+- A vehicle bumping the other side's soldiers or vehicles no longer breaks a truce.
+- Civilians left in a wrecked or abandoned vehicle now count as lost, so the evac point closes instead of staying open all match.

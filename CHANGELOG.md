@@ -124,6 +124,8 @@ Decks and a deck builder, the reworked AI commander on by default, insurgency wi
 - With two or more commanders on a side, the map no longer shows ghost "Command unit" markers, a red enemy dot on a fellow commander's order tags, or a command unit at the map's corner before its position arrives.
 - A supply plane still in the air when a match ends no longer drops its pallet into the next match.
 - Garrisons no longer build up memory over a long match.
+- A vehicle bumping the other side's soldiers or vehicles no longer breaks a truce.
+- Civilians left in a wrecked or abandoned vehicle now count as lost, so the evac point closes instead of staying open all match.
 
 ## 0.5.12 — released
 
