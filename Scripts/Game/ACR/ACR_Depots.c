@@ -401,6 +401,14 @@ class ACR_Depots
   {
    PrintFormat("[ACR] DEPOTS %1: the technical is back", depot.m_Base.m_sName);
    EndRaid(manager, depot);
+   return;
+  }
+  // Stuck on the way home (a failed route, a player in it): as OUT gives up after TRIP_MAX_MS, so
+  // does the drive home, or the depot stayed busy all match and the technical kept counting.
+  if (now - depot.m_fStateAt >= TRIP_MAX_MS)
+  {
+   PrintFormat("[ACR] DEPOTS %1: the technical never made it home, its crew stands down", depot.m_Base.m_sName);
+   EndRaid(manager, depot);
   }
  }
 
