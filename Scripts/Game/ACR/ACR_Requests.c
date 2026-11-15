@@ -237,6 +237,13 @@ class ACR_Requests : Managed
  // A shaped minefield order's corners while it is handled (ACR_PlayerController.ACR_ShapeServer, #200); null otherwise.
  static ref array<vector> s_aCorners;
 
+ // Jacob (15 Nov): a Shift order behind a hold-type order (Defend, Garrison) is refused, not run
+ // at once: the hold never ends by itself (ACR_Squad.QueueBehindHold).
+ static string QueueHoldRefusal(string name)
+ {
+  return name + ": it is holding a position and won't move on by itself, so nothing queued after it would start; give the order without Shift";
+ }
+
  // The orders a drag can aim (ACR_PlayerController.ACR_Aimable): roadblocks, minefields, Fortify.
  static bool TakesFacing(int command)
  {
@@ -452,12 +459,15 @@ class ACR_Requests : Managed
     squad.Halt("Halted");
     return outcome.Accept(name + ": halted");
    case ACR_ERequest.QUEUE_MOVE:
+    if (squad.QueueBehindHold()) return outcome.Refuse(QueueHoldRefusal(name));
     if (squad.Queue(point, false)) return outcome.Accept(name + ": waypoint added");
     return outcome.Refuse(name + ": waypoint list is full");
    case ACR_ERequest.QUEUE_DEFEND:
+    if (squad.QueueBehindHold()) return outcome.Refuse(QueueHoldRefusal(name));
     if (squad.Queue(point, true)) return outcome.Accept(name + ": will defend there after its current order");
     return outcome.Refuse(name + ": waypoint list is full");
    case ACR_ERequest.QUEUE_GARRISON:
+    if (squad.QueueBehindHold()) return outcome.Refuse(QueueHoldRefusal(name));
     if (squad.Queue(point, false, true)) return outcome.Accept(name + ": will garrison there after its current order");
     return outcome.Refuse(name + ": waypoint list is full");
    case ACR_ERequest.MODE_COMBAT:

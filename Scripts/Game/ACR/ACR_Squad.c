@@ -3403,9 +3403,25 @@ class ACR_Squad : Managed
  // waypoint never completes, so nothing queued behind it would ever start.
  bool HoldingInPlace() { return m_Order == "Holding position"; }
 
- bool Queue(vector position, bool defend, bool garrison = false)
+ // Jacob (15 Nov): an order queued behind a hold-type order (Defend, Garrison, a post: its Defend
+ // waypoint never completes) would never start, so it is refused, not run at once. Behind the last
+ // queued order, the route's end order, else the current one. A patrol walks every point as a move.
+ bool QueueBehindHold()
  {
   if (!m_Group) return false;
+  if (!m_aQueuePos.IsEmpty())
+  {
+   if (m_bPatrol) return false;
+   int last = m_aQueueKind[m_aQueueKind.Count() - 1];
+   return last == 1 || last == 2;
+  }
+  if (!m_aRoute.IsEmpty()) return m_Route && m_Route.m_iKind == ACR_EOrderKind.DEFEND;
+  return m_Group.GetCurrentWaypoint() != null && !HoldingInPlace() && OrderState() == ACR_EOrderState.DEFEND;
+ }
+
+ bool Queue(vector position, bool defend, bool garrison = false)
+ {
+  if (!m_Group || QueueBehindHold()) return false;
   bool busy = (m_Group.GetCurrentWaypoint() != null && !HoldingInPlace()) || !m_aRoute.IsEmpty() || !m_aQueuePos.IsEmpty();
   if (!busy)
   {
