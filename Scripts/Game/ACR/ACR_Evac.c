@@ -164,7 +164,6 @@ class ACR_Evac
   int left = Math.Round(count * LEFT_SHARE);
   if (count >= 4) left = Math.Max(1, left);
   int walking = count - left;
-  ACR_Containment.Take(site);
   point.m_Walkers = NewGroup(point.m_vTown, string.Format("Civilians leaving %1", point.m_sTown));
   point.m_Riders = NewGroup(point.m_vTown, string.Format("Civilians out of %1", point.m_sTown));
   if (!point.m_Walkers || !point.m_Riders)
@@ -172,6 +171,9 @@ class ACR_Evac
    Close(point, true);
    return "could not move the civilians";
   }
+  // Taken only once the XP can be set: a failed group spawn used to drop the town's ring and
+  // its civilians (neither delivered nor counted lost).
+  ACR_Containment.Take(site);
   // A civilian-population mod's own people first (its compat add-on), then ours.
   array<IEntity> handed = {};
   int got = ACR_CivilianSocket.Get().Evacuees(point.m_vTown, 150, walking, handed);
