@@ -40,6 +40,7 @@ class ACR_FortifyPlan : Managed
  float m_fYaw;
  int m_iTier;
  ACR_Fortification m_Target;         // the position it upgrades (null: a new one)
+ bool m_bUpgrade;                    // it was ordered as an upgrade (m_Target is weak: null once the position is gone)
  vector m_vStage;                    // where the squad gathers, behind the position
  float m_fRadius;                    // squad members this close to the site work
  float m_fDuration;
@@ -860,6 +861,7 @@ class ACR_Fortify
     refusal = "another squad is already upgrading that position";
     return null;
    }
+   plan.m_bUpgrade = true;
    plan.m_vSite = plan.m_Target.m_vPos;
    plan.m_fYaw = plan.m_Target.m_fYaw;
    plan.m_iTier = plan.m_Target.m_iTier + 1;
@@ -1028,6 +1030,15 @@ class ACR_Fortify
   reason = "";
   ACR_Fortification fort = plan.m_Target;
   if (fort && !s_Positions.Contains(fort)) fort = null;
+  // The position being upgraded was destroyed during the work: refused (refunded by the caller).
+  // It used to go in as a "new" position of the upgrade tier with only that tier's pieces, past
+  // every new-position check (spacing, base distance, the cap).
+  if (!fort && plan.m_bUpgrade)
+  {
+   reason = "the position it was upgrading is gone";
+   PrintFormat("[ACR] FORTIFY %1 upgrade to %2 at %3 refused: the position was destroyed", plan.m_sFaction, TierName(plan.m_iTier), plan.m_vSite);
+   return null;
+  }
   bool created = !fort;
   if (created)
   {
