@@ -156,6 +156,9 @@ class ACR_Outbreak
  static void Apply()
  {
   s_bOn = false;
+  // Before any AddNest: HordeGap reads it for each nest's first horde, and it still held the last
+  // match's clock (a match after a night ended sent its first hordes at a third of the day gap).
+  s_bNight = ReadNight();
   ACR_Containment.Reset();
   ACR_Truce.Reset();
   s_aCounterAt.Clear();
