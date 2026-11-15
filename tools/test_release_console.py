@@ -148,6 +148,19 @@ class GuardTests(unittest.TestCase):
         with self.assertRaisesRegex(Blocked, r'leave out files it loads.*Unshipped/ACR_Jet\.xob \(from Prefabs/ACR_Jet\.et\)'):
             self.console.stage('ACA')
 
+    def test_resources_sharing_a_guid_refused(self):
+        for relative in ('Worlds/ACR_Arland.ent', 'Prefabs/Western_ATAssistant.et'):
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('fixture')
+            (self.root / (relative + '.meta')).write_text(
+                'MetaFileClass {\n Name "{AC230926A0010060}' + relative + '"\n}\n')
+        for notes in [self.root / 'CHANGELOG.md', self.root / 'docs/workshop-changelog.md']:
+            notes.write_text(notes.read_text() + '- Reviewed GUID fixture.\n')
+        self.commit(self.root)
+        with self.assertRaisesRegex(Blocked, r'share a GUID.*AC230926A0010060: Prefabs/Western_ATAssistant\.et, Worlds/ACR_Arland\.ent'):
+            self.console.stage('ACA')
+
     def test_fresh_candidate_and_unique_rebuild(self):
         first = self.mark_checked('BBB')
         self.assertEqual(first, self.console.checked('BBB'))

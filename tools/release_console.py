@@ -125,6 +125,26 @@ def missing_references(source, packaged, tracked):
     return missing
 
 
+META_NAME = re.compile(rb'(?<![A-Za-z])Name\s+"\{([0-9A-Fa-f]{16})\}')
+
+
+def duplicate_guids(source, packaged):
+    """Resource GUIDs that two packaged .meta files claim. The engine keeps one: ACA's Western medic
+    and AT assistant prefabs shared their GUIDs with the Arland mission and world (#41, 15 Nov), so
+    a server started from the mission loaded the medic, and every pack logged "duplicate GUID"."""
+    owners = {}
+    for relative in sorted(packaged):
+        if not relative.endswith('.meta'):
+            continue
+        path = source / relative
+        if not path.is_file():
+            continue
+        match = META_NAME.search(path.read_bytes())
+        if match:
+            owners.setdefault(match[1].decode().upper(), []).append(relative[:-len('.meta')])
+    return {guid: paths for guid, paths in owners.items() if len(paths) > 1}
+
+
 def latest_release_notes(source, dependency_only=False, require_draft=False):
     path = source / 'CHANGELOG.md'
     no_links(path)
@@ -316,6 +336,10 @@ class Console:
         if left_out:
             raise Blocked(f'{mod}: the package would leave out files it loads (add their folder to SPECS): ' +
                           ', '.join(f'{path} (from {origin})' for path, origin in sorted(left_out.items())[:8]))
+        shared = duplicate_guids(source, paths)
+        if shared:
+            raise Blocked(f'{mod}: resources share a GUID, so one would load in place of the other (give one a new GUID): ' +
+                          '; '.join(f'{guid}: ' + ', '.join(owners) for guid, owners in sorted(shared.items())[:8]))
         stamp = dt.datetime.now(dt.timezone.utc).strftime('%Y%m%d-%H%M%S')
         parent = self.output / mod / (sha[:12] + '-' + stamp + '-' + uuid.uuid4().hex[:6])
         addon = parent / spec['folder']
