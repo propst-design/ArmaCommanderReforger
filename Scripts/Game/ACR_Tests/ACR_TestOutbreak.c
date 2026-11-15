@@ -287,7 +287,7 @@ class ACR_TestOutbreak
   // still breaks it (so the first part can't pass by the hook never running).
   SCR_CharacterDamageManagerComponent dmg;
   if (ussr) dmg = SCR_CharacterDamageManagerComponent.Cast(ussr.FindComponent(SCR_CharacterDamageManagerComponent));
-  bool afterBleed, afterShot;
+  bool afterBleed, afterBump, afterShot;
   string firedBy;
   if (dmg && us)
   {
@@ -297,11 +297,14 @@ class ACR_TestOutbreak
    hit[0] = ussr.GetOrigin();
    dmg.HandleDamage(new SCR_DamageContext(EDamageType.BLEEDING, 1, hit, ussr, dmg.GetDefaultHitZone(), Instigator.CreateInstigator(us), null, -1, -1));
    afterBleed = ACR_Truce.Holds();
+   // A collision (a US truck bumping him; vanilla names the driver) is not fire either (Jacob, 14 Nov).
+   dmg.HandleDamage(new SCR_DamageContext(EDamageType.COLLISION, 1, hit, ussr, dmg.GetDefaultHitZone(), Instigator.CreateInstigator(us), null, -1, -1));
+   afterBump = ACR_Truce.Holds();
    dmg.HandleDamage(new SCR_DamageContext(EDamageType.KINETIC, 1, hit, ussr, dmg.GetDefaultHitZone(), Instigator.CreateInstigator(us), null, -1, -1));
    afterShot = ACR_Truce.Holds();
    firedBy = ACR_Truce.s_sFiredBy;
   }
-  Check("zombies: an old wound bleeding on doesn't break the truce, a fresh hit does", dmg && afterBleed && !afterShot && firedBy == "US", string.Format("damage manager %1, holds after bleeding %2, after a hit %3 (by '%4')", dmg != null, afterBleed, afterShot, firedBy));
+  Check("zombies: an old wound bleeding on or a collision doesn't break the truce, a fresh hit does", dmg && afterBleed && afterBump && !afterShot && firedBy == "US", string.Format("damage manager %1, holds after bleeding %2, after a collision %3, after a hit %4 (by '%5')", dmg != null, afterBleed, afterBump, afterShot, firedBy));
   ACR_Truce.Reset();
  }
 

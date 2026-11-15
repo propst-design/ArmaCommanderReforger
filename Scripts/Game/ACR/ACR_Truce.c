@@ -203,6 +203,15 @@ class ACR_Truce
   return type == EDamageType.BLEEDING || type == EDamageType.FIRE;
  }
 
+ // Damage that doesn't break a truce: lingering wounds (above), and collisions (Jacob, 14 Nov: a
+ // truck bumping the partner's vehicle or soldier is not hostile fire). Vanilla gives collision
+ // damage the vehicle's driver as instigator (SCR_CharacterDamageManagerComponent.ApplyCollisionDamage,
+ // SCR_VehicleDamageManagerComponent), so without this a bump between the two sides ended it.
+ static bool Ignored(EDamageType type)
+ {
+  return Lingering(type) || type == EDamageType.COLLISION;
+ }
+
  // A hit with a shooter (ACR_TruceFire: characters and vehicles): 'victim' of one side, 'shooter' of the other.
  static void Hit(IEntity victim, IEntity shooter)
  {
@@ -315,7 +324,7 @@ modded class SCR_CharacterDamageManagerComponent
  {
   super.OnDamage(damageContext);
   if (damageContext.damageValue <= 0 || !damageContext.instigator || !ACR_Truce.Holds() || !Replication.IsServer()) return;
-  if (ACR_Truce.Lingering(damageContext.damageType)) return;
+  if (ACR_Truce.Ignored(damageContext.damageType)) return;
   ACR_Truce.Hit(GetOwner(), damageContext.instigator.GetInstigatorEntity());
  }
 }
@@ -326,7 +335,7 @@ modded class SCR_VehicleDamageManagerComponent
  {
   super.OnDamage(damageContext);
   if (damageContext.damageValue <= 0 || !damageContext.instigator || !ACR_Truce.Holds() || !Replication.IsServer()) return;
-  if (ACR_Truce.Lingering(damageContext.damageType)) return;
+  if (ACR_Truce.Ignored(damageContext.damageType)) return;
   ACR_Truce.Hit(GetOwner(), damageContext.instigator.GetInstigatorEntity());
  }
 }
