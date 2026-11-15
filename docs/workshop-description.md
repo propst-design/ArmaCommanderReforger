@@ -22,7 +22,7 @@ Requires the separate Better Battle Buddies (BBB) addon. Vanilla sides need no f
 - Call artillery, combat helicopters and off-map squad air lifts.
 - Build, supply and upgrade FOBs; dig in Fortify positions, lay minefields and build roadblocks.
 - AI commanders fight to one of five doctrines. Gather intel to identify theirs.
-- BBB adds combat, medical and vehicle behaviour. Player orders and ACA's command rules take priority over autonomous features.
+- BBB adds combat, medical and vehicle behaviour. Player orders and ACA's command rules come first.
 
 ## Pick your battlefield
 
@@ -30,7 +30,7 @@ Choose an AC: Actual scenario in Scenarios or Host. Before Start, the host/admin
 
 Everon includes a hand-built island layout, halves and flashpoints. Generated layouts place bases and HQs around named locations: preview, reroll the seed or move bases before Start. Kolguyev uses generated layouts. Other terrains need an AC: Actual scenario setup.
 
-On generated layouts, build a helipad before buying helicopters; off-map air lift needs no pad. There are no victory conditions or saved matches. Owned bases automatically report enemies within their radius plus 60 m, without requiring line of sight.
+On generated layouts, build a helipad before buying helicopters; off-map air lift needs no pad. There are no victory conditions or saved matches. Owned bases report enemies within their radius plus 60 m, without line of sight.
 
 ## Mission makers: make it your battlefield
 
