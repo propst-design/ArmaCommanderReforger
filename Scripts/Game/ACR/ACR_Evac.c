@@ -387,18 +387,18 @@ class ACR_Evac
    s_iNudged++;
   }
   TellDeliveries(point);
-  if (waiting) Load(point);
+  if (waiting) Load(manager, point);
   Noise(point, now);
  }
 
- // A vehicle the civilians sit in that nobody will drive on: wrecked, or away from the XP with no
- // soldier of a playing side aboard and none of the XP's side within CREW_NEAR (a driver who got out
- // to fight beside it still has it). At the XP an empty parked vehicle is loading, not abandoned.
+ // A vehicle the civilians sit in that nobody will drive on: wrecked, or with no soldier of a playing
+ // side aboard and none of the XP's side within CREW_NEAR (a driver who got out to fight beside it
+ // still has it). Jacob (15 Nov): at the XP too; it is loading only while someone is there loading it
+ // (Load seats nobody in an unattended vehicle), so a driver killed while loading closes the XP.
  static bool Abandoned(ACR_Manager manager, ACR_EvacPoint point, IEntity vehicle)
  {
   if (!vehicle) return false;
   if (ACR_HeliStation.Destroyed(vehicle)) return true;
-  if (vector.DistanceXZ(vehicle.GetOrigin(), point.m_vPos) <= XP_RADIUS) return false;
   array<string> sides = ACR_Containment.Sides();
   SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
   if (compartments)
@@ -449,13 +449,14 @@ class ACR_Evac
   return "";
  }
 
- protected static void Load(ACR_EvacPoint point)
+ protected static void Load(ACR_Manager manager, ACR_EvacPoint point)
  {
   s_aFound.Clear();
   GetGame().GetWorld().QueryEntitiesBySphere(point.m_vPos, XP_RADIUS, CollectVehicle, null, EQueryEntitiesFlags.DYNAMIC);
   foreach (IEntity vehicle : s_aFound)
   {
-   if (!Parked(vehicle)) continue;
+   // Not into a vehicle nobody is with: they would be lost in it at once (Abandoned).
+   if (!Parked(vehicle) || Abandoned(manager, point, vehicle)) continue;
    SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
    if (!compartments) continue;
    array<BaseCompartmentSlot> seats = {};
