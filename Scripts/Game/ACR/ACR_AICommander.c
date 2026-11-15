@@ -3802,6 +3802,13 @@ class ACR_AICommander : Managed
   ACR_Base priority = null;
   if (counterDue) priority = m_CounterTarget;
   else if (requested) priority = requested;
+  // Every other candidate passes HostileOwner: a counter window or request on a base now held by
+  // the truce partner sent a full attack that could neither fire nor capture.
+  if (priority && ACR_Insurgency.Friendly(priority.m_sOwner, m_sFaction))
+  {
+   priority = null;
+   if (attacks >= maxAttacks) return; // it was the only target open over the cap
+  }
   if (priority)
   {
    candidates.Insert(priority);
@@ -10563,6 +10570,12 @@ class ACR_AICommander : Managed
   if (base.m_sOwner == m_sFaction)
   {
    r.Set(ACR_ETwoICState.DONE, base.m_sName + " is ours");
+   return;
+  }
+  // A truce made after the ask: the partner's base is off limits (no fire, no capture).
+  if (ACR_Insurgency.Friendly(base.m_sOwner, m_sFaction))
+  {
+   r.Set(ACR_ETwoICState.DONE, base.m_sName + " is held by a side we have a truce with");
    return;
   }
   if (IsAttacking(base))

@@ -119,6 +119,8 @@ class ACR_TwoICRequests
    r.m_Base = BaseAt(pos);
    if (!r.m_Base) return "There's no base there to take";
    if (r.m_Base.m_sOwner == faction) return r.m_Base.m_sName + " is ours already";
+   // A truce partner's (or FIA friends') base: our squads could neither fire nor capture there.
+   if (ACR_Insurgency.Friendly(r.m_Base.m_sOwner, faction)) return r.m_Base.m_sName + " is held by a side we have a truce with";
    r.m_vPos = r.m_Base.GetOrigin();
    r.m_sPlace = r.m_Base.m_sName;
    text = string.Format("%1: take %2", playerName, r.m_sPlace);
