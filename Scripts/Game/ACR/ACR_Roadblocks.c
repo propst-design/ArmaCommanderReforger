@@ -31,6 +31,7 @@ class ACR_Roadblock : Managed
 	int m_iType = ACR_ERoadblockType.MEDIUM;
 	IEntity m_PaidTruck;  // the construction truck that paid for it (none: RP)
 	float m_fPaidLoads;
+	float m_fPaidShare;   // of those, loads that were paid (RP-bought): half go back paid on a dismantle
 	int m_iPaidRP;        // RP its build order was paid with (0: free, e.g. an FIA cell's barricade)
 	ACR_DefenderPost m_Defenders; // its defenders (-acrRoadblockDefenders, ACR_Defenders)
 	vector m_vPost;               // where its holders and defenders post, off the lane (ACR_RoadblockLane.Post)
@@ -574,7 +575,7 @@ class ACR_Roadblocks : Managed
 		{
 			if (manager && manager.m_Logistics && rb.m_PaidTruck && ACR_Logistics.Health(rb.m_PaidTruck) > 0)
 			{
-				manager.m_Logistics.AddStock(rb.m_PaidTruck, rb.m_fPaidLoads * 0.5);
+				manager.m_Logistics.AddStock(rb.m_PaidTruck, rb.m_fPaidLoads * 0.5, rb.m_fPaidShare * 0.5);
 				refunded = string.Format("%1 supplies to the construction truck", Math.Round(rb.m_fPaidLoads * 0.5 * ACR_Logistics.SUPPLIES_PER_LOAD_CONSTRUCTION));
 			}
 		}

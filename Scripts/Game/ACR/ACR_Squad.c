@@ -861,6 +861,7 @@ class ACR_Squad : Managed
  float m_fFobLastTick;
  IEntity m_ReservedTruck;
  float m_fReservedLoads;
+ float m_fReservedPaid;        // of those, loads that were paid (go back paid if called off)
  float m_fFobLastProgress;     // world ms of the last build progress (3 min without it: give up)
  float m_fFobNearest;          // on the way: the truck's nearest yet to the site (closing in is progress)
  bool m_bFobSiteCleared;       // trees felled once work starts
@@ -882,6 +883,7 @@ class ACR_Squad : Managed
  int m_iRoadblockPaidRP;       // RP the build in progress was paid with (refunded if called off)
  IEntity m_RoadblockTruck;     // ... or the construction truck it took supplies from
  float m_fRoadblockLoads;
+ float m_fRoadblockPaid;       // of those, loads that were paid
  bool m_bRoadblockArrived;     // the give-up timer runs from the squad's arrival
  float m_fRoadblockDeadline;   // world ms by which the squad must reach the road
  vector m_vRoadblockStage;     // beside the road, where the squad (and a truck it brings) waits
@@ -1297,6 +1299,7 @@ class ACR_Squad : Managed
 
   m_ReservedTruck = truck;
   m_fReservedLoads = ACR_FobBuild.LOADS_RESERVED;
+  m_fReservedPaid = manager.m_Logistics.LastPaidUsed();
   m_vFobSite = site;
   m_fFobBuildProgress = 0.0;
   m_fFobLastTick = GetGame().GetWorld().GetWorldTime();
@@ -1333,7 +1336,7 @@ class ACR_Squad : Managed
    ACR_Manager manager = ACR_Manager.GetInstance();
    if (manager && manager.m_Logistics)
    {
-    manager.m_Logistics.AddStock(m_ReservedTruck, m_fReservedLoads);
+    manager.m_Logistics.AddStock(m_ReservedTruck, m_fReservedLoads, m_fReservedPaid);
     PrintFormat("[ACR] SQUAD %1: cancelled FOB build, refunded %2 loads to truck", m_Name, m_fReservedLoads);
    }
   }
@@ -1538,6 +1541,7 @@ class ACR_Squad : Managed
   {
    m_RoadblockTruck = truck;
    m_fRoadblockLoads = loads;
+   m_fRoadblockPaid = manager.m_Logistics.LastPaidUsed();
    paid = string.Format("%1 supplies from the construction truck at %2", ACR_Roadblocks.Supplies(type), truck.GetOrigin());
   }
   else if (manager.m_Bases.Spend(factionKey, ACR_Roadblocks.Cost(type)))
@@ -1621,7 +1625,7 @@ class ACR_Squad : Managed
   }
   if (m_fRoadblockLoads > 0 && m_RoadblockTruck && ACR_Logistics.Health(m_RoadblockTruck) > 0 && manager && manager.m_Logistics)
   {
-   manager.m_Logistics.AddStock(m_RoadblockTruck, m_fRoadblockLoads);
+   manager.m_Logistics.AddStock(m_RoadblockTruck, m_fRoadblockLoads, m_fRoadblockPaid);
    refund = string.Format("%1 supplies to the construction truck", Math.Round(m_fRoadblockLoads * ACR_Logistics.SUPPLIES_PER_LOAD_CONSTRUCTION));
   }
   m_iRoadblockPaidRP = 0;
@@ -1750,6 +1754,7 @@ class ACR_Squad : Managed
   // Built: nothing left to refund (a dismantle gives half back to whoever paid).
   rb.m_PaidTruck = m_RoadblockTruck;
   rb.m_fPaidLoads = m_fRoadblockLoads;
+  rb.m_fPaidShare = m_fRoadblockPaid;
   rb.m_iPaidRP = m_iRoadblockPaidRP;
   m_iRoadblockPaidRP = 0;
   m_RoadblockTruck = null;

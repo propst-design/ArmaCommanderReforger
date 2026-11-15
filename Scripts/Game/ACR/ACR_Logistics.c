@@ -196,6 +196,7 @@ class ACR_Logistics : Managed
 
  bool Use(IEntity vehicle, float amount)
  {
+  m_fLastPaidUsed = 0;
   if (IsPoint(vehicle))
   {
    ACR_Base fob = ServiceFob(vehicle);
@@ -210,12 +211,20 @@ class ACR_Logistics : Managed
   if (game) ReadGameSupplies(vehicle, flags);
   float stock = StockOf(vehicle);
   if (stock < amount) return false;
+  float paidBefore = PaidOf(vehicle);
   SetStock(vehicle, stock - amount);
+  m_fLastPaidUsed = Math.Max(0, paidBefore - PaidOf(vehicle));
   if (game) WriteGameSupplies(vehicle, flags);
   return true;
  }
 
- void AddStock(IEntity vehicle, float amount)
+ // Of the loads the last successful truck Use took, how many were paid (bought with RP): a refund
+ // puts that many back as paid (AddStock 'paid'), or a cancelled FOB or roadblock turned bought
+ // loads into unpaid ones that a FOB then refused to take.
+ protected float m_fLastPaidUsed;
+ float LastPaidUsed() { return m_fLastPaidUsed; }
+
+ void AddStock(IEntity vehicle, float amount, float paid = 0)
  {
   if (!vehicle || amount <= 0) return;
   int flags = ServiceOf(vehicle);
@@ -225,6 +234,8 @@ class ACR_Logistics : Managed
   if (game) ReadGameSupplies(vehicle, flags);
   float stock = StockOf(vehicle);
   SetStock(vehicle, Math.Clamp(stock + amount, 0, cap));
+  float wasPaid;
+  if (paid > 0 && m_Paid.Find(vehicle, wasPaid)) m_Paid.Set(vehicle, Math.Min(StockOf(vehicle), wasPaid + Math.Min(paid, amount)));
   if (game) WriteGameSupplies(vehicle, flags);
  }
 
