@@ -8560,9 +8560,11 @@ class ACR_AICommander : Managed
    // A regroup on the way (up to a minute) goes back to the build: not given up.
    if (m_FobBuilder && m_FobBuilder.CountAlive() > 0 && m_FobBuilder.OrderState() == ACR_EOrderState.REGROUP && m_FobBuilder.m_iAITask == ACR_EAITask.BUILD_FOB) return true;
    // Given up (3 min without progress) or wiped out short of completion: avoid that site for a while.
+   // An HQ rebuild targets the HQ-lost FOB's own origin: that FOB stands there still built, so it
+   // counts as finished only once its HQ is back (or the AI re-sent and rebought trucks for it forever).
    bool finished = false;
    foreach (ACR_Base built : ACR_Base.s_All)
-    if (built && built.m_bBuilt && !built.m_bRetired && vector.DistanceXZ(built.GetOrigin(), m_vFobTargetSite) < 20) finished = true;
+    if (built && built.m_bBuilt && !built.m_bRetired && !built.m_bHqLost && vector.DistanceXZ(built.GetOrigin(), m_vFobTargetSite) < 20) finished = true;
    // Finished just now: the FOB appears on the next structures tick, after its HQ (a check in
    // that gap used to avoid the new FOB's own site).
    if (!finished && m_FobBuilder && m_FobBuilder.BuiltFobAt(m_vFobTargetSite)) finished = true;
