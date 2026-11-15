@@ -1,5 +1,5 @@
 MetaFileClass {
- Name "{AC230926A0010060}Prefabs/ACR/Infantry/Western_ATAssistant.et"
+ Name "{AC230926A0010088}Prefabs/ACR/Infantry/Western_ATAssistant.et"
  Configurations {
   ETResourceClass PC {}
   ETResourceClass HEADLESS : PC {}

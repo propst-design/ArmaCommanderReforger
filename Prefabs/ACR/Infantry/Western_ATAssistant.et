@@ -1,5 +1,5 @@
 SCR_ChimeraCharacter : "{26A9756790131354}Prefabs/Characters/Factions/BLUFOR/US_Army/Character_US_Rifleman.et" {
- ID "AC230926A0010060"
+ ID "AC230926A0010088"
  components {
   BaseLoadoutManagerComponent "{520EA1D2DB11821E}" {
    Slots {
@@ -15,7 +15,7 @@ SCR_ChimeraCharacter : "{26A9756790131354}Prefabs/Characters/Factions/BLUFOR/US_
   CharacterWeaponSlotComponent "{520EA1D2F659CFAB}" {
    WeaponTemplate "{90D8238D1D8D2DC5}Prefabs/Weapons/Rifles/M4A1/Rifle_M4A1_RAS_Aimpoint.et"
   }
-  ACR_InfantryKitComponent "{AC230926A0010060}" {
+  ACR_InfantryKitComponent "{AC230926A0010088}" {
    m_eKit 3
    m_eRole 11
   }
