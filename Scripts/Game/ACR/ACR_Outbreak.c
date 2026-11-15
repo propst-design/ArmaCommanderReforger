@@ -554,8 +554,9 @@ class ACR_Outbreak
   }
  }
 
- // A horde of 'count' out of 'from' towards 'goal'; false if there aren't enough.
- static bool SendHorde(ACR_DefenderPost from, int count, vector goal, string goalName, ACR_Base raid = null)
+ // A horde of 'count' out of 'from' towards 'goal'; false if there aren't enough. 'counter': sent at
+ // soldiers (CounterAttack), not at a town, so no civilians are holding out there.
+ static bool SendHorde(ACR_DefenderPost from, int count, vector goal, string goalName, ACR_Base raid = null, bool counter = false)
  {
   if (count < 4 || from.m_iReserve < count) return false;
   from.m_iReserve -= count;
@@ -575,7 +576,7 @@ class ACR_Outbreak
   if (raid) kind = "raid";
   PrintFormat("[ACR] ZOMBIES %1 of %2 from %3 to %4 (%5 m)", kind, count, from.m_sName, goalName, (int)vector.DistanceXZ(from.m_vPos, goal));
   // Containment: people are holed up in a town the dead are coming for, unless they already nest there.
-  if (!raid && ACR_Containment.On() && !NestNear(goal, 200, null)) ACR_Containment.AddSurvivors(goal, goalName);
+  if (!raid && !counter && ACR_Containment.On() && !NestNear(goal, 200, null)) ACR_Containment.AddSurvivors(goal, goalName);
   return true;
  }
 
@@ -843,7 +844,9 @@ class ACR_Outbreak
    int count = Math.Max(4, Math.Round(from.m_iReserve * share));
    // Containment (#240): a counterattack is a horde too, 15 or more where the nest can spare them.
    if (ACR_Containment.On()) count = Math.Max(count, Math.Min(ACR_Containment.HORDE_FLOOR, from.m_iReserve - 5));
-   if (!SendHorde(from, count, at, name, raid)) continue;
+   // A counterattack on an evac point, pallet or cleared nest used to leave 4-12 civilians who
+   // never existed "holding out" there (a new evac could be set on them).
+   if (!SendHorde(from, count, at, name, raid, true)) continue;
    foreach (ACR_DefenderPost horde : ACR_Defenders.s_Posts)
     if (horde.m_Nest && horde.m_Nest.m_bRoaming && horde.m_Nest.m_vGoal == at && !horde.m_Nest.m_bCounter) { horde.m_Nest.m_bCounter = true; horde.m_sName = string.Format("Zombies counterattacking %1", name); }
    sent++;
