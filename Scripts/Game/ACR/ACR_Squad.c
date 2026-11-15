@@ -4782,8 +4782,18 @@ class ACR_Squad : Managed
  // take positions where they got out).
  void DismountAndContinue(ResourceName prefab, vector target, float radius, string order, int kind)
  {
+  // A QRF's own order carried on on foot keeps the QRF (as its own orders do, QrfStandBy): the
+  // dismount's Halt ended it, and only the label and waypoint came back (no sorties, ring gone).
+  bool keepQrf = m_Qrf && !prefab.IsEmpty() && order == m_Order;
+  ACR_EOrderState state = OrderState();
+  int by = m_iOrderedBy;
+  if (keepQrf) m_bQrfOrder = true;
   DismountNow();
+  m_bQrfOrder = false;
   ContinueAfterDismount(prefab, target, radius, order, kind);
+  if (!keepQrf) return;
+  m_iOrderedBy = by;
+  if (m_Resume) m_Resume.m_eState = state; // its label isn't one StateOfLabel knows
  }
 
  // For a squad already getting out: what to do once everyone is on the ground.
