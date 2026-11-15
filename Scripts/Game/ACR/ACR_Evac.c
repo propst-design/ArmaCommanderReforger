@@ -44,6 +44,7 @@ class ACR_Evac
  static const float NUDGE_STEP = 12;       // ... is stepped this far on towards the XP
  static const float LEFT_SHARE = 0.2;      // stragglers and wounded left in the town
  static const float PARKED_SPEED = 1;      // m/s: slower than this is parked
+ static const float CREW_NEAR = 50;        // m: a soldier of the XP's side this close still has the vehicle
  static const float NOISE_RANGE = 250;     // m: a running helicopter this close to an XP is heard
  static const float NOISE_GAP_MS = 600000; // and heard again after this long at the same XP
  static const float LEFT_CLEAR = 500;      // m: the left-behind go once no soldier is this close
@@ -60,6 +61,7 @@ class ACR_Evac
  static int s_iDelivered;    // civilians delivered this match (tests)
  static int s_iSeated;       // civilians put aboard (tests)
  static int s_iNudged;       // walker steps (tests)
+ static int s_iAbandoned;    // civilians lost in an abandoned or wrecked vehicle (tests)
  static int s_iNoise;        // rotor-noise counterattacks (tests)
  static int s_iHeard;        // rotor noise heard at an XP (tests)
  static int s_iHanded;       // civilians the socket handed over (tests)
@@ -86,6 +88,7 @@ class ACR_Evac
   s_iDelivered = 0;
   s_iSeated = 0;
   s_iNudged = 0;
+  s_iAbandoned = 0;
   s_iNoise = 0;
   s_iHeard = 0;
   s_iHanded = 0;
@@ -342,6 +345,17 @@ class ACR_Evac
    if (vehicle)
    {
     if (Deliver(manager, point, i, vehicle)) continue;
+    // Jacob (14 Nov): aboard a wrecked or abandoned vehicle, they are lost; with nobody else left
+    // the XP closes. No timer (no-timers ruling): it happens when the vehicle is in that state.
+    if (Abandoned(manager, point, vehicle))
+    {
+     point.m_iLost++;
+     point.m_aLeft.Insert(person); // left behind: removed once no soldier is near (LEFT_CLEAR)
+     Forget(point, i);
+     s_iAbandoned++;
+     PrintFormat("[ACR] EVAC XP %1: a civilian from %2 lost in an abandoned or wrecked vehicle at %3", point.m_iId, point.m_sTown, ACR_Manager.Grid(vehicle.GetOrigin()));
+     continue;
+    }
     point.m_aMovedAt[i] = now;
     continue;
    }
@@ -373,6 +387,26 @@ class ACR_Evac
   TellDeliveries(point);
   if (waiting) Load(point);
   Noise(point, now);
+ }
+
+ // A vehicle the civilians sit in that nobody will drive on: wrecked, or away from the XP with no
+ // soldier of a playing side aboard and none of the XP's side within CREW_NEAR (a driver who got out
+ // to fight beside it still has it). At the XP an empty parked vehicle is loading, not abandoned.
+ static bool Abandoned(ACR_Manager manager, ACR_EvacPoint point, IEntity vehicle)
+ {
+  if (!vehicle) return false;
+  if (ACR_HeliStation.Destroyed(vehicle)) return true;
+  if (vector.DistanceXZ(vehicle.GetOrigin(), point.m_vPos) <= XP_RADIUS) return false;
+  array<string> sides = ACR_Containment.Sides();
+  SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
+  if (compartments)
+  {
+   array<IEntity> occupants = {};
+   compartments.GetOccupants(occupants);
+   foreach (IEntity occupant : occupants)
+    if (occupant && ACR_Respawn.IsAlive(occupant) && sides.Contains(ACR_Intel.FactionKeyOf(occupant))) return false;
+  }
+  return !ACR_Outbreak.SideNear(manager, point.m_sSide, vehicle.GetOrigin(), CREW_NEAR);
  }
 
  protected static void Forget(ACR_EvacPoint point, int i)
