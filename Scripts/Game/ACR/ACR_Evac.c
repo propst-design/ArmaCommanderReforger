@@ -539,7 +539,11 @@ class ACR_Evac
 
  protected static bool Deliver(ACR_Manager manager, ACR_EvacPoint point, int i, IEntity vehicle)
  {
-  ACR_Base base = DeliveryBase(vehicle.GetOrigin());
+  // Landed or on the road, as loading (Parked): a helicopter flying over a base on its way home
+  // emptied mid-air and paid that base's side.
+  vector over = vehicle.GetOrigin();
+  if (over[1] - ACR_Manager.Ground(over)[1] > 3) return false;
+  ACR_Base base = DeliveryBase(over);
   if (!base) return false;
   // Not a base that has come to the evac point since it was set (a FOB built on it, a town taken
   // round it): loading there would pay on the spot, as Place refuses (broad review #15).
