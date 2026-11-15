@@ -2747,13 +2747,12 @@ modded class SCR_PlayerController
   m_ACR_Data.m_BaseSupply.Copy(supplies);
  }
 
- protected float m_ACR_LastFobRequest = -1000;
+ // FOB panel requests: one spacing per kind, with a reply. They shared one silent 500 ms stamp, so
+ // supplies then an upgrade (or the 2IC panel's FOB AI) inside half a second lost the second.
  [RplRpc(RplChannel.Reliable, RplRcver.Server)]
  protected void ACR_FobServer(string label, bool build)
  {
-  float now = GetGame().GetWorld().GetWorldTime();
-  if (now - m_ACR_LastFobRequest < 500) return;
-  m_ACR_LastFobRequest = now;
+  if (ACR_TooSoon("fobsupply", 500)) return;
   Rpc(ACR_FeedbackOwner, ACR_FobSupply.Request(this, label, build));
  }
 
@@ -2761,9 +2760,7 @@ modded class SCR_PlayerController
  [RplRpc(RplChannel.Reliable, RplRcver.Server)]
  protected void ACR_FobAIServer(string label)
  {
-  float now = GetGame().GetWorld().GetWorldTime();
-  if (now - m_ACR_LastFobRequest < 500) return;
-  m_ACR_LastFobRequest = now;
+  if (ACR_TooSoon("fobai", 500)) return;
   Rpc(ACR_FeedbackOwner, ACR_FobAI.Toggle(this, label));
  }
 
@@ -2787,9 +2784,7 @@ modded class SCR_PlayerController
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager) return;
-  float now = GetGame().GetWorld().GetWorldTime();
-  if (now - m_ACR_LastFobRequest < 500) return;
-  m_ACR_LastFobRequest = now;
+  if (ACR_TooSoon("fobupgrade", 500)) return;
   string refusal;
   string result = ACR_FobSlots.OrderUpgrade(manager, this, baseLabel, slotIndex, refusal);
   if (!refusal.IsEmpty()) Rpc(ACR_FeedbackOwner, refusal);
