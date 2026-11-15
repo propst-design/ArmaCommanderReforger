@@ -525,12 +525,14 @@ class ACR_Evac
   return at;
  }
 
- static ACR_Base DeliveryBase(vector at)
+ // Jacob (15 Nov): only 'side's own bases (the XP's side) take its evacuees; a truck driving through
+ // an enemy's or another side's base delivers nothing there and pays nobody.
+ static ACR_Base DeliveryBase(vector at, string side)
  {
-  array<string> sides = ACR_Containment.Sides();
+  if (side.IsEmpty()) return null;
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (!base || base.m_bRetired || (base.m_bBuilt && base.m_bHqLost) || !sides.Contains(base.m_sOwner)) continue;
+   if (!base || base.m_bRetired || (base.m_bBuilt && base.m_bHqLost) || base.m_sOwner != side) continue;
    float reach = Math.Max(base.m_fRadius, 60);
    if (vector.DistanceXZ(base.GetOrigin(), at) > reach) continue;
    if (ACR_Containment.ZombiesNear(base.GetOrigin(), reach)) continue;
@@ -545,7 +547,7 @@ class ACR_Evac
   // emptied mid-air and paid that base's side.
   vector over = vehicle.GetOrigin();
   if (over[1] - ACR_Manager.Ground(over)[1] > 3) return false;
-  ACR_Base base = DeliveryBase(over);
+  ACR_Base base = DeliveryBase(over, point.m_sSide);
   if (!base) return false;
   // Not a base that has come to the evac point since it was set (a FOB built on it, a town taken
   // round it): loading there would pay on the spot, as Place refuses (broad review #15).
