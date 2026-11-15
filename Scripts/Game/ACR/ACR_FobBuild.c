@@ -173,7 +173,9 @@ class ACR_FobBuild
 		return CheckSpotCount(spot, reason, clearSlots, ignoreBuilder);
 	}
 
-	static bool CheckSpotCount(vector spot, out string reason, out int clearSlots, ACR_Squad ignoreBuilder = null, out int clearDefences = 0)
+	// viewerFaction: whose eyes the reason is for (a player's refusal or cursor card). Bases that side
+	// hasn't found and other sides' FOB sites block the spot all the same but aren't named.
+	static bool CheckSpotCount(vector spot, out string reason, out int clearSlots, ACR_Squad ignoreBuilder = null, out int clearDefences = 0, string viewerFaction = "")
 	{
 		clearSlots = 0;
 		clearDefences = 0;
@@ -199,6 +201,7 @@ class ACR_FobBuild
 			if (dist <= needed)
 			{
 				reason = string.Format("Too close to %1", base.m_sName);
+				if (!viewerFaction.IsEmpty() && !base.IsVisibleTo(viewerFaction)) reason = "Too close to another position";
 				return false;
 			}
 		}
@@ -213,6 +216,7 @@ class ACR_FobBuild
 				if (vector.DistanceXZ(builder.FobSite(), spot) <= FOB_SPACING)
 				{
 					reason = "Too close to a FOB construction site";
+					if (!viewerFaction.IsEmpty() && builder.GetFaction() && builder.GetFaction().GetFactionKey() != viewerFaction) reason = "Too close to another position";
 					return false;
 				}
 			}
@@ -299,7 +303,7 @@ class ACR_FobBuild
 		clicked[1] = GetGame().GetWorld().GetSurfaceY(clicked[0], clicked[2]);
 		int clickedClear = 0;
 		int clickedDefences = 0;
-		bool clickedValid = CheckSpotCount(clicked, refusal, clickedClear, null, clickedDefences);
+		bool clickedValid = CheckSpotCount(clicked, refusal, clickedClear, null, clickedDefences, faction);
 		int clickedScore = (clickedClear * 10) + clickedDefences;
 		if (clickedValid && clickedClear >= ACR_FobSlots.SLOT_COUNT && clickedDefences >= ACR_FobDefences.SPOT_COUNT)
 		{

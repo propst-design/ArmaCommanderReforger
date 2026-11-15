@@ -1681,6 +1681,9 @@ modded class SCR_PlayerController
  [RplRpc(RplChannel.Reliable, RplRcver.Server)]
  protected void ACR_TwoICFobHereServer(vector pos)
  {
+  // Commanders only: the card names what blocks the spot (review: any client could probe the map).
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager || !manager.IsCommander(GetPlayerId())) return;
   string text = ACR_TwoICSuggest.FobHere(GetPlayerId(), pos);
   if (!text.IsEmpty()) Rpc(ACR_TwoICFobHereOwner, text);
  }

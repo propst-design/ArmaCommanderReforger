@@ -488,15 +488,18 @@ class ACR_TwoICSuggest
   float last;
   if (s_FobHereAt.Find(playerId, last) && now - last < FOB_HERE_MS) return "";
   s_FobHereAt.Set(playerId, now);
-  return FobHereText(pos);
+  string viewer = "";
+  Faction faction = SCR_FactionManager.SGetPlayerFaction(playerId);
+  if (faction) viewer = faction.GetFactionKey();
+  return FobHereText(pos, viewer);
  }
 
- static string FobHereText(vector pos)
+ static string FobHereText(vector pos, string viewerFaction = "")
  {
   pos[1] = GetGame().GetWorld().GetSurfaceY(pos[0], pos[2]);
   string reason;
   int unusedSlots, unusedDefences;
-  bool ok = ACR_FobBuild.CheckSpotCount(pos, reason, unusedSlots, null, unusedDefences);
+  bool ok = ACR_FobBuild.CheckSpotCount(pos, reason, unusedSlots, null, unusedDefences, viewerFaction);
   string hqWhy;
   bool hq = ACR_FobBuild.FootprintClear(pos, ACR_FobBuild.HQ_RADIUS, null, hqWhy);
   int slots = 0;
