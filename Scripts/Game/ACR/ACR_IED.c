@@ -603,7 +603,10 @@ class ACR_IED : Managed
    if (ied.m_Charge) SCR_EntityHelper.DeleteEntityAndChildren(ied.m_Charge);
    ied.m_Charge = null;
    ied.m_bDisarmed = true;
-   if (ied.m_From && !ied.m_From.m_bGone) ied.m_From.m_Cell.m_fPool = Math.Min(ACR_FIAGrowth.PoolCap(), ied.m_From.m_Cell.m_fPool + 1);
+   // The man goes back only if the team is still out watching it: one that ran was given back at
+   // pack-up (PackedUp), a dead one isn't (a lift paid both a second recruit).
+   bool watching = ied.m_Post && !ied.m_Post.m_bGone && ied.m_Post.m_iReserve > 0;
+   if (watching && ied.m_From && !ied.m_From.m_bGone) ied.m_From.m_Cell.m_fPool = Math.Min(ACR_FIAGrowth.PoolCap(), ied.m_From.m_Cell.m_fPool + 1);
    if (ied.m_Post && !ied.m_Post.m_Group) ACR_Defenders.Remove(ied.m_Post);
   }
  }
