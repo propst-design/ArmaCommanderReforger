@@ -21,6 +21,7 @@
 - The Western AT assistant no longer shares a resource ID with the Arland world.
 - Mission guide: a ready-made `ACR_MissionHeader` template for map makers, and what to do when Workbench's scan writes a Game Master mission header instead.
 - Truce: the AI commander no longer aims its main push (its attack lane) at a base the truce partner holds, where it could never attack, so its squads, reserve and base works should face a real enemy again.
+- The AI commander's roadblocks, minefields, defensive positions and FOB sites should face the enemy it knows of, not the truce partner, an allied FIA pocket or an FIA hideout it hasn't found yet.
 
 ## 0.6.0 — released
 
