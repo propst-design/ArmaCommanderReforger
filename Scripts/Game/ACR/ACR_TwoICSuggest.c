@@ -500,6 +500,8 @@ class ACR_TwoICSuggest
   string reason;
   int unusedSlots, unusedDefences;
   bool ok = ACR_FobBuild.CheckSpotCount(pos, reason, unusedSlots, null, unusedDefences, viewerFaction);
+  // The card's own lines name no blocker the viewer can't see either (ACR_FobBuild.HIDDEN_PART).
+  ACR_FobBuild.SetViewer(viewerFaction);
   string hqWhy;
   bool hq = ACR_FobBuild.FootprintClear(pos, ACR_FobBuild.HQ_RADIUS, null, hqWhy);
   int slots = 0;
@@ -518,6 +520,7 @@ class ACR_TwoICSuggest
    if (ACR_FobDefences.DefenceSpotClear(pos, d, defWhy)) defences++;
    else if (defenceBlocks.Length() < 90) defenceBlocks += string.Format("; spot %1: %2", d + 1, defWhy);
   }
+  ACR_FobBuild.SetViewer("");
   string text = "FOB HERE\n";
   if (hq) text += "HQ fits\n";
   else text += "HQ: " + hqWhy + "\n";

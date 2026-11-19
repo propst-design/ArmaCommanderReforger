@@ -155,6 +155,11 @@ class ACR_FobBuild
 		if (composition)
 		{
 			reason = string.Format("%1 in the way", ACR_Structures.KindName(ACR_Structures.KindOf(composition)));
+			if (HiddenFrom(composition, s_sViewer))
+			{
+				reason = HIDDEN_PART;
+				s_bHiddenBlock = true;
+			}
 			return false;
 		}
 
@@ -173,10 +178,54 @@ class ACR_FobBuild
 		return CheckSpotCount(spot, reason, clearSlots, ignoreBuilder);
 	}
 
-	// viewerFaction: whose eyes the reason is for (a player's refusal or cursor card). Bases that side
-	// hasn't found and other sides' FOB sites block the spot all the same but aren't named.
+	// Whose eyes a refusal is for while a player's card or order is checked ("" = no one's: the AI and
+	// the server keep full reasons). A blocker that side can't see (a base it hasn't found, a FOB site
+	// or headquarters of a side it isn't friendly with, a structure outside every base it sees) blocks
+	// the spot all the same, but the text gives no reason, so sweeping the cursor reveals nothing
+	// (Jacob, 18 Nov). Siting is unchanged.
+	static const string HIDDEN_WHY = "This spot can't be used";
+	static const string HIDDEN_PART = "can't be used";
+	static const float HIDDEN_MARGIN = 60.0; // m past a seen base's circle its structures count as seen
+	protected static string s_sViewer;
+	protected static bool s_bHiddenBlock; // the last check's refusal came from a hidden blocker
+
+	// The card's own footprint checks (ACR_TwoICSuggest.FobHereText): set, check, then clear with "".
+	static void SetViewer(string factionKey)
+	{
+		s_sViewer = factionKey;
+	}
+
+	// A composition (structure or HQ) the viewer can't see: not his or a friend's, and outside the
+	// circle of every base he sees.
+	static bool HiddenFrom(IEntity root, string viewer)
+	{
+		if (viewer.IsEmpty() || !root) return false;
+		SCR_CampaignBuildingCompositionComponent composition = SCR_CampaignBuildingCompositionComponent.Cast(root.FindComponent(SCR_CampaignBuildingCompositionComponent));
+		if (composition && ACR_Insurgency.Friendly(ACR_Structures.FactionOf(composition), viewer)) return false;
+		foreach (ACR_Base base : ACR_Base.s_All)
+		{
+			if (!base || base.m_bRetired || !base.IsVisibleTo(viewer)) continue;
+			if (vector.DistanceXZ(base.GetOrigin(), root.GetOrigin()) <= base.m_fRadius + HIDDEN_MARGIN) return false;
+		}
+		return true;
+	}
+
+	// viewerFaction: see s_sViewer. Bases that side hasn't found and unfriendly FOB sites block the
+	// spot all the same but give no reason.
 	static bool CheckSpotCount(vector spot, out string reason, out int clearSlots, ACR_Squad ignoreBuilder = null, out int clearDefences = 0, string viewerFaction = "")
 	{
+		string before = s_sViewer;
+		if (!viewerFaction.IsEmpty()) s_sViewer = viewerFaction;
+		s_bHiddenBlock = false;
+		bool ok = SpotCount(spot, reason, clearSlots, ignoreBuilder, clearDefences);
+		if (!ok && s_bHiddenBlock) reason = HIDDEN_WHY;
+		s_sViewer = before;
+		return ok;
+	}
+
+	protected static bool SpotCount(vector spot, out string reason, out int clearSlots, ACR_Squad ignoreBuilder, out int clearDefences)
+	{
+		string viewerFaction = s_sViewer;
 		clearSlots = 0;
 		clearDefences = 0;
 		reason = "";
@@ -201,7 +250,7 @@ class ACR_FobBuild
 			if (dist <= needed)
 			{
 				reason = string.Format("Too close to %1", base.m_sName);
-				if (!viewerFaction.IsEmpty() && !base.IsVisibleTo(viewerFaction)) reason = "Too close to another position";
+				if (!viewerFaction.IsEmpty() && !base.IsVisibleTo(viewerFaction)) s_bHiddenBlock = true;
 				return false;
 			}
 		}
@@ -216,7 +265,7 @@ class ACR_FobBuild
 				if (vector.DistanceXZ(builder.FobSite(), spot) <= FOB_SPACING)
 				{
 					reason = "Too close to a FOB construction site";
-					if (!viewerFaction.IsEmpty() && builder.GetFaction() && builder.GetFaction().GetFactionKey() != viewerFaction) reason = "Too close to another position";
+					if (!viewerFaction.IsEmpty() && builder.GetFaction() && !ACR_Insurgency.Friendly(builder.GetFaction().GetFactionKey(), viewerFaction)) s_bHiddenBlock = true;
 					return false;
 				}
 			}
@@ -231,6 +280,7 @@ class ACR_FobBuild
 			if (vector.DistanceXZ(hq.GetOrigin(), spot) <= FOB_SPACING)
 			{
 				reason = "Too close to an existing headquarters";
+				if (HiddenFrom(hq, viewerFaction)) s_bHiddenBlock = true;
 				return false;
 			}
 		}
