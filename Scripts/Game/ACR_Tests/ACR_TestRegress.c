@@ -1708,6 +1708,10 @@ class ACR_TestRegress
   // Outside its circle (he mustn't contest it while awake either), well inside the spawn range.
   float gap = Math.Min(s_DownedBase.m_fRadius + 40, ACR_BaseSystem.SPAWN_RANGE - 50);
   s_Downed = ACR_Manager.SpawnPrefab(enemy, ACR_Manager.Ground(s_DownedBase.GetOrigin() + Vector(0, 0, gap)));
+  // Unhurt until the knock-out: the garrison he turns out shoots at him, and a run where it killed him
+  // first (srv:regress 19 Nov, armour-reg-1119h: dead 1 s after the forced knock-out) failed the hold check.
+  ChimeraCharacter planted = ChimeraCharacter.Cast(s_Downed);
+  if (planted && planted.GetDamageManager()) planted.GetDamageManager().EnableDamageHandling(false);
   PrintFormat("[ACR] TEST downed: an enemy %1 m from %2 (%3, radius %4, %5 in reserve)", (int)gap, s_DownedBase.m_sName, s_DownedBase.m_sOwner, (int)s_DownedBase.m_fRadius, s_DownedBase.m_iGarrisonLeft);
  }
  static void DownedKnockOut()
@@ -1718,7 +1722,11 @@ class ACR_TestRegress
   Check("fixture: an awake enemy beside a base turns its garrison out", deployed && alive, string.Format("base %1, garrison out %2, enemy alive %3", s_DownedBase != null, deployed, alive));
   if (!man) return;
   SCR_CharacterDamageManagerComponent damage = SCR_CharacterDamageManagerComponent.Cast(man.GetDamageManager());
-  if (damage) damage.ForceUnconsciousness(0);
+  if (!damage) return;
+  // Knocked out with damage on, then off again so the garrison's fire can't finish him before the checks.
+  damage.EnableDamageHandling(true);
+  damage.ForceUnconsciousness(0);
+  damage.EnableDamageHandling(false);
  }
  static void DownedHoldCheck()
  {
