@@ -5302,10 +5302,14 @@ class ACR_AICommander : Managed
    // Nobody left who can walk in (the infantry died or fell back): vehicles and support teams
    // alone never take it, so stop now instead of waiting out the time limit.
    bool noTakers = !fusePrimed && !won && target && !attack.m_bGrab && !target.m_sOwner.IsEmpty() && !attack.m_Squads.IsEmpty() && TakersIn(attack) == 0;
-   if (!target || won || (attack.m_Squads.IsEmpty() && !fusePrimed) || broken || stalled || noTakers)
+   // A truce made (or a side befriended) after the launch: its squads can neither fire nor capture
+   // there, and going in called preparation strikes on the partner's base, which broke the truce.
+   bool truce = !fusePrimed && !won && target && !target.m_sOwner.IsEmpty() && ACR_Insurgency.Friendly(target.m_sOwner, m_sFaction);
+   if (!target || won || (attack.m_Squads.IsEmpty() && !fusePrimed) || broken || stalled || noTakers || truce)
    {
     string outcome = "failed";
     if (won) outcome = "won";
+    if (truce) outcome = "called off (held by a side we have a truce with)";
     if (handedOff) outcome = "ended (its squads went to other jobs)";
     if (noTakers) outcome = "called off (no infantry left to take it)";
     if (broken)
@@ -5333,9 +5337,10 @@ class ACR_AICommander : Managed
     string why = "it failed";
     if (broken) why = "too many losses";
     else if (stalled) why = "it stalled";
+    else if (truce) why = "we have a truce with its holder";
     // Its squads went to a player's request (2IC Support me / Hold this) or another job: not a failure.
     bool givenAway = handedOff;
-    if (!givenAway) NoteLaneOutcome(attack, won);
+    if (!givenAway && !truce) NoteLaneOutcome(attack, won);
     if (target && won) TwoICReport(string.Format("Took %1", target.m_sName));
     else if (target && !givenAway && attack.m_bGrab) TwoICReport(string.Format("Couldn't take %1: %2", target.m_sName, why));
     else if (target && !givenAway) TwoICReport(string.Format("Called off the attack on %1: %2", target.m_sName, why));
