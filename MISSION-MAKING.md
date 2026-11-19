@@ -840,6 +840,20 @@ under `gameProperties.missionHeader`. AC: Actual's custom fields have been teste
 headers, but their JSON override path still needs validation on an installed Workshop server. The
 in-game setup screen, when enabled, overrides these defaults at Start.
 
+**If Workbench scans the world for you.** Workbench's scan reads the world and writes a plain
+`SCR_MissionHeader` with the game mode set to Game Master, and the AC: Actual fields below are
+missing. Either works:
+
+- Skip the scan and create the header with the class `ACR_MissionHeader`. Every field below then
+  shows in the property panel. Fill in the world and the few lines in the example above yourself;
+  leave the rest blank or at `-1`.
+- Or let the scan run, close the header, open the `.conf` in a text editor, change the first line
+  to `ACR_MissionHeader {` and set `m_sGameMode "Arma Commander Actual"`. Reopen it in Workbench
+  and the extra fields appear.
+
+`m_sGameMode` is only the label in the scenario list. Your map plays as AC: Actual because of the
+objects in its world, not because of the header.
+
 | Field | Same as |
 |---|---|
 | `m_sAcrLayout` | `-acrLayout` |
