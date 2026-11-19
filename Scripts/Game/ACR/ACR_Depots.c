@@ -405,7 +405,9 @@ class ACR_Depots
   }
   // Stuck on the way home (a failed route, a player in it): as OUT gives up after TRIP_MAX_MS, so
   // does the drive home, or the depot stayed busy all match and the technical kept counting.
-  if (now - depot.m_fStateAt >= TRIP_MAX_MS)
+  // Out of contact only: EndRaid deletes the crew where it stands (as a post packs up), and two men
+  // vanished mid-fight in front of whoever was shooting at them.
+  if (now - depot.m_fStateAt >= TRIP_MAX_MS && !CrewInContact(depot.m_Crew))
   {
    PrintFormat("[ACR] DEPOTS %1: the technical never made it home, its crew stands down", depot.m_Base.m_sName);
    EndRaid(manager, depot);
