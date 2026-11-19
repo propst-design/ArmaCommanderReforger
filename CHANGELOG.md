@@ -1,6 +1,25 @@
 # Changelog
 ## 0.6.1 — unreleased
 
+- AI commanders whose HQ rebuild failed no longer send trucks to the same site and buy new ones every 30 seconds.
+- The AI no longer pulls the squad it sent to defuse a sapper charge off the job, so the charge doesn't go off for want of a defuser.
+- Truce: neither the AI commander nor the 2IC attacks the truce partner's bases any more. An attack forming up or under way when the truce is made ends, and its preparation strikes (bomb run, rockets, mortars) are not called on the partner's base.
+- Zombie counterattacks no longer create phantom civilians holding out at their target.
+- Evac: civilians are delivered only from a vehicle on the ground, at a base of the evac point's own side and not one right beside the evac point (the AI's evac truck no longer drives to such a base and waits there). Only that side's vehicles load them. An empty vehicle at the evac point, with nobody of a playing side aboard or within 50 m, counts as abandoned, and civilians in a vehicle the other side has taken over are lost. An evac point that can't be set up leaves the town's civilians where they are.
+- Lifting an IED gives its hideout a recruit back only if the team that laid it is still out.
+- Loads refunded to a construction truck (a cancelled FOB or roadblock, a dismantled roadblock) stay paid, so a FOB no longer refuses them.
+- A depot's technical stuck on its way home ends its raid once its crew is out of contact, instead of keeping the depot busy all match.
+- A fortification upgrade whose position was destroyed while it was being built is refunded instead of building a partial position.
+- A QRF that dismounts from a ride, or bails out, keeps its plan and its ring.
+- A refused new ride no longer leaves the squad waiting for one forever.
+- A Shift order queued behind Defend, Garrison or a post is refused with a reason ("Holding position" still goes at once). With the 2IC on, that refusal no longer drops the squad out of the AI's plans.
+- The 3D command camera no longer leaves soldier-view pings and key reminders frozen on screen, and a Ping held while opening it no longer drops a stray ping.
+- The FOB placement card and its refusals no longer reveal undiscovered enemy bases or enemy FOB building sites: when a hidden position is what blocks the spot, they give no reason.
+- FOB panel requests made in quick succession say "too fast" instead of being silently dropped.
+- Zombie hordes at match start follow this match's time of day.
+- The Western AT assistant no longer shares a resource ID with the Arland world.
+- Mission guide: a ready-made `ACR_MissionHeader` template for map makers, and what to do when Workbench's scan writes a Game Master mission header instead.
+
 ## 0.6.0 — released
 
 Decks and a deck builder, the reworked AI commander on by default, insurgency with IEDs, raids and technicals, the rest of the contained outbreak (evacuation, airdrops, a truce) and counter-battery. Needs Better Battle Buddies 0.2.0.
