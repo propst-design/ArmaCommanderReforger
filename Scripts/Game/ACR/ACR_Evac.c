@@ -53,6 +53,7 @@ class ACR_Evac
  static const float LEFT_CLEAR = 500;      // m: the left-behind go once no soldier is this close
  static const int MOST_PER_SIDE = 3;       // open XPs per side
  static const float GATHER = 5;            // m: the last stretch ends this close to the XP at most
+ static const int MOST_ALONE = 4;          // walkers on the last stretch alone at once per XP (one group each)
 
  protected static ref array<ref ACR_EvacPoint> s_aPoints;
  protected static ref array<IEntity> s_aLeftBehind;
@@ -304,6 +305,31 @@ class ACR_Evac
   s_iGathered++;
  }
 
+ // A one-man group goes as soon as its man stands at his spot (he then stands there on his own,
+ // like the left-behind) or has left it (put aboard, dead): MOST_ALONE at most live per XP.
+ protected static void DropOwnGroups(ACR_EvacPoint point)
+ {
+  for (int g = point.m_aOwn.Count() - 1; g >= 0; g--)
+  {
+   SCR_AIGroup own = point.m_aOwn[g];
+   bool done = !own || own.GetAgentsCount() == 0;
+   if (!done)
+   {
+    AIAgent agent = own.GetLeaderAgent();
+    IEntity man;
+    if (agent) man = agent.GetControlledEntity();
+    if (man && vector.DistanceXZ(man.GetOrigin(), point.m_vPos) <= GATHER + 1)
+    {
+     own.RemoveAgent(agent);
+     done = true;
+    }
+   }
+   if (!done) continue;
+   DropGroup(own);
+   point.m_aOwn.Remove(g);
+  }
+ }
+
  // Moves a person into 'group' (out of whatever group he was in).
  protected static bool Join(SCR_AIGroup group, IEntity person)
  {
@@ -405,7 +431,7 @@ class ACR_Evac
    vector at = person.GetOrigin();
    float left = vector.DistanceXZ(at, point.m_vPos);
    if (left <= XP_RADIUS) waiting = true;
-   if (left <= XP_RADIUS && !point.m_aOnOwn.Contains(person)) FinalWalk(point, person);
+   if (left <= XP_RADIUS && point.m_aOwn.Count() < MOST_ALONE && !point.m_aOnOwn.Contains(person)) FinalWalk(point, person);
    if (left <= ARRIVED)
    {
     point.m_aMovedAt[i] = now;
@@ -428,6 +454,7 @@ class ACR_Evac
    point.m_aMovedAt[i] = now;
    s_iNudged++;
   }
+  DropOwnGroups(point);
   TellDeliveries(point);
   if (waiting) Load(manager, point);
   Noise(point, now);
