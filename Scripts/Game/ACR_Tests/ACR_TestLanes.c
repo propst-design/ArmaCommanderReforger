@@ -13,7 +13,51 @@ class ACR_TestLanes
   ACR_Options.Set("acrAIStrategy", "1");
   CheckCommander(manager);
   CheckEnvelopCommander(manager);
+  CheckIncome(manager);
   ACR_Options.Unset("acrAIStrategy");
+ }
+
+ // Income grabs when behind (ACR_AIIncome, Jacob 19 Nov) and stalled grabs going to another squad.
+ static void CheckIncome(ACR_Manager manager)
+ {
+  bool even = ACR_AIIncome.Urgency(10, 10, 500) == 0 && ACR_AIIncome.Urgency(9, 10, 500) == 0 && ACR_AIIncome.Urgency(10, 0, 500) == 0;
+  bool behind = Math.AbsFloat(ACR_AIIncome.Urgency(5, 10, 500) - 0.5) < 0.01;
+  float broke = ACR_AIIncome.Urgency(10, 10, 6);
+  ACR_TestRegress.Check("income: urgent when the enemy's known income is well above ours or we are short of RP", even && behind && broke > 0.8, string.Format("behind %1, broke %2", ACR_AIIncome.Urgency(5, 10, 500), broke));
+
+  bool bonus = ACR_AIIncome.Bonus(0, 1) == 1 && ACR_AIIncome.Bonus(1, 1) == 1 + ACR_AIIncome.GAIN && ACR_AIIncome.Bonus(1, 0) == 1;
+  bool doctrine = ACR_AIDoctrine.Find("balanced").m_fIncomeGrab == 1 && ACR_AIDoctrine.Find("blitz").m_fIncomeGrab < ACR_AIDoctrine.Find("firepower").m_fIncomeGrab;
+  bool reach = ACR_AIIncome.Reachable(2500, 4000) && !ACR_AIIncome.Reachable(4000, 9000) && !ACR_AIIncome.Reachable(2000, 1500);
+  ACR_TestRegress.Check("income: grabs near our bases count for more by urgency and doctrine; ones nearer the enemy don't", bonus && doctrine && reach, "");
+
+  // A squad whose grab stalled is barred from that base, not from others.
+  string side = ACR_FactionSelection.West();
+  ACR_Squad runner;
+  foreach (ACR_Squad squad : manager.m_Squads)
+  {
+   if (squad && squad.GetFaction() && squad.GetFaction().GetFactionKey() == side) { runner = squad; break; }
+  }
+  ACR_Base first, second;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!first) first = base;
+   else if (!second) second = base;
+  }
+  if (!runner || !second)
+  {
+   ACR_TestRegress.Skip("grabs: a squad whose grab stalled is barred from that base only", "no West squad or two bases");
+   return;
+  }
+  ACR_AICommander ai = new ACR_AICommander(manager, side);
+  ACR_AIAttack grab = new ACR_AIAttack();
+  grab.m_bGrab = true;
+  grab.m_Target = first;
+  grab.m_Squads.Insert(runner);
+  bool before = ai.GrabBarredForTest(runner, first);
+  ai.NoteGrabStalledForTest(grab);
+  bool barred = ai.GrabBarredForTest(runner, first);
+  bool elsewhere = ai.GrabBarredForTest(runner, second);
+  ACR_TestRegress.Check("grabs: a squad whose grab stalled is barred from that base only", !before && barred && !elsewhere, string.Format("%1 on %2: before %3, after %4, elsewhere %5", runner.GetName(), first.m_sName, before, barred, elsewhere));
  }
 
  // Going round a strongpoint (ACR_AIEnvelopment, Jacob 19 Nov): what a strongpoint is, the cut and rear

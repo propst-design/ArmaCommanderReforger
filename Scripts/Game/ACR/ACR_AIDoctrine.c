@@ -68,6 +68,7 @@ class ACR_AIDoctrine : Managed
  int m_iLaneFronts = 1;         // supporting attacks beside the main one while it has a lane
  float m_fFlankWorks = 2;       // base works weight of a tactical point on the lane's flank
  float m_fEnvelop = 1;          // x the pull of weak bases that go round a strongpoint (ACR_AIEnvelopment; 0 off)
+ float m_fIncomeGrab = 1;       // x the pull of income grabs while short of income or RP (ACR_AIIncome; 0 off)
 
  // Moving (ACR_AICommander.Travel / TryAirLift)
  float m_fRideDistance = 900;   // m on foot before it asks for a truck
@@ -136,6 +137,7 @@ class ACR_AIDoctrine : Managed
   blitz.m_iSupportBudgetMax = 30;
   blitz.m_fRushMinutes = 4;
   blitz.m_fLaneWidth = 550;
+  blitz.m_fIncomeGrab = 0.8;
   blitz.m_fEnvelop = 1.2;
   s_All.Insert(blitz);
 
@@ -167,6 +169,7 @@ class ACR_AIDoctrine : Managed
   firepower.m_bAirBudget = true;
   firepower.m_iSupportBudgetMax = 100;
   firepower.m_iLaneFronts = 0;
+  firepower.m_fIncomeGrab = 1.2;
   firepower.m_fEnvelop = 0.5;
   s_All.Insert(firepower);
 
@@ -209,6 +212,7 @@ class ACR_AIDoctrine : Managed
   fortress.m_fLaneWidth = 800;
   fortress.m_iLaneFronts = 0;
   fortress.m_fFlankWorks = 4;
+  fortress.m_fIncomeGrab = 0.8;
   fortress.m_fEnvelop = 0.6;
   s_All.Insert(fortress);
 
@@ -241,6 +245,7 @@ class ACR_AIDoctrine : Managed
   raider.m_bSmallTeamsFree = true;
   raider.m_bLanes = false;
   raider.m_fRushMinutes = 8;
+  raider.m_fIncomeGrab = 1.3;
   raider.m_fEnvelop = 1.4;
   s_All.Insert(raider);
   return s_All;
