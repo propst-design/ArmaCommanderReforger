@@ -9,14 +9,21 @@
 //     donuts". Run on vanilla's BTR-70, and on the MT-LB and T-72A when their mods are loaded
 //     (the Cold War stack: srv:armourcrew with the args swap in the 0.6.2 notes); without them
 //     those two are skipped.
-// Logs "[ACR] ARMOUR ...". VERDICT: 2 checks for part 1 + 1 per vehicle held (3), skips allowed.
+//  3. The same past a parked, crewed truck of ours standing on its line (the live MT-LB met a
+//     parked fuel truck: BBB TRAFFIC had the truck give way while ACA had the MT-LB queue behind
+//     it). The MT-LB when loaded, else the BTR-70: it gets there without circling the truck.
+// Everything runs on open ground at least 600 m from any base (Arland's bases shoot back).
+// Logs "[ACR] ARMOUR ...". VERDICT: 2 checks for part 1, 1 per vehicle held (3), 1 for part 3.
 class ACR_TestArmourCrew
 {
  static const ResourceName BTR = "{C012BB3488BEA0C2}Prefabs/Vehicles/Wheeled/BTR70/BTR70.et";
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const ResourceName MTLB = "{3B2B8A6A662AB8EC}IFV/MTLB/MTLB_Olive_WZSSR.et";
  static const ResourceName T72 = "{BC07885176C7FF8A}Prefabs/Vehicles/Tracked/T72A/T72A_Base.et";
- static const int EXPECTED = 5;
+ static const int EXPECTED = 6;
+ static const ResourceName URAL = "{16C1F16C9B053801}Prefabs/Vehicles/Wheeled/Ural4320/Ural4320_transport.et";
+ // Part 3: more heading change than this on the way counts as circling.
+ static const float CIRCLING_DEG = 540;
  // How far a held vehicle may wander once it got there before it counts as circling.
  static const float WANDER_M = 60;
  static ref ACR_TestArmourCrew s_Test;
@@ -36,6 +43,37 @@ class ACR_TestArmourCrew
  protected ref array<float> m_aWander = {};
  protected int m_iStep;
  protected int m_iStepAt;
+ // Part 3: which held vehicle runs it, its spot, the parked truck, heading turned, path after arrival.
+ protected int m_iRunner;
+ protected vector m_vRunSpot;
+ protected IEntity m_Ural;
+ protected float m_fLastYaw;
+ protected float m_fTurned;
+ protected float m_fRunClosest;
+ protected float m_fRunArrived;
+ protected float m_fRunPath;
+ protected vector m_vRunLast;
+
+ // Open ground at least 600 m from any base, with land 300 m north of it too.
+ protected bool QuietSpot(vector home, out vector spot)
+ {
+  for (int r = 500; r <= 2000; r += 300)
+  {
+   for (int deg = 0; deg < 360; deg += 30)
+   {
+    vector c = ACR_Manager.Ground(home + Vector(Math.Sin(deg * Math.DEG2RAD) * r, 0, Math.Cos(deg * Math.DEG2RAD) * r));
+    vector north = ACR_Manager.Ground(c + Vector(0, 0, 300));
+    if (c[1] < 2 || north[1] < 2) continue;
+    bool nearBase = false;
+    foreach (ACR_Base base : ACR_Base.s_All)
+     if (base && (vector.DistanceXZ(base.GetOrigin(), c) < 600 || vector.DistanceXZ(base.GetOrigin(), north) < 600)) nearBase = true;
+    if (nearBase) continue;
+    spot = c;
+    return true;
+   }
+  }
+  return false;
+ }
 
  static void Run(ACR_TestHarness h, int tick)
  {
@@ -137,13 +175,32 @@ class ACR_TestArmourCrew
   if (!alpha || !alpha.GetAnchor()) return;
   if (m_iStep == 0 && tick >= 3)
   {
-   m_vHome = alpha.m_Home;
+   if (!QuietSpot(alpha.m_Home, m_vHome))
+   {
+    ACR_TestRegress.Abort("armourcrew", "no open ground 600 m from every base");
+    m_iStep = 99;
+    return;
+   }
+   PrintFormat("[ACR] ARMOUR test ground at %1 (%2)", m_vHome, ACR_Manager.Grid(m_vHome));
    Spawn(manager, "Armour Test BTR", BTR, "USSR", ACR_Manager.Ground(m_vHome + Vector(60, 0, 40)));
    Spawn(manager, "Armour Test Truck", TRUCK, "US", ACR_Manager.Ground(m_vHome + Vector(-60, 0, 40)));
-   if (Resource.Load(MTLB).IsValid()) Spawn(manager, "Armour Test MT-LB", MTLB, "USSR", ACR_Manager.Ground(m_vHome + Vector(60, 0, -40)));
+   // Part 3's runner: the MT-LB if loaded, else the BTR; the parked Ural stands on its line.
+   vector runFrom = m_vHome + Vector(60, 0, 40);
+   if (Resource.Load(MTLB).IsValid())
+   {
+    Spawn(manager, "Armour Test MT-LB", MTLB, "USSR", ACR_Manager.Ground(m_vHome + Vector(60, 0, -40)));
+    runFrom = m_vHome + Vector(60, 0, -40);
+   }
    else ACR_TestRegress.Skip("armour: an MT-LB holding a point stops there", "the Zagoria 89 MT-LB mod isn't loaded");
    if (Resource.Load(T72).IsValid()) Spawn(manager, "Armour Test T-72", T72, "USSR", ACR_Manager.Ground(m_vHome + Vector(-60, 0, -40)));
    else ACR_TestRegress.Skip("armour: a T-72A holding a point stops there", "the WCS T-72 mod isn't loaded");
+   m_vRunSpot = ACR_Manager.Ground(runFrom + Vector(0, 0, 300));
+   // Parked across its line, a crew aboard, no order (its squad is found by name in part 3).
+   string before = manager.m_sSpawningFaction;
+   manager.m_sSpawningFaction = "USSR";
+   vector uralAt = ACR_Manager.Ground(runFrom + Vector(0, 0, 225));
+   manager.SpawnUnit("Armour Test Ural", "", URAL, true, "", uralAt, uralAt + Vector(-10, 0, 0));
+   manager.m_sSpawningFaction = before;
    m_iStep = 1;
    m_iStepAt = tick;
    return;
@@ -212,7 +269,7 @@ class ACR_TestArmourCrew
   {
    for (int id = 0; id < m_aSquads.Count(); id++)
    {
-    if (id == 1 || !m_aVehicles[id]) continue;
+    if (id == 1 || !m_aVehicles[id] || !m_aSquads[id]) continue;
     vector at = m_aVehicles[id].GetOrigin();
     float step = vector.DistanceXZ(at, m_aLast[id]);
     m_aLast[id] = at;
@@ -233,7 +290,7 @@ class ACR_TestArmourCrew
    if (tick - m_iStepAt < 100) return;
    for (int ie = 0; ie < m_aSquads.Count(); ie++)
    {
-    if (ie == 1) continue;
+    if (ie == 1 || !m_aSquads[ie]) continue;
     string what = "a BTR-70";
     if (m_aPrefabs[ie] == MTLB) what = "an MT-LB";
     if (m_aPrefabs[ie] == T72) what = "a T-72A";
@@ -243,6 +300,60 @@ class ACR_TestArmourCrew
     PrintFormat("[ACR] ARMOUR hold %1: %2", m_aSquads[ie].GetName(), detail);
     ACR_TestRegress.Check(string.Format("armour: %1 holding a point stops there", what), m_aArrivedAt[ie] >= 0 && m_aPathAfter[ie] < WANDER_M, detail);
    }
+   // 3. On past a parked truck of ours: the MT-LB if loaded, else the BTR.
+   m_iRunner = 0;
+   for (int ig = 0; ig < m_aPrefabs.Count(); ig++) if (m_aPrefabs[ig] == MTLB) m_iRunner = ig;
+   foreach (ACR_Squad parked : manager.m_Squads)
+   {
+    if (!parked || parked.GetName() != "Armour Test Ural") continue;
+    array<IEntity> uralVehicles = {};
+    parked.GetVehicles(uralVehicles);
+    if (!uralVehicles.IsEmpty()) m_Ural = uralVehicles[0];
+   }
+   IEntity runner = m_aVehicles[m_iRunner];
+   m_fLastYaw = runner.GetAngles()[1];
+   m_fTurned = 0;
+   m_fRunClosest = float.MAX;
+   m_fRunArrived = -1;
+   m_fRunPath = 0;
+   m_vRunLast = runner.GetOrigin();
+   m_aSquads[m_iRunner].Defend(m_vRunSpot);
+   string uralWhere = "no truck";
+   if (m_Ural) uralWhere = string.Format("Ural %1 m ahead, crewed %2", (int)vector.DistanceXZ(m_Ural.GetOrigin(), runner.GetOrigin()), BBB.DriverOf(m_Ural) != null);
+   PrintFormat("[ACR] ARMOUR past a parked truck: %1 Defend %2 m off (%3)", m_aSquads[m_iRunner].GetName(), (int)vector.DistanceXZ(m_vRunSpot, runner.GetOrigin()), uralWhere);
+   m_iStep = 5;
+   m_iStepAt = tick;
+   return;
+  }
+  if (m_iStep == 5)
+  {
+   IEntity run = m_aVehicles[m_iRunner];
+   if (!run) return;
+   vector now = run.GetOrigin();
+   float yawNow = run.GetAngles()[1];
+   float turn = yawNow - m_fLastYaw;
+   while (turn > 180) turn -= 360;
+   while (turn < -180) turn += 360;
+   m_fTurned += Math.AbsFloat(turn);
+   m_fLastYaw = yawNow;
+   float moved = vector.DistanceXZ(now, m_vRunLast);
+   m_vRunLast = now;
+   float left = vector.DistanceXZ(now, m_vRunSpot);
+   if (left < m_fRunClosest) m_fRunClosest = left;
+   if (m_fRunArrived < 0 && left < 30) m_fRunArrived = tick;
+   if (m_fRunArrived >= 0) m_fRunPath += moved;
+   if ((tick - m_iStepAt) % 5 == 0)
+   {
+    float toUral = -1;
+    if (m_Ural) toUral = vector.DistanceXZ(now, m_Ural.GetOrigin());
+    PrintFormat("[ACR] ARMOUR past a parked truck t=%1: %2 m to go, %3 m from the Ural, %4 km/h, yaw %5, turned %6 deg so far", tick - m_iStepAt, (int)left, (int)toUral, (int)(moved * 3.6), (int)yawNow, (int)m_fTurned);
+   }
+   if (tick - m_iStepAt < 100) return;
+   string runWhat = "the BTR-70";
+   if (m_aPrefabs[m_iRunner] == MTLB) runWhat = "the MT-LB";
+   string runDetail = string.Format("closest %1 m, turned %2 deg, %3 m driven after it got within 30 m", (int)m_fRunClosest, (int)m_fTurned, (int)m_fRunPath);
+   PrintFormat("[ACR] ARMOUR past a parked truck: %1", runDetail);
+   ACR_TestRegress.Check(string.Format("armour: %1 gets past a parked truck of ours to its point without circling", runWhat), m_fRunArrived >= 0 && m_fTurned < CIRCLING_DEG && m_fRunPath < WANDER_M, runDetail);
    ACR_TestRegress.Complete("armourcrew", EXPECTED);
    m_iStep = 99;
   }
