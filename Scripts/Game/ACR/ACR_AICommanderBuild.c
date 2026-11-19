@@ -106,14 +106,15 @@ modded class ACR_AICommander
   return true;
  }
 
- // The nearest base another side holds (vector.Zero: none).
+ // The nearest base held by a side we fight, as far as we know (vector.Zero: none). Not the truce
+ // partner's or an allied FIA pocket's, nor a hidden pocket we haven't found (NearestEnemyBase's rule).
  protected vector NearestEnemyBaseTo(ACR_Base from)
  {
   vector best = vector.Zero;
   float bestDistance = float.MAX;
   foreach (ACR_Base b : ACR_Base.s_All)
   {
-   if (!b || b.m_bRetired || b.m_sOwner.IsEmpty() || b.m_sOwner == m_sFaction) continue;
+   if (!b || b.m_bRetired || b.m_sOwner == m_sFaction || !HostileOwner(b) || !Visible(b)) continue;
    float d = vector.DistanceXZ(b.GetOrigin(), from.GetOrigin());
    if (d >= bestDistance) continue;
    bestDistance = d;
@@ -573,7 +574,10 @@ modded class ACR_AICommander
    vector enemyAt;
    foreach (ACR_Base other : ACR_Base.s_All)
    {
-    if (!other || other.m_bRetired || other.m_sOwner == m_sFaction || other.m_sOwner.IsEmpty()) continue;
+    // The enemy as this commander knows it (NearestEnemyBase's rule): roadblocks, mines and positions
+    // faced the truce partner, an allied FIA pocket, or a pocket nobody on this side had found yet.
+    if (!other || other.m_bRetired || other.m_sOwner == m_sFaction || !HostileOwner(other) || !Visible(other)) continue;
+
     float d = vector.DistanceXZ(base.GetOrigin(), other.GetOrigin());
     if (d >= nearest) continue;
     nearest = d;

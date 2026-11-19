@@ -87,10 +87,23 @@ class ACR_Airdrop
  }
 
  // Whether 'side' may take this pallet now: its own, or the other side's (TvTvZ: theft).
+ // Jacob (19 Nov): a side at the RP cap can't recover one (it would gain nothing): the pallet stays
+ // on the ground, for the other side to take, and its AI sends nobody for it.
  static bool MayTake(ACR_Pallet pallet, string side)
  {
+  if (Capped(side)) return false;
   if (pallet.m_sFor == side) return true;
   return !ACR_Truce.Holds(); // no theft while a truce holds (ACR_Truce)
+ }
+
+ // 'side' holds the most RP it can (ACR_BaseSystem.POINTS_CAP; ACR_Containment.Give adds nothing).
+ static bool Capped(string side)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager || !manager.m_Bases) return false;
+  ACR_FactionData data = manager.m_Bases.GetFaction(side);
+  return data != null && data.m_iRP >= ACR_BaseSystem.POINTS_CAP;
+
  }
 
  // ---------------------------------------------------------------- every second (ACR_Containment.Tick)
@@ -219,7 +232,7 @@ class ACR_Airdrop
    if (ACR_Containment.ZombiesNear(pallet.m_vPos, ZOMBIE_CLEAR)) continue;
    // Its own side first, if both are there.
    string taker;
-   if (GroundNear(manager, pallet.m_sFor, pallet.m_vPos)) taker = pallet.m_sFor;
+   if (MayTake(pallet, pallet.m_sFor) && GroundNear(manager, pallet.m_sFor, pallet.m_vPos)) taker = pallet.m_sFor;
    else
    {
     foreach (string side : sides)
@@ -292,8 +305,12 @@ class ACR_Airdrop
   {
    positions.Insert(pallet.m_vPos);
    radii.Insert(RECOVER_RANGE);
-   if (pallet.m_sFor == faction) labels.Insert(string.Format("Supply pallet (%1 RP)", RP_PALLET));
+   bool capped = Capped(faction);
+   if (pallet.m_sFor == faction && capped) labels.Insert(string.Format("Supply pallet (we're at the %1 RP cap: can't recover it)", ACR_BaseSystem.POINTS_CAP));
+   else if (pallet.m_sFor == faction) labels.Insert(string.Format("Supply pallet (%1 RP)", RP_PALLET));
+   else if (capped) labels.Insert(string.Format("Enemy supply pallet (we're at the %1 RP cap)", ACR_BaseSystem.POINTS_CAP));
    else labels.Insert("Enemy supply pallet");
+
   }
  }
 

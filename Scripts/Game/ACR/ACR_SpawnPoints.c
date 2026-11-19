@@ -120,6 +120,10 @@ class ACR_SpawnPoints
    ACR_Base hq = HomeBase(home);
    bool held = hq && Eligible(hq, side);
    bool enable = held || open.Get(side) == 0;
+   // Not inside an HQ another side has taken while the side still owns a deploy base (all of them
+   // contested or offline): LastResort below sends players to their own base, not into the enemy
+   // garrison. With no deploy base left at all, the home point is still the only way in.
+   if (enable && !held && hq && hq.m_sOwner != side && OwnsDeployBase(side)) enable = false;
    if (hq && home.GetSpawnPointName() != hq.m_sName) home.SetSpawnPointName(hq.m_sName);
    home.SetPriority(PRIORITY_HQ);
    want.Set(home, enable);
@@ -164,7 +168,15 @@ class ACR_SpawnPoints
   return point;
  }
 
+ protected static bool OwnsDeployBase(string side)
+ {
+  foreach (ACR_Base base : ACR_Base.s_All)
+   if (base && !base.m_bRetired && base.m_sOwner == side && ACR_LogisticsRules.CanDeploy(base)) return true;
+  return false;
+ }
+
  protected static bool HasHomePoint(ACR_Base base)
+
  {
   foreach (SCR_SpawnPoint point : SCR_SpawnPoint.GetSpawnPoints())
   {
@@ -205,14 +217,20 @@ class ACR_SpawnPoints
  // controlling a soldier): the HQ first, then FOBs, then the base nearest the HQ.
  static SCR_SpawnPoint Best(string side)
  {
+  // The HQ to measure from: the side's home point, open or not (found first: a closed HQ point, or
+  // one listed after the bases, left every base unranked and the first in the list won).
   SCR_SpawnPoint home;
+  foreach (SCR_SpawnPoint candidate : SCR_SpawnPoint.GetSpawnPoints())
+  {
+   if (candidate && candidate.GetFactionKey() == side && !IsBasePoint(candidate)) { home = candidate; break; }
+  }
   SCR_SpawnPoint best;
   float bestScore = -float.MAX;
   foreach (SCR_SpawnPoint point : SCR_SpawnPoint.GetSpawnPoints())
   {
    if (!point || point.GetFactionKey() != side || !point.IsSpawnPointEnabled()) continue;
-   if (!IsBasePoint(point) && !home) home = point;
    float score = point.GetPriority() * 100000;
+
    if (home) score -= vector.DistanceXZ(point.GetOrigin(), home.GetOrigin());
    if (score > bestScore) { bestScore = score; best = point; }
   }

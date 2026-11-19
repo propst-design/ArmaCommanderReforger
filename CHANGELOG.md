@@ -20,6 +20,17 @@
 - Zombie hordes at match start follow this match's time of day.
 - The Western AT assistant no longer shares a resource ID with the Arland world.
 - Mission guide: a ready-made `ACR_MissionHeader` template for map makers, and what to do when Workbench's scan writes a Game Master mission header instead.
+- Truce: the AI commander no longer aims its main push (its attack lane) at a base the truce partner holds, where it could never attack, so its squads, reserve and base works should face a real enemy again.
+- The AI commander's roadblocks, minefields, defensive positions and FOB sites should face the enemy it knows of, not the truce partner, an allied FIA pocket or an FIA hideout it hasn't found yet.
+- 2IC: a refused Shift order to a squad the AI runs (holding a spot you asked for, or defending a base) no longer pulls it off that job.
+- A Shift order to a squad that is regrouping, getting away in a vehicle or flanking in a fight on its way to Defend or Garrison is refused with the same reason, instead of being accepted and then never starting.
+- A hunting squad whose leader a player takes over and lets go hunts its target again (or holds where it is if the target is gone), instead of walking to the old sighting labelled "Hunting" and standing there for good.
+- Deploying: when the enemy has taken your HQ and all your other deploy bases are under attack or offline, the deploy screen offers your own best base instead of the lost HQ, so you no longer appear inside the enemy's garrison.
+- A new command unit whose HQ can't take it (contested or lost) should now go to the FOB or base nearest the HQ, not whichever one happened to be listed first.
+- Evac: when the AI's evac truck gives up on its drive to a base with civilians still aboard, the AI should now send it on to a base again later instead of leaving them riding along on other jobs while their evac point stays open.
+- Garrisons no longer grow past their set size from survivors falling back from lost bases or FIA technical crews walking home: the men who don't fit should stay as their own group defending that base and join its reserve once there's room.
+- Hunt: an order queued with Shift behind a Hunt now runs when the hunt ends (target destroyed or lost), instead of being dropped for a Defend or overwritten by the hunt.
+- Supply pallets: a side at the 1000 RP cap can no longer recover a pallet for nothing. It stays on the ground (the other side may still take it), the map label says why, and that side's AI doesn't send a squad for pallets while capped.
 
 ## 0.6.0 — released
 
