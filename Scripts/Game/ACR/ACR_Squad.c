@@ -2618,8 +2618,16 @@ class ACR_Squad : Managed
    return last == 1 || last == 2;
   }
   if (!m_aRoute.IsEmpty()) return m_Route && m_Route.m_iKind == ACR_EOrderKind.DEFEND;
+  // Set aside for a while (a regroup, getting away in a vehicle, a combat flank): the order put back
+  // afterwards is what a queue would wait behind, so a Defend there refuses it too.
+  ACR_OrderSnapshot aside;
+  if (m_CombatFlank.Active()) aside = m_CombatFlank.Original();
+  else if (m_bRegrouping) aside = m_Regroup;
+  else if (m_Evade) aside = m_Evade;
+  if (aside) return aside.m_eState == ACR_EOrderState.DEFEND;
   return m_Group.GetCurrentWaypoint() != null && !HoldingInPlace() && OrderState() == ACR_EOrderState.DEFEND;
  }
+
 
  bool Queue(vector position, bool defend, bool garrison = false)
  {

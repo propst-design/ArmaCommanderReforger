@@ -23,6 +23,7 @@
 - Truce: the AI commander no longer aims its main push (its attack lane) at a base the truce partner holds, where it could never attack, so its squads, reserve and base works should face a real enemy again.
 - The AI commander's roadblocks, minefields, defensive positions and FOB sites should face the enemy it knows of, not the truce partner, an allied FIA pocket or an FIA hideout it hasn't found yet.
 - 2IC: a refused Shift order to a squad the AI runs (holding a spot you asked for, or defending a base) no longer pulls it off that job.
+- A Shift order to a squad that is regrouping, getting away in a vehicle or flanking in a fight on its way to Defend or Garrison is refused with the same reason, instead of being accepted and then never starting.
 
 ## 0.6.0 — released
 
