@@ -135,7 +135,35 @@
         "0.3.3",
         "0.3.4"
       ],
-      "pending": null,
+      "pending": {
+        "version": "0.4.0",
+        "messages": [
+          {
+            "content": "<@&1562228542274797608>\nAiO Command Menu -Reforger- — 0.4.0\nhttps://reforger.armaplatform.com/workshop/629405AEFC950C12\nPart 1/2 · relay dae6ccb94c4b4cb3:1\n\n0.4.0\n\nAn order marker, recruiting and dismissing soldiers, and a lights-off order.\n\nNEW\n\n- Order marker: a faint chevron with the order and distance marks where your squad is heading, whoever gave the order. It fades up close and while aiming, and hides with the map or a hidden HUD. More > Aim & order markers turns it off or sets its strength.\n- Recruit / dismiss (More): recruit the AI soldier you aim at, his whole squad, or every free soldier of your side within 30 m. Dismissed men wait as their own AI squad for another player to recruit, so you can trade men; they leave without their colour team or a Lights off order. Destroy removes your own selected men; destroying soldiers outside your squad is for admins unless the host starts the server with -aioDestroy all. Squads a player leads or belongs to are never touched, and the server's limit on AI per player squad still applies.\n- Lights (Stance & speed): Lights off keeps the squad's flashlights and vehicle lights off, day and night, until you choose Lights: own choice. The squad bar shows Lights off.\n\nCHANGED\n\n- Only the squad leader commands his squad: taking control of a rifleman no longer gives you the whole squad, and the AI leader keeps leading.\n- Taking control of another squad's leader makes that squad yours (roster, orders, marker), and your first order replaces its commander's objective.\n- Fire on my lead: after the engagement the men go back to the fire rules they had.\n\nFIXED\n\n",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [
+                "1562228542274797608"
+              ],
+              "replied_user": false
+            },
+            "flags": 4
+          },
+          {
+            "content": "AiO Command Menu -Reforger- — 0.4.0\nhttps://reforger.armaplatform.com/workshop/629405AEFC950C12\nPart 2/2 · relay dae6ccb94c4b4cb3:2\n\n- Your orders end a few seconds after nobody commands the squad (a Game Master lets go, a leader steps down or leaves), so the game, the Game Master or another mod can order the men again.\n- The colour teams in the menu match the teams your men use after a reconnect or a takeover.\n- Lighter on servers (opening the menu asks for the roster once), and a smaller download: the automated tests are no longer in the package.\n- Halt, a whole-squad Move and the command wheel end Engage at will, so men stop chasing out of formation; men possessed when your orders ended are released too.\n- Recruit and Destroy on a whole squad check every man's range and side, recruits start clean, and a dismissed man no longer keeps boarding your vehicle.\n- With mouse control, holding a mouse button no longer keeps fire blocked after a keyboard order; a stance given after Take cover lasts through Move here.\n- Smaller fixes: held speed on a new body, the order marker while possessing, head numbers over the map, the Defense page for keyboard users, orders from a leader without a body.",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [],
+              "replied_user": false
+            },
+            "flags": 4
+          }
+        ],
+        "next": 0,
+        "inflight": null
+      },
       "delivered": {
         "0.3.3": [
           "1564861703467048980"
