@@ -239,6 +239,7 @@ restart|-acrRestartTest 1|200
 stallwait|-acrStallWaitTest 1|130
 recrew|-acrRecrewTest 1|120
 armourcrew|-acrArmourCrewTest 1|300
+rbgunner|-acrRoadblockGunnerTest 1|420
 mortargiveup|-acrMortarGiveUpTest 1|100
 driveroutes|-acrDriveRoutesTest 1|480
 driveroutesbbb|-acrDriveRoutesBBBTest 1|480
