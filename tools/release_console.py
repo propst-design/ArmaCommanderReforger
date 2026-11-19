@@ -253,10 +253,16 @@ class Console:
         if releases and tuple(map(int, version.split('.'))) <= max(tuple(map(int, r['version'].split('.'))) for r in releases):
             raise Blocked(f'{mod} {version} is already published. New changes need the next version.')
 
-    def record_publication(self, mod, version, evidence, candidate=None):
-        """Record confirmed publication in source; never uploads or commits."""
+    def record_publication(self, mod, version, evidence, candidate=None, source_commit=None):
+        """Record confirmed publication in source; never uploads or commits.
+
+        source_commit (18 Nov): for a Workbench upload whose version label differs from its prepared
+        copy (the add-ons went up as 1.0.0 from 0.1.0 candidates), name the live commit directly. The
+        agent checks it against the downloaded Workshop copy first and says how in the evidence."""
         if not re.fullmatch(r'\d+\.\d+\.\d+', version) or not evidence.strip():
             raise Blocked('A numeric version and publication evidence are required.')
+        if candidate and source_commit:
+            raise Blocked('Give a candidate or a source commit, not both.')
         source = self.source(mod)
         history = self.release_history(mod)
         if any(r['version'] == version for r in history['releases']):
@@ -272,7 +278,15 @@ class Console:
             raise Blocked('Record the confirmed version in CHANGELOG.md before recording publication.')
         entry = dict(version=version, confirmedAt=dt.datetime.now(dt.timezone.utc).isoformat(),
                      evidence=evidence, notesSha256=notes_digest(text, version))
-        if not candidate and self.pointer(mod).is_file():
+        if source_commit:
+            try:
+                commit = git(source, 'rev-parse', '--verify', '--quiet', source_commit + '^{commit}')
+            except subprocess.CalledProcessError:
+                raise Blocked(f'{mod}: {source_commit} is not a commit in {source.name}.')
+            if subprocess.call(['git', '-C', str(source), 'merge-base', '--is-ancestor', commit, 'HEAD']) != 0:
+                raise Blocked(f'{mod}: {source_commit} is not in the history of {source.name} HEAD.')
+            entry.update(sourceCommit=commit)
+        elif not candidate and self.pointer(mod).is_file():
             # A manual Workbench upload (recorded by an agent when Jacob says it is up): tie the record to the checked copy of this
             # version, so the next add-on update knows which commit is live.
             pointed = Path(read_json(self.pointer(mod))['candidate'])
@@ -664,6 +678,7 @@ def main():
     parser.add_argument('--version')
     parser.add_argument('--evidence')
     parser.add_argument('--candidate', type=Path)
+    parser.add_argument('--source-commit')
     options = parser.parse_args()
     console = Console()
     console.installed_root = options.installed_root
@@ -688,7 +703,7 @@ def main():
     if options.action == 'record-publication':
         if not options.version or not options.evidence:
             parser.error('record-publication requires --version and --evidence.')
-        print(json.dumps(console.record_publication(options.mod, options.version, options.evidence, options.candidate)))
+        print(json.dumps(console.record_publication(options.mod, options.version, options.evidence, options.candidate, options.source_commit)))
         return
     if options.action in ['notes', 'publish-info']:
         info = console.publish_info(options.mod, options.installed_root) if options.action == 'publish-info' else console.notes_info(options.mod)

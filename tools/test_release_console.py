@@ -196,6 +196,16 @@ class GuardTests(unittest.TestCase):
             self.console.require_new_version('BBB', '0.1.0')
         self.console.require_new_version('BBB', '0.1.1')
 
+    def test_publication_can_name_a_verified_source_commit(self):
+        head = run_git(self.bbb, 'rev-parse', 'HEAD')
+        with self.assertRaisesRegex(Blocked, 'not both'):
+            self.console.record_publication('BBB', '0.1.0', 'Upload confirmed', self.mark_checked('BBB'), source_commit=head)
+        with self.assertRaisesRegex(Blocked, 'not a commit'):
+            self.console.record_publication('BBB', '0.1.0', 'Upload confirmed', source_commit='0' * 40)
+        result = self.console.record_publication('BBB', '0.1.0', 'Live copy matched', source_commit=head[:7])
+        self.assertEqual(result['releases'][0]['sourceCommit'], head)
+        self.assertNotIn('candidate', result['releases'][0])
+
     def test_published_notes_are_locked_and_empty_next_version_cannot_ship(self):
         self.console.record_publication('BBB', '0.1.0', 'Owner confirmed')
         self.commit(self.bbb)
