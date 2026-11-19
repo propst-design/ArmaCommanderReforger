@@ -1,6 +1,8 @@
 # Changelog
 ## 0.6.2 — unreleased
 
+- A base's garrison (an FIA pocket's too) should no longer pack up and vanish the moment it knocks out the enemies in front of it: it stays out while they lie nearby, for up to five minutes. Garrisons and FIA guerrilla cells also stay out while an enemy player is within 800 m.
+
 ## 0.6.1 — released
 
 - AI commanders whose HQ rebuild failed no longer send trucks to the same site and buy new ones every 30 seconds.

@@ -45,6 +45,7 @@ class ACR_Defenders
  }
  static const float SPAWN_RANGE = 400;   // as ACR_BaseSystem's garrisons
  static const float DESPAWN_RANGE = 450;
+ static const float PLAYER_SIGHT = 800;  // an enemy player this close could watch men pack up: a base's garrison or an FIA cell stays out (ACR_BaseSystem.HoldOut, ACR_Guerrillas.StayOut)
  static const float REMAN_REACH = 8;     // m from an empty gun of a base's works a man of its reserve leaves the bags for it: the nest's own wing
  static const float REMAN_WAIT_MS = 45000; // ... and how long the gun then stays empty before the next man is asked
  protected static ref map<IEntity, float> s_mReseatAt;
@@ -344,6 +345,15 @@ class ACR_Defenders
     if (body && ACR_Respawn.IsAlive(body) && vector.DistanceXZ(body.GetOrigin(), pos) <= range) return true;
    }
   }
+  if (EnemyPlayerWithin(faction, pos, range, cell)) return true;
+  // FIA saboteurs (#96): built positions' defenders deploy against them.
+  return ACR_Raid.RaiderWithin(faction, pos, range);
+ }
+
+ // A living enemy player (awake or knocked out; his own body or a soldier he took over) within
+ // range of pos; 'cell' as EnemyWithin. With PLAYER_SIGHT: someone who would watch men vanish.
+ static bool EnemyPlayerWithin(string faction, vector pos, float range, bool cell = false)
+ {
   array<int> players = {};
   GetGame().GetPlayerManager().GetPlayers(players);
   foreach (int id : players)
@@ -354,8 +364,7 @@ class ACR_Defenders
    if (key.IsEmpty() || ACR_Insurgency.Friendly(key, faction) || (cell && ACR_Insurgency.Spared(key))) continue;
    if (vector.DistanceXZ(player.GetOrigin(), pos) <= range) return true;
   }
-  // FIA saboteurs (#96): built positions' defenders deploy against them.
-  return ACR_Raid.RaiderWithin(faction, pos, range);
+  return false;
  }
 
  static void Reset()

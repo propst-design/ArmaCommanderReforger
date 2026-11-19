@@ -1019,17 +1019,21 @@ class ACR_Guerrillas
  }
 
  // While deployed (ACR_Defenders.Tick): stays out while an enemy is near; pulled back, until
- // none is near its men. Any enemy, spared or not: men in a fight don't vanish.
+ // none is near its men. Any enemy, spared or not, awake or knocked out: men in a fight don't vanish.
+ // Nor in front of an enemy player (ACR_Defenders.PLAYER_SIGHT).
  static bool StayOut(ACR_Manager manager, ACR_DefenderPost post)
  {
   ACR_GuerrillaCell cell = post.m_Cell;
-  if (!cell.m_bWithdrawing) return ACR_Defenders.EnemyWithin(manager, post.m_sFaction, post.m_vPos, Range(post) + 50);
+  if (!cell.m_bWithdrawing)
+   return ACR_Defenders.EnemyWithin(manager, post.m_sFaction, post.m_vPos, Range(post) + 50) || ACR_Defenders.EnemyPlayerWithin(post.m_sFaction, post.m_vPos, ACR_Defenders.PLAYER_SIGHT);
   array<AIAgent> agents = {};
   post.m_Group.GetAgents(agents);
   foreach (AIAgent agent : agents)
   {
    IEntity man = agent.GetControlledEntity();
-   if (man && ACR_Respawn.IsAlive(man) && ACR_Defenders.EnemyWithin(manager, post.m_sFaction, man.GetOrigin(), CLEAR)) return true;
+   if (!man || !ACR_Respawn.IsAlive(man)) continue;
+   if (ACR_Defenders.EnemyWithin(manager, post.m_sFaction, man.GetOrigin(), CLEAR)) return true;
+   if (ACR_Defenders.EnemyPlayerWithin(post.m_sFaction, man.GetOrigin(), ACR_Defenders.PLAYER_SIGHT)) return true;
   }
   return false;
  }

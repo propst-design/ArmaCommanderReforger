@@ -56,6 +56,7 @@ class ACR_BaseSystem : Managed
  static const float CAPTURE_MAX_STEP = 6;   // cap per second (original mod: 2; raised so more troops cap faster)
  static const float SPAWN_RANGE = 400;      // enemies this close deploy the garrison
  static const float DESPAWN_RANGE = 450;    // no enemies this close: garrison packs up
+ static const float DOWNED_HOLD_S = 300;    // knocked-out enemies this close keep it out this long at most (HoldOut)
  static const float WORKS_SPAWN_RANGE = 600; // ... a base with works standing: the AI stages its attack about 320 m out, so its
                                             // garrison is behind the bags before the assault steps off (the user, 2 Nov, Chotain Base)
  static const int POINTS_CAP = 1000;
@@ -74,6 +75,10 @@ class ACR_BaseSystem : Managed
  protected ref array<string> m_BodyFactions = {};
  protected ref array<ACR_Base> m_BodyFled = {}; // the base a body's group is falling back from (FallBack), else null
  protected ref array<bool> m_BodyInWar = {}; // a body of the war's own factions (InWar)
+ // The knocked-out, apart (they don't hold, contest or spot), with their factions: they only keep
+ // a deployed garrison out (HoldOut).
+ protected ref array<IEntity> m_Downed = {};
+ protected ref array<string> m_DownedFactions = {};
 
  // Buy list, garrison soldiers and RP for a faction, built from its
  // ACR_FactionSettings entity (or catalog defaults) the first time it's needed.
@@ -223,10 +228,13 @@ class ACR_BaseSystem : Managed
 
  // Every living, conscious character with a faction: AI agents plus player bodies. The
  // unconscious don't hold, contest or spot (Jacob 19 Oct: nobody comes to finish them off),
- // nor do BBB prisoners (unarmed, kneeling, out of their squads).
+ // nor do BBB prisoners (unarmed, kneeling, out of their squads). The unconscious are kept apart
+ // (m_Downed): they only keep a garrison that is out from vanishing over them (HoldOut).
  protected void CollectBodies(ACR_Manager manager)
  {
   m_Bodies.Clear();
+  m_Downed.Clear();
+  m_DownedFactions.Clear();
   m_BodyFactions.Clear();
   m_BodyFled.Clear();
   m_BodyInWar.Clear();
@@ -243,7 +251,16 @@ class ACR_BaseSystem : Managed
  protected void AddBody(IEntity entity, ACR_Manager manager)
  {
   ChimeraCharacter character = ChimeraCharacter.Cast(entity);
-  if (!character || m_Bodies.Contains(character) || character.GetCharacterController().IsDead() || character.GetCharacterController().IsUnconscious()) return;
+  if (!character || m_Bodies.Contains(character) || character.GetCharacterController().IsDead()) return;
+  if (character.GetCharacterController().IsUnconscious())
+  {
+   if (m_Downed.Contains(character)) return;
+   FactionAffiliationComponent downedSide = FactionAffiliationComponent.Cast(character.FindComponent(FactionAffiliationComponent));
+   if (!downedSide || !downedSide.GetAffiliatedFaction()) return;
+   m_Downed.Insert(character);
+   m_DownedFactions.Insert(downedSide.GetAffiliatedFaction().GetFactionKey());
+   return;
+  }
   // A BBB prisoner (BBB 0.2.0+) kneels unarmed with the engine's disarmed flag, which vanilla
   // otherwise sets only for the downed (skipped above). Read through vanilla, not BBB_Morale.IsPrisoner,
   // so ACA builds against BBB pins with or without surrender.
@@ -903,10 +920,49 @@ class ACR_BaseSystem : Managed
   {
    ACR_Squad.KeepSimulated(base.m_GarrisonGroup);
    base.m_iGarrisonLeft = CountAlive(base.m_GarrisonGroup);
-   if (!enemyInRange && !base.m_bContested) DespawnGarrison(base, true);
+   if (enemyInRange || base.m_bContested)
+   {
+    base.m_fHeldForDownedSince = 0;
+    return;
+   }
+   if (!HoldOut(base)) DespawnGarrison(base, true);
    return;
   }
+  base.m_fHeldForDownedSince = 0;
   if (enemyNear && base.m_iGarrisonLeft > 0 && !base.m_sOwner.IsEmpty()) SpawnGarrison(base);
+ }
+
+ // No awake enemy in range, but men in a fight don't vanish (Jacob, 19 Nov: an FIA pocket packed up
+ // the moment it knocked out a UAZ's crew, 3 s into the fight). Its garrison stays out while an enemy
+ // player could watch it go (ACR_Defenders.PLAYER_SIGHT), and while enemies it knocked out lie in
+ // range, up to DOWNED_HOLD_S (one who never wakes or dies doesn't keep it out for good). They still
+ // don't contest the base (Jacob 19 Oct), and they don't turn a packed-up garrison out.
+ protected bool HoldOut(ACR_Base base)
+ {
+  vector center = base.GetOrigin();
+  float range = DESPAWN_RANGE;
+  if (ACR_BaseWorks.LinesStand(base)) range = WORKS_SPAWN_RANGE + DESPAWN_RANGE - SPAWN_RANGE;
+  if (ACR_Defenders.EnemyPlayerWithin(base.m_sOwner, center, ACR_Defenders.PLAYER_SIGHT)) return true;
+  int downed;
+  foreach (int i, IEntity body : m_Downed)
+  {
+   if (!body || FriendOfOwner(base, m_DownedFactions[i]) || m_DownedFactions[i] == base.m_sOwner) continue;
+   if (!InWar(m_DownedFactions[i])) continue;
+   if (vector.DistanceXZ(body.GetOrigin(), center) <= range) downed++;
+  }
+  if (downed == 0)
+  {
+   base.m_fHeldForDownedSince = 0;
+   return false;
+  }
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (base.m_fHeldForDownedSince <= 0)
+  {
+   base.m_fHeldForDownedSince = now;
+   PrintFormat("[ACR] Garrison at %1 stays out: %2 enemies down within %3 m", base.m_sName, downed, (int)range);
+   return true;
+  }
+  return now - base.m_fHeldForDownedSince < DOWNED_HOLD_S * 1000;
  }
 
  protected int CountAlive(SCR_AIGroup group)

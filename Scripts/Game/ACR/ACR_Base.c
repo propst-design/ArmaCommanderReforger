@@ -39,6 +39,7 @@ class ACR_Base : GenericEntity
  int m_iGarrisonLeft;               // soldiers still in reserve (virtual while not deployed)
  int m_iHousingGarrison;            // capacity supplied by completed friendly FOB barracks
  SCR_AIGroup m_GarrisonGroup;       // spawned only while enemies are near
+ float m_fHeldForDownedSince;       // its garrison kept out only by knocked-out enemies since (ACR_BaseSystem.HoldOut), 0: not
  SCR_AIGroup m_PatrolGroup;         // FOB with barracks: a few of the garrison walk the perimeter
  int m_iPatrolLeg;
  float m_fPatrolRefill;

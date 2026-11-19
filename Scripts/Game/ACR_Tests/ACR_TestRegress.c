@@ -210,7 +210,7 @@ class ACR_TestRegress
  }
 
  // Checks a full run makes (Skip counts as made). Raise it with every new check.
- static const int EXPECTED = 170; // includes one mission-intro option check, two vehicle-lane, two refit give-up, one service-job-end, one stuck-taxi and one hold-retry check, three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
+ static const int EXPECTED = 173; // includes three downed-enemy garrison checks, one mission-intro option check, two vehicle-lane, two refit give-up, one service-job-end, one stuck-taxi and one hold-retry check, three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
  static SCR_AIGroup s_RecoveryGroup;
  static SCR_AIGroup s_BoardingGroup;
  static SCR_AIGroup s_CancelBoardingGroup;
@@ -1530,6 +1530,11 @@ class ACR_TestRegress
   if (tick == 6) UnconsciousPlant();
   if (tick == 7) UnconsciousForce();
   if (tick == 11) UnconsciousCheck();
+  // Jacob 19 Nov: an FIA pocket packed up the moment it knocked out a UAZ's crew.
+  if (tick == 12) DownedPlant();
+  if (tick == 15) DownedKnockOut();
+  if (tick == 19) DownedHoldCheck();
+  if (tick == 23) DownedGoneCheck();
   if (tick == 60)
   {
    BoardingCheck(manager);
@@ -1678,6 +1683,51 @@ class ACR_TestRegress
   bool fob = s_Unconscious && ACR_FobBuild.Awake(s_Unconscious);
   Check("unconscious enemy doesn't contest the base", down && !contested && !fob, string.Format("contested %1, counts for FOB %2", contested, fob));
   if (s_Unconscious) SCR_EntityHelper.DeleteEntityAndChildren(s_Unconscious);
+ }
+
+ // An enemy just outside a US base turns its garrison out; knocked out, he keeps it out (he still
+ // doesn't contest the base); gone, it packs up (no player on the test server to watch it go).
+ static IEntity s_Downed;
+ static ACR_Base s_DownedBase;
+ static void DownedPlant()
+ {
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (base.m_sOwner != "US" || base.m_bRetired || base.m_bContested || base.m_GarrisonGroup || base.m_iGarrisonLeft <= 0) continue;
+   if (base == s_UnconsciousBase || base == s_ZombieBase || ACR_LogisticsRules.IsHQ(base)) continue;
+   s_DownedBase = base;
+   break;
+  }
+  if (!s_DownedBase) return;
+  // Outside its circle (he mustn't contest it while awake either), well inside the spawn range.
+  float gap = Math.Min(s_DownedBase.m_fRadius + 40, ACR_BaseSystem.SPAWN_RANGE - 50);
+  s_Downed = ACR_Manager.SpawnPrefab(ACR_TestFobDesign.USSR_RIFLEMAN, ACR_Manager.Ground(s_DownedBase.GetOrigin() + Vector(0, 0, gap)));
+  PrintFormat("[ACR] TEST downed: an enemy %1 m from %2 (radius %3)", (int)gap, s_DownedBase.m_sName, (int)s_DownedBase.m_fRadius);
+ }
+ static void DownedKnockOut()
+ {
+  ChimeraCharacter man = ChimeraCharacter.Cast(s_Downed);
+  bool deployed = s_DownedBase && s_DownedBase.m_GarrisonGroup != null;
+  bool alive = man && !man.GetCharacterController().IsDead();
+  Check("fixture: an awake enemy beside a base turns its garrison out", deployed && alive, string.Format("base %1, garrison out %2, enemy alive %3", s_DownedBase != null, deployed, alive));
+  if (!man) return;
+  SCR_CharacterDamageManagerComponent damage = SCR_CharacterDamageManagerComponent.Cast(man.GetDamageManager());
+  if (damage) damage.ForceUnconsciousness(0);
+ }
+ static void DownedHoldCheck()
+ {
+  ChimeraCharacter man = ChimeraCharacter.Cast(s_Downed);
+  bool down = man && man.GetCharacterController().IsUnconscious() && !man.GetCharacterController().IsDead();
+  bool deployed = s_DownedBase && s_DownedBase.m_GarrisonGroup != null;
+  bool held = s_DownedBase && s_DownedBase.m_fHeldForDownedSince > 0;
+  bool contested = !s_DownedBase || s_DownedBase.m_bContested;
+  Check("a garrison stays out while the enemy it faced lies knocked out nearby, uncontested", down && deployed && held && !contested, string.Format("unconscious %1, garrison out %2, held for the downed %3, contested %4", down, deployed, held, contested));
+  if (s_Downed) SCR_EntityHelper.DeleteEntityAndChildren(s_Downed);
+ }
+ static void DownedGoneCheck()
+ {
+  bool deployed = s_DownedBase && s_DownedBase.m_GarrisonGroup != null;
+  Check("the garrison packs up once the knocked-out enemy is gone", s_DownedBase && !deployed, string.Format("base %1, garrison still out %2", s_DownedBase != null, deployed));
  }
 
  static void RecoveryChecks(ACR_Manager manager, IEntity truck)
