@@ -10,6 +10,7 @@
 //  - its AI sends one more sweep than usual to a found hideout holding its men;
 //  - after the fight a spoils team from the hideout steals the empty UAZ beside it (driven to a depot
 //    or the hideout's stash, and on its way there), loots the dead, and comes back;
+//  - the hideout out again later: some of its men carry weapon types it looted;
 //  - a US man beside the prisoners with no FIA near frees them (RP, feed, the hideout's pool falls);
 //    the hideout destroyed frees everyone it still held.
 class ACR_TestFIASpoils
@@ -52,6 +53,7 @@ class ACR_TestFIASpoils
   if (second == 175) Rescuers(manager);
   // Once the hideout is out for them (spawned a few seconds later).
   if (second > 178 && second < 200 && !s_bCleared && s_Hideout.m_Group) Clear(manager);
+  if (second == 203) Armed(manager);
   if (second == 205) Freed(manager);
   if (second == 207) Destroy(manager);
   if (second == 216) Destroyed(manager);
@@ -323,6 +325,27 @@ class ACR_TestFIASpoils
   }
  }
 
+ // The hideout came out again after its looting: some of its men carry weapon types it looted.
+ protected static void Armed(ACR_Manager manager)
+ {
+  array<ResourceName> tally = s_Hideout.m_Cell.m_aLootedArms;
+  int carrying, men;
+  if (s_Hideout.m_Group)
+  {
+   array<AIAgent> agents = {};
+   s_Hideout.m_Group.GetAgents(agents);
+   foreach (AIAgent agent : agents)
+   {
+    IEntity man = agent.GetControlledEntity();
+    if (!man || !ACR_Respawn.IsAlive(man)) continue;
+    men++;
+    IEntity primary = ACR_SquadMarksmen.Primary(man);
+    if (primary && primary.GetPrefabData() && tally.Contains(primary.GetPrefabData().GetPrefabName())) carrying++;
+   }
+  }
+  ACR_TestRegress.Check("fiaspoils: a looted weapon type turns up in the hands of the hideout's later recruits", tally.Count() > 0 && carrying > 0, string.Format("%1 in the tally, %2 of %3 men carry one, %4 swaps confirmed", tally.Count(), carrying, men, ACR_FIASpoils.s_iArmed));
+ }
+
  protected static void Freed(ACR_Manager manager)
  {
   int held = ACR_FIAPrisoners.HeldAt(s_Hideout);
@@ -355,6 +378,6 @@ class ACR_TestFIASpoils
   int freed = ACR_FIAPrisoners.s_iFreed - s_iFreed;
   ACR_TestRegress.Check("fiaspoils: the hideout destroyed frees everyone it held", s_Hideout.m_bGone && freed == 1 && ACR_FIAPrisoners.HeldAt(s_Hideout) == 0, string.Format("gone %1, freed %2, held %3", s_Hideout.m_bGone, freed, ACR_FIAPrisoners.HeldAt(s_Hideout)));
   s_bDone = true;
-  ACR_TestRegress.Complete("fiaspoils", 14);
+  ACR_TestRegress.Complete("fiaspoils", 15);
  }
 }

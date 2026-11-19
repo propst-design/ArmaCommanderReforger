@@ -33,6 +33,81 @@ class ACR_SpoilsTeam : Managed
  int m_iStalls;            // re-orders while it got no nearer
 }
 
+// A recruit's rifle swapped for a looted one (ACR_FIASpoils.Arm): once he holds the new gun, the old
+// one and its magazines go and the new one's magazines come; not taken in time, the new gun goes.
+class ACR_LootSwap : Managed
+{
+ IEntity m_Soldier;
+ IEntity m_Old;
+ IEntity m_New;
+ int m_iTries;
+ ref array<typename> m_OldWells = {};
+
+ void Confirm()
+ {
+  if (!m_New)
+  {
+   ACR_FIASpoils.s_aSwaps.RemoveItem(this);
+   return;
+  }
+  if (!ACR_Respawn.IsAlive(m_Soldier))
+  {
+   if (ACR_SquadMarksmen.Loose(m_New)) SCR_EntityHelper.DeleteEntityAndChildren(m_New);
+   ACR_FIASpoils.s_aSwaps.RemoveItem(this);
+   return;
+  }
+  ChimeraCharacter man = ChimeraCharacter.Cast(m_Soldier);
+  CharacterControllerComponent controller = man.GetCharacterController();
+  SCR_InventoryStorageManagerComponent inventory = SCR_InventoryStorageManagerComponent.Cast(man.FindComponent(SCR_InventoryStorageManagerComponent));
+  BaseWeaponManagerComponent weapons = controller.GetWeaponManagerComponent();
+  array<IEntity> carried = {};
+  if (weapons) weapons.GetWeaponsList(carried);
+  bool done = inventory && carried.Contains(m_New) && !controller.IsChangingItem();
+  if (done && controller.GetCurrentItemInHands() == m_Old)
+  {
+   controller.TryEquipRightHandItem(m_New, EEquipItemType.EEquipTypeWeapon, false);
+   done = false;
+  }
+  if (!done)
+  {
+   m_iTries++;
+   if (m_iTries < 6)
+   {
+    GetGame().GetCallqueue().CallLater(Confirm, 500);
+    return;
+   }
+   if (ACR_SquadMarksmen.Loose(m_New)) SCR_EntityHelper.DeleteEntityAndChildren(m_New);
+   PrintFormat("[ACR] SPOILS %1: looted %2 not taken, keeps his own", ACR_UALoadout.Leaf(m_Soldier), ACR_UALoadout.Leaf(m_New));
+   ACR_FIASpoils.s_aSwaps.RemoveItem(this);
+   return;
+  }
+  array<IEntity> items = {};
+  inventory.GetItems(items);
+  foreach (IEntity item : items)
+  {
+   if (!item) continue;
+   BaseMagazineComponent magazine = BaseMagazineComponent.Cast(item.FindComponent(BaseMagazineComponent));
+   if (!magazine || !magazine.GetMagazineWell()) continue;
+   bool old;
+   foreach (typename well : m_OldWells) if (magazine.GetMagazineWell().Type().IsInherited(well)) old = true;
+   if (old) inventory.TryDeleteItem(item);
+  }
+  if (m_Old && (inventory.Contains(m_Old) || ACR_SquadMarksmen.Loose(m_Old))) SCR_EntityHelper.DeleteEntityAndChildren(m_Old);
+  BaseWeaponComponent weapon = BaseWeaponComponent.Cast(m_New.FindComponent(BaseWeaponComponent));
+  array<BaseMuzzleComponent> muzzles = {};
+  if (weapon) weapon.GetMuzzlesList(muzzles);
+  if (!muzzles.IsEmpty())
+  {
+   ResourceName ammo = muzzles[0].GetDefaultMagazineOrProjectileName();
+   for (int n = ACR_UALoadout.CountPrefab(inventory, ammo); n < ACR_FIASpoils.ARMED_MAGAZINES; n++)
+    if (!ACR_UALoadout.SpawnCarried(inventory, ammo)) break;
+  }
+  ACR_FIASpoils.s_iArmed++;
+  ACR_FIASpoils.s_aSwaps.RemoveItem(this);
+  PrintFormat("[ACR] SPOILS %1 carries looted %2", ACR_UALoadout.Leaf(m_Soldier), ACR_UALoadout.Leaf(m_New));
+ }
+}
+
 class ACR_FIASpoils
 {
  static const int TEAM = 2;
@@ -69,6 +144,7 @@ class ACR_FIASpoils
  static void ACR_InitStatics()
  {
   s_aTeams = {};
+  s_aSwaps = {};
   s_aFound = {};
   s_aTaken = {};
   s_aAwakePos = {};
@@ -89,6 +165,9 @@ class ACR_FIASpoils
   s_iWeapons = 0;
   s_fArms = 0;
   s_iRejoined = 0;
+  s_iArmed = 0;
+  foreach (ACR_LootSwap pending : s_aSwaps) if (pending) GetGame().GetCallqueue().Remove(pending.Confirm);
+  s_aSwaps.Clear();
   s_bOn = false;
   s_bLookForTest = false;
  }
@@ -575,6 +654,7 @@ class ACR_FIASpoils
     {
      points += WeaponPoints(weapon);
      weapons++;
+     Tally(hideout, item, weapon);
      inventory.TryDeleteItem(item);
      continue;
     }
@@ -589,7 +669,11 @@ class ACR_FIASpoils
   while (loose)
   {
    WeaponComponent dropped = WeaponComponent.Cast(loose.FindComponent(WeaponComponent));
-   if (dropped) points += WeaponPoints(dropped);
+   if (dropped)
+   {
+    points += WeaponPoints(dropped);
+    Tally(hideout, loose, dropped);
+   }
    weapons++;
    SCR_EntityHelper.DeleteEntityAndChildren(loose);
    loose = LooseWeapon(body.GetOrigin());
@@ -609,6 +693,103 @@ class ACR_FIASpoils
   }
   PrintFormat("[ACR] SPOILS looted %1 weapons and %2 magazines at %3 (%4 arms points) for %5", weapons, magazines, ACR_Manager.Grid(body.GetOrigin()), points, to);
   return points;
+ }
+
+ // ---------------------------------------------------------------- looted arms in recruits' hands
+ // (Jacob 19 Nov: a looted AK or M16 shows up in FIA hands.) The hideout keeps a tally of the rifle
+ // and machine gun types its spoils teams took (TALLY_MAX, newest kept); when a cell it feeds (or the
+ // hideout itself) deploys, up to half its men swap their rifle for one from the tally, with its own
+ // magazines. Nothing looted: the normal kit. The swap is confirmed before the old gun goes (as the
+ // squads' marksman swap); refused, he keeps his own. Gone with the match (the cells are).
+ static const int TALLY_MAX = 12;
+ static const float ARMED_SHARE = 0.5;
+ static const int ARMED_MAGAZINES = 4;
+ static int s_iArmed;                     // recruits who took a looted weapon this match
+ static ref array<ref ACR_LootSwap> s_aSwaps; // swaps waiting to be confirmed (held here: the call queue doesn't keep them)
+
+ protected static void Tally(ACR_DefenderPost hideout, IEntity item, WeaponComponent weapon)
+ {
+  if (!hideout || !hideout.m_Cell || !item || !item.GetPrefabData()) return;
+  EWeaponType type = weapon.GetWeaponType();
+  if (type != EWeaponType.WT_RIFLE && type != EWeaponType.WT_MACHINEGUN) return;
+  array<ResourceName> tally = hideout.m_Cell.m_aLootedArms;
+  tally.Insert(item.GetPrefabData().GetPrefabName());
+  while (tally.Count() > TALLY_MAX) tally.RemoveOrdered(0);
+ }
+
+ // The hideout whose tally a cell's men draw on: itself, or the one feeding it.
+ static ACR_DefenderPost ArsenalOf(ACR_DefenderPost post)
+ {
+  if (!post || !post.m_Cell) return null;
+  if (post.m_Cell.m_bHideout) return post;
+  return ACR_FIAIntel.SupplierOf(post.m_Cell.m_vKillZone);
+ }
+
+ // Just deployed (ACR_Guerrillas.Deployed): some of its men take looted arms.
+ static void ArmRecruits(ACR_DefenderPost post)
+ {
+  if (!s_bOn || !post || !post.m_Group) return;
+  ACR_DefenderPost hideout = ArsenalOf(post);
+  if (!hideout || hideout.m_Cell.m_aLootedArms.IsEmpty()) return;
+  array<ChimeraCharacter> men = {};
+  Awake(post.m_Group, men);
+  int most = (int)Math.Ceil(men.Count() * ARMED_SHARE);
+  int asked;
+  foreach (ChimeraCharacter man : men)
+  {
+   if (asked >= most) break;
+   if (Arm(man, hideout.m_Cell.m_aLootedArms.GetRandomElement())) asked++;
+  }
+  if (asked > 0) PrintFormat("[ACR] SPOILS %1: %2 men take looted arms from %3 (%4 in its tally)", post.m_sName, asked, hideout.m_sName, hideout.m_Cell.m_aLootedArms.Count());
+ }
+
+ // His rifle replaced by 'prefab' (confirmed by ACR_LootSwap a moment later). False: not started.
+ static bool Arm(ChimeraCharacter man, ResourceName prefab)
+ {
+  IEntity original = ACR_SquadMarksmen.Primary(man);
+  if (!original || man.IsInVehicle()) return false;
+  if (original.GetPrefabData() && original.GetPrefabData().GetPrefabName() == prefab) return false;
+  CharacterControllerComponent control = man.GetCharacterController();
+  if (!control || control.IsChangingItem()) return false;
+  if (control.GetCurrentItemInHands() && control.GetCurrentItemInHands() != original) return false;
+  Resource resource = Resource.Load(prefab);
+  if (!resource || !resource.IsValid()) return false;
+  EntitySpawnParams parameters = new EntitySpawnParams();
+  parameters.TransformMode = ETransformMode.WORLD;
+  man.GetWorldTransform(parameters.Transform);
+  IEntity replacement = GetGame().SpawnEntityPrefab(resource, GetGame().GetWorld(), parameters);
+  if (!replacement) return false;
+  InventoryItemComponent item = InventoryItemComponent.Cast(original.FindComponent(InventoryItemComponent));
+  InventoryStorageSlot slot;
+  if (item) slot = item.GetParentSlot();
+  SCR_InventoryStorageManagerComponent inventory = SCR_InventoryStorageManagerComponent.Cast(man.FindComponent(SCR_InventoryStorageManagerComponent));
+  bool accepted;
+  if (slot && inventory)
+  {
+   if (control.GetCurrentItemInHands() == original)
+   {
+    control.ReplaceEquippedItem(replacement);
+    accepted = true;
+   }
+   else accepted = inventory.TryReplaceItem(replacement, slot.GetStorage(), slot.GetID());
+  }
+  if (!accepted)
+  {
+   SCR_EntityHelper.DeleteEntityAndChildren(replacement);
+   return false;
+  }
+  ACR_LootSwap swap = new ACR_LootSwap();
+  swap.m_Soldier = man;
+  swap.m_Old = original;
+  swap.m_New = replacement;
+  BaseWeaponComponent oldWeapon = BaseWeaponComponent.Cast(original.FindComponent(BaseWeaponComponent));
+  array<BaseMuzzleComponent> oldMuzzles = {};
+  if (oldWeapon) oldWeapon.GetMuzzlesList(oldMuzzles);
+  foreach (BaseMuzzleComponent oldMuzzle : oldMuzzles)
+   if (oldMuzzle.GetMagazineWell()) swap.m_OldWells.Insert(oldMuzzle.GetMagazineWell().Type());
+  s_aSwaps.Insert(swap);
+  GetGame().GetCallqueue().CallLater(swap.Confirm, 1500);
+  return true;
  }
 
  static float WeaponPoints(WeaponComponent weapon)

@@ -47,6 +47,7 @@ class ACR_GuerrillaCell : Managed
  int m_iMoves;
  float m_fPool;          // hideout: recruits to spend (ACR_FIAGrowth)
  int m_iArms;            // hideout: weapons its cells' spoils teams brought in (ACR_FIASpoils)
+ ref array<ResourceName> m_aLootedArms = {}; // hideout: rifles and machine guns looted (ACR_FIASpoils.Arm: its recruits carry them)
 }
 
 class ACR_Guerrillas
@@ -757,6 +758,8 @@ class ACR_Guerrillas
   cell.m_bWithdrawing = false;
   cell.m_iOut = manager.m_Bases.GuardsAlive(group);
   SetCombatMode(group, EAIGroupCombatMode.HOLD_FIRE);
+  // Some carry what the hideout feeding them looted (ACR_FIASpoils).
+  ACR_FIASpoils.ArmRecruits(post);
   if (cell.m_bHouse)
   {
    // Into the building's windows (as a base garrison), the rest round it.

@@ -2,7 +2,7 @@
 ## 0.7.0 — unreleased
 
 - Insurgency, part 4: FIA spoils (on with FIA; `-acrFIASpoils 0` turns it off). After a fight, an FIA cell, hideout or pocket garrison should send two men over the ground it holds once none of the enemy is awake nearby:
-  - **Loot:** they take the weapons and magazines of the fallen. The gear arms new recruits at the hideout that feeds the area, so it raises and tops up its cells sooner.
+  - **Loot:** they take the weapons and magazines of the fallen. The gear arms new recruits at the hideout that feeds the area, so it raises and tops up its cells sooner. Its fighters should also start turning up with the rifles and machine guns they took (a looted AK or M16 in FIA hands, with its own magazines).
   - **Stolen vehicles:** an empty, sound vehicle nobody is using (no player within 300 m, not a living squad's own vehicle, no arsenal on it) is driven to an FIA depot or to a hideout's new stash, and raids from there like FIA's technicals.
   - **Prisoners:** the knocked-out and those who surrendered are taken to the hideout. Holding them is propaganda: the hideout recruits faster, and the captive's side hears about it and gets a lead on where the hideout is. While the hideout is out, its prisoners sit unarmed in the middle of it. Walk up to them with no FIA nearby to free them, or destroy the hideout to free everyone it held. Each man freed gives his side 3 RP and costs the hideout a recruit. The AI commander sends more squads, from further away, to a hideout it has found that holds its men.
   - **Players taken prisoner** redeploy straight away; their side is told, and a stand-in in their uniform waits at the hideout to be freed.
