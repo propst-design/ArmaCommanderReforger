@@ -26,6 +26,9 @@ class ACR_AIAttack
  float m_fGrabSeconds;               // a grab's own time limit: the trip there plus slack (big maps)
  float m_fTravelSeconds;             // the slowest squad's way there on foot or by ride (#27): the forming up waits for it
  bool m_bFobRaid;                    // demolition raid against an enemy forward operating base
+ ACR_Base m_Bypass;                  // the strongpoint it goes round (ACR_AIEnvelopment): approaches keep out of its sight
+ float m_fParkedSince;               // a vehicle grab stopped short of the ring: since when (ACR_AICommander.GrabParkedShort)
+ float m_fParkedGap = -1;            // ... and how far out
  ref ACR_SapperDemo m_SapperDemo;
  // #101: time BBB's squad tactics spent fighting for it (gaining ground, or holding outnumbered or
  // flanked) doesn't count as stalling; and when it last called support for a squad that asked.

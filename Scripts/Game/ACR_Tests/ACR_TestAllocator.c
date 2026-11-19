@@ -10,7 +10,7 @@
 // grab it by the allocator, and not when it is a medic team.
 class ACR_TestAllocator
 {
- static const int CHECKS = 29;
+ static const int CHECKS = 31;
 
  static ACR_AIJobSquad Squad(string name, float strength, int current, array<float> etas, array<float> fits = null)
  {
@@ -274,6 +274,40 @@ class ACR_TestAllocator
   ACR_AIAllocator.Allocate(jobs, squads, 1);
   bool released = squads[0].m_iPicked != 0 && squads[1].m_iPicked != 0;
   ACR_TestRegress.Check("allocator: a running attack lets its squads go for clearly better jobs", released, Picks(squads, jobs));
+
+  // 10b. The 19 Nov Kamenoe case: three squads assaulting, a defence worth more on a forecast alone.
+  // The commander offers it to committed assault squads only for a real threat there
+  // (AttackerMayDefend: outnumbered now, or an HQ or FOB under attack), never for a forecast.
+  bool rule = !ACR_AICommander.AttackerMayDefend(0, 0, true) && !ACR_AICommander.AttackerMayDefend(3, 6, false) && !ACR_AICommander.AttackerMayDefend(2, 6, true);
+  rule = rule && ACR_AICommander.AttackerMayDefend(7, 6, false) && ACR_AICommander.AttackerMayDefend(3, 6, true);
+  ACR_TestRegress.Check("keep assault: a forecast alone never pulls an assault squad; outnumbered, or an HQ or FOB under attack, may", rule, "");
+  array<float> kamenoeFits = {};
+  kamenoeFits.Insert(1);
+  kamenoeFits.Insert(0); // the forecast-only defence: AttackerMayDefend(0, ...) is false
+  bool forecastHolds;
+  bool threatPulls;
+  for (int pass = 0; pass < 2; pass++)
+  {
+   jobs.Clear();
+   ACR_AIJob kamenoe = Attack("Kamenoe", 30, 0);
+   kamenoe.m_bRunning = true;
+   ACR_AIAllocator.JudgeRunning(kamenoe, 16, 0.35);
+   jobs.Insert(kamenoe);
+   ACR_AIJob fob = Hold("FOB 2", 50, 4);
+   fob.m_iKind = ACR_EAITask.DEFEND;
+   fob.m_fNeed = 5;
+   fob.m_fPatience = 240;
+   jobs.Insert(fob);
+   if (pass == 1) kamenoeFits[1] = 1; // a real threat there: offered
+   squads.Clear();
+   squads.Insert(Squad("NILFT", 5, 0, E(0, 120), kamenoeFits));
+   squads.Insert(Squad("BoF", 6, 0, E(0, 120), kamenoeFits));
+   squads.Insert(Squad("Reservists", 5, 0, E(0, 120), kamenoeFits));
+   ACR_AIAllocator.Allocate(jobs, squads, 1);
+   if (pass == 0) forecastHolds = squads[0].m_iPicked == 0 && squads[1].m_iPicked == 0 && squads[2].m_iPicked == 0;
+   else threatPulls = squads[0].m_iPicked == 1 || squads[1].m_iPicked == 1 || squads[2].m_iPicked == 1;
+  }
+  ACR_TestRegress.Check("keep assault: the allocator leaves an assaulting team whole against a forecast-only defence worth more", forecastHolds && threatPulls, Picks(squads, jobs) + string.Format(" (forecast held %1, real threat pulled %2)", forecastHolds, threatPulls));
 
   // 11. A running attack tries its own squads before a nearer outsider (with room for two, the
   // outsider used to take a member's place and the member was walked off).
