@@ -89,41 +89,10 @@
         "0.1.8",
         "0.1.9",
         "0.1.10",
-        "0.2.0"
+        "0.2.0",
+        "0.2.1"
       ],
-      "pending": {
-        "version": "0.2.1",
-        "messages": [
-          {
-            "content": "<@&1562228542274797608>\nBetter Battle Buddies — 0.2.1\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 1/2 · relay dfc6729a559356f7:1\n\n0.2.1\r\n\r\nBug fixes for grenadiers, fall-backs, Game Master orders and static guns. Works with AC: Actual 0.6.1.\r\n\r\nFIXED\r\n\r\n- Grenadiers no longer waste 40 mm grenades on targets too close for them to arm: inside the arming range plus 5 m they use their rifle or sidearm, and a man with only a grenade launcher (such as an M79) backs off first. This also applies while a squad leader or a vehicle gunner holds the target. The arming distance is read from each grenade, so modded rounds are covered. Option: -bbbGLArming 0.\r\n- Game Master orders come first for morale: a squad on a Game Master waypoint no longer breaks, falls back or surrenders, and a break under way ends when the Game Master gives it an order.\r\n- Game Master and Conflict move and defend waypoints now get the same order leash and squad tactics as the base ones.\r\n- A squad falling back, after its morale breaks or because the host mod ordered it, no longer drops prone or crouches around enemy armour: the withdrawal goes on. A host mod's own fall-back order now takes over from a morale break already under way.\r\n- Soldiers sent prone by nearby enemy armour get up as soon as a player joins or takes over their squad.\r\n- Soldiers stuck in a doorway no longer swing the door open and shut every minute or so.\r\n- A soldier on his way to man a static gun turns back with his squad when it falls back, and a wounded gunner is no longer put back on the gun while his replacement climbs on.\r\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [
-                "1562228542274797608"
-              ],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "Better Battle Buddies — 0.2.1\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 2/2 · relay dfc6729a559356f7:2\n\n- With the optional hot-vehicle setting, player-led and host-controlled gunners and vehicles are left alone by its reload, re-attack and slow-down rules too.\r\n- A deleted Defend waypoint no longer logs an error, and a possible script error when the last man of a squad surrenders is fixed.",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          }
-        ],
-        "next": 2,
-        "inflight": null,
-        "receipts": [
-          "1572883938517721188",
-          "1572883951159345162"
-        ]
-      },
+      "pending": null,
       "delivered": {
         "0.1.6": [
           "1564098960505966683",
@@ -153,6 +122,10 @@
           "1572811590422761492",
           "1572811605492899953",
           "1572811617068908688"
+        ],
+        "0.2.1": [
+          "1572883938517721188",
+          "1572883951159345162"
         ]
       }
     },
