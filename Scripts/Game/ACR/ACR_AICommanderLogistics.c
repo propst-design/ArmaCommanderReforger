@@ -864,6 +864,7 @@ modded class ACR_AICommander
    m_EvacPoint = null;
   }
   if (!ours || !m_Manager.m_Rides) return;
+  if (ResumeEvac(now)) return;
   // An XP of ours with people waiting, else the town with the most people we can reach.
   ACR_EvacPoint pick;
   vector goal;
@@ -916,7 +917,45 @@ modded class ACR_AICommander
   Say(string.Format("[ACR] AI %1: %2 drives to the evac point for %3 (%4)", m_sFaction, taxi.GetName(), pick.m_sTown, ACR_Manager.Grid(pick.m_vPos)));
  }
 
+ // Civilians still aboard one of our free trucks after its evac ended (the base out of reach, the
+ // time up, called off): their XP has nobody on foot, so ManageEvacs never picked it again and they
+ // rode wherever the truck went next, the XP holding one of the side's slots. Drive them to a base.
+ // A truck that just gave up (StuckLately) is left alone for a while, as service jobs are.
+ protected bool ResumeEvac(float now)
+ {
+  for (int x = 0; x < ACR_Evac.Count(); x++)
+  {
+   ACR_EvacPoint open = ACR_Evac.At(x);
+   if (open.m_sSide != m_sFaction || ACR_Evac.OnFoot(open) > 0 || ACR_Evac.Aboard(open) == 0) continue;
+   foreach (ACR_Squad squad : m_Manager.m_Squads)
+   {
+    if (m_bHandedOnly && !squad.m_bAICommanded) continue;
+    if (!m_Manager.m_Rides.IsFreeTransport(squad, m_sFaction) || StuckLately(squad)) continue;
+    IEntity vehicle = ACR_Transport.CrewedVehicle(squad);
+    if (!vehicle || ACR_Evac.Aboard(open, vehicle) == 0) continue;
+    m_EvacPoint = open; // EvacBase skips a base beside this XP
+    ACR_Base base = EvacBase(vehicle.GetOrigin());
+    if (!base)
+    {
+     m_EvacPoint = null;
+     continue;
+    }
+    m_EvacTaxi = squad;
+    m_iEvacPhase = 2;
+    m_fEvacSince = now;
+    m_fEvacPhaseAt = now;
+    squad.SetAITask(ACR_EAITask.RESCUE);
+    squad.SetMode(ACR_EMoveMode.FAST);
+    Travel(squad, base.GetOrigin(), false, 0);
+    Say(string.Format("[ACR] AI %1: %2 takes the %3 civilians still aboard to %4", m_sFaction, squad.GetName(), ACR_Evac.Aboard(open, vehicle), base.m_sName));
+    return true;
+   }
+  }
+  return false;
+ }
+
  // The free transport of ours nearest 'at' within EVAC_REACH, or null.
+
  protected ACR_Squad EvacTaxi(vector at)
  {
   ACR_Squad best;

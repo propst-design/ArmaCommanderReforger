@@ -27,6 +27,7 @@
 - A hunting squad whose leader a player takes over and lets go hunts its target again (or holds where it is if the target is gone), instead of walking to the old sighting labelled "Hunting" and standing there for good.
 - Deploying: when the enemy has taken your HQ and all your other deploy bases are under attack or offline, the deploy screen offers your own best base instead of the lost HQ, so you no longer appear inside the enemy's garrison.
 - A new command unit whose HQ can't take it (contested or lost) should now go to the FOB or base nearest the HQ, not whichever one happened to be listed first.
+- Evac: when the AI's evac truck gives up on its drive to a base with civilians still aboard, the AI should now send it on to a base again later instead of leaving them riding along on other jobs while their evac point stays open.
 
 ## 0.6.0 — released
 
