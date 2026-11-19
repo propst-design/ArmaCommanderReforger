@@ -38,6 +38,7 @@ class ACR_FallBack : Managed
  string m_sName;
  ACR_Base m_From;  // the base they lost: they don't count towards taking it back
  ACR_Base m_Dest;  // their side's base they make for, or null: a point FALLBACK_AWAY from the enemy
+ bool m_bStays;    // men a full reserve couldn't take, holding the base they came to (m_From): they count there
 }
 
 class ACR_BaseSystem : Managed
@@ -1063,6 +1064,60 @@ class ACR_BaseSystem : Managed
  }
 
  // Packs defenders up (never one a player controls); returns how many were alive.
+ // Up to 'most' living soldiers of 'group' leave it into a reserve (offscreen, as PackUpGuards); the
+ // group stays with the rest. Returns how many went.
+ protected int PackUpSome(SCR_AIGroup group, int most)
+ {
+  if (!group || most <= 0) return 0;
+  int gone;
+  array<AIAgent> agents = {};
+  group.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   if (gone >= most) break;
+   ChimeraCharacter soldier = ChimeraCharacter.Cast(agent.GetControlledEntity());
+   if (!soldier || soldier.GetCharacterController().IsDead() || ACR_Squad.FindController(soldier)) continue;
+   SCR_EntityHelper.DeleteEntityAndChildren(soldier);
+   gone++;
+  }
+  return gone;
+ }
+
+ // Room left in a base's reserve: its set garrison size less the men already in it.
+ protected int ReserveRoom(ACR_Base base)
+ {
+  return Math.Max(0, base.m_iGarrison - base.m_iGarrisonLeft);
+ }
+
+ // Jacob (19 Nov): men joining a base's reserve from outside (fall-back survivors, a depot crew) are
+ // capped at its set garrison, as every other path is. The rest stay as their own group defending
+ // the base, tracked as a fall-back (TickFallBacks), and go in as room frees. Returns men taken in.
+ int TakeIntoReserve(ACR_Base base, SCR_AIGroup group, string faction, string name)
+ {
+  if (!base || !group) return 0;
+  int alive = CountAlive(group);
+  if (alive <= ReserveRoom(base))
+  {
+   int men = PackUpGuards(group);
+   base.m_iGarrisonLeft += men;
+   return men;
+  }
+  int packed = PackUpSome(group, ReserveRoom(base));
+  base.m_iGarrisonLeft += packed;
+  ACR_FallBack held = new ACR_FallBack();
+  held.m_Group = group;
+  held.m_sFaction = faction;
+  held.m_sName = name;
+  held.m_From = base;
+  held.m_Dest = base;
+  held.m_bStays = true;
+  group.SetCustomName(name + " (holding " + base.m_sName + ")", 0);
+  m_FallBacks.Insert(held);
+  ACR_Guerrillas.Order(group, ACR_Squad.WP_DEFEND, base.GetOrigin(), base.m_fRadius, false);
+  PrintFormat("[ACR] FALLBACK %1: %2 into the full reserve at %3, %4 hold it as a group", name, packed, base.m_sName, alive - packed);
+  return packed;
+ }
+
  int PackUpGuards(SCR_AIGroup group)
  {
   if (!group) return 0;
@@ -1299,7 +1354,7 @@ class ACR_BaseSystem : Managed
  // The base a garrison group is falling back from, if it is.
  protected ACR_Base FledFrom(SCR_AIGroup group)
  {
-  foreach (ACR_FallBack retreat : m_FallBacks) if (retreat.m_Group == group) return retreat.m_From;
+  foreach (ACR_FallBack retreat : m_FallBacks) if (retreat.m_Group == group && !retreat.m_bStays) return retreat.m_From;
   return null;
  }
 
@@ -1340,7 +1395,20 @@ class ACR_BaseSystem : Managed
    // Clear of the enemy: into the reserve of a base of theirs that isn't fighting (offscreen, as a garrison packs up).
    ACR_Base home = NearestHeld(retreat.m_sFaction, MenAt(group, retreat.m_From.GetOrigin()), float.MAX, null, true);
    if (!home && NearestHeld(retreat.m_sFaction, vector.Zero, float.MAX, null, false)) continue; // every base of theirs is fighting: later
+   // A full reserve (Jacob, 19 Nov: capped at the set garrison): as many as fit go in, the rest hold
+   // that base as their group and go in as room frees.
+   if (home && alive > ReserveRoom(home))
+   {
+    int fit = PackUpSome(group, ReserveRoom(home));
+    home.m_iGarrisonLeft += fit;
+    if (retreat.m_Dest != home) retreat.m_Dest = home;
+    if (fit > 0 || !group.GetCurrentWaypoint())
+     ACR_Guerrillas.Order(group, ACR_Squad.WP_DEFEND, home.GetOrigin(), home.m_fRadius, false);
+    if (fit > 0) PrintFormat("[ACR] FALLBACK %1: %2 into the reserve at %3 (full), %4 hold it as a group", retreat.m_sName, fit, home.m_sName, alive - fit);
+    continue;
+   }
    int men = PackUpGuards(group);
+
    m_FallBacks.Remove(i);
    if (home)
    {

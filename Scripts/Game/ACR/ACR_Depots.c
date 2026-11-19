@@ -468,9 +468,16 @@ class ACR_Depots
  // Arrived on foot: into the cell's reserve (or the pocket's garrison).
  protected static void Join(ACR_Manager manager, ACR_Depot depot)
  {
-  int back = manager.m_Bases.PackUpGuards(depot.m_Crew);
-  if (depot.m_WalkTo && !depot.m_WalkTo.m_bGone) depot.m_WalkTo.m_iReserve += back;
-  else if (Active(depot)) depot.m_Base.m_iGarrisonLeft += back;
+  int back;
+  if (depot.m_WalkTo && !depot.m_WalkTo.m_bGone)
+  {
+   back = manager.m_Bases.PackUpGuards(depot.m_Crew);
+   depot.m_WalkTo.m_iReserve += back;
+  }
+  // Into the base's reserve up to its set garrison; the rest hold the base as a group (Jacob, 19 Nov).
+  else if (Active(depot)) back = manager.m_Bases.TakeIntoReserve(depot.m_Base, depot.m_Crew, ACR_Pockets.FACTION, string.Format("FIA technical crew %1", depot.m_Base.m_sName));
+  else back = manager.m_Bases.PackUpGuards(depot.m_Crew);
+
   string to = depot.m_Base.m_sName;
   if (depot.m_WalkTo) to = depot.m_WalkTo.m_sName;
   PrintFormat("[ACR] DEPOTS %1: %2 of the technical's crew joined %3", depot.m_Base.m_sName, back, to);
