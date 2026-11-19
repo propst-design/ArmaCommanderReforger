@@ -6,12 +6,12 @@
 //    plugs into ACR_CivilianSocket.Evacuees, else ACA's vanilla civilians.
 //  - About LEFT_SHARE of them (stragglers, wounded) stay in the town; the rest walk to the XP "on
 //    rails": a move waypoint, and a walker who hasn't moved for NUDGE_MS is stepped on towards it.
-//  - Any vehicle of a living side parked (stopped, on the ground) within XP_RADIUS gets every
+//  - A vehicle of the XP's side parked (stopped, on the ground, attended) within XP_RADIUS gets every
 //    civilian there put straight into its free passenger seats. No fallback: with no seat they wait.
 //    A helicopter counts (air lift), but its rotors near an XP bring the dead (ACR_Outbreak.CounterAttack).
-//  - Pay on delivery: a civilian aboard a vehicle that reaches a base a living side holds, with no
-//    zombie in it (zombies block a base), pays that base's side RP_EACH and is gone. In TvTvZ it is
-//    a race: whoever's vehicle loads them and whichever side's base they reach.
+//  - Pay on delivery: a civilian aboard a vehicle that reaches a base of the XP's side, with no
+//    zombie in it (zombies block a base), pays that side RP_EACH and is gone (Jacob, 15 Nov: not
+//    another side's base, and only the XP's side's vehicles load them).
 //  - The XP ends once nobody is left to bring out; the left-behind go once no soldier is near.
 // AI commanders run evacs with a free transport (ACR_AICommander.ManageEvacs). Under "I'm the 2IC"
 // the commander can keep extracts to themselves (TwoICExtracts, command panel).
@@ -455,8 +455,10 @@ class ACR_Evac
   GetGame().GetWorld().QueryEntitiesBySphere(point.m_vPos, XP_RADIUS, CollectVehicle, null, EQueryEntitiesFlags.DYNAMIC);
   foreach (IEntity vehicle : s_aFound)
   {
-   // Not into a vehicle nobody is with: they would be lost in it at once (Abandoned).
-   if (!Parked(vehicle) || Abandoned(manager, point, vehicle)) continue;
+   // Not into a vehicle nobody is with: they would be lost in it at once (Abandoned). Only the XP's
+   // side's (Jacob, 15 Nov: only its bases take them): another side's truck could never deliver
+   // them, and they rode in it for good, the XP holding one of its side's slots.
+   if (!Parked(vehicle) || SideOf(vehicle) != point.m_sSide || Abandoned(manager, point, vehicle)) continue;
    SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
    if (!compartments) continue;
    array<BaseCompartmentSlot> seats = {};
