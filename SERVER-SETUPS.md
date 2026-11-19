@@ -209,9 +209,11 @@ that mod keeps alive at once, divided between the two sides, and keep FIA and zo
   the active-AI limit minus `activeAiReserve` minus the mission's own AI, and it thins out its
   civilians once that share passes `yieldStart`.
 - **(checked)** AC: Actual's raise of the active-AI limit only makes room for Civil Population's
-  civilians when the AC: Actual Civil Population compat add-on is loaded. That add-on is still
-  experimental and isn't on the Workshop yet. Without it, the civilians share the 64 spare slots and
-  shrink as the battle grows.
+  civilians when the **Arma Commander: Actual - Civil Population compat** add-on is loaded (Workshop,
+  mod ID AC230926CC000001; Civil Population downloads with it). Without it, the civilians share the
+  64 spare slots and shrink as the battle grows. The compat also puts Civil Population's civilians on
+  the sides' "Civilians seen" map rings, hands them over to evac points in a contained outbreak, and
+  reports civilians a side kills in that side's feed.
 - **(suggestion)** On a busy server, lower `maxAgents` and `maxActiveZones` before touching AC:
   Actual's caps: the civilians are atmosphere, the squads are the game.
 
