@@ -349,13 +349,18 @@ class ACR_Evac
     if (Deliver(manager, point, i, vehicle)) continue;
     // Jacob (14 Nov): aboard a wrecked or abandoned vehicle, they are lost; with nobody else left
     // the XP closes. No timer (no-timers ruling): it happens when the vehicle is in that state.
-    if (Abandoned(manager, point, vehicle))
+    // Jacob (18 Nov): a vehicle the other side has taken over (another playing side at the wheel)
+    // loses them too: only the XP's side's bases take them, so they could never be delivered.
+    bool taken = TakenOver(point, vehicle);
+    if (taken || Abandoned(manager, point, vehicle))
     {
      point.m_iLost++;
      point.m_aLeft.Insert(person); // left behind: removed once no soldier is near (LEFT_CLEAR)
      Forget(point, i);
      s_iAbandoned++;
-     PrintFormat("[ACR] EVAC XP %1: a civilian from %2 lost in an abandoned or wrecked vehicle at %3", point.m_iId, point.m_sTown, ACR_Manager.Grid(vehicle.GetOrigin()));
+     string how = "an abandoned or wrecked vehicle";
+     if (taken) how = "a vehicle the other side took";
+     PrintFormat("[ACR] EVAC XP %1: a civilian from %2 lost in %3 at %4", point.m_iId, point.m_sTown, how, ACR_Manager.Grid(vehicle.GetOrigin()));
      continue;
     }
     point.m_aMovedAt[i] = now;
@@ -409,6 +414,19 @@ class ACR_Evac
     if (occupant && ACR_Respawn.IsAlive(occupant) && sides.Contains(ACR_Intel.FactionKeyOf(occupant))) return false;
   }
   return !ACR_Outbreak.SideNear(manager, point.m_sSide, vehicle.GetOrigin(), CREW_NEAR);
+ }
+
+ // Driven by a living soldier of another playing side than the XP's (its crew killed or thrown out
+ // and the truck taken). Only the driver counts: a captured truck of the other side's make that our
+ // own driver parked and stepped out of is still ours (Abandoned decides that one).
+ static bool TakenOver(ACR_EvacPoint point, IEntity vehicle)
+ {
+  if (!vehicle) return false;
+  ChimeraCharacter driver = ACR_Squad.DriverOf(vehicle);
+  if (!driver || !ACR_Respawn.IsAlive(driver)) return false;
+  string side = ACR_Intel.FactionKeyOf(driver);
+  array<string> sides = ACR_Containment.Sides();
+  return side != point.m_sSide && sides.Contains(side);
  }
 
  protected static void Forget(ACR_EvacPoint point, int i)
