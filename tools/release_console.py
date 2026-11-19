@@ -101,6 +101,16 @@ def no_links(path):
             raise Blocked(f'Linked path refused: {part}')
 
 
+DESCRIPTION_LIMIT = 5000
+
+
+def description_length(path):
+    """Characters Workbench counts in a Workshop description: it takes the text as CRLF, so every
+    line break is two. ACA, BBB and AiO all went over this for 0.6.0 and were cut by hand (18 Nov)."""
+    text = path.read_bytes().decode('utf-8-sig').replace('\r\n', '\n')
+    return len(text) + text.count('\n')
+
+
 REFERENCE = re.compile(rb'\{[0-9A-Fa-f]{16}\}([\w./-]+)')
 
 
@@ -298,6 +308,13 @@ class Console:
                                                     require_draft=spec.get('workshopDraft', False))
         if not dependency_only:
             self.require_new_version(mod, version)
+            description = source / 'docs/workshop-description.md'
+            if description.is_file():
+                length = description_length(description)
+                if length > DESCRIPTION_LIMIT:
+                    raise Blocked(f'{mod}: docs/workshop-description.md is {length} characters counted as CRLF '
+                                  f'(line breaks count 2), {length - DESCRIPTION_LIMIT} over the Workbench limit '
+                                  f'of {DESCRIPTION_LIMIT}. Shorten it and commit before preparing.')
         notes = ['CHANGELOG.md']
         if workshop_draft(source, version, dependency_only) is not None:
             notes.append(WORKSHOP_DRAFT)  # the pasted text must be reviewed after the code too

@@ -125,6 +125,21 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(bbb_dependency.missing_references(self.bbb, without_prefabs),
                          {'Prefabs/BBB/FireHandheldFlare.bt': script, 'Prefabs/BBB/FireHandheldFlare.bt.meta': script})
 
+    def write_description(self, root, lines, width):
+        """A description of `lines` lines, each `width` characters plus a line break (2 as CRLF)."""
+        (root / 'docs/workshop-description.md').write_bytes((('x' * width) + '\r\n').encode() * lines)
+        self.commit(root)
+
+    def test_workshop_description_over_the_limit_refused(self):
+        # 100 lines of 48 characters: 4800 characters on disk, 5000 as CRLF; Workbench takes it.
+        self.write_description(self.bbb, 100, 48)
+        self.console.stage('BBB')
+        # One character more on a line, LF only on disk: still counted as CRLF, 5100, 100 over.
+        (self.bbb / 'docs/workshop-description.md').write_bytes((('x' * 49) + '\n').encode() * 100)
+        self.commit(self.bbb)
+        with self.assertRaisesRegex(Blocked, r'BBB: docs/workshop-description\.md is 5100 characters.*100 over.*5000'):
+            self.console.stage('BBB')
+
     def write_jet(self, model_dir):
         """An ACA prefab that loads its model by {GUID}path, as the period jets do."""
         model = self.root / model_dir / 'ACR_Jet.xob'
