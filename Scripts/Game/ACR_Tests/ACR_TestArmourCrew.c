@@ -279,7 +279,8 @@ class ACR_TestArmourCrew
    for (int ic = 0; ic < m_aSquads.Count(); ic++)
    {
     m_aSpot.Insert(vector.Zero);
-    m_aLast.Insert(m_aVehicles[ic].GetOrigin());
+    if (m_aVehicles[ic]) m_aLast.Insert(m_aVehicles[ic].GetOrigin());
+    else m_aLast.Insert(vector.Zero);
     m_aArrivedAt.Insert(-1);
     m_aPathAfter.Insert(0);
     m_aClosest.Insert(float.MAX);
