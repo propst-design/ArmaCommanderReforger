@@ -1927,6 +1927,14 @@ class ACR_Squad : Managed
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (manager && GetFaction()) manager.NotifyFaction(GetFaction().GetFactionKey(), m_Name + ": " + reason);
   if (m_Qrf) return; // a QRF walks back to its post (ACR_Qrf)
+  // Jacob (19 Nov): a Hunt isn't a hold, so an order queued behind it runs now, instead of the
+  // Defend (whose ClearPlans dropped the queue).
+  if (!m_aQueuePos.IsEmpty() && m_Group)
+  {
+   NextQueued(); // its waypoint replaces the hunt's (IssueWaypoint)
+
+   return;
+  }
   IEntity anchor = GetAnchor();
   if (anchor) Defend(anchor.GetOrigin());
  }
@@ -2713,7 +2721,10 @@ class ACR_Squad : Managed
 
  protected void FollowQueue()
  {
-  if (m_aQueuePos.IsEmpty() || !m_aRoute.IsEmpty() || m_bRegrouping || !m_Group) return;
+  // Not while hunting: the queue waits for the hunt to end (EndHunt), or the next sighting's new
+  // Search & Destroy order replaced the queued one it had started.
+  if (m_aQueuePos.IsEmpty() || !m_aRoute.IsEmpty() || m_bRegrouping || m_bHunting || !m_Group) return;
+
   if (m_Group.GetCurrentWaypoint()) return;
   // An engine-completed waypoint is not proof that the squad reached it.
   if (MovementStillPending()) return;
