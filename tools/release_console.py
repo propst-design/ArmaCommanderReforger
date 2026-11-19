@@ -121,6 +121,15 @@ def description_length(path):
     return len(text) + text.count('\n')
 
 
+def check_description(mod, path, label='docs/workshop-description.md'):
+    if path.is_file():
+        length = description_length(path)
+        if length > DESCRIPTION_LIMIT:
+            raise Blocked(f'{mod}: {label} is {length} characters counted as CRLF '
+                          f'(line breaks count 2), {length - DESCRIPTION_LIMIT} over the Workbench limit '
+                          f'of {DESCRIPTION_LIMIT}. Shorten it and commit before preparing.')
+
+
 REFERENCE = re.compile(rb'\{[0-9A-Fa-f]{16}\}([\w./-]+)')
 
 
@@ -332,13 +341,7 @@ class Console:
                                                     require_draft=spec.get('workshopDraft', False))
         if not dependency_only:
             self.require_new_version(mod, version)
-            description = source / 'docs/workshop-description.md'
-            if description.is_file():
-                length = description_length(description)
-                if length > DESCRIPTION_LIMIT:
-                    raise Blocked(f'{mod}: docs/workshop-description.md is {length} characters counted as CRLF '
-                                  f'(line breaks count 2), {length - DESCRIPTION_LIMIT} over the Workbench limit '
-                                  f'of {DESCRIPTION_LIMIT}. Shorten it and commit before preparing.')
+            check_description(mod, source / 'docs/workshop-description.md')
         notes = ['CHANGELOG.md']
         if workshop_draft(source, version, dependency_only) is not None:
             notes.append(WORKSHOP_DRAFT)  # the pasted text must be reviewed after the code too
@@ -570,6 +573,9 @@ class Console:
         parent = self.checked(mod)
         manifest = read_json(parent / 'WORKSHOP-BUILD.json')
         self.require_new_version(mod, manifest['releaseVersion'])
+        # Here too, the step before every upload: BBB is prepared as ACA's dependency (dependency_only),
+        # which skips the check in stage, and is then uploaded from that same copy (option 3).
+        check_description(mod, parent / 'WORKSHOP-DESCRIPTION.txt', 'the prepared WORKSHOP-DESCRIPTION.txt')
         return dict(mod=mod, version=manifest['releaseVersion'],
                     project=str(Path(manifest['addonRoot']) / 'addon.gproj'),
                     changelogFile=str(parent / 'WORKSHOP-CHANGELOG.txt'))

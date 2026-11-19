@@ -140,6 +140,16 @@ class GuardTests(unittest.TestCase):
         with self.assertRaisesRegex(Blocked, r'BBB: docs/workshop-description\.md is 5100 characters.*100 over.*5000'):
             self.console.stage('BBB')
 
+    def test_description_checked_before_upload_of_a_dependency_staged_bbb(self):
+        # Console option 1 stages BBB as ACA's dependency (no description check there); option 3
+        # uploads that copy, so the step before the upload (notes) must refuse it.
+        self.write_description(self.bbb, 100, 49)
+        parent = self.console.stage('BBB', dependency_only=True)
+        write_json(parent / 'STARTUP-CHECK.json', {'manifest': digest(parent / 'WORKSHOP-BUILD.json')})
+        write_json(self.console.pointer('BBB'), {'candidate': str(parent)})
+        with self.assertRaisesRegex(Blocked, r'BBB: the prepared WORKSHOP-DESCRIPTION\.txt is 5100 characters'):
+            self.console.notes_info('BBB')
+
     def write_jet(self, model_dir):
         """An ACA prefab that loads its model by {GUID}path, as the period jets do."""
         model = self.root / model_dir / 'ACR_Jet.xob'
