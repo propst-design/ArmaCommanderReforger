@@ -440,8 +440,40 @@ def zombies():
     return img
 
 
+VIOLET = (190, 140, 255)
+
+
+def civilians():
+    """The Civil Population compat: a town on the command map, violet civilian rings, an evac out."""
+    img, _ = topo_map(77, coast_south, GREEN_LAND, sea=72, forest=((52, 82, 46), 120))
+    grid(img)
+    left_shade(img)
+
+    def ring(d, x, y, r, label):
+        d.ellipse((x - r, y - r, x + r, y + r), outline=VIOLET + (235,), width=3, fill=VIOLET + (28,))
+        d.text((x - r + 6, y - r - 34), label, font=font(24, 'SemiBold'), fill=VIOLET + (255,),
+               stroke_width=3, stroke_fill=(8, 12, 14, 230))
+
+    def tac(d):
+        ring(d, 1330, 420, 95, 'CIVILIANS SEEN: MANY')
+        ring(d, 1530, 560, 70, 'CIVILIANS SEEN: SOME')
+        ring(d, 1180, 640, 55, 'A FEW')
+        objective(d, 1600, 820, PAPER, 'EVAC POINT')
+        route(d, [(1360, 500), (1440, 640), (1530, 760), (1575, 800)], VIOLET, dash=10)
+        unit_marker(d, 1720, 900, BLUE, 'armour', 'EVAC TRUCK')
+        route(d, [(1690, 885), (1650, 860)], CYAN)
+        unit_marker(d, 1100, 860, BLUE, 'inf', '1 PLT')
+        unit_marker(d, 1780, 260, RED, 'inf', 'OPFOR')
+    apply_overlay(img, tac)
+    title_block(img, 'ARMA COMMANDER ACTUAL ADD-ON', 'CIVIL POPULATION', VIOLET,
+                'CIVILIAN RINGS   |   EVACUATIONS   |   CIVILIAN CASUALTIES IN YOUR FEED   |   NEEDS CIVIL POPULATION')
+    vignette(img, 110)
+    return img
+
+
 ADDONS = {
     'coldwar': cold_war,
+    'civpop': civilians,
     'zombies': zombies,
     'chernarus-minus': lambda: map_card('CHERNARUS MINUS', 11, chernarus, (120, 200, 110),
                                         'GENERATED BASES AND HQS   |   NEEDS THE CHERNARUS MINUS TERRAIN',

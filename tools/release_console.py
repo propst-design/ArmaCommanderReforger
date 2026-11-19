@@ -64,6 +64,16 @@ SPECS['PACK-ZOMBIES'] = dict(folder='ACAOutbreak', title='Arma Commander Actual 
                              # skip setup so the header's zombie level is applied and logged.
                              serverArgs='-acrSetup 0',
                              signal=r'\[ACR\] ZOMBIES many: ')
+# Civil Population compat (18 Nov): plugs Shadow Company Civil Population into ACR_CivilianSocket.
+# Only Scripts/Game/ACR_CivilPopulation ships (its test probe stays out). The check starts Arland
+# against the live ACA with Civil Population and passes when ACA logs the plugged socket (logged
+# with the host options, so setup is skipped).
+SPECS['PACK-CIVPOP'] = dict(folder='ACACivilPopulation', title='Arma Commander: Actual - Civil Population compat',
+                            guid='AC230926CC000001', dirs=['Scripts/Game/ACR_CivilPopulation'],
+                            files=['LICENSE.md', 'README.md', 'CHANGELOG.md'],
+                            world='{AC230926A0010060}Worlds/ACR_Arland.ent',
+                            serverArgs='-acrSetup 0',
+                            signal=r'\[ACR\] Civilian socket: Civil Population plugged in, [1-9]\d* AI slots')
 
 
 class Blocked(RuntimeError):
