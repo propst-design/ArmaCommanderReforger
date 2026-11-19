@@ -1685,7 +1685,7 @@ class ACR_TestRegress
   if (s_Unconscious) SCR_EntityHelper.DeleteEntityAndChildren(s_Unconscious);
  }
 
- // An enemy just outside a US base turns its garrison out; knocked out, he keeps it out (he still
+ // An enemy just outside a held base (not an HQ: busy with other checks) turns its garrison out; knocked out, he keeps it out (he still
  // doesn't contest the base); gone, it packs up (no player on the test server to watch it go).
  static IEntity s_Downed;
  static ACR_Base s_DownedBase;
@@ -1693,16 +1693,22 @@ class ACR_TestRegress
  {
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (base.m_sOwner != "US" || base.m_bRetired || base.m_bContested || base.m_GarrisonGroup || base.m_iGarrisonLeft <= 0) continue;
-   if (base == s_UnconsciousBase || base == s_ZombieBase || ACR_LogisticsRules.IsHQ(base)) continue;
+   if ((base.m_sOwner != "US" && base.m_sOwner != "USSR") || base.m_bRetired || base.m_bContested || base.m_GarrisonGroup || base.m_iGarrisonLeft <= 0) continue;
+   if (base == s_ZombieBase || ACR_LogisticsRules.IsHQ(base)) continue;
    s_DownedBase = base;
    break;
   }
-  if (!s_DownedBase) return;
+  if (!s_DownedBase)
+  {
+   PrintFormat("[ACR] TEST downed: no held base other than an HQ with a garrison (%1 bases)", ACR_Base.s_All.Count());
+   return;
+  }
+  ResourceName enemy = ACR_TestFobDesign.USSR_RIFLEMAN;
+  if (s_DownedBase.m_sOwner == "USSR") enemy = ACR_TestFobDesign.US_RIFLEMAN;
   // Outside its circle (he mustn't contest it while awake either), well inside the spawn range.
   float gap = Math.Min(s_DownedBase.m_fRadius + 40, ACR_BaseSystem.SPAWN_RANGE - 50);
-  s_Downed = ACR_Manager.SpawnPrefab(ACR_TestFobDesign.USSR_RIFLEMAN, ACR_Manager.Ground(s_DownedBase.GetOrigin() + Vector(0, 0, gap)));
-  PrintFormat("[ACR] TEST downed: an enemy %1 m from %2 (radius %3)", (int)gap, s_DownedBase.m_sName, (int)s_DownedBase.m_fRadius);
+  s_Downed = ACR_Manager.SpawnPrefab(enemy, ACR_Manager.Ground(s_DownedBase.GetOrigin() + Vector(0, 0, gap)));
+  PrintFormat("[ACR] TEST downed: an enemy %1 m from %2 (%3, radius %4, %5 in reserve)", (int)gap, s_DownedBase.m_sName, s_DownedBase.m_sOwner, (int)s_DownedBase.m_fRadius, s_DownedBase.m_iGarrisonLeft);
  }
  static void DownedKnockOut()
  {
