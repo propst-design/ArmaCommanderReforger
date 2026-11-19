@@ -15,74 +15,10 @@
         "0.5.9",
         "0.5.10",
         "0.5.11",
-        "0.5.12"
+        "0.5.12",
+        "0.6.0"
       ],
-      "pending": {
-        "version": "0.6.0",
-        "messages": [
-          {
-            "content": "<@&1562228542274797608>\nArma Commander Actual — 0.6.0\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 1/5 · relay 736677e178fe2a19:1\n\n0.6.0\n\nDecks and a deck builder, the reworked AI commander on by default, a growing insurgency, the rest of the contained outbreak and counter-battery fire. Needs Better Battle Buddies 0.2.0.\n\nNEW\n\n- Decks: each side buys from a deck of cards picked from its faction's catalogue within a points budget (Deck points row, -acrDeckPoints). The standard deck is the usual buy list, so nothing changes unless someone builds one.\n- Deck builder: press F3 on the map or during setup. Save several decks per faction, share them as one-line codes, add custom teams from your faction's own soldiers (optionally with a ride), and hand a deck in during setup. The Blue deck and Red deck rows pick what each side plays: standard, a handed-in deck, or a deck the AI commander builds from its doctrine. RHS and Ukrainian factions get extra kitted team cards.\n- Insurgency (with -acrGuerrillas): FIA hideouts recruit and spread to empty towns, plant roadside IEDs with a watching triggerman, send sabotage teams against FOBs and roadblocks, and run technicals from depots. Wiping out FIA teams marks roughly where their hideout is; finding the hideout takes men on foot, not a vehicle driving past.\n- Counter-battery: firing a mortar gives it away. The other side gets a ring that narrows with every round heard, mortars answer pinned-down tubes, and AI mortar teams under fire move.\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [
-                "1562228542274797608"
-              ],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "Arma Commander Actual — 0.6.0\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 2/5 · relay 736677e178fe2a19:2\n\n- Contained outbreak: civilian evacuation (give a squad the Evac point order near a town marked Civilians, then drive them to a safe base for 5 RP each), supply airdrops worth 30 RP that either side can recover (AI commanders send a free squad, a nearby squad or an idle truck, never their defenders), and a truce between the two sides against the dead, which any shot or strike on the other side breaks at once.\n- Truck supplies for FOBs, in every mode: park a construction truck by your FOB's HQ and unload its paid load into the FOB's store.\n- Mission intro in the Arma 2 style: a short orbit of your HQ with music and the title, then into your soldier. Space or Enter skips it; Mission intro row or -acrIntro 0 turns it off.\n- Civilians on the map: a vague violet ring where your people see civilians (with the Civil Population mod and its compat add-on).\n- The 2IC can build a FOB where you ask (Ask the 2IC menu, Build a FOB here).\n\nBETTER\n\n- The AI commander rework is on by default: one main push with a supporting attack, jobs weighed together, attack forecasts from its own intel, covered withdrawals. AI commander row set to classic (or -acrAICommander classic) brings back the old one for this release.\n- AI squads low on ammo go and get more, from an ammo truck when it is safe or at a quiet base.\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "Arma Commander Actual — 0.6.0\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 3/5 · relay 736677e178fe2a19:3\n\n- Zombie mode: soldiers fight zombies like zombies (Better Battle Buddies 0.2.0), the outbreak keeps growing while nobody contains it, zombies show on the map as zombies, and nests send up smoke you can see from far off. Nest bounties are paid for settled nests only, at most 60 RP, split between the sides that fought there.\n- Taking the lead of a squad keeps its order until you give your first one.\n- F9 in the RTS camera goes straight back to the command map.\n- Soldiers who surrender (Better Battle Buddies 0.2.0) leave their squad and hold no base.\n- Experimental, off by default: with Better Battle Buddies' driver on (-bbbDriver 1), BBB drives the AI commander's vehicles on long moves, never a player's squad. Tested on 12 route trips only; convoys, towns, combat and multiplayer are untested.\n- The command map sends and redraws far less: markers are kept rather than rebuilt, hidden soldiers get none, and positions go out only while the map or RTS camera is open. This helps busy multiplayer matches.\n\nFIXED\n\n- Riders get out of AI trucks only once the truck has stopped, and it waits until they are clear.\n- AI trucks that gave up stuck try their trip again, and stop being offered for rides right after they stall.\n- AI drivers judge a vehicle in the way by their own lane, so trucks side by side or nose to nose no longer block each other.\n- An unarmed AI vehicle driving out of fire that gets hung up on the way tries once more before its crew bails out.\n- AI service trucks drop a job they can't finish instead of keeping it all match.\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "Arma Commander Actual — 0.6.0\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 4/5 · relay 736677e178fe2a19:4\n\n- A worn-down AI squad that can't reach a base to refill tries another one.\n- The 2IC channel keeps open requests and their Cancel buttons; accepted defence advice isn't offered again.\n- A FOB with a supply depot really stores 3,000 supplies.\n- Zombie messages name the town again.\n- A purchase, support call or setup click sent right after another request is no longer dropped silently; one sent too fast says so.\n- Typing a name in the deck editor no longer closes the map, and joined players with a modded faction pair open it on their own side.\n- A second match on the same server starts clean, and setup's auto-start waits while the host or an admin is on the server.\n- With AC: Actual loaded but not playing (Game Master, Conflict), respawning, the map's tool bar and disconnects work as in vanilla again.\n- Men who leave a squad alive (AiO Recruit or Dismiss, a Game Master) come off its strength instead of being bought back.\n- A squad with a player riding along as a rifleman keeps its AI orders running.\n- A FOB's store can't be filled or emptied by dragging supplies in the inventory.\n- A captured town's base works are planned for its new owner, and at the cap a new fortified position or minefield replaces the side's farthest one.\n- Rides no longer wait for unconscious riders, and an air lift that runs out of time sets its squad down.\n- Garrisons stand down when only civilians are in town.\n- The 3D camera (F10) shows squads moving live, and a newly bought squad no longer flashes up in the map's corner.\n",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          },
-          {
-            "content": "Arma Commander Actual — 0.6.0\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 5/5 · relay 736677e178fe2a19:5\n\n- Soldiers who surrender are replaced by reinforcements like the fallen, and groups of men dismissed through AiO don't count against the AI commander's unit limit.\n- The AI in a squad whose leader you've taken over no longer call orders at you, and a wound or fire from before a truce no longer breaks it.\n- A town's name on the command map can be clicked again when a zombie-mode marker or label covers it.\n- A 2IC request pushed out of a full 2IC channel ends instead of holding its squad all match.\n- An unarmed vehicle getting away from fire on a road no longer turns back toward the enemy.\n- AI commanders whose FOB builder is wiped out stop buying truck after truck for that site.\n- Wiping out a horde or a raid no longer sets off a counterattack from its nest, a support that fails to start no longer breaks a truce, and a plane in the air at match end no longer drops its pallet into the next match.\n- A FOB captured with a supply delivery on the way refunds it, allied squads no longer contest your FOB, and a mortar mission that fires nothing resets its cooldown.\n- With two or more commanders on a side, no more ghost command unit markers or red dots on each other's order tags.\n- A vehicle bumping the other side's soldiers or vehicles no longer breaks a truce.\n- Civilians left in a wrecked or abandoned vehicle now count as lost, so the evac point closes instead of staying open all match.",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [],
-              "replied_user": false
-            },
-            "flags": 4
-          }
-        ],
-        "next": 5,
-        "inflight": null,
-        "receipts": [
-          "1572811500391891136",
-          "1572811512119169117",
-          "1572811524869718017",
-          "1572811536466972784",
-          "1572811551117811763"
-        ]
-      },
+      "pending": null,
       "delivered": {
         "0.5.7": [
           "1564098843732353084",
@@ -131,6 +67,13 @@
         "0.5.12": [
           "1569452213892423773",
           "1569452228668825803"
+        ],
+        "0.6.0": [
+          "1572811500391891136",
+          "1572811512119169117",
+          "1572811524869718017",
+          "1572811536466972784",
+          "1572811551117811763"
         ]
       }
     },
