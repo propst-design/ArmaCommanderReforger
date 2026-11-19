@@ -346,7 +346,7 @@ class ACR_AICommander : Managed
 
  protected ACR_AIJob AllocAttack(ACR_Base base)
  {
-  ACR_AIJob job = AllocJob(ACR_EAITask.ATTACK, base, base.m_sName, ALLOC_ATTACK_VALUE * AllocWorth(base));
+  ACR_AIJob job = AllocJob(ACR_EAITask.ATTACK, base, base.m_sName, ALLOC_ATTACK_VALUE * AllocWorth(base) * EnvelopBonus(base));
   job.m_bTeam = true;
   job.m_bNeedsTaker = true;
   job.m_iMaxSquads = 8;
@@ -523,6 +523,7 @@ class ACR_AICommander : Managed
    if (laneFactor < 0 && !laneOpen) continue;
    float score = Math.Max(10, DefenceOf(base) * ATTACK_RATIO * m_Doctrine.m_fAttackRatio) * (NearestFreeDistance(pool, base.GetOrigin()) / 1000 + 0.1);
    if (laneFactor > 0) score *= laneFactor;
+   score /= EnvelopBonus(base); // going round a strongpoint (ACR_AIEnvelopment)
    int at = 0;
    while (at < scores.Count() && scores[at] <= score) at++;
    targets.InsertAt(base, at);
@@ -798,6 +799,11 @@ class ACR_AICommander : Managed
   if (control) role = "in control";
   m_aAllocThink.InsertAt(string.Format("Allocator (%1): %2", role, summary.Substring(6, summary.Length() - 6)), 0);
   if (keptOnAssault > 0) m_aAllocThink.Insert(string.Format("  %1 assault squad(s) kept on their attack: no defence offered without a real threat there", keptOnAssault));
+  foreach (ACR_AIJob roundJob : m_aAllocJobs)
+  {
+   if (!roundJob.m_bTeam || !EnvelopOf(roundJob.m_Target)) continue;
+   m_aAllocThink.Insert(string.Format("  %1: %2", roundJob.m_sName, EnvelopText(roundJob.m_Target)));
+  }
   // Once a minute the whole picture, for reading soaks afterwards.
   if (m_iAllocTicks % 4 == 1)
   {
@@ -1468,12 +1474,142 @@ class ACR_AICommander : Managed
  }
 
  // An attack target's score multiplier from the lane: 1 without one, -1 for a base it leaves alone.
+ // A base off the lane that goes round a strongpoint in the lane or on its flanks is a flank target,
+ // sooner the more it cuts the strongpoint off (ACR_AIEnvelopment).
  protected float LaneTargetFactor(ACR_Base base)
  {
   if (!LaneActive()) return 1;
   vector at = base.GetOrigin();
-  return ACR_AILanes.TargetFactor(m_Lane.Contains(at), m_Lane.Flanks(at), base.m_bIncome, base.m_iValue);
+  float factor = ACR_AILanes.TargetFactor(m_Lane.Contains(at), m_Lane.Flanks(at), base.m_bIncome, base.m_iValue);
+  if (factor >= 0) return factor;
+  ACR_Base strong = EnvelopOf(base);
+  if (strong && InLaneOrFlank(strong)) return ACR_AILanes.FLANK_TARGET / EnvelopBonus(base);
+  return factor;
  }
+
+ // ---------------------------------------------------------------- going round strongpoints
+ // ACR_AIEnvelopment (Jacob, 19 Nov). Refreshed at most every ENVELOP_REFRESH_MS from this side's
+ // intel (DefenceOf, Visible, SeenOwner): per weak enemy base, its bonus and the strongpoint it goes
+ // round; per base, when it last beat an attack of ours (NoteRepulsed).
+ static const float ENVELOP_REFRESH_MS = 10000;
+ protected ref map<ACR_Base, float> m_EnvelopBonus = new map<ACR_Base, float>();
+ protected ref map<ACR_Base, ACR_Base> m_EnvelopOf = new map<ACR_Base, ACR_Base>();
+ protected ref map<ACR_Base, string> m_EnvelopWhy = new map<ACR_Base, string>();
+ protected ref map<ACR_Base, float> m_RepulsedAt = new map<ACR_Base, float>();
+ protected float m_fEnvelopAt = -1;
+
+ // The score bonus for attacking 'base' to go round a strongpoint (1: none).
+ protected float EnvelopBonus(ACR_Base base)
+ {
+  UpdateEnvelopment();
+  float bonus;
+  if (!base || !m_EnvelopBonus.Find(base, bonus)) return 1;
+  return bonus;
+ }
+
+ // The strongpoint 'base' goes round, or null.
+ protected ACR_Base EnvelopOf(ACR_Base base)
+ {
+  UpdateEnvelopment();
+  ACR_Base strong;
+  if (!base || !m_EnvelopOf.Find(base, strong)) return null;
+  return strong;
+ }
+
+ // An attack of ours on 'base' was beaten (called off for losses or stalled).
+ protected void NoteRepulsed(ACR_Base base)
+ {
+  if (!base) return;
+  m_RepulsedAt.Set(base, GetGame().GetWorld().GetWorldTime());
+  m_fEnvelopAt = -1;
+ }
+
+ protected bool Repulsed(ACR_Base base, float now)
+ {
+  float at;
+  return m_RepulsedAt.Find(base, at) && now - at < ACR_AIEnvelopment.REPULSED_MIN * 60000;
+ }
+
+ protected void UpdateEnvelopment(bool force = false)
+ {
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (!force && m_fEnvelopAt >= 0 && now - m_fEnvelopAt < ENVELOP_REFRESH_MS) return;
+  int started = System.GetTickCount();
+  m_fEnvelopAt = now;
+  m_EnvelopBonus.Clear();
+  m_EnvelopOf.Clear();
+  m_EnvelopWhy.Clear();
+  for (int k = m_RepulsedAt.Count() - 1; k >= 0; k--) if (!m_RepulsedAt.GetKey(k)) m_RepulsedAt.RemoveElement(k);
+  float weight = m_Doctrine.m_fEnvelop;
+  if (weight <= 0) return;
+  // What we could field against it: every combat squad's strength.
+  float strength;
+  array<ACR_Squad> mine = {};
+  MySquads(mine, false);
+  foreach (ACR_Squad squad : mine) if (squad.IsCombatUnit()) strength += squad.Strength();
+  // Strongpoints, the strongest first.
+  array<ACR_Base> strongs = {};
+  array<int> strongDefence = {};
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || base.m_bPocket || base.m_sOwner == m_sFaction || !Visible(base) || !HostileOwner(base)) continue;
+   int defence = DefenceOf(base);
+   if (!ACR_AIEnvelopment.Strongpoint(AttackNeed(base), strength, defence, Repulsed(base, now))) continue;
+   int at = 0;
+   while (at < strongDefence.Count() && strongDefence[at] >= defence) at++;
+   strongs.InsertAt(base, at);
+   strongDefence.InsertAt(defence, at);
+  }
+  for (int s = 0; s < strongs.Count() && s < ACR_AIEnvelopment.MAX_STRONG; s++)
+  {
+   ACR_Base strong = strongs[s];
+   vector strongAt = strong.GetOrigin();
+   string owner = SeenOwner(strong);
+   // The bases we know its side holds (its network), and ours nearest it (where we come from).
+   array<ACR_Base> side = {};
+   foreach (ACR_Base other : ACR_Base.s_All)
+   {
+    if (!other || other == strong || other.m_bRetired || !Visible(other) || SeenOwner(other) != owner) continue;
+    side.Insert(other);
+   }
+   ACR_Base front = NearestOwnBase(strongAt);
+   foreach (ACR_Base cand : side)
+   {
+    if (cand.m_bPocket || vector.DistanceXZ(cand.GetOrigin(), strongAt) > ACR_AIEnvelopment.REACH) continue;
+    if (!ACR_AIEnvelopment.Weak(DefenceOf(cand), strongDefence[s])) continue;
+    array<vector> rest = {};
+    foreach (ACR_Base linked : side) if (linked != cand) rest.Insert(linked.GetOrigin());
+    float cut = Math.Max(ACR_AIEnvelopment.Cut(strongAt, cand.GetOrigin(), rest), ACR_AIEnvelopment.Astride(strongAt, cand.GetOrigin(), rest));
+    float rear = 0;
+    if (front) rear = ACR_AIEnvelopment.Rear(front.GetOrigin(), strongAt, cand.GetOrigin());
+    float bonus = ACR_AIEnvelopment.Bonus(cut, rear, weight);
+    float had;
+    if (m_EnvelopBonus.Find(cand, had) && had >= bonus) continue;
+    m_EnvelopBonus.Set(cand, bonus);
+    m_EnvelopOf.Set(cand, strong);
+    string why = "beside it";
+    if (cut >= 0.5 && cut >= rear) why = string.Format("cutting it off from %1 percent of its side's bases near it", Math.Round(cut * 100));
+    else if (rear >= 0.5) why = "into its rear";
+    else if (cut > 0) why = string.Format("beside it, across %1 percent of its links", Math.Round(cut * 100));
+    if (Repulsed(strong, now)) why += ", after it beat our attack";
+    m_EnvelopWhy.Set(cand, why);
+   }
+  }
+  ACR_Perf.Lap("ai.envelop", started);
+ }
+
+ // Its envelopment in a line for Think and tests: "going round <strongpoint> (<why>, x<bonus>)".
+ string EnvelopText(ACR_Base base)
+ {
+  ACR_Base strong = EnvelopOf(base);
+  if (!strong) return "";
+  string why;
+  m_EnvelopWhy.Find(base, why);
+  return string.Format("going round %1 (%2, x%3)", strong.m_sName, why, Math.Round(EnvelopBonus(base) * 100) / 100);
+ }
+ float EnvelopBonusForTest(ACR_Base base) { UpdateEnvelopment(true); return EnvelopBonus(base); }
+ ACR_Base EnvelopOfForTest(ACR_Base base) { return EnvelopOf(base); }
+ void NoteRepulsedForTest(ACR_Base base) { NoteRepulsed(base); }
 
  protected bool InLaneOrFlank(ACR_Base base)
  {
@@ -1569,6 +1705,8 @@ class ACR_AICommander : Managed
   }
   if (EnemyHQ(to)) gain += ACR_AILanes.HQ_GAIN;
   float score = ACR_AILanes.Score(gain, cost, vector.DistanceXZ(a, b));
+  // A main effort that goes round a strongpoint, cutting it off or into its rear (ACR_AIEnvelopment).
+  if (HostileOwner(to)) score *= EnvelopBonus(to);
   if (to == m_LaneStalledAt && GetGame().GetWorld().GetWorldTime() < m_fLaneStalledUntil) score *= ACR_AILanes.FAILED_FACTOR;
   return score;
  }
@@ -2923,6 +3061,7 @@ class ACR_AICommander : Managed
     if (laneFactor < 0 && !laneOpen) continue;
     float score = cost * (dist / 1000 + 0.1);
     if (laneFactor > 0) score *= laneFactor;
+    score /= EnvelopBonus(base); // going round a strongpoint (ACR_AIEnvelopment)
     if (base.m_bPocket) score *= m_Doctrine.m_fPocketScore;
     if (base.m_bContested || (DefenceOf(base) <= UNKNOWN_DEFENCE + 2 && dist < 1200))
      score *= 0.65 * m_Doctrine.m_fWeakTarget;
@@ -3051,6 +3190,7 @@ class ACR_AICommander : Managed
   ACR_AIAttack attack = new ACR_AIAttack();
   attack.m_Target = target;
   attack.m_bCounter = counter;
+  attack.m_Bypass = EnvelopOf(target); // going round it: approaches keep out of its sight (LaunchAttack)
   if (target.m_bBuilt)
   {
    attack.m_bFobRaid = true;
@@ -3075,8 +3215,10 @@ class ACR_AICommander : Managed
   vector dir = from - target.GetOrigin();
   dir[1] = 0;
   dir.Normalize();
-  attack.m_vApproach = dir;
   float ring = target.m_fRadius + STAGING_DISTANCE;
+  // Going round a strongpoint: the main approach turns away from it, out of its sight and fire.
+  if (attack.m_Bypass && attack.m_Bypass.m_sOwner != m_sFaction) dir = ACR_AIEnvelopment.ApproachAway(target.GetOrigin(), from, attack.m_Bypass.GetOrigin(), ring);
+  attack.m_vApproach = dir;
   attack.m_Staging = ACR_Manager.Ground(target.GetOrigin() + dir * ring);
   // Staging points on dry land with a dry run in (no forming up in a bay).
   vector dryMain;
@@ -3122,6 +3264,7 @@ class ACR_AICommander : Managed
   array<ACR_Squad> carried = {};
   if (!empty && m_Manager.m_Rides) PairCarriers(attack, carried);
   float plannedDeadline = attack.m_fStageDeadline;
+  m_LaunchingAttack = attack;
   foreach (ACR_Squad squad : attack.m_Squads)
   {
    squad.SetAITask(ACR_EAITask.ATTACK);
@@ -3137,6 +3280,7 @@ class ACR_AICommander : Managed
     if (m_fCoverDetour > 0) attack.m_fStageDeadline = Math.Max(attack.m_fStageDeadline, Math.Min(attack.m_fStageLimit, plannedDeadline + m_fCoverDetour / COVER_WALK_SPEED * 1000));
    }
   }
+  m_LaunchingAttack = null;
   // A squad sent on foot beyond a walk (the ride or air lift its plan counted on wasn't there when
   // Travel asked) leaves the attack now, not six minutes later as "never formed up" (match 6 Nov,
   // Chernarus: Holding Squad 1 walked 6.6 km for an attack planned on a 240 s lift, twice). The
@@ -3169,6 +3313,7 @@ class ACR_AICommander : Managed
   if (!empty && ACR_AttackGround.On()) StartGround(attack);
   m_Attacks.Insert(attack);
   m_fLastOffensive = GetGame().GetWorld().GetWorldTime();
+  if (attack.m_Bypass && attack.m_Bypass.m_sOwner != m_sFaction) Say(string.Format("[ACR] AI %1: %2 via %3", m_sFaction, EnvelopText(target), target.m_sName));
   if (pressure < 1) Say(string.Format("[ACR] AI %1: taking the initiative against %2 (accepting x%3 odds after a quiet spell)", m_sFaction, target.m_sName, pressure));
   string kind = "attacking";
   if (attack.m_bCounter) { kind = "COUNTERATTACKING"; m_CounterTarget = null; }
@@ -4405,6 +4550,7 @@ class ACR_AICommander : Managed
     if (broken)
     {
      outcome = "called off (too many losses)";
+     NoteRepulsed(target);
      // Not straight back at the base that just beat it (Raider breaks off at half strength
      // and weighs weak bases low, so it used to re-launch at the same one).
      if (target) m_StalledUntil.Set(target, GetGame().GetWorld().GetWorldTime() + STALLED_COOLDOWN * 1000);
@@ -4421,6 +4567,7 @@ class ACR_AICommander : Managed
       if (closest < 0 || gap < closest) { closest = gap; closestOrder = stuck.m_Order; }
      }
      outcome = string.Format("called off (stalled; nearest squad %1 m out, '%2'; BBB fighting %3 s)", (int)closest, closestOrder, (int)attack.m_fBBBFightS);
+     if (!attack.m_bGrab) NoteRepulsed(target);
      m_StalledUntil.Set(target, GetGame().GetWorld().GetWorldTime() + STALLED_COOLDOWN * 1000);
     }
     if (target) Say(string.Format("[ACR] AI %1: attack on %2 %3", m_sFaction, target.m_sName, outcome));
@@ -5215,6 +5362,16 @@ class ACR_AICommander : Managed
   legs.Insert(stage);
  }
 
+ // The strongpoint an attack of ours on 'target' goes round, or null.
+ protected ACR_AIAttack m_LaunchingAttack; // set while LaunchAttack sends its squads off
+ protected ACR_Base BypassFor(ACR_Base target)
+ {
+  if (m_LaunchingAttack && m_LaunchingAttack.m_Target == target && m_LaunchingAttack.m_Bypass && m_LaunchingAttack.m_Bypass.m_sOwner != m_sFaction) return m_LaunchingAttack.m_Bypass;
+  foreach (ACR_AIAttack attack : m_Attacks)
+   if (attack.m_Target == target && attack.m_Bypass && attack.m_Bypass.m_sOwner != m_sFaction) return attack.m_Bypass;
+  return null;
+ }
+
  // A covered way for a foot squad to its staging point for 'target', when one beats the direct
  // line; sets m_fCoverDetour. False: walk the direct way (RouteTo).
  protected bool CoveredApproach(ACR_Squad squad, ACR_Base target, vector stage)
@@ -5225,6 +5382,9 @@ class ACR_AICommander : Managed
   float ring = target.m_fRadius + STAGING_DISTANCE;
   array<vector> eyes = {};
   ObjectiveEyes(center, target.m_fRadius, eyes);
+  // Going round a strongpoint (ACR_AIEnvelopment): its eyes count too, and a wide way round it is tried.
+  ACR_Base bypass = BypassFor(target);
+  if (bypass) ObjectiveEyes(bypass.GetOrigin(), bypass.m_fRadius, eyes);
   array<vector> direct = {stage};
   float directSeen;
   float directLength = PathExposure(eyes, from, direct, directSeen);
@@ -5258,6 +5418,24 @@ class ACR_AICommander : Managed
     bestCost = cost;
     bestLength = length;
     bestSeen = seen;
+   }
+  }
+  // Wide of the strongpoint: one waypoint round it at ACR_AIEnvelopment.CLEAR, then the staging point.
+  vector wide = vector.Zero;
+  if (bypass) wide = ACR_AIEnvelopment.WideLeg(from, stage, bypass.GetOrigin(), bypass.m_fRadius);
+  if (wide != vector.Zero)
+  {
+   array<vector> round = {ACR_Manager.Ground(wide), stage};
+   bool dry = !BBB_Terrain.IsWaterAt(round[0]) && BBB_Terrain.WaterAlong(from, round[0]) <= 0 && !NearOtherEnemyBase(round[0], target);
+   float roundSeen;
+   float roundLength = PathExposure(eyes, from, round, roundSeen);
+   float roundCost = roundLength + roundSeen * COVER_EXPOSED_WEIGHT;
+   if (dry && roundLength <= directLength * COVER_MAX_STRETCH + 300 && roundCost < bestCost)
+   {
+    best = round;
+    bestCost = roundCost;
+    bestLength = roundLength;
+    bestSeen = roundSeen;
    }
   }
   ACR_Perf.Lap("ai.coverRoute", started);
@@ -5355,6 +5533,8 @@ class ACR_AICommander : Managed
    int used = 0;
    foreach (int taken : attack.m_aSlot) if (taken == slot) used++;
    float key = used * 1000 + TurnBetween(Turned(ahead, turn), own);
+   // Going round a strongpoint: lines that form up in its sight and fire come last.
+   if (attack.m_Bypass && vector.DistanceXZ(center + Turned(ahead, turn) * ring, attack.m_Bypass.GetOrigin()) < attack.m_Bypass.m_fRadius + ACR_AIEnvelopment.CLEAR) key += 500;
    int at = 0;
    while (at < keys.Count() && keys[at] <= key) at++;
    order.InsertAt(slot, at);

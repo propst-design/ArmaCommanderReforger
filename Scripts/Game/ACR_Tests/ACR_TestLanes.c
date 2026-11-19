@@ -8,10 +8,112 @@ class ACR_TestLanes
   CheckGeometry();
   CheckScores();
   CheckDoctrines();
+  CheckEnvelopment();
   // Lanes are on by default (#232); set them on anyway so a host flag can't change what this checks.
   ACR_Options.Set("acrAIStrategy", "1");
   CheckCommander(manager);
+  CheckEnvelopCommander(manager);
   ACR_Options.Unset("acrAIStrategy");
+ }
+
+ // Going round a strongpoint (ACR_AIEnvelopment, Jacob 19 Nov): what a strongpoint is, the cut and rear
+ // measures, the bonus and the doctrines' weights, and approaches kept out of its sight.
+ static void CheckEnvelopment()
+ {
+  bool strong = ACR_AIEnvelopment.Strongpoint(30, 20, 20, false) && !ACR_AIEnvelopment.Strongpoint(10, 20, 20, false);
+  bool repulsed = ACR_AIEnvelopment.Strongpoint(10, 20, 4, true) && !ACR_AIEnvelopment.Strongpoint(30, 20, 4, false);
+  bool weak = ACR_AIEnvelopment.Weak(4, 20) && !ACR_AIEnvelopment.Weak(12, 20);
+  ACR_TestRegress.Check("envelopment: a strongpoint wants more than we can field or just beat our attack; weak beside it is half its defence or less", strong && repulsed && weak, "");
+
+  // S at the origin; A links it to F (3 km off, too far to link directly); B is a leaf on the other side.
+  vector s0 = "0 0 0";
+  vector a = "1500 0 0";
+  vector b = "-1500 0 0";
+  vector f = "3000 0 0";
+  array<vector> restA = {b, f};
+  array<vector> restB = {a, f};
+  array<vector> onlyF = {f};
+  array<vector> none = {};
+  float cutA = ACR_AIEnvelopment.Cut(s0, a, restA);
+  float cutB = ACR_AIEnvelopment.Cut(s0, b, restB);
+  float cutOnly = ACR_AIEnvelopment.Cut(s0, a, onlyF);
+  float cutFar = ACR_AIEnvelopment.Cut(s0, "6000 0 0", none);
+  bool cuts = Math.AbsFloat(cutA - 0.5) < 0.01 && cutB == 0 && cutOnly == 1 && cutFar == 0;
+  ACR_TestRegress.Check("envelopment: taking the base that links a strongpoint to its side cuts it off; a leaf beside it cuts nothing", cuts, string.Format("link %1, leaf %2, only link %3, unlinked %4", cutA, cutB, cutOnly, cutFar));
+
+  vector front = "0 0 0";
+  vector held = "0 0 2000";
+  float behind = ACR_AIEnvelopment.Rear(front, held, "300 0 2600");
+  float level = ACR_AIEnvelopment.Rear(front, held, "1500 0 2000");
+  float shortOf = ACR_AIEnvelopment.Rear(front, held, "500 0 800");
+  bool rear = behind == 1 && Math.AbsFloat(level - 0.5) < 0.01 && shortOf == 0;
+  bool bonus = ACR_AIEnvelopment.Bonus(1, 0, 1) > ACR_AIEnvelopment.Bonus(0.5, 0, 1) && ACR_AIEnvelopment.Bonus(0.5, 0, 1) > ACR_AIEnvelopment.Bonus(0, 0, 1) && ACR_AIEnvelopment.Bonus(0, 0, 1) > 1;
+  bonus = bonus && ACR_AIEnvelopment.Bonus(0, 1, 1) == ACR_AIEnvelopment.Bonus(1, 0, 1) && ACR_AIEnvelopment.Bonus(1, 1, 0) == 1;
+  float patient = ACR_AIDoctrine.Find("firepower").m_fEnvelop;
+  float standard = ACR_AIDoctrine.Find("balanced").m_fEnvelop;
+  bool doctrine = standard == 1 && patient > 0 && patient < standard && ACR_AIEnvelopment.Bonus(1, 0, patient) < ACR_AIEnvelopment.Bonus(1, 0, standard);
+  ACR_TestRegress.Check("envelopment: its rear and a cut score most, Firepower weighs going round least", rear && bonus && doctrine, string.Format("rear %1/%2/%3, firepower %4", behind, level, shortOf, patient));
+
+  // Attackers coming from beyond the strongpoint: the staging point turns out of its reach; a walk
+  // past it takes a waypoint wide of it, on the side the line passes.
+  vector target = "0 0 0";
+  vector strongAt = "0 0 800";
+  vector dir = ACR_AIEnvelopment.ApproachAway(target, "0 0 2000", strongAt, 300);
+  float gap = vector.DistanceXZ(target + dir * 300, strongAt);
+  vector leg = ACR_AIEnvelopment.WideLeg("0 0 -2000", "0 0 2000", "100 0 0", 100);
+  bool wide = leg[0] < -500 && vector.DistanceXZ(leg, "100 0 0") >= 100 + ACR_AIEnvelopment.CLEAR - 1;
+  bool clearAnyway = ACR_AIEnvelopment.WideLeg("0 0 -2000", "0 0 2000", "3000 0 0", 100) == vector.Zero;
+  ACR_TestRegress.Check("envelopment: approaches form up and walk out of the strongpoint's reach", gap >= ACR_AIEnvelopment.CLEAR && wide && clearAnyway, string.Format("staging %1 m from it, wide leg %2", gap, leg));
+ }
+
+ // A commander on the test range: two bases made the enemy's for the check, one strongly held and
+ // one weak within reach of it. The weak one gets the bonus and names the strongpoint; the strong
+ // one doesn't. Held too thinly to be a strongpoint, it becomes one once it beats our attack.
+ static void CheckEnvelopCommander(ACR_Manager manager)
+ {
+  string side = ACR_FactionSelection.West();
+  string enemy = ACR_FactionSelection.East();
+  ACR_Base heldBase, weakBase;
+  foreach (ACR_Base first : ACR_Base.s_All)
+  {
+   if (heldBase) break;
+   if (first.m_bRetired || first.m_bPocket || first.m_bHidden) continue;
+   foreach (ACR_Base second : ACR_Base.s_All)
+   {
+    if (second == first || second.m_bRetired || second.m_bPocket || second.m_bHidden) continue;
+    if (vector.DistanceXZ(first.GetOrigin(), second.GetOrigin()) > ACR_AIEnvelopment.REACH) continue;
+    heldBase = first;
+    weakBase = second;
+    break;
+   }
+  }
+  if (!heldBase)
+  {
+   ACR_TestRegress.Skip("envelopment: a strongpoint's weak neighbour gets the bonus, the strongpoint none", "no two bases within reach on this map");
+   ACR_TestRegress.Skip("envelopment: a thinly held base that beat our attack counts as a strongpoint", "no two bases within reach on this map");
+   return;
+  }
+  string heldOwner = heldBase.m_sOwner;
+  string weakOwner = weakBase.m_sOwner;
+  heldBase.m_sOwner = enemy;
+  weakBase.m_sOwner = enemy;
+  ACR_AICommander ai = new ACR_AICommander(manager, side);
+  ai.SetDoctrineForTest(ACR_AIDoctrine.Find("balanced"));
+  ai.SetThreatForTest(heldBase, 0, 200); // more than any test-range force could take
+  ai.SetThreatForTest(weakBase, 0, 3);
+  float weakBonus = ai.EnvelopBonusForTest(weakBase);
+  bool names = ai.EnvelopOfForTest(weakBase) == heldBase;
+  float heldBonus = ai.EnvelopBonusForTest(heldBase);
+  ACR_TestRegress.Check("envelopment: a strongpoint's weak neighbour gets the bonus, the strongpoint none", weakBonus > 1 && names && heldBonus == 1, string.Format("%1 (200) beside %2 (3): bonus %3, names it %4; its own %5; %6", heldBase.m_sName, weakBase.m_sName, weakBonus, names, heldBonus, ai.EnvelopText(weakBase)));
+
+  ai.SetThreatForTest(heldBase, 0, 6);
+  ai.SetThreatForTest(weakBase, 0, 2);
+  float before = ai.EnvelopBonusForTest(weakBase);
+  ai.NoteRepulsedForTest(heldBase);
+  float after = ai.EnvelopBonusForTest(weakBase);
+  ACR_TestRegress.Check("envelopment: a thinly held base that beat our attack counts as a strongpoint", before == 1 && after > 1, string.Format("before %1, after %2", before, after));
+  heldBase.m_sOwner = heldOwner;
+  weakBase.m_sOwner = weakOwner;
  }
 
  static void CheckGeometry()

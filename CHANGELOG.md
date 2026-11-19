@@ -1,6 +1,7 @@
 # Changelog
 ## 0.6.2 — unreleased
 
+- The AI commander can now go round a strongly held enemy base instead of only through it: weakly held enemy bases beside or behind a base it can't take (or one that just beat its attack) count for more, most when taking them cuts that base off from its side's other bases or gets into its rear. Its approaches there should keep out of the strong base's sight. Firepower and Fortress commanders weigh this least. The AI says when it does it ("going round ... via ...").
 - The AI commander should no longer pull squads out of an assault it has committed to just because it expects an attack elsewhere: only real enemies at one of its bases (more than hold it, or an attack on its HQ or a FOB) can call them away now. Free squads still answer a forecast.
 - A base's garrison (an FIA pocket's too) should no longer pack up and vanish the moment it knocks out the enemies in front of it: it stays out while they lie nearby, for up to five minutes. Garrisons and FIA guerrilla cells also stay out while an enemy player is within 800 m.
 

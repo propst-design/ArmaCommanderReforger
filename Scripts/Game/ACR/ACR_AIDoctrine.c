@@ -67,6 +67,7 @@ class ACR_AIDoctrine : Managed
  float m_fLaneWidth = 700;      // m either side of the lane's axis
  int m_iLaneFronts = 1;         // supporting attacks beside the main one while it has a lane
  float m_fFlankWorks = 2;       // base works weight of a tactical point on the lane's flank
+ float m_fEnvelop = 1;          // x the pull of weak bases that go round a strongpoint (ACR_AIEnvelopment; 0 off)
 
  // Moving (ACR_AICommander.Travel / TryAirLift)
  float m_fRideDistance = 900;   // m on foot before it asks for a truck
@@ -135,6 +136,7 @@ class ACR_AIDoctrine : Managed
   blitz.m_iSupportBudgetMax = 30;
   blitz.m_fRushMinutes = 4;
   blitz.m_fLaneWidth = 550;
+  blitz.m_fEnvelop = 1.2;
   s_All.Insert(blitz);
 
   // Attrition: mortars and air first, one front at a time, every assault prepared by fire.
@@ -165,6 +167,7 @@ class ACR_AIDoctrine : Managed
   firepower.m_bAirBudget = true;
   firepower.m_iSupportBudgetMax = 100;
   firepower.m_iLaneFronts = 0;
+  firepower.m_fEnvelop = 0.5;
   s_All.Insert(firepower);
 
   // Defence in depth: holds what it has, hits back hard at what it loses.
@@ -206,6 +209,7 @@ class ACR_AIDoctrine : Managed
   fortress.m_fLaneWidth = 800;
   fortress.m_iLaneFronts = 0;
   fortress.m_fFlankWorks = 4;
+  fortress.m_fEnvelop = 0.6;
   s_All.Insert(fortress);
 
   // Raids: many small teams going for weak spots and FOBs, quick to break off.
@@ -237,6 +241,7 @@ class ACR_AIDoctrine : Managed
   raider.m_bSmallTeamsFree = true;
   raider.m_bLanes = false;
   raider.m_fRushMinutes = 8;
+  raider.m_fEnvelop = 1.4;
   s_All.Insert(raider);
   return s_All;
  }
