@@ -287,13 +287,13 @@ class ACR_TestFIASpoils
  {
   if (!s_Depot || !s_Car)
   {
-   ACR_TestRegress.Skip("fiaspoils: the stolen vehicle drives to its yard", "nothing stolen");
+   ACR_TestRegress.Skip("fiaspoils: the stolen vehicle drives to its yard, or parks by it", "nothing stolen");
   }
   else
   {
    float now = vector.DistanceXZ(s_Car.GetOrigin(), ACR_Depots.Yard(s_Depot));
-   bool home = s_Depot.m_iState == ACR_Depots.IDLE && now <= ACR_Depots.HOME;
-   ACR_TestRegress.Check("fiaspoils: the stolen vehicle drives to its yard", home || now < s_fToYard - 20, string.Format("%1 m -> %2 m, state %3, home %4", (int)s_fToYard, (int)now, s_Depot.m_iState, home));
+   bool home = s_Depot.m_iState == ACR_Depots.IDLE && now <= ACR_Depots.PARK_NEAR;
+   ACR_TestRegress.Check("fiaspoils: the stolen vehicle drives to its yard, or parks by it", home || now < s_fToYard - 20, string.Format("%1 m -> %2 m, state %3, home %4", (int)s_fToYard, (int)now, s_Depot.m_iState, home));
   }
   ACR_TestRegress.Check("fiaspoils: spoils teams come back and rejoin", ACR_FIASpoils.s_iRejoined > 0, string.Format("rejoined %1, out %2", ACR_FIASpoils.s_iRejoined, ACR_FIASpoils.s_aTeams.Count()));
  }

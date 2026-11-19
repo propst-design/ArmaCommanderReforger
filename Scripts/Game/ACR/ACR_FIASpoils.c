@@ -28,6 +28,9 @@ class ACR_SpoilsTeam : Managed
  float m_fHomeSince;
  int m_iTaken;
  string m_sName;
+ float m_fBestGap;         // nearest it has been to its target
+ float m_fProgressAt;      // when it last got nearer
+ int m_iStalls;            // re-orders while it got no nearer
 }
 
 class ACR_FIASpoils
@@ -41,6 +44,8 @@ class ACR_FIASpoils
  static const float LOOSE_REACH = 3;       // weapons on the ground this close to a body go with it
  static const float SWEEP_MAX_MS = 180000; // out this long: back
  static const float HOME_REACH = 20;
+ static const float STALL_MS = 20000;      // no nearer to its target this long: ordered again ...
+ static const int STALLS = 3;              // ... this often, then the spoil is given up
  static const float HOME_MAX_MS = 300000;  // walking back this long without getting there: they rejoin all the same, out of contact
  static const float ARMS_RECRUITS = 0.25;  // recruits a hideout gains for each arms point
  static const float HEAVY_POINTS = 2;      // a machine gun or launcher; a rifle 1, a handgun 0.5
@@ -235,6 +240,8 @@ class ACR_FIASpoils
  protected static void GoFor(ACR_SpoilsTeam team, IEntity target)
  {
   team.m_Target = target;
+  team.m_fProgressAt = 0;
+  team.m_iStalls = 0;
   float radius = 2;
   if (Vehicle.Cast(target)) radius = 5;
   ACR_Guerrillas.Order(team.m_Group, ACR_Squad.WP_MOVE, target.GetOrigin(), radius, false);
@@ -425,10 +432,13 @@ class ACR_FIASpoils
    bool by;
    foreach (ChimeraCharacter taker : men) if (vector.DistanceXZ(taker.GetOrigin(), e.GetOrigin()) <= VEHICLE_REACH) by = true;
    // Only the one they went for; it becomes the depot's, its crew drives it home and joins there.
-   if (!by || e != team.m_Target || !ACR_Depots.Steal(e, team.m_Group, team.m_sName)) continue;
+   bool crewTaken;
+   if (!by || e != team.m_Target || !ACR_Depots.Steal(e, team.m_Group, team.m_sName, crewTaken)) continue;
    s_aTaken.Insert(e);
    team.m_iTaken++;
-   return false;
+   if (crewTaken) return false;
+   // Parked where it stood (by the yard): the team carries on.
+   team.m_Target = null;
   }
   if (now - team.m_fSince >= SWEEP_MAX_MS)
   {
@@ -437,10 +447,38 @@ class ACR_FIASpoils
    GoHome(team, now);
    return true;
   }
-  if (team.m_Target && !s_aTaken.Contains(team.m_Target) && Spoil(team.m_Target)) return true;
+  if (team.m_Target && !s_aTaken.Contains(team.m_Target) && Spoil(team.m_Target))
+  {
+   if (Progress(team, men, now)) return true;
+   // Stuck on the way (no route, a wall): given up, on to the next.
+   PrintFormat("[ACR] SPOILS %1: the spoils team can't get to %2, gives it up", team.m_sName, What(team.m_Target));
+   s_aTaken.Insert(team.m_Target);
+  }
   IEntity next = NextSpoil(team.m_vHome, men[0].GetOrigin(), team);
   if (next) GoFor(team, next);
   else GoHome(team, now);
+  return true;
+ }
+
+ // Getting closer to its target (true), or ordered again while stalled; false once STALLS re-orders
+ // haven't moved it.
+ protected static bool Progress(ACR_SpoilsTeam team, array<ChimeraCharacter> men, float now)
+ {
+  float gap = 100000;
+  foreach (ChimeraCharacter man : men) gap = Math.Min(gap, vector.DistanceXZ(man.GetOrigin(), team.m_Target.GetOrigin()));
+  if (team.m_fProgressAt <= 0 || gap < team.m_fBestGap - 2)
+  {
+   team.m_fBestGap = gap;
+   team.m_fProgressAt = now;
+   return true;
+  }
+  if (now - team.m_fProgressAt < STALL_MS) return true;
+  if (team.m_iStalls >= STALLS) return false;
+  team.m_iStalls++;
+  team.m_fProgressAt = now;
+  float radius = 2;
+  if (Vehicle.Cast(team.m_Target)) radius = 5;
+  ACR_Guerrillas.Order(team.m_Group, ACR_Squad.WP_MOVE, team.m_Target.GetOrigin(), radius, false);
   return true;
  }
 

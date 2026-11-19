@@ -60,6 +60,7 @@ class ACR_Depots
  static const int YARD_MAX = 3;           // vehicles a depot or stash keeps at most
  static const float STASH_OFFSET = 25;    // m from a hideout's middle its stash parks
  static const float WITNESS_REACH = 500;  // the side hears of a theft with men this close
+ static const float PARK_NEAR = 200;      // a stolen vehicle this close to its yard is parked where it stands (vanilla AI won't drive so short a way)
  static const float EMPTY_MS = 30000;
  static const float NUDGE_MS = 20000;
  static const int NUDGES = 3;
@@ -314,8 +315,10 @@ class ACR_Depots
 
  // A spoils team takes 'vehicle' (ACR_FIASpoils): it becomes the crew driving it home, where it
  // joins FIA's vehicles (and the men the depot's pocket or hideout). False: nowhere to take it.
- static bool Steal(IEntity vehicle, SCR_AIGroup team, string from)
+ // crewTaken: the team became its crew (false: parked by the yard where it stood, the team is still the caller's).
+ static bool Steal(IEntity vehicle, SCR_AIGroup team, string from, out bool crewTaken)
  {
+  crewTaken = false;
   if (!Stealable(vehicle) || !team) return false;
   ACR_Depot depot = StealDestination(vehicle.GetOrigin());
   if (!depot) return false;
@@ -337,7 +340,17 @@ class ACR_Depots
   if (manager && manager.m_Cleanup) manager.m_Cleanup.Watch(vehicle);
   float now = GetGame().GetWorld().GetWorldTime();
   depot.m_aVehicles.Insert(vehicle);
+  float toYard = vector.DistanceXZ(vehicle.GetOrigin(), Yard(depot));
+  if (toYard <= PARK_NEAR)
+  {
+   // Already by the yard: it stays there, its new home spot; the team rejoins its group.
+   depot.m_aSpots.Insert(vehicle.GetOrigin());
+   PrintFormat("[ACR] DEPOTS %1 steals a %2 of %3 at %4 and parks it there (%5 m from %6)", from, ACR_Vehicles.NameOf(vehicle), side, ACR_Manager.Grid(vehicle.GetOrigin()), (int)toYard, NameOf(depot));
+   TellSide(vehicle, side);
+   return true;
+  }
   depot.m_aSpots.Insert(Yard(depot));
+  crewTaken = true;
   depot.m_Out = vehicle;
   depot.m_Crew = team;
   depot.m_bTheft = true;
@@ -351,11 +364,17 @@ class ACR_Depots
   ACR_Guerrillas.SetCombatMode(team, EAIGroupCombatMode.RETURN_FIRE);
   ACR_Guerrillas.Order(team, ACR_Squad.WP_MOVE, Yard(depot), 20, false);
   PrintFormat("[ACR] DEPOTS %1 steals a %2 of %3 at %4, driving it to %5 (%6 m, %7 seated)", from, ACR_Vehicles.NameOf(vehicle), side, ACR_Manager.Grid(vehicle.GetOrigin()), NameOf(depot), (int)vector.DistanceXZ(vehicle.GetOrigin(), Yard(depot)), seated);
-  // The side hears of it only if it has men near enough to see it go.
+  TellSide(vehicle, side);
+  return true;
+ }
+
+ // The side hears of a theft only if it has men near enough to see it go.
+ protected static void TellSide(IEntity vehicle, string side)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
   array<string> sides = {};
   ACR_Insurgency.SidesNear(vehicle.GetOrigin(), WITNESS_REACH, sides);
-  if (manager && sides.Contains(side) && manager.IntelFor(side)) manager.IntelFor(side).AddFeed(now, string.Format("FIA stole our %1 at %2", ACR_Vehicles.NameOf(vehicle), ACR_Manager.Grid(vehicle.GetOrigin())), vehicle.GetOrigin());
-  return true;
+  if (manager && sides.Contains(side) && manager.IntelFor(side)) manager.IntelFor(side).AddFeed(GetGame().GetWorld().GetWorldTime(), string.Format("FIA stole our %1 at %2", ACR_Vehicles.NameOf(vehicle), ACR_Manager.Grid(vehicle.GetOrigin())), vehicle.GetOrigin());
  }
 
  static int Stolen()
