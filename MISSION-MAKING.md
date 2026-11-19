@@ -844,7 +844,11 @@ in-game setup screen, when enabled, overrides these defaults at Start.
 `SCR_MissionHeader` with the game mode set to Game Master, and the AC: Actual fields below are
 missing. Either works:
 
-- Skip the scan and create the header with the class `ACR_MissionHeader`. Every field below then
+- Easiest: copy [`docs/ACR_MissionHeader-template.conf.txt`](docs/ACR_MissionHeader-template.conf.txt)
+  into your addon's `Missions` folder as `ACR_<Name>.conf`, open it in Workbench, choose your world
+  and fill in the name, author, description and player count. It already has the right class, the
+  game mode label and every field below, blank or at `-1` (keep the world's own setting).
+- Or skip the scan and create the header with the class `ACR_MissionHeader`. Every field below then
   shows in the property panel. Fill in the world and the few lines in the example above yourself;
   leave the rest blank or at `-1`.
 - Or let the scan run, close the header, open the `.conf` in a text editor, change the first line
