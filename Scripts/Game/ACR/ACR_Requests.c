@@ -191,6 +191,17 @@ class ACR_Requests : Managed
   // Only someone who may order the squad takes it back: anyone else's order is refused anyway,
   // and taking it back and handing it over again would drop it out of the AI's attack plans.
   bool mayOrder = pc && squad.GetFaction() == SCR_FactionManager.SGetPlayerFaction(pc.GetPlayerId()) && m_Manager.IsCommander(pc.GetPlayerId());
+  // A Shift order behind a hold is refused (QueueHoldRefusal) before the take-back: with the 2IC on,
+  // TakeBack had already dropped a defending squad out of the AI's plans (Forget, task FREE) and the
+  // refusal left it holding for nobody. A squad handed to the AI is released first, as before.
+  bool queued = command == ACR_ERequest.QUEUE_MOVE || command == ACR_ERequest.QUEUE_DEFEND || command == ACR_ERequest.QUEUE_GARRISON;
+  if (mayOrder && queued && !squad.m_bAICommanded && squad.QueueBehindHold())
+  {
+   ACR_OrderOutcome held = new ACR_OrderOutcome();
+   held.Refuse(QueueHoldRefusal(squad.GetName()));
+   s_LastOutcome = held;
+   return held;
+  }
   bool tookBack = mayOrder && ACR_SquadAI.TakeBack(squad, command);
   int serial = squad.m_iOrderSerial;
   int previous = squad.m_iOrderedBy;
