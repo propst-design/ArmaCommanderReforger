@@ -951,6 +951,7 @@ class ACR_Squad : Managed
 
  // Replace every queued order (ours or native) with a single waypoint.
  static bool s_bGameDefend; // test (srv:crewold): crews get the game's Defend waypoint as before
+ static const float VEHICLE_HOLD_RADIUS = 40; // m: a vehicle crew's hold (Defend) arrives within this
  AIWaypoint IssueWaypoint(ResourceName prefab, vector position, float completionRadius = -1, bool forced = false, IEntity entity = null)
  {
   if (!m_Group) return null;
@@ -964,7 +965,17 @@ class ACR_Squad : Managed
   // no reason, 2 Oct live). A plain move there holds the vehicle just the same; the order
   // keeps WP_DEFEND as its kind (m_sOrderPrefab) and its "Defending" label.
   ResourceName spawned = prefab;
-  if (prefab == WP_DEFEND && !s_bGameDefend && !m_ActiveRoadblock && ACR_Transport.CrewedVehicle(this)) spawned = WP_MOVE;
+  float vehicleArrival = -1;
+  if (prefab == WP_DEFEND && !s_bGameDefend && !m_ActiveRoadblock && ACR_Transport.CrewedVehicle(this))
+  {
+   spawned = WP_MOVE;
+   // ...with a vehicle's arrival circle, not a man's: a hull with a wide turn (the TALOS MT-LB)
+   // overshoots a 15 m circle and drives round it for good (Jacob's 19 Nov game, an MT-LB screen
+   // post "doing donuts"; srv:armourcrew: 1057 deg turned, stuck 15-35 m out). Well inside the
+   // 70 m at which a mounted squad counts as there (MovementStillPending), so it isn't re-issued.
+   // Only the waypoint gets it: the order keeps its radius for a crew that goes on on foot.
+   if (completionRadius < VEHICLE_HOLD_RADIUS) vehicleArrival = VEHICLE_HOLD_RADIUS;
+  }
   // Holding a fortified position: every man on its guns or a post behind its bags (#155). The order
   // stays a Defend for its bookkeeping (snapshots, regroups, held guns).
   bool fortHold = spawned == WP_DEFEND && ACR_Fortify.IsHold(m_Fortification, prefab, position);
@@ -994,6 +1005,7 @@ class ACR_Squad : Managed
    }
   }
   AIWaypoint adopted = AdoptWaypoint(waypoint, prefab, position, completionRadius, forced);
+  if (adopted && vehicleArrival > 0) adopted.SetCompletionRadius(vehicleArrival);
   if (adopted && fortHold) ACR_Fortify.PostMen(m_Fortification, m_Group, CountAlive());
   return adopted;
  }

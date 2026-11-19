@@ -13,14 +13,17 @@
 //     parked fuel truck: BBB TRAFFIC had the truck give way while ACA had the MT-LB queue behind
 //     it). The MT-LB when loaded, else the BTR-70: it gets there without circling the truck.
 // Everything runs on open ground at least 600 m from any base (Arland's bases shoot back).
-// Logs "[ACR] ARMOUR ...". VERDICT: 2 checks for part 1, 1 per vehicle held (3), 1 for part 3.
+// Logs "[ACR] ARMOUR ...". VERDICT: 2 checks for part 1, 1 for the hold's waypoint, 1 per vehicle
+// held (3), 1 for part 3.
 class ACR_TestArmourCrew
 {
  static const ResourceName BTR = "{C012BB3488BEA0C2}Prefabs/Vehicles/Wheeled/BTR70/BTR70.et";
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const ResourceName MTLB = "{3B2B8A6A662AB8EC}IFV/MTLB/MTLB_Olive_WZSSR.et";
  static const ResourceName T72 = "{BC07885176C7FF8A}Prefabs/Vehicles/Tracked/T72A/T72A_Base.et";
- static const int EXPECTED = 6;
+ static const int EXPECTED = 7;
+ // A held vehicle counts as there inside this (the hold waypoint's own circle is VEHICLE_HOLD_RADIUS).
+ static const float THERE_M = 50;
  static const ResourceName URAL = "{16C1F16C9B053801}Prefabs/Vehicles/Wheeled/Ural4320/Ural4320_transport.et";
  // Part 3: more heading change than this on the way counts as circling.
  static const float CIRCLING_DEG = 540;
@@ -41,6 +44,8 @@ class ACR_TestArmourCrew
  protected ref array<float> m_aPathAfter = {};
  protected ref array<float> m_aClosest = {};
  protected ref array<float> m_aWander = {};
+ protected ref array<float> m_aTurned = {};
+ protected ref array<float> m_aYaw = {};
  protected int m_iStep;
  protected int m_iStepAt;
  // Part 3: which held vehicle runs it, its spot, the parked truck, heading turned, path after arrival.
@@ -108,6 +113,29 @@ class ACR_TestArmourCrew
    m_aVehicles.Insert(vehicles[0]);
   }
   return true;
+ }
+
+ // Heading change since the last call, in degrees (-180..180).
+ protected static float Turn(float from, float to)
+ {
+  float turn = to - from;
+  while (turn > 180) turn -= 360;
+  while (turn < -180) turn += 360;
+  return turn;
+ }
+
+ // The truck and its crew go after part 1: a US soldier on foot is an enemy in contact for every
+ // vehicle of part 2 (srv:armourcrew 19 Nov: the parked Ural drove off from him).
+ protected void RemoveSquad(ACR_Squad squad, IEntity vehicle)
+ {
+  if (squad)
+  {
+   array<AIAgent> agents = {};
+   squad.GetAgents(agents);
+   foreach (AIAgent agent : agents)
+    if (agent && agent.GetControlledEntity()) SCR_EntityHelper.DeleteEntityAndChildren(agent.GetControlledEntity());
+  }
+  if (vehicle) SCR_EntityHelper.DeleteEntityAndChildren(vehicle);
  }
 
  protected int Seated(ACR_Squad squad)
@@ -246,6 +274,7 @@ class ACR_TestArmourCrew
    PrintFormat("[ACR] ARMOUR failed move under fire: BTR seated %1 of %2 (kept %3) | truck seated %4 of %5", Seated(btr), m_aSeated[0], btr.m_iMoveFailsUnderFireKept, Seated(truck), m_aSeated[1]);
    ACR_TestRegress.Check("armour: a manned gun's crew stays aboard after a failed move under fire", m_aSeated[0] >= 2 && Seated(btr) == m_aSeated[0] && btr.m_iMoveFailsUnderFireKept > 0, string.Format("seated %1 of %2", Seated(btr), m_aSeated[0]));
    ACR_TestRegress.Check("armour: an unarmed truck's crew still gets out after a failed move under fire", m_aSeated[1] >= 1 && Seated(truck) == 0, string.Format("seated %1 of %2", Seated(truck), m_aSeated[1]));
+   RemoveSquad(truck, m_aVehicles[1]);
    // 2. Holding a point: every armed vehicle 150 m off to a spot in the open.
    for (int ic = 0; ic < m_aSquads.Count(); ic++)
    {
@@ -255,10 +284,20 @@ class ACR_TestArmourCrew
     m_aPathAfter.Insert(0);
     m_aClosest.Insert(float.MAX);
     m_aWander.Insert(0);
-    if (ic == 1) continue; // the truck sits this one out
+    m_aTurned.Insert(0);
+    m_aYaw.Insert(0);
+    if (ic == 1) continue; // the truck is gone
+    m_aYaw[ic] = m_aVehicles[ic].GetAngles()[1];
     vector spot = ACR_Manager.Ground(m_aVehicles[ic].GetOrigin() + Vector(0, 0, 150));
     m_aSpot[ic] = spot;
     m_aSquads[ic].Defend(spot);
+    // The engine's circle is a vehicle's; the order keeps its own 15 m (for a crew that goes on on foot).
+    if (ic == 0)
+    {
+     float circle = -1;
+     if (m_aSquads[ic].m_Waypoint) circle = m_aSquads[ic].m_Waypoint.GetCompletionRadius();
+     ACR_TestRegress.Check("armour: a vehicle crew's hold arrives within a vehicle's circle, its order keeps 15 m", circle >= ACR_Squad.VEHICLE_HOLD_RADIUS && m_aSquads[ic].m_fOrderRadius == 15, string.Format("waypoint %1 m, order %2 m", circle, m_aSquads[ic].m_fOrderRadius));
+    }
     PrintFormat("[ACR] ARMOUR hold %1: Defend %2 (%3 m off), order '%4', waypoint %5", m_aSquads[ic].GetName(), spot, (int)vector.DistanceXZ(spot, m_aVehicles[ic].GetOrigin()), m_aSquads[ic].m_Order, m_aSquads[ic].m_Waypoint);
    }
    m_iStep = 4;
@@ -275,7 +314,10 @@ class ACR_TestArmourCrew
     m_aLast[id] = at;
     float d = vector.DistanceXZ(at, m_aSpot[id]);
     if (d < m_aClosest[id]) m_aClosest[id] = d;
-    if (m_aArrivedAt[id] < 0 && d < 30) m_aArrivedAt[id] = tick;
+    float yawId = m_aVehicles[id].GetAngles()[1];
+    m_aTurned[id] = m_aTurned[id] + Math.AbsFloat(Turn(m_aYaw[id], yawId));
+    m_aYaw[id] = yawId;
+    if (m_aArrivedAt[id] < 0 && d < THERE_M) m_aArrivedAt[id] = tick;
     if (m_aArrivedAt[id] >= 0)
     {
      m_aPathAfter[id] = m_aPathAfter[id] + step;
@@ -296,9 +338,9 @@ class ACR_TestArmourCrew
     if (m_aPrefabs[ie] == T72) what = "a T-72A";
     float settled = 0;
     if (m_aArrivedAt[ie] >= 0) settled = tick - m_aArrivedAt[ie];
-    string detail = string.Format("closest %1 m, %2 m driven in the %3 s since it got within 30 m, furthest %4 m after", (int)m_aClosest[ie], (int)m_aPathAfter[ie], (int)settled, (int)m_aWander[ie]);
+    string detail = string.Format("closest %1 m, turned %2 deg, %3 m driven in the %4 s since it got within %5 m, furthest %6 m after", (int)m_aClosest[ie], (int)m_aTurned[ie], (int)m_aPathAfter[ie], (int)settled, (int)THERE_M, (int)m_aWander[ie]);
     PrintFormat("[ACR] ARMOUR hold %1: %2", m_aSquads[ie].GetName(), detail);
-    ACR_TestRegress.Check(string.Format("armour: %1 holding a point stops there", what), m_aArrivedAt[ie] >= 0 && m_aPathAfter[ie] < WANDER_M, detail);
+    ACR_TestRegress.Check(string.Format("armour: %1 holding a point stops there", what), m_aArrivedAt[ie] >= 0 && m_aPathAfter[ie] < WANDER_M && m_aTurned[ie] < CIRCLING_DEG, detail);
    }
    // 3. On past a parked truck of ours: the MT-LB if loaded, else the BTR.
    m_iRunner = 0;
@@ -331,16 +373,13 @@ class ACR_TestArmourCrew
    if (!run) return;
    vector now = run.GetOrigin();
    float yawNow = run.GetAngles()[1];
-   float turn = yawNow - m_fLastYaw;
-   while (turn > 180) turn -= 360;
-   while (turn < -180) turn += 360;
-   m_fTurned += Math.AbsFloat(turn);
+   m_fTurned += Math.AbsFloat(Turn(m_fLastYaw, yawNow));
    m_fLastYaw = yawNow;
    float moved = vector.DistanceXZ(now, m_vRunLast);
    m_vRunLast = now;
    float left = vector.DistanceXZ(now, m_vRunSpot);
    if (left < m_fRunClosest) m_fRunClosest = left;
-   if (m_fRunArrived < 0 && left < 30) m_fRunArrived = tick;
+   if (m_fRunArrived < 0 && left < THERE_M) m_fRunArrived = tick;
    if (m_fRunArrived >= 0) m_fRunPath += moved;
    if ((tick - m_iStepAt) % 5 == 0)
    {
@@ -351,7 +390,7 @@ class ACR_TestArmourCrew
    if (tick - m_iStepAt < 100) return;
    string runWhat = "the BTR-70";
    if (m_aPrefabs[m_iRunner] == MTLB) runWhat = "the MT-LB";
-   string runDetail = string.Format("closest %1 m, turned %2 deg, %3 m driven after it got within 30 m", (int)m_fRunClosest, (int)m_fTurned, (int)m_fRunPath);
+   string runDetail = string.Format("closest %1 m, turned %2 deg, %3 m driven after it got within %4 m", (int)m_fRunClosest, (int)m_fTurned, (int)m_fRunPath, (int)THERE_M);
    PrintFormat("[ACR] ARMOUR past a parked truck: %1", runDetail);
    ACR_TestRegress.Check(string.Format("armour: %1 gets past a parked truck of ours to its point without circling", runWhat), m_fRunArrived >= 0 && m_fTurned < CIRCLING_DEG && m_fRunPath < WANDER_M, runDetail);
    ACR_TestRegress.Complete("armourcrew", EXPECTED);

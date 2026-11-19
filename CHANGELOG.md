@@ -15,6 +15,7 @@
 - The AI commander should no longer pull squads out of an assault it has committed to just because it expects an attack elsewhere: only real enemies at one of its bases (more than hold it, or an attack on its HQ or a FOB) can call them away now. Free squads still answer a forecast.
 - A base's garrison (an FIA pocket's too) should no longer pack up and vanish the moment it knocks out the enemies in front of it: it stays out while they lie nearby, for up to five minutes. Garrisons and FIA guerrilla cells also stay out while an enemy player is within 800 m.
 - The crew of a tank or other armed vehicle should no longer climb out of a working vehicle in a fight when it can't find a way forward: they stay aboard and keep shooting. Crews of unarmed vehicles still get out to fight on foot.
+- A vehicle sent to hold a spot (a screen post, or a base it defends) should stop when it gets there instead of driving circles round it. Wide-turning vehicles such as the MT-LB were the worst for this.
 
 ## 0.6.1 — released
 
