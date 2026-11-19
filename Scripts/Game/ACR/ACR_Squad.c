@@ -1512,101 +1512,7 @@ class ACR_Squad : Managed
  vector FobSite() { return m_vFobSite; }
  bool IsVehicle() { return ACR_Transport.CrewedVehicle(this) != null; }
 
- // ================================================================ roadblocks (aca-f23)
- // type: ACR_ERoadblockType. A construction truck with the squad pays in supplies when it has
- // them (truckMayPay: the AI commander pays RP, as before), otherwise RP.
- bool EstablishRoadblock(vector site, float yaw, int type = ACR_ERoadblockType.MEDIUM, bool truckMayPay = true)
- {
-  string refusal;
-  if (!ACR_Roadblocks.CanOrder(this, refusal, type, truckMayPay)) return false;
-  string factionKey = "";
-  if (GetFaction()) factionKey = GetFaction().GetFactionKey();
-  type = ACR_Roadblocks.TypeFor(type, factionKey);
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  if (!manager) return false;
-  // Who pays is settled first, counting what NewOrder gives back from the current job, so that
-  // job is only replaced once this order is sure to be paid for.
-  IEntity truck;
-  float loads;
-  if (!ACR_Roadblocks.Payer(this, type, truckMayPay, truck, loads)) return false;
-  vector from = site;
-  if (GetAnchor()) from = GetAnchor().GetOrigin();
-
-  NewOrder();
-  ClearPlans();
-  m_bRegrouping = false;
-
-  string paid;
-  if (truck && manager.m_Logistics.Use(truck, loads))
-  {
-   m_RoadblockTruck = truck;
-   m_fRoadblockLoads = loads;
-   m_fRoadblockPaid = manager.m_Logistics.LastPaidUsed();
-   paid = string.Format("%1 supplies from the construction truck at %2", ACR_Roadblocks.Supplies(type), truck.GetOrigin());
-  }
-  else if (manager.m_Bases.Spend(factionKey, ACR_Roadblocks.Cost(type)))
-  {
-   m_iRoadblockPaidRP = ACR_Roadblocks.Cost(type);
-   paid = string.Format("%1 RP", m_iRoadblockPaidRP);
-  }
-  else
-  {
-   // Payer counted only what NewOrder gave back, so this should not happen.
-   SetOrder("Holding position", ACR_EOrderState.HOLD);
-   PrintFormat("[ACR] SQUAD %1: could not pay for the %2", m_Name, ACR_Roadblocks.Name(type));
-   return false;
-  }
-
-  m_iRoadblockType = type;
-  m_vRoadblockSite = site;
-  m_fRoadblockYaw = yaw;
-  m_fRoadblockProgress = 0.0;
-  m_fRoadblockLastTick = GetGame().GetWorld().GetWorldTime();
-  m_fRoadblockLastProgress = m_fRoadblockLastTick;
-  m_bRoadblockArrived = false;
-  m_fRoadblockDeadline = m_fRoadblockLastTick + vector.DistanceXZ(from, site) / ACR_Roadblocks.TRAVEL_SPEED * 1000 + FOB_GIVE_UP_MS;
-  m_vRoadblockStage = ACR_Roadblocks.Stage(site, yaw, type, from);
-  m_RoadblockTurret = null;
-  m_ActiveRoadblock = null;
-
-  SetOrder(RoadblockLabel(), ACR_EOrderState.BUILD_ROADBLOCK);
-  m_OrderKind = ACR_EOrderKind.MOVE;
-  m_MoveTarget = m_vRoadblockStage;
-  IssueWaypoint(WP_MOVE, m_vRoadblockStage, 4.0);
-  PrintFormat("[ACR] SQUAD %1: building %2 at %3 (yaw %4), paid %5", m_Name, ACR_Roadblocks.Name(type), site, yaw, paid);
-  return true;
- }
-
- // "Building Roadblock L (40% - contact)"
- protected string RoadblockLabel(string status = "")
- {
-  int pct = Math.ClampInt((int)(m_fRoadblockProgress / ACR_Roadblocks.Duration(m_iRoadblockType) * 100), 0, 100);
-  string label = string.Format("Building %1 (%2%%", ACR_Roadblocks.Name(m_iRoadblockType), pct);
-  if (status != "") label += " - " + status;
-  return label + ")";
- }
-
  bool RoadblockPending() { return m_iRoadblockPaidRP > 0 || m_fRoadblockLoads > 0; }
-
- // What NewOrder gives back from the squad's current job, so a new order can count it: RP from
- // a roadblock, minefield or Fortify order ...
- int PendingRP()
- {
-  int rp = m_iRoadblockPaidRP;
-  if (m_MinePlan) rp += ACR_Minefields.Refund(m_MinePlan);
-  if (m_FortifyPlan) rp += m_FortifyPlan.m_iCost;
-  return rp;
- }
-
- // ... and loads back to this truck from a roadblock or FOB build.
- float PendingLoads(IEntity truck)
- {
-  if (!truck) return 0;
-  float loads;
-  if (m_RoadblockTruck == truck) loads += m_fRoadblockLoads;
-  if (m_ReservedTruck == truck) loads += m_fReservedLoads;
-  return loads;
- }
 
  // Called off before the composition went in: the price goes back where it came from (a
  // destroyed truck's supplies are lost).
@@ -1640,150 +1546,6 @@ class ACR_Squad : Managed
    SetOrder("Holding position", ACR_EOrderState.HOLD);
   }
   PrintFormat("[ACR] SQUAD %1: roadblock build %2, refunded %3", m_Name, why, refund);
- }
-
- void TickEstablishRoadblock(float now)
- {
-  if (m_fRoadblockLastTick <= 0) m_fRoadblockLastTick = now;
-  float dt = (now - m_fRoadblockLastTick) / 1000.0;
-  m_fRoadblockLastTick = now;
-  if (dt <= 0) return;
-  if (dt > 5.0)
-  {
-   // The order was set aside (a regroup, a player taking the squad): that time counts for
-   // neither the walk's limit nor the give-up timer.
-   m_fRoadblockDeadline += (dt - 1.0) * 1000;
-   m_fRoadblockLastProgress += (dt - 1.0) * 1000;
-   dt = 1.0;
-  }
-
-  if (CountAlive() <= 0)
-  {
-   CancelRoadblock("abandoned: the squad is gone");
-   return;
-  }
-
-  bool squadPresent = false;
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-  {
-   IEntity body = agent.GetControlledEntity();
-   if (!body || !ACR_Respawn.IsAlive(body)) continue;
-   if (vector.DistanceXZ(body.GetOrigin(), m_vRoadblockSite) <= ACR_Roadblocks.CP_RADIUS || vector.DistanceXZ(body.GetOrigin(), m_vRoadblockStage) <= 6)
-   {
-    squadPresent = true;
-    break;
-   }
-  }
-
-  // The give-up timer runs from the squad's arrival; the walk there has its own limit.
-  if (squadPresent && !m_bRoadblockArrived)
-  {
-   m_bRoadblockArrived = true;
-   m_fRoadblockLastProgress = now;
-  }
-  if (!m_bRoadblockArrived && m_fRoadblockDeadline > 0 && now > m_fRoadblockDeadline)
-  {
-   CancelRoadblock("abandoned: the squad could not reach the road");
-   return;
-  }
-  if (m_bRoadblockArrived && now - m_fRoadblockLastProgress >= FOB_GIVE_UP_MS)
-  {
-   PrintFormat("[ACR] SQUAD %1: roadblock at %2 abandoned after 3 minutes without progress", m_Name, m_vRoadblockSite);
-   CancelRoadblock("abandoned");
-   return;
-  }
-
-  bool contested = KnownEnemies(60, true) > 0;
-  if (contested)
-  {
-   EquipShovels(false);
-   SetOrder(RoadblockLabel("contact"), ACR_EOrderState.BUILD_ROADBLOCK);
-   return;
-  }
-
-  if (!squadPresent)
-  {
-   if (m_Group && !m_Group.GetCurrentWaypoint() && !PlayerSteers())
-   {
-    IssueWaypoint(WP_MOVE, m_vRoadblockStage, 4.0);
-   }
-   SetOrder(RoadblockLabel("moving to road"), ACR_EOrderState.BUILD_ROADBLOCK);
-   return;
-  }
-
-  float duration = ACR_Roadblocks.Duration(m_iRoadblockType);
-  if (m_fRoadblockProgress < duration)
-  {
-   EquipShovels(true);
-   m_fRoadblockLastProgress = now;
-   m_fRoadblockProgress = Math.Min(m_fRoadblockProgress + dt, duration);
-  }
-  if (m_fRoadblockProgress < duration)
-  {
-   SetOrder(RoadblockLabel(), ACR_EOrderState.BUILD_ROADBLOCK);
-   return;
-  }
-  // Done: it goes in once no vehicle stands on the spot (3 minutes, then it gives up).
-  if (ACR_FobSlots.VehicleOnSpot(m_vRoadblockSite, ACR_Roadblocks.Footprint(m_iRoadblockType)))
-  {
-   EquipShovels(false);
-   SetOrder(RoadblockLabel("move vehicles off the road"), ACR_EOrderState.BUILD_ROADBLOCK);
-   return;
-  }
-  CompleteRoadblock();
- }
-
- void CompleteRoadblock()
- {
-  EquipShovels(false);
-  string factionKey = "";
-  if (GetFaction()) factionKey = GetFaction().GetFactionKey();
-  // Stop the walk to the site first: the composition and its navmesh rebuild land on the
-  // builders, and a move still running there fails natively (Everon soak 23 Oct: VM exception
-  // "Failed move ... to waypoint" 1.7 s after a roadblock completed).
-  ClearOrders();
-  ACR_Roadblock rb = ACR_Roadblocks.SpawnRoadblock(factionKey, m_vRoadblockSite, m_fRoadblockYaw, m_Name, m_iRoadblockType);
-  if (!rb)
-  {
-   CancelRoadblock("failed: the composition did not spawn");
-   return;
-  }
-  ACR_Wings.ForRoadblock(rb);
-  // Built: nothing left to refund (a dismantle gives half back to whoever paid).
-  rb.m_PaidTruck = m_RoadblockTruck;
-  rb.m_fPaidLoads = m_fRoadblockLoads;
-  rb.m_fPaidShare = m_fRoadblockPaid;
-  rb.m_iPaidRP = m_iRoadblockPaidRP;
-  m_iRoadblockPaidRP = 0;
-  m_RoadblockTruck = null;
-  m_fRoadblockLoads = 0;
-
-  m_ActiveRoadblock = rb;
-  m_RoadblockTurret = rb.m_Turret;
-  // Native Defend owns turret allocation; do not seat a soldier before assigning it.
-
-  SetOrder("Holding roadblock", ACR_EOrderState.DEFEND);
-  m_OrderKind = ACR_EOrderKind.DEFEND;
-  IssueWaypoint(WP_DEFEND, rb.m_vPost, rb.m_fPostRadius);
-  PrintFormat("[ACR] SQUAD %1: completed %2 at %3", m_Name, ACR_Roadblocks.Name(rb.m_iType), m_vRoadblockSite);
- }
-
- void ManRoadblockTurret()
- {
-  if (!m_RoadblockTurret || !m_Group || PlayerSteers()) return;
-  // Defend reserves compartments and sends native get-in behaviors. Replacing it
-  // each tick sends native get-out messages and starts the departure loop again.
-  // Beside the lane, off the road (ACR_RoadblockLane.Post), the gun inside the Defend's radius.
-  vector post = m_vRoadblockSite;
-  float radius = 15.0;
-  if (m_ActiveRoadblock && m_ActiveRoadblock.m_vPost != vector.Zero)
-  {
-   post = m_ActiveRoadblock.m_vPost;
-   radius = m_ActiveRoadblock.m_fPostRadius;
-  }
-  if (!m_Group.GetCurrentWaypoint()) IssueWaypoint(WP_DEFEND, post, radius);
  }
 
  void VacateRoadblockTurret()
@@ -1847,78 +1609,10 @@ class ACR_Squad : Managed
   if (seated && tries < 4) GetGame().GetCallqueue().CallLater(StepOntoNavmesh, 250, false, tries + 1);
  }
 
- void TickRoadblockDefence(float now)
- {
-  if (!m_ActiveRoadblock) return;
-  // Dismantled (a shovel, Game Master) or pruned: the ref is strong, so it outlived the list and
-  // the squad held an empty road all match, counted as a holder and sending tripwire alerts.
-  IEntity built = m_ActiveRoadblock.m_Entity;
-  if (!built || built.IsDeleted() || !ACR_Roadblocks.s_aRoadblocks.Contains(m_ActiveRoadblock))
-  {
-   m_ActiveRoadblock = null;
-   m_RoadblockTurret = null;
-   if (m_Order == "Holding roadblock") SetOrder("Holding position", ACR_EOrderState.DEFEND);
-   PrintFormat("[ACR] SQUAD %1: its roadblock is gone", m_Name);
-   return;
-  }
-  if (PlayerSteers()) return;
-  if (m_RoadblockTurret && !ACR_Roadblocks.IsTurretOccupied(m_RoadblockTurret))
-  {
-   ManRoadblockTurret();
-  }
-
-  // Tripwire intel detection: alert if enemies seen near road
-  if (!m_ActiveRoadblock.m_bAlerted && KnownEnemies(250, true) > 0)
-  {
-   m_ActiveRoadblock.m_bAlerted = true;
-   ACR_Manager mgr = ACR_Manager.GetInstance();
-   if (mgr)
-   {
-    ACR_Intel intel = mgr.IntelFor(m_ActiveRoadblock.m_sFaction);
-    if (intel)
-    {
-     intel.RadioRoadblockAlert(m_Name, m_ActiveRoadblock.m_vPos);
-    }
-   }
-  }
- }
-
- // ================================================================ minefields (0.5.7)
- // ACR_Minefields plans the order; the squad pays, walks to the near edge of the site and
- // works there: mines go in (or are disarmed) as the work progresses. NewOrder calls off and
- // refunds whatever job it had.
- bool LayMinefield(ACR_MinePlan plan)
- {
-  if (!plan) return false;
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  if (!manager || !manager.m_Bases.Spend(plan.m_sFaction, plan.m_iCost)) return false;
-
-  NewOrder();
-  ClearPlans();
-  m_bRegrouping = false;
-  m_MinePlan = plan;
-  SetOrder(MineLabel("moving to the site"), MineState());
-  m_OrderKind = ACR_EOrderKind.MOVE;
-  m_MoveTarget = plan.m_vStage;
-  IssueWaypoint(WP_MOVE, plan.m_vStage, 4.0);
-  PrintFormat("[ACR] SQUAD %1: %2 at %3, paid %4 RP", m_Name, ACR_Minefields.Name(plan.m_eKind), plan.m_vSite, plan.m_iCost);
-  return true;
- }
-
  ACR_EOrderState MineState()
  {
   if (m_MinePlan && m_MinePlan.m_eKind == ACR_EMineKind.DISARM) return ACR_EOrderState.DISARM_MINES;
   return ACR_EOrderState.LAY_MINES;
- }
-
- // "Laying AT minefield (40% - contact)", "Disarming mines (3 disarmed)"
- protected string MineLabel(string status = "")
- {
-  string label;
-  if (m_MinePlan.m_eKind == ACR_EMineKind.DISARM) label = string.Format("Disarming mines (%1 disarmed", m_MinePlan.m_iDisarmed);
-  else label = string.Format("Laying %1 (%2%%", ACR_Minefields.Name(m_MinePlan.m_eKind), (int)(m_MinePlan.m_fProgress / m_MinePlan.m_fDuration * 100));
-  if (status != "") label += " - " + status;
-  return label + ")";
  }
 
  // The order called off (a new order, the squad gone, no progress): the unused share of its
@@ -1943,150 +1637,6 @@ class ACR_Squad : Managed
   PrintFormat("[ACR] SQUAD %1: %2 %3, refunded %4 RP", m_Name, ACR_Minefields.Name(plan.m_eKind), why, refund);
  }
 
- void TickMineWork(float now)
- {
-  ACR_MinePlan plan = m_MinePlan;
-  // A regroup or a player taking the squad sets the order aside and restores it: the work
-  // pauses meanwhile and stays paid for (NewOrder calls it off and refunds).
-  if (OrderState() != MineState()) return;
-  float dt = (now - plan.m_fLastTick) / 1000.0;
-  plan.m_fLastTick = now;
-  if (dt <= 0) return;
-  if (dt > 5.0)
-  {
-   // The order was set aside (a regroup, a player taking the squad): that time counts for
-   // neither the walk's limit nor the give-up timer.
-   plan.m_fDeadline += (dt - 1.0) * 1000;
-   plan.m_fLastProgress += (dt - 1.0) * 1000;
-   dt = 1.0;
-  }
-  if (CountAlive() <= 0)
-  {
-   CancelMineWork("abandoned: the squad is gone");
-   return;
-  }
-
-  bool present = false;
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-  {
-   IEntity body = agent.GetControlledEntity();
-   if (!body || !ACR_Respawn.IsAlive(body) || vector.DistanceXZ(body.GetOrigin(), plan.m_vSite) > plan.m_fRadius) continue;
-   present = true;
-   break;
-  }
-  if (present && !plan.m_bArrived)
-  {
-   plan.m_bArrived = true;
-   plan.m_fLastProgress = now;
-  }
-  if (!plan.m_bArrived && now > plan.m_fDeadline)
-  {
-   CancelMineWork("abandoned: the squad could not reach the site");
-   return;
-  }
-  if (plan.m_bArrived && now - plan.m_fLastProgress >= FOB_GIVE_UP_MS)
-  {
-   PrintFormat("[ACR] SQUAD %1: minefield work at %2 abandoned after 3 minutes without progress", m_Name, plan.m_vSite);
-   CancelMineWork("abandoned");
-   return;
-  }
-
-  if (ACR_FobBuild.IsContested(plan.m_vSite, plan.m_sFaction) || KnownEnemies(60, true) > 0)
-  {
-   EquipShovels(false);
-   SetOrder(MineLabel("contact"), MineState());
-   return;
-  }
-  if (!present)
-  {
-   if (m_Group && !m_Group.GetCurrentWaypoint() && !PlayerSteers()) IssueWaypoint(WP_MOVE, plan.m_vStage, 4.0);
-   SetOrder(MineLabel("moving to the site"), MineState());
-   return;
-  }
-
-  EquipShovels(true);
-  float work = dt * ACR_Minefields.Speed(this);
-  plan.m_fLastProgress = now;
-  plan.m_fProgress = Math.Min(plan.m_fProgress + work, plan.m_fDuration);
-  bool done;
-  if (plan.m_eKind == ACR_EMineKind.DISARM) done = ACR_Minefields.Disarm(plan, work);
-  else
-  {
-   ACR_Minefields.Lay(plan, plan.m_fProgress / plan.m_fDuration, GetAnchor());
-   done = plan.m_fProgress >= plan.m_fDuration;
-  }
-  if (done) CompleteMineWork();
-  else SetOrder(MineLabel(), MineState());
- }
-
- protected void CompleteMineWork()
- {
-  ACR_MinePlan plan = m_MinePlan;
-  m_MinePlan = null;
-  EquipShovels(false);
-  string done;
-  if (plan.m_eKind == ACR_EMineKind.DISARM) done = string.Format("%1 finished disarming mines: %2 disarmed", m_Name, plan.m_iDisarmed);
-  else
-  {
-   int laid;
-   if (plan.m_Field) laid = plan.m_Field.m_aMines.Count();
-   done = string.Format("%1 finished the %2: %3 mines", m_Name, ACR_Minefields.Name(plan.m_eKind), laid);
-  }
-  ACR_Minefields.Finish(plan);
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  ACR_Intel intel;
-  if (manager) intel = manager.IntelFor(plan.m_sFaction);
-  if (intel) done += " " + intel.Place(plan.m_vSite);
-  if (manager) manager.Command().Feed(plan.m_sFaction, done, plan.m_vSite);
-  ACR_Report.Event(plan.m_sFaction, done);
-  PrintFormat("[ACR] SQUAD %1: %2", m_Name, done);
-
-  // Hold just outside the field (its near edge is 8 m from the stage).
-  ClearOrders();
-  SetOrder("Holding position", ACR_EOrderState.DEFEND);
-  m_OrderKind = ACR_EOrderKind.DEFEND;
-  IssueWaypoint(WP_DEFEND, plan.m_vStage, 8.0);
- }
-
- // ================================================================ fortify (0.5.7)
- // ACR_Fortify plans the tier; the squad pays, works from behind the position and holds it once
- // the pieces are in.
- bool Fortify(ACR_FortifyPlan plan)
- {
-  if (!plan) return false;
-  // Affordable counting what NewOrder gives back from the current job; paid after it.
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  if (!manager || manager.m_Bases.GetRP(plan.m_sFaction) + PendingRP() < plan.m_iCost) return false;
-
-  NewOrder();
-  ClearPlans();
-  m_bRegrouping = false;
-  if (!manager.m_Bases.Spend(plan.m_sFaction, plan.m_iCost))
-  {
-   SetOrder("Holding position", ACR_EOrderState.HOLD);
-   return false;
-  }
-  m_FortifyPlan = plan;
-  SetOrder(FortifyLabel("moving to the site"), ACR_EOrderState.FORTIFY);
-  m_OrderKind = ACR_EOrderKind.MOVE;
-  m_MoveTarget = plan.m_vStage;
-  IssueWaypoint(WP_MOVE, plan.m_vStage, 4.0);
-  PrintFormat("[ACR] SQUAD %1: fortifying (%2) at %3 facing %4, paid %5 RP", m_Name, ACR_Fortify.TierName(plan.m_iTier), plan.m_vSite, (int)plan.m_fYaw, plan.m_iCost);
-  return true;
- }
-
- // "Fortifying: dug in (40% - contact)"
- protected string FortifyLabel(string status = "")
- {
-  string what = ACR_Fortify.TierWords(m_FortifyPlan.m_iTier);
-  if (m_FortifyPlan.m_Work) what = ACR_BaseWorks.Words(m_FortifyPlan);
-  string label = string.Format("Fortifying: %1 (%2%%", what, (int)(m_FortifyPlan.m_fProgress / m_FortifyPlan.m_fDuration * 100));
-  if (status != "") label += " - " + status;
-  return label + ")";
- }
-
  // The order called off before the pieces went in: the whole cost comes back.
  void CancelFortify(string why = "cancelled")
  {
@@ -2106,94 +1656,6 @@ class ACR_Squad : Managed
   PrintFormat("[ACR] SQUAD %1: fortifying %2, refunded %3 RP", m_Name, why, plan.m_iCost);
  }
 
- void TickFortify(float now)
- {
-  ACR_FortifyPlan plan = m_FortifyPlan;
-  // A regroup or a player taking the squad sets the order aside and restores it: the work
-  // pauses meanwhile and stays paid for (NewOrder calls it off and refunds).
-  if (OrderState() != ACR_EOrderState.FORTIFY) return;
-  float dt = (now - plan.m_fLastTick) / 1000.0;
-  plan.m_fLastTick = now;
-  if (dt <= 0) return;
-  if (dt > 5.0)
-  {
-   // The order was set aside (a regroup, a player taking the squad): that time counts for
-   // neither the walk's limit nor the give-up timer.
-   plan.m_fDeadline += (dt - 1.0) * 1000;
-   plan.m_fLastProgress += (dt - 1.0) * 1000;
-   plan.m_fWalkAt += (dt - 1.0) * 1000;
-   dt = 1.0;
-  }
-  if (CountAlive() <= 0)
-  {
-   CancelFortify("abandoned: the squad is gone");
-   return;
-  }
-
-  bool present = false;
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-  {
-   IEntity body = agent.GetControlledEntity();
-   if (!body || !ACR_Respawn.IsAlive(body) || vector.DistanceXZ(body.GetOrigin(), plan.m_vSite) > plan.m_fRadius) continue;
-   present = true;
-   break;
-  }
-  if (present && !plan.m_bArrived)
-  {
-   plan.m_bArrived = true;
-   plan.m_fLastProgress = now;
-  }
-  if (!plan.m_bArrived && now > plan.m_fDeadline)
-  {
-   if (SkipWorksSite(plan)) return;
-   CancelFortify("abandoned: the squad could not reach the site");
-   return;
-  }
-  if (plan.m_bArrived && now - plan.m_fLastProgress >= FOB_GIVE_UP_MS)
-  {
-   PrintFormat("[ACR] SQUAD %1: fortifying at %2 abandoned after 3 minutes without progress", m_Name, plan.m_vSite);
-   if (SkipWorksSite(plan)) return;
-   CancelFortify("abandoned");
-   return;
-  }
-
-  if (ACR_FobBuild.IsContested(plan.m_vSite, plan.m_sFaction) || KnownEnemies(60, true) > 0)
-  {
-   EquipShovels(false);
-   SetOrder(FortifyLabel("contact"), ACR_EOrderState.FORTIFY);
-   return;
-  }
-  if (!present)
-  {
-   if (m_Group && !m_Group.GetCurrentWaypoint() && !PlayerSteers()) IssueWaypoint(WP_MOVE, plan.m_vStage, 4.0);
-   else if (!PlayerSteers()) KeepWalking(plan, now);
-   SetOrder(FortifyLabel("moving to the site"), ACR_EOrderState.FORTIFY);
-   return;
-  }
-
-  if (plan.m_fProgress < plan.m_fDuration)
-  {
-   EquipShovels(true);
-   plan.m_fProgress = Math.Min(plan.m_fProgress + dt * ACR_Minefields.Speed(this), plan.m_fDuration);
-   plan.m_fLastProgress = now;
-  }
-  if (plan.m_fProgress < plan.m_fDuration)
-  {
-   SetOrder(FortifyLabel(), ACR_EOrderState.FORTIFY);
-   return;
-  }
-  // Done: the pieces go in once no vehicle stands on a spot (3 minutes, then it gives up).
-  if (ACR_Fortify.VehicleOnSpots(plan))
-  {
-   EquipShovels(false);
-   SetOrder(FortifyLabel("move vehicles off the site"), ACR_EOrderState.FORTIFY);
-   return;
-  }
-  CompleteFortify();
- }
-
  // Base works go on to the next site, unless it's a fight that stopped the work: that stops the order.
  // A squad can stop dead on the way with its waypoint still there, so the move's own recovery never
  // sees it: the game's group tree logs "Failed move from ... to waypoint ..." once and the men stand
@@ -2207,119 +1669,6 @@ class ACR_Squad : Managed
  static const float WALK_MOVED_M = 2.0;
  static const float WALK_STEP_M = 6.0;
  static const float WALK_STEP_MOST_M = 24.0;
- void KeepWalking(ACR_FortifyPlan plan, float now)
- {
-  IEntity anchor = GetAnchor();
-  if (!anchor) return;
-  vector at = anchor.GetOrigin();
-  if ((plan.m_vWalkFrom[0] == 0 && plan.m_vWalkFrom[2] == 0) || vector.DistanceXZ(at, plan.m_vWalkFrom) > WALK_MOVED_M)
-  {
-   plan.m_vWalkFrom = at;
-   plan.m_fWalkAt = now;
-   return;
-  }
-  if (now - plan.m_fWalkAt < WALK_STOPPED_MS) return;
-  plan.m_fWalkAt = now;
-  plan.m_iWalkRetries++;
-  StepOntoNavmesh(0);
-  string how = "same spot";
-  if (plan.m_iWalkRetries > 2 && !IsMounted() && !EntityUtils.IsPlayer(anchor))
-  {
-   vector ahead = plan.m_vStage - at;
-   ahead[1] = 0;
-   float left = ahead.Length();
-   float step = Math.Min(WALK_STEP_M * (plan.m_iWalkRetries - 2), WALK_STEP_MOST_M);
-   vector spot;
-   if (left > 1)
-   {
-    // Straight at the site first, then turned off either side: the one spot ahead can be a wall or a building
-    // where he stuck, and he stayed put till a longer step (baseworks: stuck at ~200 m, try 3 never stepped).
-    vector dir = ahead * (1 / left);
-    float reach = Math.Min(step, left);
-    array<float> turns = {0, 35, -35, 70, -70};
-    foreach (float turn : turns)
-    {
-     float c = Math.Cos(turn * Math.DEG2RAD);
-     float s = Math.Sin(turn * Math.DEG2RAD);
-     vector way = Vector(dir[0] * c - dir[2] * s, 0, dir[0] * s + dir[2] * c);
-     if (!ReachableNear(at + way * reach, WALK_STEP_M, spot) || !ACR_BaseSystem.ReachesOpen(spot, ACR_BaseSystem.Pathing(null))) continue;
-     // Only a step that brings him nearer the site.
-     if (vector.DistanceXZ(spot, plan.m_vStage) >= left - 1) continue;
-     anchor.SetOrigin(spot);
-     how = string.Format("leader stepped %1 m ahead, turned %2", (int)vector.DistanceXZ(at, spot), (int)turn);
-     break;
-    }
-   }
-  }
-  IssueWaypoint(WP_MOVE, plan.m_vStage, 4.0);
-  PrintFormat("[ACR] SQUAD %1: stopped at %2, %3 m from the site at %4; on again, try %5 (%6)", m_Name, at, (int)vector.DistanceXZ(at, plan.m_vSite), plan.m_vSite, plan.m_iWalkRetries, how);
- }
-
- protected bool SkipWorksSite(ACR_FortifyPlan plan)
- {
-  if (!plan.m_Work || ACR_FobBuild.IsContested(plan.m_vSite, plan.m_sFaction) || KnownEnemies(60, true) > 0) return false;
-  m_FortifyPlan = null;
-  EquipShovels(false);
-  ClearOrders();
-  ACR_BaseWorks.SiteSkipped(this, plan);
-  return true;
- }
-
- protected void CompleteFortify()
- {
-  ACR_FortifyPlan plan = m_FortifyPlan;
-  m_FortifyPlan = null;
-  EquipShovels(false);
-  // Stop the walk first: the pieces and their navmesh rebuild land round the builders.
-  ClearOrders();
-  if (plan.m_Work)
-  {
-   ACR_BaseWorks.SiteDone(this, plan);
-   return;
-  }
-  string why;
-  ACR_Fortification fort = ACR_Fortify.Build(plan, why);
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  if (!fort)
-  {
-   if (manager) manager.m_Bases.Refund(plan.m_sFaction, plan.m_iCost);
-   if (m_iAITask == ACR_EAITask.FORTIFY) SetAITask(ACR_EAITask.FREE);
-   SetOrder("Holding position", ACR_EOrderState.HOLD);
-   PrintFormat("[ACR] SQUAD %1: could not fortify (%2), refunded %3 RP", m_Name, why, plan.m_iCost);
-   // Said where the player sees it (playtest 25 Oct: only the RP was seen to go).
-   string lost = string.Format("%1 could not fortify: %2 (%3 RP refunded)", m_Name, why, plan.m_iCost);
-   if (manager) manager.Command().Feed(plan.m_sFaction, lost, plan.m_vSite);
-   if (manager && m_iOrderedBy != 0) manager.Notify(m_iOrderedBy, lost);
-   return;
-  }
-  m_Fortification = fort;
-  string done = string.Format("%1 dug in: %2 (%3)", m_Name, ACR_Fortify.TierName(fort.m_iTier), ACR_Fortify.TierWords(fort.m_iTier));
-  ACR_Intel intel;
-  if (manager) intel = manager.IntelFor(plan.m_sFaction);
-  if (intel) done += " " + intel.Place(fort.m_vPos);
-  if (manager) manager.Command().Feed(plan.m_sFaction, done, fort.m_vPos);
-  ACR_Report.Event(plan.m_sFaction, done);
-  PrintFormat("[ACR] SQUAD %1: %2", m_Name, done);
-  // Hold it: native Defend puts gunners on the position's guns.
-  SetOrder("Holding position", ACR_EOrderState.DEFEND);
-  m_OrderKind = ACR_EOrderKind.DEFEND;
-  IssueWaypoint(WP_DEFEND, ACR_Fortify.HoldCentre(fort), ACR_Fortify.HOLDER_RADIUS);
- }
-
- // The base works' squad with nothing left to do there: it holds the base.
- void HoldBaseWorks(ACR_BaseWork work)
- {
-  if (m_iAITask == ACR_EAITask.FORTIFY) SetAITask(ACR_EAITask.FREE);
-  SetOrder("Holding position", ACR_EOrderState.DEFEND);
-  m_OrderKind = ACR_EOrderKind.DEFEND;
-  vector at;
-  float radius;
-  int line;
-  if (work && !ACR_Transport.CrewedVehicle(this) && ACR_BaseWorks.ManSquad(work, m_Group, Math.Max(1, CountAlive()), at, radius, line) && IssueWaypoint(WP_GARRISON, at, radius)) return;
-  if (work && ACR_BaseWorks.HoldSpot(work, at, radius)) IssueWaypoint(WP_DEFEND, at, radius);
-  else if (work && work.m_Base) IssueWaypoint(WP_DEFEND, work.m_Base.GetOrigin(), 60);
- }
-
  // Back to a position of ours that stands empty (ACR_AICommander.ManPositions): hold it as its
  // builder did, gunners on its guns (native Defend).
  bool ManFortification(ACR_Fortification fort)
@@ -2336,23 +1685,6 @@ class ACR_Squad : Managed
   // Its reserve's gun crew, if any, steps back (ACR_Defenders).
   if (fort.m_Defenders) ACR_Defenders.StandDownCrew(fort.m_Defenders);
   SetOrder("Holding position", ACR_EOrderState.DEFEND);
-  m_OrderKind = ACR_EOrderKind.DEFEND;
-  return true;
- }
-
- // Back on a roadblock of ours (ACR_AICommander.ReturnToPosts): held as when its builder
- // completed it, its gun by native Defend.
- bool ManRoadblock(ACR_Roadblock rb)
- {
-  if (!rb) return false;
-  NewOrder();
-  ClearPlans();
-  m_bRegrouping = false;
-  m_vRoadblockSite = rb.m_vPos;
-  if (!IssueWaypoint(WP_DEFEND, m_vRoadblockSite, 15.0)) return false;
-  m_ActiveRoadblock = rb;
-  m_RoadblockTurret = rb.m_Turret;
-  SetOrder("Holding roadblock", ACR_EOrderState.DEFEND);
   m_OrderKind = ACR_EOrderKind.DEFEND;
   return true;
  }
@@ -2452,18 +1784,6 @@ class ACR_Squad : Managed
   return true;
  }
 
- // Put fire on an area from where the squad stands (support by fire).
- bool Suppress(vector position)
- {
-  NewOrder();
-  ClearPlans();
-  m_bRegrouping = false;
-  if (!IssueWaypoint(WP_SUPPRESS, position)) return false;
-  SetOrder("Suppressing", ACR_EOrderState.SUPPRESS);
-  m_OrderKind = ACR_EOrderKind.MOVE;
-  return true;
- }
-
  // Living enemies this squad knows about within radius of it.
  // awakeOnly: leave out the unconscious (they don't contest a FOB site).
  int KnownEnemies(float radius, bool awakeOnly = false)
@@ -2522,28 +1842,6 @@ class ACR_Squad : Managed
    }
   }
   return false;
- }
-
- // Is anyone of this squad aboard its own vehicle?
- bool InOwnVehicle()
- {
-  if (!m_OwnVehicle) return false;
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-  {
-   IEntity body = agent.GetControlledEntity();
-   if (body && ACR_Respawn.IsAlive(body) && ACR_Transport.VehicleOf(body) == m_OwnVehicle) return true;
-  }
-  return false;
- }
-
- // The vehicle that defines this squad's map symbol: its own (if still
- // intact), else whatever it is crewing.
- IEntity MarkVehicle()
- {
-  if (m_OwnVehicle && ACR_Logistics.Health(m_OwnVehicle) > 0) return m_OwnVehicle;
-  return ACR_Transport.CrewedVehicle(this);
  }
 
  // ---------------------------------------------------------------- hunt
@@ -2641,101 +1939,6 @@ class ACR_Squad : Managed
   foreach (ResourceName prefab, int count : m_FullStrength) full += count;
   if (full <= 0) return 1;
   return CountAlive() / (float)full;
- }
-
- // Small-unit sense, every second for squads no player is leading:
- //  - a Fast (forced) move stops ignoring the enemy once the squad makes contact;
- //  - a squad that reaches its destination takes up positions instead of standing around;
- //  - soldiers get the mission's AI skill.
- void Tactics(int skill, float now)
- {
-  WatchCrew();
-  // A builder fights normally (Jacob, 18 Oct); its progress pauses while in contact.
-  if (OrderState() == ACR_EOrderState.BUILD_FOB) TickEstablishFob(now);
-  // A regroup or a player taking the squad sets the order aside and restores it: the build
-  // pauses meanwhile and stays paid for (NewOrder refunds it).
-  if (OrderState() == ACR_EOrderState.BUILD_ROADBLOCK) TickEstablishRoadblock(now);
-  // ... but a squad wiped out meanwhile still gets the payment back.
-  else if (RoadblockPending() && CountAlive() <= 0) CancelRoadblock("abandoned: the squad is gone");
-  if (m_ActiveRoadblock) TickRoadblockDefence(now);
-  if (m_MinePlan) TickMineWork(now);
-  if (m_Ambush) ACR_Ambush.Tick(this, now);
-  if (m_FortifyPlan) TickFortify(now);
-  if (!m_Group || m_Commander != 0) return;
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  // Skill and reaction (faster target identification: less standing and staring at a player
-  // while deciding whether he's an enemy): the mode's, or his side's or unit's (ACR_AISkill).
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  foreach (AIAgent agent : agents)
-  {
-   IEntity body = agent.GetControlledEntity();
-   if (!body || !manager) continue;
-   SCR_AICombatComponent combat = SCR_AICombatComponent.Cast(body.FindComponent(SCR_AICombatComponent));
-   ACR_AISkill.Apply(combat, m_Group, skill, manager.m_fAIPerception);
-  }
-  // A player leads (or drives) this squad: they give the orders, e.g. with the command wheel.
-  // Re-issuing our last map order would wipe theirs. A player rifleman doesn't: the squad's order
-  // upkeep (route legs, recovery, the stuck watch) runs as for any AI squad (review, 12 Nov).
-  if (PlayerSteers())
-  {
-   m_CombatFlank.YieldToPlayer(this);
-   return;
-  }
-  WatchBoardingTarget();
-  EvadeTick(now);
-  HuntTick(now);
-  ACR_GunHold.Tick(this);
-  if (m_Qrf) ACR_Qrf.Tick(this, now);
-  if (m_bGarrisonPending && m_Order == "Garrisoning") PlaceGarrison(m_GarrisonPending);
-  else if (m_sOrderPrefab == WP_GARRISON && m_Order == "Garrisoning" && m_Group.GetCurrentWaypoint() == null && m_iGarrisonReissues < 2)
-  {
-   // The game completed the garrison waypoint (a failed group move does that): again.
-   m_iGarrisonReissues++;
-   PrintFormat("[ACR] GARRISON %1: the game dropped the order, issuing it again", m_Name);
-   if (!ACR_Garrison.HasPosts(m_Group)) PlaceGarrison(m_MoveTarget);
-   else IssueWaypoint(WP_GARRISON, m_MoveTarget, m_fOrderRadius);
-  }
-  bool contact = KnownEnemies(350) > 0;
-  if (contact) m_fLastContactTime = now;
-  if (m_CombatFlank.Tick(this, now)) return;
-  FollowRoute();
-  Cohesion(now, contact);
-  RecoverMovementWaypoint(now);
-  ReportUnreachable();
-  bool runningBack = WatchFallBack(now, contact);
-  bool movingOrder = m_sOrderPrefab == WP_MOVE || m_sOrderPrefab == WP_DEFEND || m_sOrderPrefab == WP_SEARCH_DESTROY || m_sOrderPrefab == WP_GARRISON;
-  // (not after a Halt: m_Waypoint is gone then, and the old order must not come back)
-  if (m_bForced && movingOrder && contact && m_Waypoint && !IsMounted() && !m_bRegrouping && !runningBack)
-  {
-   ACR_EMoveMode mode = m_Mode;
-   m_Mode = ACR_EMoveMode.COMBAT;
-   IssueWaypoint(m_sOrderPrefab, m_MoveTarget, m_fOrderRadius);
-   m_Mode = mode;
-   PrintFormat("[ACR] TACTICS %1: contact, fighting its way forward", m_Name);
-  }
-  else if (m_Mode == ACR_EMoveMode.FAST && movingOrder && !contact && m_Waypoint && !IsMounted() && !m_bRegrouping && m_fLastContactTime > 0 && now - m_fLastContactTime >= 15000)
-  {
-   m_fLastContactTime = -1;
-   IssueWaypoint(m_sOrderPrefab, m_MoveTarget, m_fOrderRadius, true);
-   PrintFormat("[ACR] TACTICS %1: contact clear, resuming fast march", m_Name);
-  }
-  if (OrderState() == ACR_EOrderState.MOVE && m_OrderKind == ACR_EOrderKind.MOVE && !IsMounted())
-  {
-   array<AIWaypoint> waypoints = {};
-   m_Group.GetWaypoints(waypoints);
-   IEntity anchor = GetAnchor();
-   if (waypoints.IsEmpty() && anchor && vector.DistanceXZ(anchor.GetOrigin(), m_MoveTarget) < 60)
-   {
-    IssueWaypoint(WP_DEFEND, m_MoveTarget, 20);
-    SetOrder("Holding position", ACR_EOrderState.DEFEND);
-    m_OrderKind = ACR_EOrderKind.DEFEND;
-    PrintFormat("[ACR] TACTICS %1: arrived, taking positions", m_Name);
-   }
-  }
-  HoldRetryWatch(now);
-  DriveWatch(now, contact);
-  CheckTacticalDismount(now, contact);
  }
 
  protected void CheckTacticalDismount(float now, bool contact)
@@ -3978,7 +3181,6 @@ class ACR_Squad : Managed
  static const float QUEUE_BEHIND = 10;  // a vehicle this close behind: don't reverse into it
  static const float QUEUE_LANE = 3.5;   // ... ahead or behind means in its lane: this far off its line, centre to centre
  static const float QUEUE_LANE_WIDEN = 0.2; // ... and ahead, this much wider a metre out (bends, gates at an angle)
- bool Queueing() { return m_fQueueSince >= 0; }
  static float s_fStallSeconds = STALL_SECONDS; // test hook: srv:stall shortens it so its enemy team arrives after the soft truck has given up
  static const float STALL_SECONDS_FIGHTING = 40; // armed and in contact: the gunner may be busy, give it longer
  static const float STALL_SECONDS_HELPLESS = 3;  // under fire with no gunner
@@ -4008,14 +3210,6 @@ class ACR_Squad : Managed
  static const float STUCK_RETRY_MS = 600000; // a vehicle that gave up stuck isn't sent on a ride for this long...
  static const float STUCK_LEFT_M = 50;       // ...unless it has since moved this far from where it gave up
 
- // Gave up stuck lately and still stands about where it did: sending it on a ride ends the same way.
- bool StuckHere(IEntity vehicle, float now)
- {
-  if (now - m_fStuckAt >= STUCK_RETRY_MS) return false;
-  if (!vehicle || m_vStuckPos == vector.Zero) return true;
-  return vector.DistanceXZ(vehicle.GetOrigin(), m_vStuckPos) < STUCK_LEFT_M;
- }
-
  protected void NoteStuck(IEntity vehicle, float now)
  {
   m_fStuckAt = now;
@@ -4026,10 +3220,6 @@ class ACR_Squad : Managed
  protected int m_iUnstickSerial = -1; // the order it was backing out on (EndUnstick)
  protected ref ACR_SquadUnstick m_UnstickListener; // told by BBB_Unstick when backing out is over
  protected bool m_bResumeOnFoot;
- int UnstickTries() { return m_iUnsticks; }
- int Reroutes() { return m_iReroutes; }
- bool IsUnsticking() { return m_bUnsticking; }
-
  // A driver who bailed (m_bDriverBailed): the nearest of its men on foot goes for the driver's
  // seat himself. The group's Get in waypoint seats nobody while part of the crew is aboard
  // (srv:recrew: 50 s on 'Getting in', the seat still empty). Close by he climbs in; further off
@@ -4076,15 +3266,6 @@ class ACR_Squad : Managed
   return BBB.DriverOf(vehicle);
  }
 
- protected bool IsMember(IEntity body)
- {
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-   if (agent.GetControlledEntity() == body) return true;
-  return false;
- }
-
  // A living member of this squad is manning one of the vehicle's guns.
  bool HasGunner(IEntity vehicle)
  {
@@ -4100,31 +3281,6 @@ class ACR_Squad : Managed
  }
 
  protected IEntity m_DriverlessGun;
-
- // A living squad member in a turret of this vehicle whose gun still has ammunition.
- bool HasArmedGunner(IEntity vehicle)
- {
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-  {
-   ChimeraCharacter body = ChimeraCharacter.Cast(agent.GetControlledEntity());
-   if (!body || !ACR_Respawn.IsAlive(body) || body.GetCharacterController().IsUnconscious()) continue;
-   if (ACR_Transport.VehicleOf(body) != vehicle || ACR_Transport.SeatOf(body) != ECompartmentType.TURRET) continue;
-   CompartmentAccessComponent access = body.GetCompartmentAccessComponent();
-   if (access && BBB_VehicleHelpers.TurretHasAmmo(access.GetCompartment())) return true;
-  }
-  return false;
- }
-
- static bool HasTurret(IEntity vehicle)
- {
-  SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
-  if (!compartments) return false;
-  array<BaseCompartmentSlot> turrets = {};
-  compartments.GetCompartmentsOfType(turrets, ECompartmentType.TURRET);
-  return !turrets.IsEmpty();
- }
 
  // The helicopter this squad crews (pilot/gunner seats), if any. AI can't fly in Reforger:
  // any waypoint makes a helicopter crew get out and walk (4 Oct MP: a player flying a
@@ -4142,11 +3298,6 @@ class ACR_Squad : Managed
   return null;
  }
 
- static bool NativeCommandAllowed(bool aircraftCrew)
- {
-  return !aircraftCrew;
- }
-
  // Can fight: infantry of two or more, or a vehicle crew with a manned gun.
  // A lone driver or an unarmed truck crew is not sent to take or hold ground.
  bool IsCombatUnit()
@@ -4155,251 +3306,6 @@ class ACR_Squad : Managed
   IEntity vehicle = ACR_Transport.CrewedVehicle(this);
   if (vehicle) return HasGunner(vehicle);
   return CountAlive() >= 2;
- }
-
- // Suitability as a base of fire (support-role teams are not).
- int FirePower()
- {
-  if (m_Group && m_Group.m_eACRFormation != ACR_EFormation.NONE)
-  {
-   if (ACR_InfantryCatalog.Specialist(m_Group.m_eACRFormation)) return 0;
-   return CountAlive();
-  }
-  string name = m_Name;
-  name.ToLower();
-  if (name.Contains("logistic") || name.Contains("medic") || name.Contains("engineer") || name.Contains("sapper") || name.Contains("demolition") || name.Contains("pioneer") || name.Contains("supply") || name.Contains("sniper"))
-   return 0;
-  int value = CountAlive();
-  IEntity vehicle = ACR_Transport.CrewedVehicle(this);
-  if (vehicle && HasGunner(vehicle)) value += 6;
-  return value;
- }
-
- protected void DriveWatch(float now, bool contact)
- {
-  if (m_bUnsticking || !m_Group) return;
-  IEntity vehicle = ACR_Transport.CrewedVehicle(this);
-  if (!vehicle) return;
-  if (!CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent))) return;
-
-  Physics phys = vehicle.GetPhysics();
-  float speed = 0;
-  if (phys) speed = phys.GetVelocity().Length();
-
-  ChimeraCharacter driver = DriverOf(vehicle);
-  ACR_Manager manager = ACR_Manager.GetInstance();
-
-  bool hitRecently = BBB_Transport.VehicleHitRecently(vehicle, 6000);
-  bool underFire = (contact && KnownEnemies(300) > 0) || hitRecently;
-
-  if (underFire && (!driver || !ACR_Respawn.IsAlive(driver)))
-  {
-   if (speed < 2.0)
-   {
-    // A gunner with ammo keeps a stopped gun in the fight (20 Oct Everon: a man on a
-    // parked HMMWV M2 was pulled out every second, BTR and M1025 crews abandoned
-    // working guns when the driver fell). Only other squads riding along get out.
-    if (HasArmedGunner(vehicle))
-    {
-     if (m_DriverlessGun != vehicle)
-     {
-      m_DriverlessGun = vehicle;
-      PrintFormat("[ACR] DRIVE %1: no driver under fire, gunner keeps fighting", m_Name);
-     }
-     if (manager)
-     {
-      array<ACR_Squad> cargo = {};
-      ACR_Transport.PassengerSquads(manager, vehicle, cargo);
-      foreach (ACR_Squad rider : cargo)
-       if (rider != this && !rider.HasPlayer() && rider.OrderState() != ACR_EOrderState.DISMOUNT) rider.DismountNow();
-     }
-     return;
-    }
-    Bail(vehicle, "driver lost under fire", true);
-    return;
-   }
-  }
-  m_DriverlessGun = null;
-
-  bool eligible = driver != null && ACR_Respawn.IsAlive(driver) && IsMember(driver) && FindController(driver) == 0;
-  if (eligible && manager && manager.IsGunnerDriven(vehicle)) eligible = false;
-  LaneSpeed(vehicle, eligible);
-  bool wantsToMove;
-  if (eligible)
-  {
-   array<AIWaypoint> waypoints = {};
-   m_Group.GetWaypoints(waypoints);
-   bool movingOrder = m_sOrderPrefab == WP_MOVE || m_sOrderPrefab == WP_DEFEND || m_sOrderPrefab == WP_SEARCH_DESTROY || m_sOrderPrefab == WP_GARRISON;
-   wantsToMove = !waypoints.IsEmpty() && movingOrder && vector.DistanceXZ(vehicle.GetOrigin(), m_MoveTarget) > STALL_ARRIVED;
-  }
-  // Parked, unarmed and under fire: driven off before the game's AI gets the crew out beside it.
-  ACR_EOrderState parkedState = OrderState();
-  bool parked = parkedState == ACR_EOrderState.HOLD || parkedState == ACR_EOrderState.NONE || parkedState == ACR_EOrderState.RETURN || parkedState == ACR_EOrderState.DEFEND;
-  if (eligible && !wantsToMove && parked && underFire && speed < 2 && !HasTurret(vehicle) && now >= m_fNextDriveOut && DriveOut(vehicle, now, "parked under fire"))
-   return;
-  if (!underFire) m_bDroveOut = false;
-  ACR_Transport.SanitizeVehicleHorn(vehicle, !eligible || !wantsToMove);
-  if (!wantsToMove || vehicle != m_StallVehicle || (speed > 1.0 && vector.DistanceXZ(vehicle.GetOrigin(), m_StallPos) > 5))
-  {
-   if (vehicle != m_StallVehicle || !wantsToMove) { m_iUnsticks = 0; m_iReroutes = 0; }
-   else if (m_iUnsticks > 0 && vector.DistanceXZ(vehicle.GetOrigin(), m_vUnstickFrom) > UNSTICK_CLEAR) { m_iUnsticks = 0; m_iReroutes = 0; } // got past it: the next stuck spot may re-route too
-   m_StallVehicle = vehicle;
-   if (vehicle) m_StallPos = vehicle.GetOrigin();
-   m_fStallSince = now;
-   m_fBoardingSince = -1;
-   m_fQueueSince = -1;
-   return;
-  }
-  // Waiting for its own men to get in (or out) isn't being stuck; under fire the usual limits apply.
-  if (!underFire && CrewBoarding(vehicle))
-  {
-   if (m_fBoardingSince < 0)
-   {
-    m_fBoardingSince = now;
-    PrintFormat("[ACR] DRIVE %1: waiting for its crew to get in or out, not stuck", m_Name);
-   }
-   if (now - m_fBoardingSince < BOARDING_WAIT_MS)
-   {
-    m_fStallSince = now;
-    return;
-   }
-  }
-  else m_fBoardingSince = -1;
-  // Queueing behind another of our vehicles that's stopped too isn't being stuck (convoys, gates, the
-  // roadblock lane); out of contact only, and for QUEUE_WAIT_MS at most: the one ahead may never move
-  // (srv:stall, 29 Oct: a truck waited 150 s behind a stuck one).
-  ACR_Squad queueBehind;
-  if (!underFire) queueBehind = VehicleNear(vehicle, true, QUEUE_AHEAD);
-  if (queueBehind)
-  {
-   if (m_fQueueSince < 0)
-   {
-    m_fQueueSince = now;
-    PrintFormat("[ACR] DRIVE %1: queueing behind one of ours, not stuck (%2, %3 m ahead)", m_Name, queueBehind.GetName(), (int)vector.DistanceXZ(vehicle.GetOrigin(), ACR_Transport.CrewedVehicle(queueBehind).GetOrigin()));
-   }
-   if (now - m_fQueueSince < QUEUE_WAIT_MS)
-   {
-    m_fStallSince = now;
-    return;
-   }
-  }
-  else m_fQueueSince = -1;
-  // BBB is driving it itself (backing away from an armed vehicle brakes to a stop first, unstick,
-  // pull-over): not stalled, and nobody bails out mid-manoeuvre. From 1.9 that brake really stops
-  // the truck, so the 3 s unarmed-under-fire bail fired every time (pak:mannersevade 0/3).
-  if (BBB_PilotHold.Driving(vehicle))
-  {
-   m_fStallSince = now;
-   return;
-  }
-  float stalled = (now - m_fStallSince) / 1000;
-  bool armed = HasGunner(vehicle);
-  // Fighting vehicles (anything with a turret: LAV, BTR, BRDM, gun trucks) keep
-  // their crew aboard; only soft, unarmed vehicles are abandoned. A taxi isn't one: a ride never
-  // takes a vehicle with a manned gun, so holding it stuck only stranded its riders (#23: a stuck
-  // LAV taxi held, a new order that dropped the ride); it re-routes like a soft vehicle.
-  bool fightingVehicle = HasTurret(vehicle) && !(manager && manager.m_Rides && manager.m_Rides.RideOf(this) != null);
-
-  if (underFire && speed < 3.5 && manager)
-  {
-   array<ACR_Squad> riders = {};
-   ACR_Transport.PassengerSquads(manager, vehicle, riders);
-   foreach (ACR_Squad rider : riders)
-   {
-    if (rider != this && !rider.HasPlayer() && rider.OrderState() != ACR_EOrderState.DISMOUNT)
-    {
-     PrintFormat("[ACR] DRIVE %1: ordering cargo riders %2 to dismount under fire", m_Name, rider.GetName());
-     rider.DismountAndContinue(rider.m_sOrderPrefab, rider.m_MoveTarget, rider.m_fOrderRadius, rider.m_Order, rider.m_OrderKind);
-    }
-   }
-  }
-
-  // Getting away from an armed vehicle: BBB has just braked it and backed it off, and the driver needs a
-  // few seconds to turn it round before standing still means it is stuck (pak:mannersevade, 1.9).
-  float helpless = STALL_SECONDS_HELPLESS;
-  if (m_Evade) helpless = STALL_SECONDS_EVADING;
-  if (m_bDroveOut || m_bFireEvade) helpless = DRIVE_OUT_GRACE_S;
-  if (underFire && !fightingVehicle && stalled >= helpless)
-  {
-   if (!m_bDroveOut && manager)
-   {
-    // Its riders were told to get out (above): a few seconds for them, then it drives out empty.
-    array<ACR_Squad> aboard = {};
-    ACR_Transport.PassengerSquads(manager, vehicle, aboard);
-    aboard.RemoveItem(this);
-    if (!aboard.IsEmpty() && stalled < helpless + DRIVE_OUT_RIDERS_S) return;
-    // Already on its way out of fire and stopped again (hung up turning, or the road it was sent to): one fresh
-    // try from where it faces now, before the crew gets out (srv:stall, 12 Nov: half the runs bailed 10-15 m out).
-    if (aboard.IsEmpty() && DriveOut(vehicle, now, "stopped under fire, unarmed", m_bFireEvade))
-    {
-     m_bDroveOut = true;
-     m_fStallSince = now;
-     return;
-    }
-   }
-   Bail(vehicle, "stopped under fire, unarmed", false);
-   return;
-  }
-  float limit = s_fStallSeconds;
-  if (underFire || armed) limit = STALL_SECONDS_FIGHTING;
-  if (stalled < limit) return;
-  if (m_iUnsticks >= UNSTICK_TRIES)
-  {
-   if (fightingVehicle)
-   {
-    // Hold where it is and fight from there instead of walking away from the vehicle.
-    Halt("Stuck, holding");
-    m_iUnsticks = 0;
-    m_iReroutes = 0;
-    NoteStuck(vehicle, now);
-    PrintFormat("[ACR] DRIVE %1: stuck, holding position (armed vehicle) at %2", m_Name, DriveSpot(vehicle));
-    return;
-   }
-   if (m_iReroutes < REROUTE_TRIES && Reroute(vehicle))
-   {
-    m_iReroutes++;
-    m_iUnsticks = 0;
-    m_StallPos = vehicle.GetOrigin();
-    m_fStallSince = now;
-    return;
-   }
-   StuckHold(vehicle, now);
-   return;
-  }
-  m_iUnsticks++;
-  // Never reverse into a vehicle right behind: plan again from here instead.
-  ACR_Squad behind = VehicleNear(vehicle, false, QUEUE_BEHIND);
-  if (behind)
-  {
-   PrintFormat("[ACR] DRIVE %1: stuck, a vehicle right behind, planning again instead of backing up (try %2; %3, %4 m) at %5", m_Name, m_iUnsticks, behind.GetName(), (int)vector.DistanceXZ(vehicle.GetOrigin(), ACR_Transport.CrewedVehicle(behind).GetOrigin()), DriveSpot(vehicle));
-   m_StallPos = vehicle.GetOrigin();
-   m_fStallSince = now;
-   if (!m_sOrderPrefab.IsEmpty())
-   {
-    int kind = m_OrderKind;
-    IssueWaypoint(m_sOrderPrefab, m_MoveTarget, m_fOrderRadius);
-    m_OrderKind = kind;
-   }
-   return;
-  }
-  BeginUnstick(vehicle, driver);
- }
-
- // Every living member of the squad is in this vehicle.
- protected bool CrewAboard(IEntity vehicle)
- {
-  if (!vehicle) return false;
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  int alive, aboard;
-  foreach (AIAgent agent : agents)
-  {
-   IEntity body = agent.GetControlledEntity();
-   if (!body || !ACR_Respawn.IsAlive(body)) continue;
-   alive++;
-   if (ACR_Transport.VehicleOf(body) == vehicle) aboard++;
-  }
-  return alive > 0 && aboard == alive;
  }
 
  // Where a vehicle stopped, for the DRIVE lines (AI driving study, 10 Nov): the 6 Nov logs had no
@@ -4427,58 +3333,6 @@ class ACR_Squad : Managed
   return string.Format("%1 (%2%3, pitch %4, %5)", ACR_Manager.Grid(at), road, deck, (int)Math.AbsFloat(angles[0]), ACR_CivilianSocket.PlaceName(at));
  }
 
- // Another ACA vehicle in this one's lane within range: ahead of its nose and nearly stopped, or
- // behind its tail (any speed), where backing up takes it. Its own facing, not the line to its
- // target: that half-plane took vehicles parked beside it for ones ahead or behind, and a truck
- // facing away from its target "saw" the one in front of its nose as behind it (Everon soak, 7 Nov:
- // Humvee 1 in the Airbase motor pool was kept from backing up 64 times in 80 minutes).
- // Nose to nose, each waited for the other until the wait ran out, then both backed up, met again
- // and waited again: the newer of the two (later in the squad list) gives way and is taken as stuck
- // as usual, the older one waits.
- protected ACR_Squad VehicleNear(IEntity vehicle, bool ahead, float range)
- {
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  if (!manager) return null;
-  vector here = vehicle.GetOrigin();
-  vector facing = vehicle.GetTransformAxis(2);
-  int mine = manager.m_Squads.Find(this);
-  foreach (int i, ACR_Squad other : manager.m_Squads)
-  {
-   if (!other || other == this) continue;
-   IEntity theirs = ACR_Transport.CrewedVehicle(other);
-   if (!theirs || theirs == vehicle) continue;
-   vector there = theirs.GetOrigin();
-   if (!InLane(here, facing, there, range, ahead)) continue;
-   if (!ahead) return other;
-   Physics phys = theirs.GetPhysics();
-   if (phys && phys.GetVelocity().Length() > 1.5) continue;
-   if (mine > i && InLane(there, theirs.GetTransformAxis(2), here, range, true)) continue;
-   return other;
-  }
-  return null;
- }
-
- // Whether 'to' stands in the lane of a vehicle at 'from' facing 'facing': in front of it (with
- // front false, behind it), within range, and at most QUEUE_LANE off its line (in front, a little
- // more the farther out, for bends and gates at an angle).
- static bool InLane(vector from, vector facing, vector to, float range, bool front)
- {
-  vector rel = to - from;
-  rel[1] = 0;
-  float dist = rel.Length();
-  if (dist > range || dist < 0.1) return false;
-  facing[1] = 0;
-  if (facing.Length() < 0.1) return false;
-  facing.Normalize();
-  float along = vector.Dot(rel, facing);
-  vector side = rel - facing * along;
-  if (!front) along = -along;
-  if (along <= 0) return false;
-  float lane = QUEUE_LANE;
-  if (front) lane = QUEUE_LANE + QUEUE_LANE_WIDEN * along;
-  return side.Length() <= lane;
- }
-
  // Vanilla answers a stuck or unreachable vehicle move by putting the crew out to walk
  // (SCR_AIProcessFailedMovementResult adds a high-priority get-out right after this event).
  // Out of contact, our crew stays aboard: the first failure of an order falls back to the road
@@ -4487,8 +3341,6 @@ class ACR_Squad : Managed
  protected bool m_bMoveFailRerouted; // this order already fell back to road hops
  protected int m_iMoveFailsKept;
  protected int m_iMoveFailsThisOrder;
- int MoveFailsKept() { return m_iMoveFailsKept; }
-
  protected void OnGroupMoveFailed(int moveResult, IEntity vehicleUsed, bool isWaypointRelated, vector moveLocation)
  {
   if (moveResult != EMoveError.STUCK && moveResult != EMoveError.UNREACHABLE) return;
@@ -4537,30 +3389,6 @@ class ACR_Squad : Managed
  // LANE_SLOW_RANGE of it): its chicane has a truck's width to spare, not a truck at road speed. The
  // limit goes once it is past, or when the squad changes vehicle or drivers.
  protected IEntity m_LaneSlowVehicle;
- protected void LaneSpeed(IEntity vehicle, bool aiDriven)
- {
-  ACR_Roadblock near = null;
-  if (vehicle && GetFaction()) near = ACR_Roadblocks.OwnNear(vehicle.GetOrigin(), GetFaction().GetFactionKey());
-  // Its holders step out of the way of any of our vehicles, AI-driven or not.
-  if (near) ACR_RoadblockLane.ClearFor(near, vehicle, aiDriven);
-  ACR_Roadblock rb = null;
-  if (aiDriven) rb = near;
-  if (m_LaneSlowVehicle && (m_LaneSlowVehicle != vehicle || !rb))
-  {
-   AICarMovementComponent was = AICarMovementComponent.Cast(m_LaneSlowVehicle.FindComponent(AICarMovementComponent));
-   if (was) was.ResetCruiseSpeed();
-   PrintFormat("[ACR] DRIVE %1: past the roadblock lane, road speed again", m_Name);
-   m_LaneSlowVehicle = null;
-  }
-  if (!rb) return;
-  AICarMovementComponent movement = AICarMovementComponent.Cast(vehicle.FindComponent(AICarMovementComponent));
-  if (!movement) return;
-  movement.SetCruiseSpeed(ACR_Roadblocks.LANE_SPEED_KMH);
-  if (m_LaneSlowVehicle == vehicle) return;
-  m_LaneSlowVehicle = vehicle;
-  PrintFormat("[ACR] DRIVE %1: slowing to %2 km/h through our roadblock lane at %3", m_Name, ACR_Roadblocks.LANE_SPEED_KMH, rb.m_vPos);
- }
-
  // A fresh road route from where the vehicle stands to where it was going, carried
  // out as route legs of the current order (no new serial: rides stay on).
  protected bool Reroute(IEntity vehicle)
@@ -4602,40 +3430,6 @@ class ACR_Squad : Managed
   return true;
  }
 
- // Given up on driving: the crew stays with the vehicle and holds; AI passengers get
- // out and carry on (a ride sends its riders on to the objective on foot).
- protected void StuckHold(IEntity vehicle, float now)
- {
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  // Saved to try again later (HoldRetryWatch). Not a ride: it ends with this hold, its riders walk on.
-  bool ride = manager && manager.m_Rides && (manager.m_Rides.RideOf(this) || manager.m_Rides.Unloading(this));
-  ACR_OrderSnapshot retry = null;
-  if (!ride && !PlayerSteers()) retry = OrderToRetry();
-  if (manager)
-  {
-   array<ACR_Squad> riders = {};
-   ACR_Transport.PassengerSquads(manager, vehicle, riders);
-   foreach (ACR_Squad rider : riders) if (rider != this && !rider.HasPlayer()) rider.DismountNow();
-  }
-  Halt("Stuck, holding");
-  // The same trip as last time counts its retries on; a new destination starts again.
-  if (retry && vector.DistanceXZ(retry.m_Target, m_vHoldRetryGoal) > STUCK_LEFT_M) m_iHoldRetries = 0;
-  m_HoldRetryOrder = null;
-  if (retry && m_iHoldRetries < HOLD_RETRIES)
-  {
-   m_HoldRetryOrder = retry;
-   m_vHoldRetryGoal = retry.m_Target;
-   m_iHoldRetrySerial = m_iOrderSerial;
-  }
-  m_iStuckCount++;
-  m_StallVehicle = null;
-  m_iUnsticks = 0;
-  m_iReroutes = 0;
-  NoteStuck(vehicle, now);
-  if (vehicle) ACR_Transport.SanitizeVehicleHorn(vehicle, true);
-  PrintFormat("[ACR] DRIVE %1: stuck, crew stays aboard and holds at %2", m_Name, DriveSpot(vehicle));
- }
-
  // A soft vehicle that gave up tries again (AI driving study, 10 Nov). "Stuck, holding" used to last
  // until someone gave it a new order: 62 of 139 stuck episodes in Jacob's 6 Nov game ended there, a
  // truck parked for good on the road it had stalled on. After HOLD_RETRY_MS, out of contact, its trip
@@ -4648,151 +3442,6 @@ class ACR_Squad : Managed
  protected vector m_vHoldRetryGoal;
  protected int m_iHoldRetrySerial;
  int m_iHoldRetries;
-
- static bool HoldRetryDue(float now, float stuckAt, int retriesDone)
- {
-  return retriesDone < HOLD_RETRIES && now - stuckAt >= HOLD_RETRY_MS;
- }
-
- // The trip in hand: its final destination when it is on road legs (Reroute), else the order.
- protected ACR_OrderSnapshot OrderToRetry()
- {
-  ResourceName prefab = m_sOrderPrefab;
-  vector goal = m_MoveTarget;
-  float radius = m_fOrderRadius;
-  if (m_Route && !m_aRoute.IsEmpty())
-  {
-   prefab = m_Route.m_sPrefab;
-   radius = m_Route.m_fRadius;
-   goal = m_aRoute[m_aRoute.Count() - 1];
-  }
-  if (prefab.IsEmpty() || goal == vector.Zero) return null;
-  ACR_EOrderState state = OrderState();
-  if (state == ACR_EOrderState.HOLD || state == ACR_EOrderState.NONE) return null;
-  return ACR_OrderSnapshot.Make(prefab, goal, radius, m_Order, state, m_OrderKind);
- }
-
- // Its job was ended by whoever gave it (a called-off ammo truck, a finished service job): no retry.
- void DropHoldRetry() { m_HoldRetryOrder = null; }
-
- protected void HoldRetryWatch(float now)
- {
-  if (!m_HoldRetryOrder) return;
-  if (m_iOrderSerial != m_iHoldRetrySerial || PlayerSteers())
-  {
-   m_HoldRetryOrder = null; // given another order meanwhile
-   return;
-  }
-  if (!HoldRetryDue(now, m_fStuckAt, m_iHoldRetries)) return;
-  IEntity vehicle = ACR_Transport.CrewedVehicle(this);
-  if (!vehicle || !CrewAboard(vehicle)) return; // its crew isn't all aboard: wait (Recrew or a new order)
-  ChimeraCharacter driver = DriverOf(vehicle);
-  if (!driver || !ACR_Respawn.IsAlive(driver) || FindController(driver) != 0) return;
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  if (manager && manager.IsGunnerDriven(vehicle)) return;
-  if (KnownEnemies(300) > 0 || BBB_Transport.VehicleHitRecently(vehicle, 6000)) return;
-  float fuel = ACR_Logistics.Fuel(vehicle);
-  if (fuel >= 0 && fuel < 0.02) return;
-  if (SCR_AIVehicleUsability.IsVehicleFlipped(vehicle)) return;
-  ACR_OrderSnapshot order = m_HoldRetryOrder;
-  m_HoldRetryOrder = null;
-  m_iHoldRetries++;
-  m_StallVehicle = null;
-  m_iUnsticks = 0;
-  m_iReroutes = 0;
-  // An internal re-issue: the serial stays (a new order from anyone else still shows).
-  RestoreOrder(order);
-  PrintFormat("[ACR] DRIVE %1: stuck hold, trying again (%2 of %3) to %4 from %5", m_Name, m_iHoldRetries, HOLD_RETRIES, ACR_Manager.Grid(order.m_Target), DriveSpot(vehicle));
- }
-
- // A living, conscious member of this squad is getting in or out of a vehicle, or is on foot
- // within BOARDING_RANGE of this one (#53).
- bool CrewBoarding(IEntity vehicle)
- {
-  if (!vehicle) return false;
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-  {
-   ChimeraCharacter body = ChimeraCharacter.Cast(agent.GetControlledEntity());
-   if (!body || !ACR_Respawn.IsAlive(body) || body.GetCharacterController().IsUnconscious()) continue;
-   CompartmentAccessComponent access = body.GetCompartmentAccessComponent();
-   if (access && (access.IsGettingIn() || access.IsGettingOut())) return true;
-   if (!ACR_Transport.VehicleOf(body) && vector.DistanceXZ(body.GetOrigin(), vehicle.GetOrigin()) < BOARDING_RANGE) return true;
-  }
-  return false;
- }
-
- protected void BeginUnstick(IEntity vehicle, ChimeraCharacter driver)
- {
-  m_bUnsticking = true;
-  m_iUnstickSerial = m_iOrderSerial;
-  m_vUnstickFrom = vehicle.GetOrigin();
-  m_iStuckCount++;
-  float steer = 0.8;
-  if (m_iUnsticks % 2 == 0) steer = -0.8;
-  if (!m_UnstickListener) m_UnstickListener = new ACR_SquadUnstick(this);
-  // BBB_Unstick parks the driver's AI and reverses (inputs applied every frame).
-  BBB_Unstick.Begin(vehicle, driver, steer, m_UnstickListener);
-  PrintFormat("[ACR] DRIVE %1: stuck, backing up (try %2) at %3", m_Name, m_iUnsticks, DriveSpot(vehicle));
- }
-
- // Backing out is over (BBB_Unstick has given the driver his AI back).
- void EndUnstick()
- {
-  m_bUnsticking = false;
-  if (m_StallVehicle)
-  {
-   m_StallPos = m_StallVehicle.GetOrigin();
-   ACR_Transport.SanitizeVehicleHorn(m_StallVehicle, true);
-  }
-  m_fStallSince = GetGame().GetWorld().GetWorldTime();
-  // A fresh order only if the waypoint is gone: re-issuing makes the driver stop and plan again. Not
-  // after a newer order (Halt while it backed out kept m_sOrderPrefab: the truck drove off to the old
-  // destination labelled "Holding"), nor for a squad a player steers (review, 12 Nov).
-  if (m_Group && !m_sOrderPrefab.IsEmpty() && !m_Group.GetCurrentWaypoint() && m_iUnstickSerial == m_iOrderSerial && !PlayerSteers())
-  {
-   // Label and state stay as they are.
-   int kind = m_OrderKind;
-   IssueWaypoint(m_sOrderPrefab, m_MoveTarget, m_fOrderRadius);
-   m_OrderKind = kind;
-  }
- }
-
- // Everyone out of the vehicle, passengers included. With resume the crew then
- // carries on to its destination on foot; otherwise it takes cover where it is.
- protected void Bail(IEntity vehicle, string why, bool resume)
- {
-  PrintFormat("[ACR] DRIVE %1: %2, crew bails out at %3", m_Name, why, DriveSpot(vehicle));
-  if (vehicle) ACR_Transport.SanitizeVehicleHorn(vehicle, true);
-  // Handbrake on: from Reforger 1.9 the automatic gearbox drops a driverless vehicle into neutral, and an
-  // abandoned truck rolled 40 m downhill into the BTR its crew had just bailed out from (pak:mannersevade).
-  CarControllerComponent bailCar;
-  if (vehicle) bailCar = CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent));
-  if (bailCar && !BBB_PilotHold.Driving(vehicle)) bailCar.SetPersistentHandBrake(true);
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  if (manager)
-  {
-   array<ACR_Squad> riders = {};
-   ACR_Transport.PassengerSquads(manager, vehicle, riders);
-   foreach (ACR_Squad rider : riders) if (rider != this && !rider.HasPlayer()) rider.DismountNow();
-  }
-  // Anyone whose AI was parked (backing up, gunner drive) must be able to walk away.
-  array<AIAgent> crew = {};
-  GetAgents(crew);
-  foreach (AIAgent member : crew)
-  {
-   IEntity body = member.GetControlledEntity();
-   if (!body || FindController(body) != 0) continue;
-   AIControlComponent control = AIControlComponent.Cast(body.FindComponent(AIControlComponent));
-   if (control && !control.IsAIActivated()) control.ActivateAI();
-  }
-  ResourceName prefab = m_sOrderPrefab;
-  if (!resume) prefab = "";
-  DismountAndContinue(prefab, m_MoveTarget, m_fOrderRadius, m_Order, m_OrderKind);
-  m_StallVehicle = null;
-  m_iUnsticks = 0;
- }
 
  // Everyone out now; then carry out this order on foot (or, with no prefab,
  // take positions where they got out).
@@ -4819,8 +3468,6 @@ class ACR_Squad : Managed
   m_Resume = ACR_OrderSnapshot.Make(prefab, target, radius, order, StateOfLabel(order), kind);
  }
 
- // Whoever set a resume order restored it another way (an air lift does it itself).
- void ForgetResume() { m_bResumeOnFoot = false; }
  protected ref ACR_OrderSnapshot m_Resume; // carried on on foot after a dismount
 
  // ---------------------------------------------------------------- transport
@@ -4843,20 +3490,6 @@ class ACR_Squad : Managed
   GetGame().GetCallqueue().Remove(HoldAfterDismount);
   GetGame().GetCallqueue().CallLater(HoldAfterDismount, 3000, false);
   return dropped;
- }
-
- // A job (mines, a roadblock) given while aboard a ride: everyone out, the job left as it is to
- // carry on on foot. DismountNow's Halt would end it, refunded (25 Oct playtest: a minefield
- // ordered to a squad on a truck was paid and refunded in the same second, the squad then
- // staying aboard under the job's label).
- void GetOutForJob()
- {
-  GetEveryoneOut();
-  m_bHasLZ = false;
-  m_iDismountSweeps = 0;
-  m_iJobSweepSerial = m_iOrderSerial;
-  GetGame().GetCallqueue().Remove(SweepOutForJob);
-  GetGame().GetCallqueue().CallLater(SweepOutForJob, 3000, false);
  }
 
  // Only for the job it got out for: a Get in given within the sweeps' 9 s had the men thrown
@@ -5126,46 +3759,6 @@ class ACR_Squad : Managed
   return alive;
  }
 
- // Soldiers the engine took away for its active-AI limit (group dormant); they still count
- // toward the soldier cap so the AI doesn't keep buying empty squads.
- int CountDormant()
- {
-  if (!m_Group || !m_Group.IsDormant()) return 0;
-  return Math.Max(0, m_Group.GetDormantAliveCount());
- }
-
- // Rough fighting value: soldiers, plus 5 per armed (manned gun) vehicle (Arma Commander's default vehicle value).
- int Strength()
- {
-  array<IEntity> vehicles = {};
-  GetVehicles(vehicles);
-  int armed;
-  foreach (IEntity vehicle : vehicles) if (HasGunner(vehicle)) armed++;
-  return CountAlive() + armed * 5;
- }
-
- // Strength() less fixed guns (a roadblock's or a nest's MG, a tripod): what the squad takes with it
- // when it moves off. Attacks and grabs count this, so a gunner leaving his post doesn't read as
- // losses (6 Nov: a grab from a roadblock set out at 7, was 2 a second later, called off "too many losses").
- int FieldStrength()
- {
-  array<IEntity> vehicles = {};
-  GetVehicles(vehicles);
-  int armed;
-  foreach (IEntity vehicle : vehicles) if (HasGunner(vehicle) && !ACR_Intel.StaticGun(vehicle)) armed++;
-  return CountAlive() + armed * 5;
- }
-
- // In a vehicle that drives, not just a man on a fixed gun. IsMounted() counts both, so a squad
- // manning a roadblock's MG passed for mounted: grabbed at driving speed, past the foot limit.
- bool InMobileVehicle()
- {
-  array<IEntity> vehicles = {};
-  GetVehicles(vehicles);
-  foreach (IEntity vehicle : vehicles) if (!ACR_Intel.StaticGun(vehicle)) return true;
-  return false;
- }
-
  bool HasPlayer()
  {
   array<AIAgent> agents = {};
@@ -5196,29 +3789,6 @@ class ACR_Squad : Managed
  // (a commander's map order, m_iOrderedBy). BBB's hooks and the vehicle rules stand back for it.
  bool HumanInCharge() { return PlayerSteers() || m_iOrderedBy != 0; }
 
- // Board a specific vehicle if one is within 30 m of the point, otherwise the nearest free one.
- bool GetIn(vector position)
- {
-  return BoardVehicle(FindVehicleNear(position, 30), position);
- }
-
- // Board this vehicle (or, without one, the nearest free vehicle to the point).
- bool BoardVehicle(Vehicle vehicle, vector position)
- {
-  NewOrder();
-  ClearPlans();
-  m_bRegrouping = false;
-  if (vehicle)
-  {
-   if (!IssueWaypoint(WP_GET_IN, vehicle.GetOrigin(), -1, true, vehicle)) return false;
-  }
-  else if (!IssueWaypoint(WP_GET_IN_NEAREST, position, 20, true)) return false;
-  SetOrder("Getting in", ACR_EOrderState.GET_IN);
-  m_OrderKind = ACR_EOrderKind.GET_IN;
-  TrackBoarding(vehicle);
-  return true;
- }
-
  protected void TrackBoarding(IEntity vehicle)
  {
   GetGame().GetCallqueue().Remove(EnsureBoardVehicle);
@@ -5229,21 +3799,6 @@ class ACR_Squad : Managed
   if (vehicle && boardAnchor) approach = vector.DistanceXZ(boardAnchor.GetOrigin(), vehicle.GetOrigin()) / 1.2 * 1000;
   m_fBoardUntil = GetGame().GetWorld().GetWorldTime() + Math.Clamp(approach + 60000, 60000, 900000);
   if (vehicle && m_OwnVehicle != vehicle) GetGame().GetCallqueue().CallLater(EnsureBoardVehicle, 8000, false);
- }
-
- void CancelLostBoarding()
- {
-  Halt("Boarding vehicle lost");
-  PrintFormat("[ACR] BOARD %1: target lost, order cancelled", m_Name);
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  if (manager && GetFaction()) manager.NotifyFaction(GetFaction().GetFactionKey(), m_Name + ": boarding cancelled, vehicle lost.");
- }
-
- protected void WatchBoardingTarget()
- {
-  if (OrderState() != ACR_EOrderState.GET_IN || !m_Group || m_Group.GetCurrentWaypoint() != m_Waypoint) return;
-  SCR_BoardingEntityWaypoint boarding = SCR_BoardingEntityWaypoint.Cast(m_Waypoint);
-  if (boarding && (!boarding.GetEntity() || ACR_Logistics.Health(boarding.GetEntity()) <= 0)) CancelLostBoarding();
  }
 
  protected IEntity m_BoardTarget;
@@ -5352,14 +3907,6 @@ class ACR_Squad : Managed
  }
  static const float PULL_OVER_AHEAD_M = 16; // a gentle turn onto the verge
 
- // The pull-over is done: out now (unless a new order came meanwhile).
- void PulledOver(int serial)
- {
-  if (serial != m_iOrderSerial || serial != m_iPullOverSerial || !m_Group) return;
-  m_bPulledOver = true;
-  GetOut();
- }
-
  protected ACR_Squad FindSquadOfSoldier(IEntity soldier)
  {
   ACR_Manager manager = ACR_Manager.GetInstance();
@@ -5385,34 +3932,6 @@ class ACR_Squad : Managed
  protected float m_fEvadeClearAt;
  protected vector m_vEvadeThreat;
 
- bool Evade(IEntity vehicle, vector threat)
- {
-  if (!s_bTestEvade && ACR_LogisticsRules.Choice("acrEvadeArmour", "0") != "1") return false;
-  if (!vehicle || !m_Group || m_Evade || PlayerSteers()) return false;
-  float speed;
-  if (vehicle.GetPhysics()) speed = vehicle.GetPhysics().GetVelocity().Length();
-  if (OrderState() != ACR_EOrderState.MOVE && speed < 2) return false;
-  vector at = vehicle.GetOrigin();
-  vector away = at - threat;
-  away[1] = 0;
-  if (away.LengthSq() < 1) return false;
-  away.Normalize();
-  vector target = at + away * EVADE_M;
-  vector road;
-  if (BBB_Terrain.RoadPointNear(target, 150, road)) target = road;
-  else if (BBB_Terrain.IsWaterAt(target)) return false;
-  ACR_OrderSnapshot snapshot = SnapshotOrder();
-  if (!IssueWaypoint(WP_MOVE, target, 25, true)) return false;
-  m_Evade = snapshot;
-  m_vEvadeThreat = threat;
-  float now = GetGame().GetWorld().GetWorldTime();
-  m_fEvadeStart = now;
-  m_fEvadeClearAt = now + EVADE_CLEAR_MS;
-  SetOrder("Getting away", ACR_EOrderState.MOVE);
-  PrintFormat("[ACR] EVADE %1: unarmed, an armed enemy vehicle %2 m away: gets away to %3", m_Name, Math.Round(vector.DistanceXZ(at, threat)), target);
-  return true;
- }
-
  // ---------------------------------------------------------------- driving out of fire
  // Jacob, 6 Nov: "truck crews should really try to drive away before just bailing out". 6 Nov log:
  // 5 of the US's 10 troop trucks were lost with the truck still sound: the game's driver stops dead
@@ -5432,173 +3951,6 @@ class ACR_Squad : Managed
  protected bool m_bDroveOut;     // tried in this stall under fire
  protected bool m_bFireEvade;    // m_Evade is a drive out of fire (EvadeTick waits for quiet, not for armour)
  protected float m_fNextDriveOut;
-
- // The nearest enemy this squad knows of within 'radius'.
- bool NearestKnownEnemy(float radius, out vector at)
- {
-  if (!m_Group) return false;
-  SCR_AIGroupUtilityComponent utility = SCR_AIGroupUtilityComponent.Cast(m_Group.FindComponent(SCR_AIGroupUtilityComponent));
-  IEntity anchor = GetAnchor();
-  if (!utility || !utility.m_Perception || !anchor) return false;
-  float best = radius;
-  bool found;
-  foreach (IEntity enemy : utility.m_Perception.m_aTargetEntities)
-  {
-   if (!enemy || !ACR_Respawn.IsAlive(enemy)) continue;
-   float d = vector.DistanceXZ(enemy.GetOrigin(), anchor.GetOrigin());
-   if (d > best) continue;
-   best = d;
-   at = enemy.GetOrigin();
-   found = true;
-  }
-  return found;
- }
-
- // A player leads, rides in or ordered this vehicle's squad: he decides, the old rules stand.
- protected bool PlayerHasSay(IEntity vehicle)
- {
-  if (HumanInCharge()) return true;
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  if (!manager) return false;
-  array<ACR_Squad> riders = {};
-  ACR_Transport.PassengerSquads(manager, vehicle, riders);
-  foreach (ACR_Squad rider : riders) if (rider.PlayerSteers()) return true;
-  return false;
- }
-
- // Pure (tests): pushing on along its order gets it away from the enemy (the way there doesn't lead
- // toward him: within 90 degrees of straight away from him).
- static bool OnIsAway(vector at, vector goal, vector enemy)
- {
-  vector way = goal - at;
-  vector away = at - enemy;
-  way[1] = 0;
-  away[1] = 0;
-  if (way.LengthSq() < 400) return false; // nearly there: it isn't going anywhere
-  return vector.Dot(way, away) > 0;
- }
-
- // Pure (tests): which way to drive out, within 80 degrees of straight 'away' from the enemy, the one
- // most along where the vehicle faces ('forward'). srv:stall 6 Nov: sent straight away with the enemy
- // behind it, the driver spent 40 s on a three-point turn under fire and the crew bailed.
- static vector DriveOutDir(vector away, vector forward)
- {
-  away[1] = 0;
-  forward[1] = 0;
-  away.Normalize();
-  if (forward.LengthSq() > 0.01) forward.Normalize();
-  vector best = away;
-  float bestScore = -10;
-  for (int step = -4; step <= 4; step++)
-  {
-   float rad = step * 20 * Math.DEG2RAD;
-   float c = Math.Cos(rad);
-   float sn = Math.Sin(rad);
-   vector dir = Vector(away[0] * c - away[2] * sn, 0, away[0] * sn + away[2] * c);
-   float score = vector.Dot(dir, forward) + 0.5 * vector.Dot(dir, away);
-   if (score > bestScore)
-   {
-    bestScore = score;
-    best = dir;
-   }
-  }
-  return best;
- }
-
- // Drives the vehicle out of fire (see above). False: it couldn't (no enemy to drive from and no
- // order to push on with, water that way, a player's say).
- // 'again': it is already driving out of fire and stopped: a fresh way, off the roads, keeping the order to restore.
- protected bool DriveOut(IEntity vehicle, float now, string why, bool again = false)
- {
-  if (!vehicle || !m_Group || (m_Evade && !again) || PlayerHasSay(vehicle)) return false;
-  vector at = vehicle.GetOrigin();
-  vector enemy;
-  bool known = NearestKnownEnemy(DRIVE_OUT_ENEMY, enemy);
-  bool moving = OrderState() == ACR_EOrderState.MOVE || OrderState() == ACR_EOrderState.RETURN || OrderState() == ACR_EOrderState.DEFEND;
-  // On along its order when that gets it away (or no enemy is known: hit by someone unseen).
-  if (!again && moving && !m_sOrderPrefab.IsEmpty() && (!known || OnIsAway(at, m_MoveTarget, enemy)))
-  {
-   int kind = m_OrderKind;
-   if (!IssueWaypoint(m_sOrderPrefab, m_MoveTarget, m_fOrderRadius, true)) return false;
-   m_OrderKind = kind;
-   m_fNextDriveOut = now + DRIVE_OUT_AGAIN_MS;
-   PrintFormat("[ACR] DRIVE %1: %2, drives on out of it", m_Name, why);
-   return true;
-  }
-  if (!known) return false;
-  vector away = at - enemy;
-  away[1] = 0;
-  if (away.LengthSq() < 1) return false;
-  away.Normalize();
-  vector target = at + DriveOutDir(away, vehicle.GetTransformAxis(2)) * DRIVE_OUT_M;
-  vector road;
-  if (!again && BBB_Terrain.RoadPointNear(target, 150, road)) target = road;
-  else if (BBB_Terrain.IsWaterAt(target)) return false;
-  // Driving out again keeps the order it had before the first drive out.
-  ACR_OrderSnapshot snapshot = m_Evade;
-  if (!snapshot) snapshot = SnapshotOrder();
-  if (!IssueWaypoint(WP_MOVE, target, 25, true)) return false;
-  m_Evade = snapshot;
-  m_bFireEvade = true;
-  m_vEvadeThreat = enemy;
-  m_fEvadeStart = now;
-  m_fEvadeClearAt = now + EVADE_CLEAR_MS;
-  m_fNextDriveOut = now + DRIVE_OUT_AGAIN_MS;
-  SetOrder("Getting away", ACR_EOrderState.MOVE);
-  string how = "";
-  if (again) how = ", again a fresh way";
-  PrintFormat("[ACR] DRIVE %1: %2, drives out %3 m away from the enemy %4 m off%5", m_Name, why, (int)DRIVE_OUT_M, Math.Round(vector.DistanceXZ(at, enemy)), how);
-  return true;
- }
-
- // The threat lies near the straight way from 'from' to 'to' (within 150 m of it, between the two).
- static bool PastThreat(vector from, vector to, vector threat)
- {
-  vector way = to - from;
-  way[1] = 0;
-  float len2 = vector.Dot(way, way);
-  if (len2 < 1) return false;
-  vector rel = threat - from;
-  rel[1] = 0;
-  float t = vector.Dot(rel, way) / len2;
-  if (t < 0 || t > 1.2) return false;
-  vector closest = from + way * t;
-  return vector.DistanceXZ(closest, threat) < 150;
- }
-
- protected void EvadeTick(float now)
- {
-  if (!m_Evade) return;
-  array<IEntity> vehicles = {};
-  GetVehicles(vehicles);
-  IEntity vehicle;
-  if (!vehicles.IsEmpty()) vehicle = vehicles[0];
-  vector threat;
-  if (vehicle && BBB_Traffic.ArmedEnemySeen(vehicle, threat))
-  {
-   m_fEvadeClearAt = now + EVADE_CLEAR_MS;
-   m_vEvadeThreat = threat;
-  }
-  else if (vehicle && m_bFireEvade && (BBB_Transport.VehicleHitRecently(vehicle, 6000) || NearestKnownEnemy(300, threat)))
-  {
-   m_fEvadeClearAt = now + EVADE_CLEAR_MS;
-   if (threat != vector.Zero) m_vEvadeThreat = threat;
-  }
-  if (vehicle && now < m_fEvadeClearAt && now - m_fEvadeStart < EVADE_MAX_MS) return;
-  ACR_OrderSnapshot back = m_Evade;
-  m_Evade = null;
-  m_bFireEvade = false;
-  // Its order leads past the armed vehicle (within 150 m of the way there): it waits instead of driving
-  // back into it; the commander or the player gives the next order.
-  if (vehicle && PastThreat(vehicle.GetOrigin(), back.m_Target, m_vEvadeThreat))
-  {
-   Halt("Waiting: armed enemy vehicle on the way");
-   PrintFormat("[ACR] EVADE %1: clear, but its order leads past the armed vehicle: waiting", m_Name);
-   return;
-  }
-  RestoreOrder(back);
-  PrintFormat("[ACR] EVADE %1: clear, back to its order (%2)", m_Name, m_Order);
- }
 
  // The game's Get out only asks each passenger to leave. Passengers in a vehicle
  // another squad crews (a requisitioned Humvee's driver) stayed aboard (1 Oct MP),
@@ -5667,44 +4019,7 @@ class ACR_Squad : Managed
 
  protected Vehicle m_FoundVehicle;
  protected vector m_SearchVehicleAt;
- Vehicle FindVehicleNear(vector position, float radius)
- {
-  m_FoundVehicle = null;
-  m_SearchVehicleAt = position;
-  m_fVehicleSearchDistance = radius;
-  GetGame().GetWorld().QueryEntitiesBySphere(position, radius, CollectNearestVehicle);
-  return m_FoundVehicle;
- }
-
  protected float m_fVehicleSearchDistance;
- protected bool CollectNearestVehicle(IEntity entity)
- {
-  Vehicle vehicle = Vehicle.Cast(entity);
-  if (!vehicle || ACR_Logistics.Health(vehicle) <= 0) return true;
-  SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
-  if (!compartments || !HasOpenSeat(compartments)) return true;
-  float distance = vector.DistanceXZ(vehicle.GetOrigin(), m_SearchVehicleAt);
-  if (distance <= m_fVehicleSearchDistance)
-  {
-   m_fVehicleSearchDistance = distance;
-   m_FoundVehicle = vehicle;
-  }
-  return true;
- }
-
- protected bool HasOpenSeat(SCR_BaseCompartmentManagerComponent compartments)
- {
-  array<ECompartmentType> types = {ECompartmentType.PILOT, ECompartmentType.TURRET, ECompartmentType.CARGO};
-  foreach (ECompartmentType type : types)
-  {
-   array<BaseCompartmentSlot> slots = {};
-   compartments.GetCompartmentsOfType(slots, type);
-   foreach (BaseCompartmentSlot slot : slots)
-    if (slot && !slot.GetOccupant()) return true;
-  }
-  return false;
- }
-
  // Where the squad is currently headed (any waypoint, including native orders).
  bool GetOrderTarget(out vector target, out int kind)
  {
