@@ -382,6 +382,19 @@ class GuardTests(unittest.TestCase):
         with self.assertRaisesRegex(Blocked, 'since docs/workshop-changelog.md was reviewed'):
             self.console.stage('BBB')
 
+    def test_dependency_bbb_at_a_new_version_needs_its_own_workshop_draft(self):
+        # Console option 1 stages BBB for ACA; at an unpublished version that copy is the one uploaded.
+        self.console.record_publication('BBB', '0.1.0', 'Owner confirmed')
+        path = self.bbb / 'CHANGELOG.md'
+        path.write_text(path.read_text(encoding='utf-8').replace('## 0.1.1 — unreleased\n', '## 0.1.1 — unreleased\n\n- Fix.\n'), encoding='utf-8')
+        self.commit(self.bbb)
+        with self.assertRaisesRegex(Blocked, 'is for 0.1.0; rewrite it for 0.1.1'):
+            self.console.stage('BBB', dependency_only=True)
+        (self.bbb / 'docs/workshop-changelog.md').write_text('0.1.1\n\n- Fix.\n', encoding='utf-8')
+        self.commit(self.bbb)
+        parent = self.console.stage('BBB', dependency_only=True)
+        self.assertEqual('0.1.1\n\n- Fix.\n', (parent / 'WORKSHOP-CHANGELOG.txt').read_text(encoding='utf-8'))
+
     def test_release_notes_tamper_refused(self):
         parent = self.mark_checked('BBB')
         (parent / 'WORKSHOP-CHANGELOG.txt').write_text('incorrect notes')

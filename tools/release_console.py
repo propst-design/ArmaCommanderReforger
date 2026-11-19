@@ -267,9 +267,12 @@ class Console:
         path = self.source(mod) / 'WORKSHOP-RELEASES.json'
         return read_json(path) if path.is_file() else dict(mod=mod, releases=[])
 
-    def require_new_version(self, mod, version):
+    def is_new_version(self, mod, version):
         releases = self.release_history(mod)['releases']
-        if releases and tuple(map(int, version.split('.'))) <= max(tuple(map(int, r['version'].split('.'))) for r in releases):
+        return not releases or tuple(map(int, version.split('.'))) > max(tuple(map(int, r['version'].split('.'))) for r in releases)
+
+    def require_new_version(self, mod, version):
+        if not self.is_new_version(mod, version):
             raise Blocked(f'{mod} {version} is already published. New changes need the next version.')
 
     def record_publication(self, mod, version, evidence, candidate=None, source_commit=None):
@@ -339,6 +342,12 @@ class Console:
         no_links(source)
         version, change_note = latest_release_notes(source, dependency_only=dependency_only,
                                                     require_draft=spec.get('workshopDraft', False))
+        if dependency_only and self.is_new_version(mod, version):
+            # ACA's BBB at a version not yet published: ACA's Open requires the downloaded BBB to
+            # match it, so this copy is uploaded (option 3) and gets its own release's checks (its
+            # Workshop draft, description and review), not a published dependency's leniency.
+            dependency_only = False
+            version, change_note = latest_release_notes(source, require_draft=spec.get('workshopDraft', False))
         if not dependency_only:
             self.require_new_version(mod, version)
             check_description(mod, source / 'docs/workshop-description.md')
