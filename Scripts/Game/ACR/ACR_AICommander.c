@@ -8312,6 +8312,9 @@ class ACR_AICommander : Managed
   {
    if (!base || base.m_bRetired || (base.m_bBuilt && base.m_bHqLost) || base.m_sOwner != m_sFaction) continue;
    if (ACR_Containment.ZombiesNear(base.GetOrigin(), Math.Max(base.m_fRadius, 60))) continue;
+   // Not one beside the evac point (a FOB built or a town taken there since): ACR_Evac.Deliver
+   // pays nothing there, and the truck sat in it with its civilians until the evac timed out.
+   if (m_EvacPoint && vector.DistanceXZ(base.GetOrigin(), m_EvacPoint.m_vPos) <= Math.Max(base.m_fRadius, 60) + ACR_Evac.XP_RADIUS) continue;
    float d = vector.DistanceXZ(base.GetOrigin(), at);
    if (d < bestDistance) { bestDistance = d; best = base; }
   }
