@@ -1,6 +1,6 @@
 # Human entry point. Backend operations never publish anything.
 [CmdletBinding()]
-param([string]$WorkbenchPath, [string]$InstalledAddons = 'E:\ArmaReforgerMods\addons', [switch]$NoMenu)
+param([string]$WorkbenchPath, [string]$InstalledAddons = 'E:\ArmaReforgerMods\addons', [switch]$NoMenu, [string]$Publish)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $backend = Join-Path $PSScriptRoot 'release_console.py'
@@ -42,7 +42,7 @@ function Start-ChangelogRelay([string]$Mod) {
  Write-Host 'Discord changelog relay started; it runs again in 10 and 30 minutes.' -ForegroundColor Green
 }
 function Open-CheckedProject {
- # -Confirmed: Jacob asked an agent to publish this update (Publish-AddOn.ps1, ACA add-ons only).
+ # -Confirmed: Jacob asked an agent to publish this update (Publish-AddOn.ps1, or -Publish for ACA/BBB/AiO; 19 Nov).
  param([string]$Mod, [switch]$PublishUpdate, [switch]$Confirmed)
  if (Get-Process '*Workbench*' -ErrorAction SilentlyContinue) { throw 'Close Workbench first. This ensures the selected release opens as the active project.' }
  $project = Invoke-Guard @('check', $Mod, '--installed-root', $InstalledAddons)
@@ -87,7 +87,6 @@ function Open-CheckedProject {
  Get-Content -LiteralPath $notes.changelogFile -Encoding UTF8 | Out-Host
  Write-Host 'This uploads an update using the existing Workshop item and your Workbench login.'
  $confirmation = 'PUBLISH ' + $Mod + ' ' + $notes.version
- if ($Confirmed -and $Mod -notmatch '^(MAP|PACK)-') { throw 'Only ACA add-ons are published without the typed confirmation.' }
  if (!$Confirmed -and (Read-Host "Type $confirmation to upload, or press Enter to cancel") -cne $confirmation) {
   Write-Host 'Cancelled; nothing uploaded.'
   return
@@ -120,6 +119,10 @@ function Read-MapMod {
  if (![int]::TryParse($pick, [ref]$index) -or $index -lt 1 -or $index -gt $mapMods.Count) { throw 'Choose one of the listed numbers.' }
  return $mapMods[$index - 1]
 }
+# Agent publish (Jacob, 19 Nov: the typed rule, "I want it gone"): when Jacob asks an agent to publish,
+# -Publish <ACA|BBB|AIO|MAP-...|PACK-...> uploads the checked update with its changelog and no typed
+# confirmation. Every other check still runs. BBB goes before ACA.
+if ($Publish) { Open-CheckedProject -Mod $Publish.ToUpperInvariant() -PublishUpdate -Confirmed; return }
 if ($NoMenu) { return }
 while ($true) {
  Write-Host ''
