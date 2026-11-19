@@ -271,6 +271,8 @@ class ACR_Manager : Managed
   ACR_Raid.Reset();
   ACR_FIAIntel.Reset();
   ACR_Depots.Reset();
+  ACR_FIASpoils.Reset();
+  ACR_FIAPrisoners.Reset();
   // Setup screen choices are per match (Jacob, 31 Oct), and a rotation reads its own header.
   ACR_Options.ClearSet();
   ACR_Options.ForgetHeader();

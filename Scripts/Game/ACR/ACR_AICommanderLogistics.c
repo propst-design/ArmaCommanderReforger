@@ -735,9 +735,15 @@ modded class ACR_AICommander
   // One zombie area cleared at a time: the dead mustn't pull the army off the war.
   bool zombieSweep;
   foreach (ACR_DangerRoad sweeping : ACR_Insurgency.s_aRoads) if (sweeping.m_bZombies && sweeping.m_sSide == m_sFaction && sweeping.m_Sweeper) zombieSweep = true;
-  foreach (ACR_DangerRoad road : ACR_Insurgency.s_aRoads)
+  // Hideouts holding our men first (insurgency part 4): the free squads go there before roads.
+  array<ACR_DangerRoad> order = {};
+  foreach (ACR_DangerRoad rescue : ACR_Insurgency.s_aRoads) if (rescue.m_Hideout && ACR_FIAPrisoners.HeldAt(rescue.m_Hideout, m_sFaction) > 0) order.Insert(rescue);
+  foreach (ACR_DangerRoad other : ACR_Insurgency.s_aRoads) if (!order.Contains(other)) order.Insert(other);
+  foreach (ACR_DangerRoad road : order)
   {
    if (road.m_sSide != m_sFaction) continue;
+   int held;
+   if (road.m_Hideout) held = ACR_FIAPrisoners.HeldAt(road.m_Hideout, m_sFaction);
    ACR_Squad sweeper = road.m_Sweeper;
    if (sweeper && (!m_Manager.m_Squads.Contains(sweeper) || sweeper.CountAlive() <= 0 || sweeper.PlayerSteers() || sweeper.m_iAITask != ACR_EAITask.SWEEP || sweeper.GaveUpUnreachable() || now - road.m_fSweepSince > SWEEP_MAX_MS))
    {
@@ -749,11 +755,13 @@ modded class ACR_AICommander
    if (!sweeper)
    {
     int most = 2;
-    if (road.m_Hideout) most = 3;
+    if (road.m_Hideout) most = 3 + Math.Min(held, RESCUE_SWEEPS);
     if (road.m_iSweeps >= most) continue;
     // Nobody goes into a zombie town at night: the area stays marked (supply waits) until day.
     if (road.m_bZombies && (ACR_Outbreak.Night() || zombieSweep)) continue;
-    sweeper = FindSweeper(road.m_vPos);
+    float reach = SWEEP_REACH;
+    if (held > 0) reach = SWEEP_REACH * RESCUE_REACH;
+    sweeper = FindSweeper(road.m_vPos, reach);
     if (!sweeper) continue;
     if (road.m_bZombies) zombieSweep = true;
     road.m_Sweeper = sweeper;
@@ -764,6 +772,7 @@ modded class ACR_AICommander
     Travel(sweeper, road.m_vPos, false, 0);
     string what = "the road at %1 (FIA ambush)";
     if (road.m_Hideout) what = "the FIA hideout at %1";
+    if (held > 0) what = "the FIA hideout at %1 (" + held.ToString() + " of our men held there)";
     if (road.m_bZombies) what = "the zombie area at %1";
     Say(string.Format("[ACR] AI %1: %2 to clear %3", m_sFaction, sweeper.GetName(), string.Format(what, ACR_Manager.Grid(road.m_vPos))));
     continue;
@@ -829,15 +838,16 @@ modded class ACR_AICommander
   return runner;
  }
 
- protected ACR_Squad FindSweeper(vector at)
+ protected ACR_Squad FindSweeper(vector at, float reach = -1)
  {
+  if (reach < 0) reach = SWEEP_REACH;
   array<ACR_Squad> free = {};
   MySquads(free, true);
   SortByDistance(free, at);
   foreach (ACR_Squad squad : free)
   {
    if (squad.CountAlive() < 2 || IsSupportTeam(squad) || !squad.IsCombatUnit() || squad == m_ReserveSquad) continue;
-   if (vector.DistanceXZ(PositionOf(squad), at) > SWEEP_REACH) return null;
+   if (vector.DistanceXZ(PositionOf(squad), at) > reach) return null;
    return squad;
   }
   return null;

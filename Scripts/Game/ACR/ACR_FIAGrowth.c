@@ -109,8 +109,9 @@ class ACR_FIAGrowth
    if (d < STOP_REACH) return 0;
    if (d < SLOW_REACH) slow = true;
   }
-  if (slow) return FILL_PER_MIN * SLOW_FACTOR;
-  return FILL_PER_MIN;
+  // Prisoners held are propaganda (ACR_FIAPrisoners): a little faster, where it recruits at all.
+  if (slow) return FILL_PER_MIN * SLOW_FACTOR + ACR_FIAPrisoners.HeldFill(hideout);
+  return FILL_PER_MIN + ACR_FIAPrisoners.HeldFill(hideout);
  }
 
  // A base (or FOB) a main side holds that FIA doesn't spare.

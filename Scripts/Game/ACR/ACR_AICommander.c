@@ -6408,6 +6408,10 @@ class ACR_AICommander : Managed
  // A sweep that never gets there, or stays in contact by a hideout it can't take, ends: the squad
  // was kept on SWEEP for the rest of the match (audit 31 Oct). Counts as one of the road's sweeps.
  static const float SWEEP_MAX_MS = 600000;
+ // A found hideout holding our men (ACR_FIAPrisoners, insurgency part 4) comes first, gets a sweep
+ // more for each of them held (RESCUE_SWEEPS at most) and a squad from further off.
+ static const int RESCUE_SWEEPS = 3;
+ static const float RESCUE_REACH = 1.5;
  // Containment evac (ACR_Evac): one evac at a time. A free transport (ACR_Rides.IsFreeTransport)
  // near the town with the most people holding out sets an XP by the town and drives there (an XP
  // of ours with people still on foot comes first). Loaded (no seat left, nobody left on foot, or

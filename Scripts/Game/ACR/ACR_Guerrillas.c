@@ -46,6 +46,7 @@ class ACR_GuerrillaCell : Managed
  float m_fReadyAt;       // after a fight: back in action from then, elsewhere
  int m_iMoves;
  float m_fPool;          // hideout: recruits to spend (ACR_FIAGrowth)
+ int m_iArms;            // hideout: weapons its cells' spoils teams brought in (ACR_FIASpoils)
 }
 
 class ACR_Guerrillas
@@ -150,6 +151,8 @@ class ACR_Guerrillas
   s_iWantedCells = 0;
   ACR_FIAGrowth.Reset();
   ACR_Depots.Reset();
+  ACR_FIASpoils.Reset();
+  ACR_FIAPrisoners.Reset();
   int size = ACR_Skirmish.SizeOption();
   if (ACR_Skirmish.s_Active) size = ACR_Skirmish.s_Active.m_eSize;
   if (size == ACR_ESkirmishSize.FLASHPOINT) return;
@@ -183,6 +186,7 @@ class ACR_Guerrillas
   foreach (vector site : sites) AddHideout(site);
   PrintFormat("[ACR] GUERRILLAS %1 hideouts of %2 wanted (%3 ms)", sites.Count(), wanted, System.GetTickCount() - hideoutsStarted);
   ACR_Depots.Apply();
+  ACR_FIASpoils.Apply();
  }
 
  // ---------------------------------------------------------------- hideouts
@@ -926,11 +930,13 @@ class ACR_Guerrillas
   ACR_IED.Tick();
   ACR_Raid.Tick();
   ACR_Depots.Tick();
+  ACR_FIASpoils.Tick();
   foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
   {
    if (!post.m_Cell || !post.m_Group) continue;
    ACR_GuerrillaCell cell = post.m_Cell;
-   int alive = manager.m_Bases.GuardsAlive(post.m_Group);
+   // Its spoils team out (ACR_FIASpoils) is still the cell's: not a loss that pulls it back.
+   int alive = manager.m_Bases.GuardsAlive(post.m_Group) + ACR_FIASpoils.TeamAlive(post);
    if (s_iSeconds % REMAN_EVERY_S == 0) Reman(post);
    if (!cell.m_bSprung)
    {
@@ -1020,12 +1026,13 @@ class ACR_Guerrillas
 
  // While deployed (ACR_Defenders.Tick): stays out while an enemy is near; pulled back, until
  // none is near its men. Any enemy, spared or not, awake or knocked out: men in a fight don't vanish.
- // Nor in front of an enemy player (ACR_Defenders.PLAYER_SIGHT).
+ // Nor in front of an enemy player (ACR_Defenders.PLAYER_SIGHT). Nor while it takes the spoils of
+ // the fight (ACR_FIASpoils.Holds: its team is out, or there is something left to take).
  static bool StayOut(ACR_Manager manager, ACR_DefenderPost post)
  {
   ACR_GuerrillaCell cell = post.m_Cell;
   if (!cell.m_bWithdrawing)
-   return ACR_Defenders.EnemyWithin(manager, post.m_sFaction, post.m_vPos, Range(post) + 50) || ACR_Defenders.EnemyPlayerWithin(post.m_sFaction, post.m_vPos, ACR_Defenders.PLAYER_SIGHT);
+   return ACR_Defenders.EnemyWithin(manager, post.m_sFaction, post.m_vPos, Range(post) + 50) || ACR_Defenders.EnemyPlayerWithin(post.m_sFaction, post.m_vPos, ACR_Defenders.PLAYER_SIGHT) || ACR_FIASpoils.Holds(post, null);
   array<AIAgent> agents = {};
   post.m_Group.GetAgents(agents);
   foreach (AIAgent agent : agents)
@@ -1035,7 +1042,7 @@ class ACR_Guerrillas
    if (ACR_Defenders.EnemyWithin(manager, post.m_sFaction, man.GetOrigin(), CLEAR)) return true;
    if (ACR_Defenders.EnemyPlayerWithin(post.m_sFaction, man.GetOrigin(), ACR_Defenders.PLAYER_SIGHT)) return true;
   }
-  return false;
+  return ACR_FIASpoils.Holds(post, null);
  }
 
  // Packed up (ACR_Defenders.Tick): its barricade and gun go; after a fight it moves on to a new
