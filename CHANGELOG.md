@@ -30,6 +30,7 @@
 - Evac: when the AI's evac truck gives up on its drive to a base with civilians still aboard, the AI should now send it on to a base again later instead of leaving them riding along on other jobs while their evac point stays open.
 - Garrisons no longer grow past their set size from survivors falling back from lost bases or FIA technical crews walking home: the men who don't fit should stay as their own group defending that base and join its reserve once there's room.
 - Hunt: an order queued with Shift behind a Hunt now runs when the hunt ends (target destroyed or lost), instead of being dropped for a Defend or overwritten by the hunt.
+- Supply pallets: a side at the 1000 RP cap can no longer recover a pallet for nothing. It stays on the ground (the other side may still take it), the map label says why, and that side's AI doesn't send a squad for pallets while capped.
 
 ## 0.6.0 — released
 
