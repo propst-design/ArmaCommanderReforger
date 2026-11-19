@@ -24,6 +24,7 @@
 - The AI commander's roadblocks, minefields, defensive positions and FOB sites should face the enemy it knows of, not the truce partner, an allied FIA pocket or an FIA hideout it hasn't found yet.
 - 2IC: a refused Shift order to a squad the AI runs (holding a spot you asked for, or defending a base) no longer pulls it off that job.
 - A Shift order to a squad that is regrouping, getting away in a vehicle or flanking in a fight on its way to Defend or Garrison is refused with the same reason, instead of being accepted and then never starting.
+- A hunting squad whose leader a player takes over and lets go hunts its target again (or holds where it is if the target is gone), instead of walking to the old sighting labelled "Hunting" and standing there for good.
 
 ## 0.6.0 — released
 

@@ -429,6 +429,7 @@ class ACR_Squad : Managed
     if (m_bAsideQrf) replanned = Qrf(m_vAsidePost);
     else if (m_bAsideAmbush) replanned = Ambush(m_vAsidePost, m_vAsideKillZone, m_bAsideAmbushDefend);
     else if (m_AsideFort) replanned = ManFortification(m_AsideFort);
+    else if (m_bAsideHunt) replanned = ResumeHunt();
     if (!replanned) RestoreOrder(m_Aside);
     PrintFormat("[ACR] %1: resumes its map order (%2)", m_Name, m_Order);
    }
@@ -437,6 +438,9 @@ class ACR_Squad : Managed
   m_bAsideQrf = false;
   m_bAsideAmbush = false;
   m_AsideFort = null;
+  m_bAsideHunt = false;
+  m_AsideHuntSquad = null;
+  m_AsideHuntBody = null;
   PrintFormat("[ACR] %1: native command released player=%2", m_Name, m_Commander);
   m_Commander = 0;
   m_PreviousGroup = -1;
@@ -612,6 +616,16 @@ class ACR_Squad : Managed
   }
   m_AsideFort = null;
   if (m_Aside) m_AsideFort = m_Fortification;
+  // A hunt: FollowCommander's NewOrder ends it (HuntTick), and putting back only its waypoint left
+  // a "Hunting X" search at the old sighting with no hunt behind it, idle there for good.
+  m_bAsideHunt = m_Aside != null && m_bHunting;
+  if (m_bAsideHunt)
+  {
+   m_AsideHuntSquad = m_HuntSquad;
+   m_AsideHuntBody = m_HuntBody;
+   m_sAsideHuntWhat = m_sHuntWhat;
+   m_vAsideHuntPos = m_HuntPos;
+  }
   string carried = m_Order;
   FollowCommander();
   KeepOrder(m_Aside, carried);
@@ -896,6 +910,11 @@ class ACR_Squad : Managed
  protected vector m_vAsidePost;
  protected vector m_vAsideKillZone;
  protected ACR_Fortification m_AsideFort;
+ protected bool m_bAsideHunt;          // a hunt set aside: hunted again on release, if its target lives
+ protected ACR_Squad m_AsideHuntSquad;
+ protected IEntity m_AsideHuntBody;
+ protected string m_sAsideHuntWhat;
+ protected vector m_vAsideHuntPos;
  protected bool m_bQrfOrder;   // one of the QRF's own orders (they don't end it)
 
  static string ModeName(ACR_EMoveMode mode)
@@ -1878,6 +1897,26 @@ class ACR_Squad : Managed
  }
 
  bool IsHunting() { return m_bHunting; }
+
+ // The hunt set aside while a player led the squad, on release: hunted again from its last sighting
+ // if the target still lives, else the squad holds where it is (as EndHunt does). False: nothing done.
+ protected bool ResumeHunt()
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager) return false;
+  bool alive;
+  if (m_AsideHuntSquad) alive = manager.m_Squads.Contains(m_AsideHuntSquad) && m_AsideHuntSquad.CountAlive() > 0;
+  else alive = m_AsideHuntBody != null && ACR_Respawn.IsAlive(m_AsideHuntBody);
+  if (alive)
+  {
+   Hunt(m_AsideHuntSquad, m_AsideHuntBody, m_vAsideHuntPos, m_sAsideHuntWhat);
+   return true;
+  }
+  IEntity anchor = GetAnchor();
+  return anchor != null && Defend(anchor.GetOrigin());
+
+ }
+
 
  protected void EndHunt(string reason)
  {
