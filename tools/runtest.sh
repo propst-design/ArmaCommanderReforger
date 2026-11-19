@@ -22,4 +22,7 @@ echo "$2" > "$id.request"
 for i in $(seq 1 "$3"); do sleep 5; [ -f "$id.result.txt" ] && break; done
 head -6 "$id.result.txt" 2>/dev/null
 grep "(E)" "$id.result.txt" 2>/dev/null | grep -v "SCR_SpawnLogic\|SCR_MapUIElementContainer\|SCR_PlayerArsenalLoadout\|ScenarioFramework\|SpinningWidget\|SCR_ScenarioUICommon\|Can't compile" | head -20
+# The line above hides "Can't compile" with the engine's noise: show ours, as runtest.ps1 does,
+# or a compile failure reads only as a missing verdict.
+grep "Can't compile" "$id.result.txt" 2>/dev/null | head -10 | sed '1i --- compile errors:'
 bash ../tools/verdict.sh "$id"

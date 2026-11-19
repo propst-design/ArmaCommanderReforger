@@ -43,7 +43,7 @@ if (Test-Path -LiteralPath $releaseRoot) {
 }
 New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
 
-$keepDirs = @('Configs', 'Missions', 'Prefabs', 'Worlds', 'Scripts')
+$keepDirs = @('Configs', 'Missions', 'Prefabs', 'Worlds', 'Scripts', 'Assets', 'Sounds') # the console's SPECS['ACA'] dirs: 0.5.10's jets flew invisible and silent without Assets and Sounds
 $skipFiles = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $skipFiles.Add('Worlds/BBB_TestArland.ent') | Out-Null
 $skipFiles.Add('Worlds/BBB_TestArland.ent.meta') | Out-Null

@@ -121,6 +121,15 @@ def description_length(path):
     return len(text) + text.count('\n')
 
 
+def check_description(mod, path, label='docs/workshop-description.md'):
+    if path.is_file():
+        length = description_length(path)
+        if length > DESCRIPTION_LIMIT:
+            raise Blocked(f'{mod}: {label} is {length} characters counted as CRLF '
+                          f'(line breaks count 2), {length - DESCRIPTION_LIMIT} over the Workbench limit '
+                          f'of {DESCRIPTION_LIMIT}. Shorten it and commit before preparing.')
+
+
 REFERENCE = re.compile(rb'\{[0-9A-Fa-f]{16}\}([\w./-]+)')
 
 
@@ -258,9 +267,12 @@ class Console:
         path = self.source(mod) / 'WORKSHOP-RELEASES.json'
         return read_json(path) if path.is_file() else dict(mod=mod, releases=[])
 
-    def require_new_version(self, mod, version):
+    def is_new_version(self, mod, version):
         releases = self.release_history(mod)['releases']
-        if releases and tuple(map(int, version.split('.'))) <= max(tuple(map(int, r['version'].split('.'))) for r in releases):
+        return not releases or tuple(map(int, version.split('.'))) > max(tuple(map(int, r['version'].split('.'))) for r in releases)
+
+    def require_new_version(self, mod, version):
+        if not self.is_new_version(mod, version):
             raise Blocked(f'{mod} {version} is already published. New changes need the next version.')
 
     def record_publication(self, mod, version, evidence, candidate=None, source_commit=None):
@@ -330,15 +342,15 @@ class Console:
         no_links(source)
         version, change_note = latest_release_notes(source, dependency_only=dependency_only,
                                                     require_draft=spec.get('workshopDraft', False))
+        if dependency_only and self.is_new_version(mod, version):
+            # ACA's BBB at a version not yet published: ACA's Open requires the downloaded BBB to
+            # match it, so this copy is uploaded (option 3) and gets its own release's checks (its
+            # Workshop draft, description and review), not a published dependency's leniency.
+            dependency_only = False
+            version, change_note = latest_release_notes(source, require_draft=spec.get('workshopDraft', False))
         if not dependency_only:
             self.require_new_version(mod, version)
-            description = source / 'docs/workshop-description.md'
-            if description.is_file():
-                length = description_length(description)
-                if length > DESCRIPTION_LIMIT:
-                    raise Blocked(f'{mod}: docs/workshop-description.md is {length} characters counted as CRLF '
-                                  f'(line breaks count 2), {length - DESCRIPTION_LIMIT} over the Workbench limit '
-                                  f'of {DESCRIPTION_LIMIT}. Shorten it and commit before preparing.')
+            check_description(mod, source / 'docs/workshop-description.md')
         notes = ['CHANGELOG.md']
         if workshop_draft(source, version, dependency_only) is not None:
             notes.append(WORKSHOP_DRAFT)  # the pasted text must be reviewed after the code too
@@ -570,6 +582,9 @@ class Console:
         parent = self.checked(mod)
         manifest = read_json(parent / 'WORKSHOP-BUILD.json')
         self.require_new_version(mod, manifest['releaseVersion'])
+        # Here too, the step before every upload: BBB is prepared as ACA's dependency (dependency_only),
+        # which skips the check in stage, and is then uploaded from that same copy (option 3).
+        check_description(mod, parent / 'WORKSHOP-DESCRIPTION.txt', 'the prepared WORKSHOP-DESCRIPTION.txt')
         return dict(mod=mod, version=manifest['releaseVersion'],
                     project=str(Path(manifest['addonRoot']) / 'addon.gproj'),
                     changelogFile=str(parent / 'WORKSHOP-CHANGELOG.txt'))
