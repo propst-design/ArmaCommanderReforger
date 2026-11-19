@@ -1,6 +1,7 @@
 # Changelog
 ## 0.6.2 — unreleased
 
+- The AI commander should no longer pull squads out of an assault it has committed to just because it expects an attack elsewhere: only real enemies at one of its bases (more than hold it, or an attack on its HQ or a FOB) can call them away now. Free squads still answer a forecast.
 - A base's garrison (an FIA pocket's too) should no longer pack up and vanish the moment it knocks out the enemies in front of it: it stays out while they lie nearby, for up to five minutes. Garrisons and FIA guerrilla cells also stay out while an enemy player is within 800 m.
 
 ## 0.6.1 — released

@@ -276,6 +276,33 @@ class ACR_AICommander : Managed
  protected int m_iAllocAgree, m_iAllocDiffer, m_iAllocTicks;
 
  static const float ALLOC_DROP_COOLDOWN = 120; // s before an attack the allocator called off is weighed again
+
+ // Assault squads stay on their attack (Jacob, 19 Nov; Kamenoe, 11:55: mid-assault the allocator sent
+ // two of its three squads to bases on a forecast, the Reservist Squad went in alone, the attack was
+ // called off for losses and the USSR ended with no combat-ready squad). Once its attack is assaulting,
+ // or it is within ALLOC_ASSAULT_COMMIT of its staging point, a squad of a running attack is offered a
+ // defence only for a real threat there (AttackerMayDefend): the enemies at the base outnumber what holds
+ // it, or an HQ or FOB is under attack. A forecast alone never pulls it; free squads still answer one,
+ // and a called-off attack frees its squads as before.
+ static const float ALLOC_ASSAULT_COMMIT = 600;  // m from its staging point: closing in, committed
+ static const float KEY_BASE_THREAT_SHARE = 0.5; // an HQ or FOB is under attack past this share of its defence
+
+ // Pure: may a squad committed to an assault be pulled to defend a base with 'threat' enemies at it now
+ // (contacts, not the forecast) against 'defence' there? 'keyBase': an HQ or a FOB (where the side deploys).
+ static bool AttackerMayDefend(int threat, int defence, bool keyBase)
+ {
+  if (threat <= 0) return false;
+  if (keyBase) return defence * KEY_BASE_THREAT_SHARE <= threat;
+  return threat > defence;
+ }
+
+ // Its attack holds it (see above): assaulting, or this squad closing on its staging point.
+ protected bool HeldByAssault(ACR_Squad squad, ACR_AIAttack attack, vector pos)
+ {
+  if (!attack || attack.m_bGrab || !attack.m_Target) return false;
+  if (attack.m_bAssaulting) return true;
+  return vector.DistanceXZ(pos, attack.StagingOf(squad)) <= ALLOC_ASSAULT_COMMIT;
+ }
  // 2 by default (#232), 0 with the classic commander (ACR_AIRework).
  static int AllocatorMode() { return Math.ClampInt(ACR_LogisticsRules.Choice("acrAIAllocator", ACR_AIRework.Default("2")).ToInt(), 0, 2); }
  // -acrAIAllocator 2: the allocator assigns the combat jobs (in place of AssignAttacks and PostIdle).
@@ -577,6 +604,16 @@ class ACR_AICommander : Managed
    reserveJob = m_aAllocJobs.Count() - 1;
   }
 
+  // Defences a committed assault squad may still be pulled to (AttackerMayDefend): real threats only.
+  array<bool> realThreat = {};
+  foreach (ACR_AIJob defJob : m_aAllocJobs)
+  {
+   bool pullable = true;
+   if (defJob.m_iKind == ACR_EAITask.DEFEND) pullable = AttackerMayDefend(ThreatTo(defJob.m_Target), DefenceOf(defJob.m_Target), defJob.m_Target.m_bBuilt || IsHQ(defJob.m_Target));
+   realThreat.Insert(pullable);
+  }
+  int keptOnAssault;
+
   // Squads: strength, what they do now, a cheap estimate and fit for every job.
   foreach (ACR_Squad squad : pool)
   {
@@ -590,6 +627,8 @@ class ACR_AICommander : Managed
    attackOf.Find(squad, ownAttack);
    bool support = IsSupportTeam(squad);
    bool truckNear = AllocTruckNear(squad);
+   bool heldByAssault = HeldByAssault(squad, ownAttack, pos);
+   bool keptHere = false;
    foreach (int j, ACR_AIJob job : m_aAllocJobs)
    {
     ACR_Base where = job.m_Target;
@@ -602,6 +641,12 @@ class ACR_AICommander : Managed
     bool grabByTruck = false;
     if (fit > 0 && job.m_iKind == ACR_EAITask.ATTACK && !job.m_bTeam && !job.m_bRunning && GrabTimeOf(squad, where.GetOrigin(), float.MAX, grabByTruck) < 0) fit = 0;
     if (job.m_iKind == ACR_EAITask.DEFEND && support) fit = 0.3;
+    // Committed to an assault: a defence only for a real threat there, never for a forecast alone.
+    if (job.m_iKind == ACR_EAITask.DEFEND && heldByAssault && !realThreat[j])
+    {
+     fit = 0;
+     keptHere = true;
+    }
     // A posted squad is only taken for real work, never walked to another post (as PostIdle leaves
     // it). Soak 4 Nov: with a front's hold slots shuffled, squads walked 2-3 km between two posts
     // worth 2 and back 30 s later.
@@ -639,6 +684,7 @@ class ACR_AICommander : Managed
     else if (has == ACR_EAITask.POSTED && squad == m_ReserveSquad && j == reserveJob) entry.m_iCurrent = j;
     else if (has == ACR_EAITask.POSTED && squad != m_ReserveSquad && job.m_iKind == ACR_EAITask.POSTED && j != reserveJob && vector.DistanceXZ(squad.m_MoveTarget, where.GetOrigin()) <= where.m_fRadius + DEFENSE_DISTANCE) entry.m_iCurrent = j;
    }
+   if (keptHere) keptOnAssault++;
    // Locked: going in under fire, in a sapper raid with its charge under way, or on its way to a
    // posting (see the trips note; one bound nowhere the allocator knows stays out of it). In
    // control, defence stays AssignDefenders' (it runs first): the two never pull a defender to and fro.
@@ -751,6 +797,7 @@ class ACR_AICommander : Managed
   string role = "observing";
   if (control) role = "in control";
   m_aAllocThink.InsertAt(string.Format("Allocator (%1): %2", role, summary.Substring(6, summary.Length() - 6)), 0);
+  if (keptOnAssault > 0) m_aAllocThink.Insert(string.Format("  %1 assault squad(s) kept on their attack: no defence offered without a real threat there", keptOnAssault));
   // Once a minute the whole picture, for reading soaks afterwards.
   if (m_iAllocTicks % 4 == 1)
   {
