@@ -1,5 +1,7 @@
 # Changelog
-## 0.6.1 — unreleased
+## 0.6.2 — unreleased
+
+## 0.6.1 — released
 
 - AI commanders whose HQ rebuild failed no longer send trucks to the same site and buy new ones every 30 seconds.
 - The AI no longer pulls the squad it sent to defuse a sapper charge off the job, so the charge doesn't go off for want of a defuser.
