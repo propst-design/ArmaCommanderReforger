@@ -81,6 +81,7 @@ ACA|srv:getout|skip|150   # needs a player (game client)
 ACA|srv:getoutold|skip|110   # needs a player (game client)
 ACA|srv:mortar|weekly|360   # not run in the last 14 days; server capability not yet seen
 ACA|srv:crew|nightly|120   # median 87s, 3 runs/14d
+ACA|srv:armourcrew|nightly|200   # 19 Nov: armed crews stay aboard on a failed move under fire, held vehicles stop; MT-LB/T-72 parts skip without the Cold War stack
 ACA|srv:skillbbb|weekly|120   # median 20s, 1 runs/14d
 ACA|srv:fieldroutes|nightly|230   # median 178s, 4 runs/14d
 ACA|srv:fieldbridges|nightly|120   # median 41s, 3 runs/14d

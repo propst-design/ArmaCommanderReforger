@@ -3394,23 +3394,46 @@ class ACR_Squad : Managed
  // (SCR_AIProcessFailedMovementResult adds a high-priority get-out right after this event).
  // Out of contact, our crew stays aboard: the first failure of an order falls back to the road
  // hops (one waypoint per trip is the default), later ones are DriveWatch's (back up, re-route,
- // hold). Under fire, or for a player's squad, vanilla's bail stands.
+ // hold). Under fire a soft vehicle's crew gets out to fight on foot (vanilla's bail stands), but
+ // a fighting vehicle's crew stays with its gun: Jacob's 19 Nov game, a T-72's whole crew walked
+ // off the working tank in contact and ACA put them back in 23 s later. For a player's squad
+ // vanilla's bail always stands.
  protected bool m_bMoveFailRerouted; // this order already fell back to road hops
  protected int m_iMoveFailsKept;
+ int m_iMoveFailsUnderFireKept; // tests
  protected int m_iMoveFailsThisOrder;
  protected void OnGroupMoveFailed(int moveResult, IEntity vehicleUsed, bool isWaypointRelated, vector moveLocation)
  {
   if (moveResult != EMoveError.STUCK && moveResult != EMoveError.UNREACHABLE) return;
   if (!vehicleUsed || vehicleUsed != ACR_Transport.CrewedVehicle(this) || PlayerSteers()) return;
-  if (KnownEnemies(300) > 0 || BBB_Transport.VehicleHitRecently(vehicleUsed, 6000)) return;
-  // An empty tank: it can't drive on, so the crew gets out as vanilla has it (and waits for the fuel truck).
+  bool underFire = KnownEnemies(300) > 0 || BBB_Transport.VehicleHitRecently(vehicleUsed, 6000);
+  bool fighting = FightsFrom(vehicleUsed);
+  string why = SCR_Enum.GetEnumName(EMoveError, moveResult);
+  if (underFire && !fighting)
+  {
+   m_iMoveFailsThisOrder++;
+   if (m_iMoveFailsThisOrder <= 1) PrintFormat("[ACR] DRIVE %1: move failed (%2) under fire, no manned gun: the crew gets out to fight on foot at %3", m_Name, why, DriveSpot(vehicleUsed));
+   return;
+  }
+  // An empty tank: it can't drive on, so the crew gets out as vanilla has it (and waits for the
+  // fuel truck). Not a manned gun in a fight: it still shoots from where it stands.
   float fuel = ACR_Logistics.Fuel(vehicleUsed);
-  if (fuel >= 0 && fuel < 0.01) return;
+  if (fuel >= 0 && fuel < 0.01 && !underFire) return;
   // The get-out is added after this event returns: cancel it on the next frame.
-  GetGame().GetCallqueue().CallLater(KeepCrewOnFailedMove, 0, false, vehicleUsed, moveResult);
+  GetGame().GetCallqueue().CallLater(KeepCrewOnFailedMove, 0, false, vehicleUsed, moveResult, underFire);
  }
 
- protected void KeepCrewOnFailedMove(IEntity vehicle, int moveResult)
+ // A vehicle this squad fights from: someone of ours in a turret seat (read from the seats the men
+ // are in, not the hull's own compartment list, which a modded turret may not be on), and not a
+ // ride's taxi (rides never take a manned gun; DriveWatch reads it the same way).
+ bool FightsFrom(IEntity vehicle)
+ {
+  if (!vehicle || !HasGunner(vehicle)) return false;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  return !(manager && manager.m_Rides && manager.m_Rides.RideOf(this) != null);
+ }
+
+ protected void KeepCrewOnFailedMove(IEntity vehicle, int moveResult, bool underFire)
  {
   if (!m_Group || !vehicle || vehicle != ACR_Transport.CrewedVehicle(this)) return;
   SCR_AIGroupUtilityComponent utility = SCR_AIGroupUtilityComponent.Cast(m_Group.FindComponent(SCR_AIGroupUtilityComponent));
@@ -3431,6 +3454,12 @@ class ACR_Squad : Managed
   m_iMoveFailsKept++;
   m_iMoveFailsThisOrder++;
   string why = SCR_Enum.GetEnumName(EMoveError, moveResult);
+  if (underFire)
+  {
+   m_iMoveFailsUnderFireKept++;
+   if (m_iMoveFailsThisOrder <= 2) PrintFormat("[ACR] DRIVE %1: move failed (%2) under fire, the crew stays with its gun at %3", m_Name, why, DriveSpot(vehicle));
+   return;
+  }
   if (!m_bMoveFailRerouted && Reroute(vehicle))
   {
    m_bMoveFailRerouted = true;
