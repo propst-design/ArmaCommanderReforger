@@ -58,10 +58,10 @@ mannersevade|-acrMannersEvadeTest 1|200
 fieldsoffire|-acrFieldsOfFireTest 1|120
 allocator|-acrAllocatorTest 1|60
 allocperf|-acrAllocPerfTest 1|260|Worlds/ACR_Arland.ent
-allocperfeveron|-acrAllocPerfTest 1|300|Worlds/ACR_Everon.ent
+allocperfeveron|-acrAllocPerfTest 1|260|Worlds/ACR_Everon.ent
 allocsoak|-acrAllocSoakTest 1|1380|Worlds/ACR_Everon.ent
 alloc2perf|-acrAllocControlPerfTest 1|260|Worlds/ACR_Arland.ent
-alloc2perfeveron|-acrAllocControlPerfTest 1|300|Worlds/ACR_Everon.ent
+alloc2perfeveron|-acrAllocControlPerfTest 1|260|Worlds/ACR_Everon.ent
 alloc2soak|-acrAllocControlSoakTest 1|1380|Worlds/ACR_Everon.ent
 alloc2longsoak|-acrAllocControlLongSoakTest 1|7380|Worlds/ACR_Everon.ent
 classicsoak|-acrClassicSoakTest 1|1380|Worlds/ACR_Everon.ent
@@ -199,8 +199,8 @@ reserve|-acrReserveTest 1|120|Worlds/ACR_Everon.ent
 bbbrelaxedmarch|-acrBbbRelaxedMarchTest 1|160|Worlds/BBB_TestArland.ent
 bbblook|-acrBbbLookTest 1|90|Worlds/BBB_TestArland.ent
 
-perfeveron|-acrPerfTest 1|300|Worlds/ACR_Everon.ent
-perfscaleeveron|-acrPerfScaleTest 1|300|Worlds/ACR_Everon.ent
+perfeveron|-acrPerfTest 1|260|Worlds/ACR_Everon.ent
+perfscaleeveron|-acrPerfScaleTest 1|260|Worlds/ACR_Everon.ent
 lzbench|-acrLzBenchTest 1|90|Worlds/ACR_Kolguyev.ent
 shoreroutes|-acrShoreRoutesTest 1|90|Worlds/ACR_Everon.ent
 perfkolguyev|-acrPerfTest 1|260|Worlds/ACR_Kolguyev.ent
