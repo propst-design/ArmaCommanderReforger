@@ -1,5 +1,7 @@
 # Changelog
-## 0.6.0 — unreleased
+## 0.6.1 — unreleased
+
+## 0.6.0 — released
 
 Decks and a deck builder, the reworked AI commander on by default, insurgency with IEDs, raids and technicals, the rest of the contained outbreak (evacuation, airdrops, a truce) and counter-battery. Needs Better Battle Buddies 0.2.0.
 
