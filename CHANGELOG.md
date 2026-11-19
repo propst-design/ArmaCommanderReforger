@@ -9,6 +9,7 @@
 
 ## 0.6.2 — unreleased
 
+- Jets sound close again when they pass close: the near engine roar and the pass-by sounds of the A-10A, Su-25, RF-4C and Su-17M4R are back at full quality (since 0.5.9 they had lost their top end, so every jet sounded farther off than it was). The far rumble stays as it is.
 - An AI commander behind on income or short of RP should now go for income bases near its own more readily: empty ones, and lightly held enemy ones, even off its main push. A base grab that stalls is tried again soon by another squad, and a gun vehicle that stops short of a base (its crew stays aboard) is no longer left parked there for ten minutes.
 - The AI commander can now go round a strongly held enemy base instead of only through it: weakly held enemy bases beside or behind a base it can't take (or one that just beat its attack) count for more, most when taking them cuts that base off from its side's other bases or gets into its rear. Its approaches there should keep out of the strong base's sight. Firepower and Fortress commanders weigh this least. The AI says when it does it ("going round ... via ...").
 - The AI commander should no longer pull squads out of an assault it has committed to just because it expects an attack elsewhere: only real enemies at one of its bases (more than hold it, or an attack on its HQ or a FOB) can call them away now. Free squads still answer a forecast.
