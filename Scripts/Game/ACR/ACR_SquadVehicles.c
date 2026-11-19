@@ -147,7 +147,26 @@ modded class ACR_Squad
    return;
   if (!underFire) m_bDroveOut = false;
   ACR_Transport.SanitizeVehicleHorn(vehicle, !eligible || !wantsToMove);
-  if (!wantsToMove || vehicle != m_StallVehicle || (speed > 1.0 && vector.DistanceXZ(vehicle.GetOrigin(), m_StallPos) > STALL_PROGRESS_M))
+  // Turning circles: moving, but never STALL_PROGRESS_M from where the circle clock started for a
+  // whole stall window (out of contact; queueing, boarding and BBB's own driving are excused below).
+  bool circling = false;
+  if (!wantsToMove || vehicle != m_StallVehicle || vector.DistanceXZ(vehicle.GetOrigin(), m_vCirclePos) > STALL_PROGRESS_M)
+  {
+   m_vCirclePos = vehicle.GetOrigin();
+   m_fCircleSince = now;
+   m_bCircleLogged = false;
+  }
+  else if (!underFire && (now - m_fCircleSince) / 1000 >= s_fStallSeconds) circling = true;
+  if (circling && m_fCircleSince < m_fStallSince)
+  {
+   m_fStallSince = m_fCircleSince;
+   if (!m_bCircleLogged)
+   {
+    m_bCircleLogged = true;
+    PrintFormat("[ACR] DRIVE %1: moving but no more than %2 m from where it was %3 s ago (turning circles), taken as stuck at %4", m_Name, (int)STALL_PROGRESS_M, (int)((now - m_fCircleSince) / 1000), DriveSpot(vehicle));
+   }
+  }
+  if (!wantsToMove || vehicle != m_StallVehicle || (!circling && speed > 1.0 && vector.DistanceXZ(vehicle.GetOrigin(), m_StallPos) > 5))
   {
    if (vehicle != m_StallVehicle || !wantsToMove) { m_iUnsticks = 0; m_iReroutes = 0; }
    else if (m_iUnsticks > 0 && vector.DistanceXZ(vehicle.GetOrigin(), m_vUnstickFrom) > UNSTICK_CLEAR) { m_iUnsticks = 0; m_iReroutes = 0; } // got past it: the next stuck spot may re-route too
@@ -252,6 +271,9 @@ modded class ACR_Squad
   if (underFire || armed) limit = STALL_SECONDS_FIGHTING;
   if (stalled < limit) return;
   m_iStallsTaken++;
+  // The next circle window starts now (else each tick would take it as stuck again).
+  m_vCirclePos = vehicle.GetOrigin();
+  m_fCircleSince = now;
   if (m_iUnsticks >= UNSTICK_TRIES)
   {
    if (fightingVehicle)

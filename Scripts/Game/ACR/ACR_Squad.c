@@ -951,7 +951,7 @@ class ACR_Squad : Managed
 
  // Replace every queued order (ours or native) with a single waypoint.
  static bool s_bGameDefend; // test (srv:crewold): crews get the game's Defend waypoint as before
- static const float VEHICLE_HOLD_RADIUS = 40; // m: a vehicle crew's hold (Defend) arrives within this
+ static const float VEHICLE_HOLD_RADIUS = 50; // m: a vehicle crew's hold (Defend) arrives within this
  AIWaypoint IssueWaypoint(ResourceName prefab, vector position, float completionRadius = -1, bool forced = false, IEntity entity = null)
  {
   if (!m_Group) return null;
@@ -971,7 +971,8 @@ class ACR_Squad : Managed
    spawned = WP_MOVE;
    // ...with a vehicle's arrival circle, not a man's: a hull with a wide turn (the TALOS MT-LB)
    // overshoots a 15 m circle and drives round it for good (Jacob's 19 Nov game, an MT-LB screen
-   // post "doing donuts"; srv:armourcrew: 1057 deg turned, stuck 15-35 m out). Well inside the
+   // post "doing donuts"; srv:armourcrew: 1057 deg turned, stuck 15-35 m out; at 40 m it still
+   // looped once, 41 m out). Well inside the
    // 70 m at which a mounted squad counts as there (MovementStillPending), so it isn't re-issued.
    // Only the waypoint gets it: the order keeps its radius for a crew that goes on on foot.
    if (completionRadius < VEHICLE_HOLD_RADIUS) vehicleArrival = VEHICLE_HOLD_RADIUS;
@@ -3255,9 +3256,11 @@ class ACR_Squad : Managed
  static const float STALL_SECONDS_HELPLESS = 3;  // under fire with no gunner
  static const float STALL_SECONDS_EVADING = 10;  // ...but getting away from an armed vehicle (turning round)
  static const float STALL_ARRIVED = 40;          // closer than this to the target counts as there
- // Progress that restarts the stall clock: this far from where it started. Was any 5 m at over 1 m/s,
- // which a vehicle turning circles in a field met every few seconds, so it was never stuck (Jacob's
- // 19 Nov game: an MT-LB "doing donuts"; srv:armourcrew: one spun in place 50 s, no DRIVE line).
+ // The stall clock restarts on any 5 m at over 1 m/s, which a vehicle turning circles in a field
+ // meets every few seconds, so it was never stuck (Jacob's 19 Nov game: an MT-LB "doing donuts";
+ // srv:armourcrew: one spun in place 50 s, no DRIVE line). A second clock (m_fCircleSince) restarts
+ // only once it is this far from where that clock started; out of contact, a stall window without
+ // that progress counts as stuck. Under fire the quick bail rules keep the first clock (srv:stall).
  static const float STALL_PROGRESS_M = 15;
  static const int UNSTICK_TRIES = 2;
  static const int REROUTE_TRIES = 1;
@@ -3265,6 +3268,9 @@ class ACR_Squad : Managed
  protected IEntity m_StallVehicle;
  protected vector m_StallPos;
  protected float m_fStallSince;
+ protected vector m_vCirclePos;
+ protected float m_fCircleSince;
+ protected bool m_bCircleLogged;
  protected int m_iUnsticks;
  int m_iStuckCount; // every time its vehicle was judged stuck (tests)
  protected int m_iReroutes;
