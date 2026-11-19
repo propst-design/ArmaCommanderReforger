@@ -217,14 +217,20 @@ class ACR_SpawnPoints
  // controlling a soldier): the HQ first, then FOBs, then the base nearest the HQ.
  static SCR_SpawnPoint Best(string side)
  {
+  // The HQ to measure from: the side's home point, open or not (found first: a closed HQ point, or
+  // one listed after the bases, left every base unranked and the first in the list won).
   SCR_SpawnPoint home;
+  foreach (SCR_SpawnPoint candidate : SCR_SpawnPoint.GetSpawnPoints())
+  {
+   if (candidate && candidate.GetFactionKey() == side && !IsBasePoint(candidate)) { home = candidate; break; }
+  }
   SCR_SpawnPoint best;
   float bestScore = -float.MAX;
   foreach (SCR_SpawnPoint point : SCR_SpawnPoint.GetSpawnPoints())
   {
    if (!point || point.GetFactionKey() != side || !point.IsSpawnPointEnabled()) continue;
-   if (!IsBasePoint(point) && !home) home = point;
    float score = point.GetPriority() * 100000;
+
    if (home) score -= vector.DistanceXZ(point.GetOrigin(), home.GetOrigin());
    if (score > bestScore) { bestScore = score; best = point; }
   }

@@ -26,6 +26,7 @@
 - A Shift order to a squad that is regrouping, getting away in a vehicle or flanking in a fight on its way to Defend or Garrison is refused with the same reason, instead of being accepted and then never starting.
 - A hunting squad whose leader a player takes over and lets go hunts its target again (or holds where it is if the target is gone), instead of walking to the old sighting labelled "Hunting" and standing there for good.
 - Deploying: when the enemy has taken your HQ and all your other deploy bases are under attack or offline, the deploy screen offers your own best base instead of the lost HQ, so you no longer appear inside the enemy's garrison.
+- A new command unit whose HQ can't take it (contested or lost) should now go to the FOB or base nearest the HQ, not whichever one happened to be listed first.
 
 ## 0.6.0 — released
 
