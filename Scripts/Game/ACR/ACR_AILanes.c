@@ -31,8 +31,16 @@ class ACR_AILane : Managed
  bool Valid(string faction)
  {
   if (!m_From || !m_Objective || m_From.m_bRetired || m_Objective.m_bRetired) return false;
-  return m_From.m_sOwner == faction && m_Objective.m_sOwner != faction;
+  return m_From.m_sOwner == faction && m_Objective.m_sOwner != faction && !PartnerHeld(m_Objective, faction);
  }
+
+ // Held by a side 'faction' isn't fighting (a truce partner, an allied FIA pocket): attacks on it are
+ // called off (ACR_AICommander.UpdateAttacks), so it is no lane objective and gains a lane nothing.
+ static bool PartnerHeld(ACR_Base base, string faction)
+ {
+  return base && !base.m_sOwner.IsEmpty() && base.m_sOwner != faction && ACR_Insurgency.Friendly(base.m_sOwner, faction);
+ }
+
 
  bool Contains(vector point) { return ACR_AILanes.InLane(m_From.GetOrigin(), m_Objective.GetOrigin(), m_fHalfWidth, point); }
  bool Flanks(vector point) { return ACR_AILanes.OnFlank(m_From.GetOrigin(), m_Objective.GetOrigin(), m_fHalfWidth, point); }

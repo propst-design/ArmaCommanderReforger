@@ -1515,7 +1515,7 @@ class ACR_AICommander : Managed
   float cost = 0;
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (base.m_bRetired || base.m_sOwner == m_sFaction || !Visible(base)) continue;
+   if (base.m_bRetired || base.m_sOwner == m_sFaction || !Visible(base) || ACR_AILane.PartnerHeld(base, m_sFaction)) continue;
    if (!ACR_AILanes.InLane(a, b, half, base.GetOrigin())) continue;
    gain += ACR_AILanes.Gain(base.m_bIncome, base.m_iValue);
    if (HostileOwner(base)) cost += DefenceOf(base);
@@ -1551,7 +1551,10 @@ class ACR_AICommander : Managed
    if (fronts[i] > closest + LANE_START_SLACK) continue;
    foreach (ACR_Base to : ACR_Base.s_All)
    {
-    if (to.m_bRetired || to.m_bPocket || to.m_sOwner == m_sFaction || !Visible(to)) continue;
+    // Not toward a base the truce partner (or a befriended side) holds: no attack is ever sent
+    // there (UpdateAttacks calls them off), so the lane would hold the AI's front on it for good.
+    if (to.m_bRetired || to.m_bPocket || to.m_sOwner == m_sFaction || !Visible(to) || ACR_AILane.PartnerHeld(to, m_sFaction)) continue;
+
     if (vector.DistanceXZ(from.GetOrigin(), to.GetOrigin()) < ACR_AILanes.MIN_LENGTH) continue;
     froms.Insert(from);
     tos.Insert(to);
