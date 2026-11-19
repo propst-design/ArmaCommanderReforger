@@ -425,6 +425,8 @@ class ACR_Insurgency
  // and the sides with men there pay for it in standing.
  static void HideoutDestroyed(ACR_DefenderPost post)
  {
+  // Everyone it held is free (insurgency part 4).
+  ACR_FIAPrisoners.HideoutDestroyed(post);
   ACR_Manager manager = ACR_Manager.GetInstance();
   float now = GetGame().GetWorld().GetWorldTime();
   for (int i = s_aRoads.Count() - 1; i >= 0; i--)

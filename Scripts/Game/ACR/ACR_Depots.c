@@ -11,9 +11,16 @@
 //    (Jacob's open question 1: the plan suggests yes). Growth around it stops as round any held
 //    base (ACR_FIAGrowth.FillRate).
 //  - Hideouts buy more technicals (ACR_FIAGrowth.Spend -> Recruit, TECH_COST) up to Cap.
+//  - Stolen vehicles (insurgency part 4, ACR_FIASpoils): a spoils team that reaches an empty, sound
+//    vehicle of a side FIA fights drives it to the nearest idle depot, or to the stash of the
+//    hideout feeding the area (a depot kept at a hideout, made on first use), and joins there. It
+//    is FIA's from then on and raids like a technical (an unarmed one too: it carries two men to
+//    a fight). Stolen vehicles may take FIA STOLEN_EXTRA over Cap; a depot keeps YARD_MAX.
 class ACR_Depot : Managed
 {
- ACR_Base m_Base;
+ ACR_Base m_Base;            // a pocket's depot ...
+ ACR_DefenderPost m_Hideout; // ... or a hideout's stash (stolen vehicles, insurgency part 4)
+ bool m_bTheft;              // the trip out is a stolen vehicle driven home: its crew joins there
  ref array<IEntity> m_aVehicles = {};
  ref array<vector> m_aSpots = {};   // where each was parked (m_aVehicles' order)
  IEntity m_Out;              // the technical out on a raid
@@ -46,6 +53,14 @@ class ACR_Depots
  static const float BRDM_CHANCE = 0.25;   // a military depot's first technical
  static const int TECH_COST = 4;
  static const int CREW = 2;
+ static const float INTACT = 0.5;        // a vehicle this sound or better is worth stealing
+ static const float PLAYER_CLEAR = 300;   // never one with a player this close (his, or one he may come back to)
+ static const int STOLEN_EXTRA = 2;       // stolen vehicles may take FIA this far over Cap
+ static const float STEAL_REACH = 4000;   // m to a depot or stash a stolen vehicle is driven to
+ static const int YARD_MAX = 3;           // vehicles a depot or stash keeps at most
+ static const float STASH_OFFSET = 25;    // m from a hideout's middle its stash parks
+ static const float WITNESS_REACH = 500;  // the side hears of a theft with men this close
+ static const float PARK_NEAR = 200;      // a stolen vehicle this close to its yard is parked where it stands (vanilla AI won't drive so short a way)
  static const float EMPTY_MS = 30000;
  static const float NUDGE_MS = 20000;
  static const int NUDGES = 3;
@@ -112,7 +127,7 @@ class ACR_Depots
    if (vehicle && vehicle == depot.m_Out) continue;
    bool dead = !vehicle || ACR_Logistics.Health(vehicle) <= 0;
    if (!dead && AtHome(depot, i)) continue;
-   if (!dead) PrintFormat("[ACR] DEPOTS %1: a technical left %2 m from the yard is no longer the depot's", depot.m_Base.m_sName, (int)vector.DistanceXZ(vehicle.GetOrigin(), Yard(depot)));
+   if (!dead) PrintFormat("[ACR] DEPOTS %1: a technical left %2 m from the yard is no longer the depot's", NameOf(depot), (int)vector.DistanceXZ(vehicle.GetOrigin(), Yard(depot)));
    depot.m_aVehicles.RemoveOrdered(i);
    if (i < depot.m_aSpots.Count()) depot.m_aSpots.RemoveOrdered(i);
   }
@@ -197,10 +212,10 @@ class ACR_Depots
   if (hideout.m_Cell.m_fPool < TECH_COST || Technicals() >= Cap()) return false;
   foreach (ACR_Depot depot : s_aDepots)
   {
-   if (!Active(depot) || depot.m_aVehicles.Count() >= 2 || vector.DistanceXZ(depot.m_Base.GetOrigin(), hideout.m_vPos) > ACR_Guerrillas.SUPPLY_REACH) continue;
+   if (!Active(depot) || !depot.m_Base || depot.m_aVehicles.Count() >= 2 || vector.DistanceXZ(HomeOf(depot), hideout.m_vPos) > ACR_Guerrillas.SUPPLY_REACH) continue;
    if (!Park(depot, false)) continue;
    hideout.m_Cell.m_fPool -= TECH_COST;
-   PrintFormat("[ACR] DEPOTS %1 buys a technical for %2", hideout.m_sName, depot.m_Base.m_sName);
+   PrintFormat("[ACR] DEPOTS %1 buys a technical for %2", hideout.m_sName, NameOf(depot));
    return true;
   }
   return false;
@@ -209,7 +224,165 @@ class ACR_Depots
  // Still FIA's (taken: no more raids).
  static bool Active(ACR_Depot depot)
  {
+  if (depot.m_Hideout) return !depot.m_Hideout.m_bGone;
   return depot.m_Base && !depot.m_Base.m_bRetired && depot.m_Base.m_bPocket && depot.m_Base.m_sOwner == ACR_Pockets.FACTION;
+ }
+
+ static string NameOf(ACR_Depot depot)
+ {
+  if (depot.m_Hideout) return depot.m_Hideout.m_sName;
+  if (depot.m_Base) return depot.m_Base.m_sName;
+  return "FIA depot";
+ }
+
+ static vector HomeOf(ACR_Depot depot)
+ {
+  if (depot.m_Hideout) return depot.m_Hideout.m_vPos;
+  return depot.m_Base.GetOrigin();
+ }
+
+ // ---------------------------------------------------------------- stolen vehicles (insurgency part 4)
+
+ // A vehicle FIA can take (ACR_FIASpoils): a land vehicle of a side FIA fights, sound, empty, not a
+ // living squad's own vehicle, no player near it (his, or one he may come back to), no arsenal or
+ // spawn point on it (a side's supply or command truck stays theirs), and not FIA's already.
+ static bool Stealable(IEntity vehicle)
+ {
+  if (!vehicle || !Vehicle.Cast(vehicle) || !vehicle.FindComponent(CarControllerComponent)) return false;
+  if (ACR_Logistics.Health(vehicle) < INTACT || !Abandoned(vehicle) || ACR_Vehicles.ArsenalOf(vehicle)) return false;
+  string side = ACR_Vehicles.FactionOf(vehicle);
+  if (!ACR_IED.Target(ACR_Pockets.FACTION, side)) return false;
+  foreach (ACR_Depot depot : s_aDepots) if (depot.m_aVehicles.Contains(vehicle) || depot.m_Out == vehicle) return false;
+  if (ACR_FIAPrisoners.PlayerNear(vehicle.GetOrigin(), PLAYER_CLEAR)) return false;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager) return false;
+  foreach (ACR_Squad squad : manager.m_Squads)
+  {
+   if (squad && squad.m_OwnVehicle == vehicle && squad.CountAlive() > 0) return false;
+  }
+  return Technicals() < Cap() + STOLEN_EXTRA;
+ }
+
+ // Nobody in it can use it: empty, or its crew dead or out of the fight in their seats (never a player).
+ static bool Abandoned(IEntity vehicle)
+ {
+  if (ACR_Vehicles.IsEmpty(vehicle)) return true;
+  array<IEntity> crew = {};
+  ACR_PendingPurchase.Occupants(vehicle, crew);
+  foreach (IEntity man : crew)
+  {
+   if (!man || !ACR_Respawn.IsAlive(man)) continue;
+   if (ACR_Squad.FindController(man) > 0 || !ACR_FIASpoils.OutOfFight(ChimeraCharacter.Cast(man))) return false;
+  }
+  return true;
+ }
+
+ // A hideout's stash (made on first use): its stolen vehicles park by it and raid from it.
+ static ACR_Depot StashOf(ACR_DefenderPost hideout)
+ {
+  if (!hideout || hideout.m_bGone) return null;
+  foreach (ACR_Depot depot : s_aDepots) if (depot.m_Hideout == hideout) return depot;
+  ACR_Depot stash = new ACR_Depot();
+  stash.m_Hideout = hideout;
+  stash.m_vYard = ACR_Manager.Ground(hideout.m_vPos + Vector(STASH_OFFSET, 0, 0));
+  s_aDepots.Insert(stash);
+  PrintFormat("[ACR] DEPOTS %1 keeps a stash of stolen vehicles", hideout.m_sName);
+  return stash;
+ }
+
+ // Where a stolen vehicle at 'pos' goes: the nearest idle depot or stash with room in STEAL_REACH,
+ // else the stash of the hideout feeding the area (null: nowhere to take it).
+ static ACR_Depot StealDestination(vector pos)
+ {
+  ACR_Depot best;
+  float nearest = STEAL_REACH;
+  foreach (ACR_Depot depot : s_aDepots)
+  {
+   if (!Active(depot) || depot.m_iState != IDLE || depot.m_Crew || depot.m_aVehicles.Count() >= YARD_MAX) continue;
+   float d = vector.DistanceXZ(HomeOf(depot), pos);
+   if (d >= nearest) continue;
+   nearest = d;
+   best = depot;
+  }
+  // The stash of the hideout feeding the area when it is nearer (a long drive is a lost vehicle).
+  ACR_DefenderPost hideout = ACR_FIAIntel.SupplierOf(pos);
+  if (best && (!hideout || vector.DistanceXZ(hideout.m_vPos, pos) >= nearest)) return best;
+  ACR_Depot stash = StashOf(hideout);
+  if (best && (!stash || stash.m_iState != IDLE || stash.m_Crew || stash.m_aVehicles.Count() >= YARD_MAX)) return best;
+  if (!stash || stash.m_iState != IDLE || stash.m_Crew || stash.m_aVehicles.Count() >= YARD_MAX) return null;
+  return stash;
+ }
+
+ // A spoils team takes 'vehicle' (ACR_FIASpoils): it becomes the crew driving it home, where it
+ // joins FIA's vehicles (and the men the depot's pocket or hideout). False: nowhere to take it.
+ // crewTaken: the team became its crew (false: parked by the yard where it stood, the team is still the caller's).
+ static bool Steal(IEntity vehicle, SCR_AIGroup team, string from, out bool crewTaken)
+ {
+  crewTaken = false;
+  if (!Stealable(vehicle) || !team) return false;
+  ACR_Depot depot = StealDestination(vehicle.GetOrigin());
+  if (!depot) return false;
+  string side = ACR_Vehicles.FactionOf(vehicle);
+  // Its crew out of the seats first: the living taken prisoner (no player is near: they leave the
+  // field now), the dead looted. One left alive (no room at the hideout): no theft.
+  array<IEntity> crew = {};
+  ACR_PendingPurchase.Occupants(vehicle, crew);
+  foreach (IEntity man : crew)
+  {
+   ChimeraCharacter body = ChimeraCharacter.Cast(man);
+   if (!body) continue;
+   ACR_FIASpoils.TakeBody(body);
+   if (ACR_Respawn.IsAlive(body) && !ACR_FIAPrisoners.Vanishing(body)) return false;
+  }
+  foreach (IEntity seated : crew) if (seated) SCR_EntityHelper.DeleteEntityAndChildren(seated);
+  ACR_Vehicles.SetOwner(vehicle, ACR_Pockets.FACTION);
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (manager && manager.m_Cleanup) manager.m_Cleanup.Watch(vehicle);
+  float now = GetGame().GetWorld().GetWorldTime();
+  depot.m_aVehicles.Insert(vehicle);
+  float toYard = vector.DistanceXZ(vehicle.GetOrigin(), Yard(depot));
+  if (toYard <= PARK_NEAR)
+  {
+   // Already by the yard: it stays there, its new home spot; the team rejoins its group.
+   depot.m_aSpots.Insert(vehicle.GetOrigin());
+   PrintFormat("[ACR] DEPOTS %1 steals a %2 of %3 at %4 and parks it there (%5 m from %6)", from, ACR_Vehicles.NameOf(vehicle), side, ACR_Manager.Grid(vehicle.GetOrigin()), (int)toYard, NameOf(depot));
+   TellSide(vehicle, side);
+   return true;
+  }
+  depot.m_aSpots.Insert(Yard(depot));
+  crewTaken = true;
+  depot.m_Out = vehicle;
+  depot.m_Crew = team;
+  depot.m_bTheft = true;
+  depot.m_iState = BACK;
+  depot.m_fStateAt = now;
+  depot.m_fArrivedAt = now; // no rest after: it got what it went for
+  depot.m_fEmptySince = 0;
+  depot.m_iNudges = 0;
+  team.SetCustomName(string.Format("FIA stolen %1", ACR_Vehicles.NameOf(vehicle)), 0);
+  int seated = Seat(team, vehicle);
+  ACR_Guerrillas.SetCombatMode(team, EAIGroupCombatMode.RETURN_FIRE);
+  ACR_Guerrillas.Order(team, ACR_Squad.WP_MOVE, Yard(depot), 20, false);
+  PrintFormat("[ACR] DEPOTS %1 steals a %2 of %3 at %4, driving it to %5 (%6 m, %7 seated)", from, ACR_Vehicles.NameOf(vehicle), side, ACR_Manager.Grid(vehicle.GetOrigin()), NameOf(depot), (int)vector.DistanceXZ(vehicle.GetOrigin(), Yard(depot)), seated);
+  TellSide(vehicle, side);
+  return true;
+ }
+
+ // The side hears of a theft only if it has men near enough to see it go.
+ protected static void TellSide(IEntity vehicle, string side)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  array<string> sides = {};
+  ACR_Insurgency.SidesNear(vehicle.GetOrigin(), WITNESS_REACH, sides);
+  if (manager && sides.Contains(side) && manager.IntelFor(side)) manager.IntelFor(side).AddFeed(GetGame().GetWorld().GetWorldTime(), string.Format("FIA stole our %1 at %2", ACR_Vehicles.NameOf(vehicle), ACR_Manager.Grid(vehicle.GetOrigin())), vehicle.GetOrigin());
+ }
+
+ static int Stolen()
+ {
+  int count;
+  foreach (ACR_Depot depot : s_aDepots)
+   foreach (IEntity vehicle : depot.m_aVehicles) if (vehicle && ACR_Vehicles.BoughtBy(vehicle) == ACR_Pockets.FACTION) count++;
+  return count;
  }
 
  // ---------------------------------------------------------------- raids
@@ -239,7 +412,7 @@ class ACR_Depots
  // cell fighting in reach.
  static bool FindTarget(ACR_Manager manager, ACR_Depot depot, out vector target)
  {
-  vector home = depot.m_Base.GetOrigin();
+  vector home = HomeOf(depot);
   foreach (ACR_Squad squad : manager.m_Squads)
   {
    if (!squad.GetFaction() || !ACR_IED.Target(ACR_Pockets.FACTION, squad.GetFaction().GetFactionKey())) continue;
@@ -269,13 +442,14 @@ class ACR_Depots
   IEntity vehicle;
   foreach (IEntity parked : depot.m_aVehicles) if (!vehicle && parked && ACR_Logistics.Health(parked) > 0 && !Occupied(parked)) vehicle = parked;
   if (!manager || !vehicle) return false;
-  SCR_AIGroup crew = manager.m_Bases.SpawnGuards(ACR_Pockets.FACTION, vehicle.GetOrigin() + Vector(3, 0, 3), CREW, string.Format("FIA technical %1", depot.m_Base.m_sName), 5);
+  SCR_AIGroup crew = manager.m_Bases.SpawnGuards(ACR_Pockets.FACTION, vehicle.GetOrigin() + Vector(3, 0, 3), CREW, string.Format("FIA technical %1", NameOf(depot)), 5);
   if (!crew) return false;
   Seat(crew, vehicle);
   depot.m_Out = vehicle;
   depot.m_Crew = crew;
   depot.m_vTarget = target;
   depot.m_iState = OUT;
+  depot.m_bTheft = false;
   depot.m_fStateAt = GetGame().GetWorld().GetWorldTime();
   depot.m_fArrivedAt = 0;
   depot.m_fEmptySince = 0;
@@ -283,7 +457,7 @@ class ACR_Depots
   depot.m_fNudgedAt = depot.m_fStateAt;
   ACR_Guerrillas.SetCombatMode(crew, EAIGroupCombatMode.FIRE_AT_WILL);
   ACR_Guerrillas.Order(crew, ACR_Squad.WP_MOVE, target, 30, false);
-  PrintFormat("[ACR] DEPOTS %1: a technical drives out for %2 (%3 m)", depot.m_Base.m_sName, ACR_Manager.Grid(target), (int)vector.DistanceXZ(vehicle.GetOrigin(), target));
+  PrintFormat("[ACR] DEPOTS %1: a technical drives out for %2 (%3 m)", NameOf(depot), ACR_Manager.Grid(target), (int)vector.DistanceXZ(vehicle.GetOrigin(), target));
   return true;
  }
 
@@ -295,10 +469,11 @@ class ACR_Depots
  }
 
  // Driver first, then the gun, the rest anywhere (teleported in: they start at the vehicle).
- protected static void Seat(SCR_AIGroup crew, IEntity vehicle)
+ // Returns how many were asked in and accepted.
+ protected static int Seat(SCR_AIGroup crew, IEntity vehicle)
  {
   SCR_BaseCompartmentManagerComponent seats = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
-  if (!seats) return;
+  if (!seats) return 0;
   // The group's own vehicle (as ACR_Mortars does a tube): vanilla AI keeps to it on a move order
   // instead of getting out at once.
   SCR_AIVehicleUsageComponent usage = SCR_AIVehicleUsageComponent.Cast(vehicle.FindComponent(SCR_AIVehicleUsageComponent));
@@ -311,17 +486,22 @@ class ACR_Depots
   found.Clear();
   seats.GetCompartmentsOfType(found, ECompartmentType.TURRET);
   order.InsertAll(found);
+  found.Clear();
+  // An unarmed (stolen) vehicle: the second man rides in the back.
+  seats.GetCompartmentsOfType(found, ECompartmentType.CARGO);
+  order.InsertAll(found);
   array<AIAgent> agents = {};
   crew.GetAgents(agents);
-  int next;
+  int next, accepted;
   foreach (AIAgent agent : agents)
   {
    ChimeraCharacter body = ChimeraCharacter.Cast(agent.GetControlledEntity());
    if (!body || next >= order.Count()) continue;
    CompartmentAccessComponent access = body.GetCompartmentAccessComponent();
-   if (access) access.GetInVehicle(vehicle, order[next], true, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
+   if (access && access.GetInVehicle(vehicle, order[next], true, -1, ECloseDoorAfterActions.LEAVE_OPEN, false)) accepted++;
    next++;
   }
+  return accepted;
  }
 
  protected static void Step(ACR_Manager manager, ACR_Depot depot, float now)
@@ -330,7 +510,7 @@ class ACR_Depots
   if (depot.m_Crew) alive = manager.m_Bases.GuardsAlive(depot.m_Crew);
   if (alive <= 0)
   {
-   PrintFormat("[ACR] DEPOTS %1: the technical's crew is gone", depot.m_Base.m_sName);
+   PrintFormat("[ACR] DEPOTS %1: the technical's crew is gone", NameOf(depot));
    EndRaid(manager, depot);
    return;
   }
@@ -340,13 +520,21 @@ class ACR_Depots
    // No way there: once out of contact they join it all the same (as any post packs up).
    else if (now - depot.m_fStateAt >= WALK_MAX_MS && !CrewInContact(depot.m_Crew))
    {
-    PrintFormat("[ACR] DEPOTS %1: the technical's crew never got there on foot", depot.m_Base.m_sName);
+    PrintFormat("[ACR] DEPOTS %1: the technical's crew never got there on foot", NameOf(depot));
     Join(manager, depot);
    }
    return;
   }
   // The vehicle lost (burnt, or empty for EMPTY_MS: nobody can drive it): they walk to the nearest
   // cell or hideout. A short dismount to fight is not a loss.
+  // A stolen vehicle's crew not in it yet (their seats refused, or they got out): seated again.
+  if (depot.m_bTheft && depot.m_Out && !Occupied(depot.m_Out) && depot.m_iNudges < NUDGES && CrewNear(depot.m_Crew, depot.m_Out.GetOrigin(), 15))
+  {
+   depot.m_iNudges++;
+   Seat(depot.m_Crew, depot.m_Out);
+   ACR_Guerrillas.Order(depot.m_Crew, ACR_Squad.WP_MOVE, Yard(depot), 20, false);
+   PrintFormat("[ACR] DEPOTS %1: the stolen vehicle's crew isn't aboard, seated again (%2)", NameOf(depot), depot.m_iNudges);
+  }
   bool lost = !depot.m_Out || ACR_Logistics.Health(depot.m_Out) <= 0;
   if (!lost && !Occupied(depot.m_Out))
   {
@@ -358,7 +546,7 @@ class ACR_Depots
   // technical stays parked.
   if (lost && depot.m_Out && ACR_Logistics.Health(depot.m_Out) > 0 && vector.DistanceXZ(depot.m_Out.GetOrigin(), Yard(depot)) <= HOME)
   {
-   PrintFormat("[ACR] DEPOTS %1: the technical never got going, its crew stands down", depot.m_Base.m_sName);
+   PrintFormat("[ACR] DEPOTS %1: the technical never got going, its crew stands down", NameOf(depot));
    EndRaid(manager, depot);
    return;
   }
@@ -376,20 +564,20 @@ class ACR_Depots
     depot.m_iNudges++;
     depot.m_fNudgedAt = now;
     ACR_Guerrillas.Order(depot.m_Crew, ACR_Squad.WP_MOVE, depot.m_vTarget, 30, false);
-    PrintFormat("[ACR] DEPOTS %1: the technical hasn't set off, ordered again", depot.m_Base.m_sName);
+    PrintFormat("[ACR] DEPOTS %1: the technical hasn't set off, ordered again", NameOf(depot));
    }
    // Still in the yard after every re-order: no route there. Stand down now (not after
    // TRIP_MAX_MS), and EndRaid rests the depot so it doesn't relaunch at the same target.
    else if (depot.m_iNudges >= NUDGES && depot.m_fArrivedAt <= 0 && now - depot.m_fNudgedAt >= NUDGE_MS && vector.DistanceXZ(depot.m_Out.GetOrigin(), Yard(depot)) < 20)
    {
-    PrintFormat("[ACR] DEPOTS %1: the technical never got going, its crew stands down", depot.m_Base.m_sName);
+    PrintFormat("[ACR] DEPOTS %1: the technical never got going, its crew stands down", NameOf(depot));
     EndRaid(manager, depot);
     return;
    }
    if (depot.m_fArrivedAt <= 0 && vector.DistanceXZ(depot.m_Out.GetOrigin(), depot.m_vTarget) <= ARRIVE)
    {
     depot.m_fArrivedAt = now;
-    PrintFormat("[ACR] DEPOTS %1: the technical strikes at %2", depot.m_Base.m_sName, ACR_Manager.Grid(depot.m_vTarget));
+    PrintFormat("[ACR] DEPOTS %1: the technical strikes at %2", NameOf(depot), ACR_Manager.Grid(depot.m_vTarget));
    }
    bool done = depot.m_fArrivedAt > 0 && now - depot.m_fArrivedAt >= strike;
    if (done || now - depot.m_fStateAt >= TRIP_MAX_MS) Home(depot, now);
@@ -399,7 +587,7 @@ class ACR_Depots
   // Stopped first: crew out of a rolling vehicle leaves it to coast off.
   if (vector.DistanceXZ(depot.m_Out.GetOrigin(), Yard(depot)) <= HOME && Speed(depot.m_Out) < 1.0)
   {
-   PrintFormat("[ACR] DEPOTS %1: the technical is back", depot.m_Base.m_sName);
+   PrintFormat("[ACR] DEPOTS %1: the technical is back", NameOf(depot));
    EndRaid(manager, depot);
    return;
   }
@@ -409,7 +597,7 @@ class ACR_Depots
   // vanished mid-fight in front of whoever was shooting at them.
   if (now - depot.m_fStateAt >= TRIP_MAX_MS && !CrewInContact(depot.m_Crew))
   {
-   PrintFormat("[ACR] DEPOTS %1: the technical never made it home, its crew stands down", depot.m_Base.m_sName);
+   PrintFormat("[ACR] DEPOTS %1: the technical never made it home, its crew stands down", NameOf(depot));
    EndRaid(manager, depot);
   }
  }
@@ -424,7 +612,7 @@ class ACR_Depots
  static vector Yard(ACR_Depot depot)
  {
   if (depot.m_vYard != vector.Zero) return depot.m_vYard;
-  return depot.m_Base.GetOrigin();
+  return HomeOf(depot);
  }
 
  protected static void Home(ACR_Depot depot, float now)
@@ -433,18 +621,18 @@ class ACR_Depots
   depot.m_fStateAt = now;
   ACR_Guerrillas.SetCombatMode(depot.m_Crew, EAIGroupCombatMode.RETURN_FIRE);
   ACR_Guerrillas.Order(depot.m_Crew, ACR_Squad.WP_MOVE, Yard(depot), 20, false);
-  PrintFormat("[ACR] DEPOTS %1: the technical drives home", depot.m_Base.m_sName);
+  PrintFormat("[ACR] DEPOTS %1: the technical drives home", NameOf(depot));
  }
 
  // On foot to the nearest standing cell or hideout (none: the depot itself).
  protected static void Walk(ACR_Depot depot)
  {
-  vector at = depot.m_Base.GetOrigin();
+  vector at = HomeOf(depot);
   IEntity leader;
   if (depot.m_Crew.GetLeaderAgent()) leader = depot.m_Crew.GetLeaderAgent().GetControlledEntity();
   if (leader) at = leader.GetOrigin();
   depot.m_WalkTo = null;
-  depot.m_vWalkTo = depot.m_Base.GetOrigin();
+  depot.m_vWalkTo = HomeOf(depot);
   float nearest = vector.DistanceXZ(at, depot.m_vWalkTo);
   foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
   {
@@ -460,9 +648,9 @@ class ACR_Depots
   depot.m_Out = null;
   ACR_Guerrillas.SetCombatMode(depot.m_Crew, EAIGroupCombatMode.RETURN_FIRE);
   ACR_Guerrillas.Order(depot.m_Crew, ACR_Squad.WP_MOVE, depot.m_vWalkTo, 15, false);
-  string to = depot.m_Base.m_sName;
+  string to = NameOf(depot);
   if (depot.m_WalkTo) to = depot.m_WalkTo.m_sName;
-  PrintFormat("[ACR] DEPOTS %1: the technical is lost, its crew walks to %2 (%3 m)", depot.m_Base.m_sName, to, (int)nearest);
+  PrintFormat("[ACR] DEPOTS %1: the technical is lost, its crew walks to %2 (%3 m)", NameOf(depot), to, (int)nearest);
  }
 
  // Arrived on foot: into the cell's reserve (or the pocket's garrison).
@@ -475,13 +663,19 @@ class ACR_Depots
    depot.m_WalkTo.m_iReserve += back;
   }
   // Into the base's reserve up to its set garrison; the rest hold the base as a group (Jacob, 19 Nov).
-  else if (Active(depot)) back = manager.m_Bases.TakeIntoReserve(depot.m_Base, depot.m_Crew, ACR_Pockets.FACTION, string.Format("FIA technical crew %1", depot.m_Base.m_sName));
+  else if (depot.m_Hideout && !depot.m_Hideout.m_bGone)
+  {
+   back = manager.m_Bases.PackUpGuards(depot.m_Crew);
+   depot.m_Hideout.m_iReserve += back;
+  }
+  else if (Active(depot) && depot.m_Base) back = manager.m_Bases.TakeIntoReserve(depot.m_Base, depot.m_Crew, ACR_Pockets.FACTION, string.Format("FIA technical crew %1", NameOf(depot)));
   else back = manager.m_Bases.PackUpGuards(depot.m_Crew);
 
-  string to = depot.m_Base.m_sName;
+  string to = NameOf(depot);
   if (depot.m_WalkTo) to = depot.m_WalkTo.m_sName;
-  PrintFormat("[ACR] DEPOTS %1: %2 of the technical's crew joined %3", depot.m_Base.m_sName, back, to);
+  PrintFormat("[ACR] DEPOTS %1: %2 of the technical's crew joined %3", NameOf(depot), back, to);
   depot.m_Crew = null;
+  depot.m_bTheft = false;
   depot.m_iState = IDLE;
  }
 
@@ -513,6 +707,20 @@ class ACR_Depots
  // The raid is over: the crew stands down (out of the vehicle and gone), the technical stays
  // (in the yard: parked for the next raid; anywhere else: Prune drops it). A raid that never got
  // there rests the depot (an unreachable target would relaunch it every few minutes).
+ // A stolen vehicle home: its crew joins the hideout's reserve or the pocket's.
+ protected static void JoinHome(ACR_Manager manager, ACR_Depot depot)
+ {
+  int back;
+  if (depot.m_Hideout && !depot.m_Hideout.m_bGone)
+  {
+   back = manager.m_Bases.PackUpGuards(depot.m_Crew);
+   depot.m_Hideout.m_iReserve += back;
+  }
+  else if (depot.m_Base && Active(depot)) back = manager.m_Bases.TakeIntoReserve(depot.m_Base, depot.m_Crew, ACR_Pockets.FACTION, string.Format("FIA crew %1", NameOf(depot)));
+  else back = manager.m_Bases.PackUpGuards(depot.m_Crew);
+  PrintFormat("[ACR] DEPOTS %1: the stolen vehicle is home, %2 of its crew joined", NameOf(depot), back);
+ }
+
  protected static void EndRaid(ACR_Manager manager, ACR_Depot depot)
  {
   if (depot.m_iState != IDLE && depot.m_fArrivedAt <= 0) depot.m_fRestUntil = GetGame().GetWorld().GetWorldTime() + REST_MS;
@@ -525,8 +733,10 @@ class ACR_Depots
     ChimeraCharacter body = ChimeraCharacter.Cast(agent.GetControlledEntity());
     if (body && body.IsInVehicle() && body.GetCompartmentAccessComponent()) body.GetCompartmentAccessComponent().GetOutVehicle(EGetOutType.TELEPORT, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
    }
-   manager.m_Bases.PackUpGuards(depot.m_Crew);
+   if (depot.m_bTheft) JoinHome(manager, depot);
+   else manager.m_Bases.PackUpGuards(depot.m_Crew);
   }
+  depot.m_bTheft = false;
   if (depot.m_Out && depot.m_Out.GetPhysics())
   {
    depot.m_Out.GetPhysics().SetVelocity(vector.Zero);

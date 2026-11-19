@@ -943,6 +943,8 @@ class ACR_BaseSystem : Managed
   float range = DESPAWN_RANGE;
   if (ACR_BaseWorks.LinesStand(base)) range = WORKS_SPAWN_RANGE + DESPAWN_RANGE - SPAWN_RANGE;
   if (ACR_Defenders.EnemyPlayerWithin(base.m_sOwner, center, ACR_Defenders.PLAYER_SIGHT)) return true;
+  // An FIA pocket taking the spoils of its fight (ACR_FIASpoils): its team out, or something to take.
+  if (base.m_bPocket && ACR_FIASpoils.Holds(null, base)) return true;
   int downed;
   foreach (int i, IEntity body : m_Downed)
   {
@@ -1110,6 +1112,38 @@ class ACR_BaseSystem : Managed
    defend.SetCompletionRadius(radius);
    group.AddWaypoint(defend);
   }
+  return group;
+ }
+
+ // Some of a group's men split off into a group of their own (an FIA spoils team, ACR_FIASpoils):
+ // like any defenders, registered before they join so it is never taken for a squad. Null: none moved.
+ SCR_AIGroup SplitGuards(SCR_AIGroup from, notnull array<ChimeraCharacter> men, string name)
+ {
+  if (!from || men.IsEmpty()) return null;
+  SCR_AIGroup.IgnoreSpawning(true);
+  SCR_AIGroup group = SCR_AIGroup.Cast(ACR_Manager.SpawnPrefab(GROUP_BASE, men[0].GetOrigin()));
+  SCR_AIGroup.IgnoreSpawning(false);
+  if (!group) return null;
+  group.SetMaxUnitsToSpawn(0);
+  m_GarrisonGroups.Insert(group);
+  group.SetDeleteWhenEmpty(false);
+  group.SetCustomName(name, 0);
+  foreach (ChimeraCharacter man : men)
+  {
+   AIControlComponent control = AIControlComponent.Cast(man.FindComponent(AIControlComponent));
+   if (!control || !control.GetControlAIAgent()) continue;
+   AIAgent agent = control.GetControlAIAgent();
+   if (agent.GetParentGroup()) agent.GetParentGroup().RemoveAgent(agent);
+   group.AddAgent(agent);
+  }
+  if (group.GetAgentsCount() == 0)
+  {
+   PackUpGuards(group);
+   return null;
+  }
+  // Off the window or wall posts they held for their old group.
+  group.ReleaseSmartActions();
+  ACR_Squad.KeepSimulated(group);
   return group;
  }
 

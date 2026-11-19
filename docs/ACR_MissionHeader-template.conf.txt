@@ -16,6 +16,7 @@ ACR_MissionHeader {
  m_sAcrOutbreak ""
  m_sAcrFIAAllegiance ""
  m_sAcrFIALeaning ""
+ m_sAcrFIASpoils ""
  m_sAcrFactions ""
  m_sAcrPlayers ""
  m_sAcrThreat ""
