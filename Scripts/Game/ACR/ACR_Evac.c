@@ -6,6 +6,7 @@
 //    plugs into ACR_CivilianSocket.Evacuees, else ACA's vanilla civilians.
 //  - About LEFT_SHARE of them (stragglers, wounded) stay in the town; the rest walk to the XP "on
 //    rails": a move waypoint, and a walker who hasn't moved for NUDGE_MS is stepped on towards it.
+//    Inside XP_RADIUS each walks the last stretch alone (FinalWalk) and stands on the point.
 //  - A vehicle of the XP's side parked (stopped, on the ground, attended) within XP_RADIUS gets every
 //    civilian there put straight into its free passenger seats. No fallback: with no seat they wait.
 //    A helicopter counts (air lift), but its rotors near an XP bring the dead (ACR_Outbreak.CounterAttack).
@@ -28,6 +29,8 @@ class ACR_EvacPoint : Managed
  ref array<vector> m_aLast = {};
  ref array<float> m_aMovedAt = {};
  ref array<IEntity> m_aLeft = {};
+ ref array<IEntity> m_aOnOwn = {};    // walkers sent on the last stretch alone (FinalWalk)
+ ref array<SCR_AIGroup> m_aOwn = {};  // their one-man groups
  int m_iWalked;
  int m_iDelivered;
  int m_iLost;
@@ -49,6 +52,7 @@ class ACR_Evac
  static const float NOISE_GAP_MS = 600000; // and heard again after this long at the same XP
  static const float LEFT_CLEAR = 500;      // m: the left-behind go once no soldier is this close
  static const int MOST_PER_SIDE = 3;       // open XPs per side
+ static const float GATHER = 5;            // m: the last stretch ends this close to the XP at most
 
  protected static ref array<ref ACR_EvacPoint> s_aPoints;
  protected static ref array<IEntity> s_aLeftBehind;
@@ -65,6 +69,7 @@ class ACR_Evac
  static int s_iNoise;        // rotor-noise counterattacks (tests)
  static int s_iHeard;        // rotor noise heard at an XP (tests)
  static int s_iHanded;       // civilians the socket handed over (tests)
+ static int s_iGathered;     // walkers sent on the last stretch alone (tests)
 
  static void ACR_InitStatics()
  {
@@ -88,6 +93,7 @@ class ACR_Evac
   s_iDelivered = 0;
   s_iSeated = 0;
   s_iNudged = 0;
+  s_iGathered = 0;
   s_iAbandoned = 0;
   s_iNoise = 0;
   s_iHeard = 0;
@@ -270,6 +276,34 @@ class ACR_Evac
   return man;
  }
 
+ // The last stretch alone (Jacob, 18 Nov: "Fix it"). In the walk group the civilians stood in
+ // formation round its leader, 15-35 m out, and the nudge stepped them in for the formation to pull
+ // them back out (server test, a vanilla control too). Inside XP_RADIUS a walker leaves it for a
+ // group of his own with one move waypoint to a spot within GATHER m of the XP, spread round it, so
+ // they wait together on the point. Once per walker: if it fails, the walk group still has him.
+ protected static void FinalWalk(ACR_EvacPoint point, IEntity person)
+ {
+  point.m_aOnOwn.Insert(person);
+  if (ACR_Transport.VehicleOf(person)) return;
+  SCR_AIGroup own = NewGroup(person.GetOrigin(), string.Format("Civilian from %1", point.m_sTown));
+  if (!own) return;
+  if (!Join(own, person))
+  {
+   DropGroup(own);
+   return;
+  }
+  point.m_aOwn.Insert(own);
+  float angle = point.m_aOnOwn.Count() * 2.4; // about 137 degrees apart: spread round the point
+  vector spot = ACR_Manager.Ground(point.m_vPos + Vector(Math.Cos(angle), 0, Math.Sin(angle)) * (GATHER * Math.RandomFloat(0.3, 1)));
+  AIWaypoint move = AIWaypoint.Cast(GetGame().SpawnEntityPrefabLocal(Resource.Load(ACR_Squad.WP_MOVE), null, Params(spot)));
+  if (move)
+  {
+   move.SetCompletionRadius(1);
+   own.AddWaypoint(move);
+  }
+  s_iGathered++;
+ }
+
  // Moves a person into 'group' (out of whatever group he was in).
  protected static bool Join(SCR_AIGroup group, IEntity person)
  {
@@ -295,6 +329,8 @@ class ACR_Evac
   }
   DropGroup(point.m_Walkers);
   DropGroup(point.m_Riders);
+  foreach (SCR_AIGroup own : point.m_aOwn) DropGroup(own);
+  point.m_aOwn.Clear();
   point.m_Walkers = null;
   point.m_Riders = null;
  }
@@ -369,6 +405,7 @@ class ACR_Evac
    vector at = person.GetOrigin();
    float left = vector.DistanceXZ(at, point.m_vPos);
    if (left <= XP_RADIUS) waiting = true;
+   if (left <= XP_RADIUS && !point.m_aOnOwn.Contains(person)) FinalWalk(point, person);
    if (left <= ARRIVED)
    {
     point.m_aMovedAt[i] = now;

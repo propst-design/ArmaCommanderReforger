@@ -6,6 +6,7 @@
 - Truce: neither the AI commander nor the 2IC attacks the truce partner's bases any more. An attack forming up or under way when the truce is made ends, and its preparation strikes (bomb run, rockets, mortars) are not called on the partner's base.
 - Zombie counterattacks no longer create phantom civilians holding out at their target.
 - Evac: civilians are delivered only from a vehicle on the ground, at a base of the evac point's own side and not one right beside the evac point (the AI's evac truck no longer drives to such a base and waits there). Only that side's vehicles load them. An empty vehicle at the evac point, with nobody of a playing side aboard or within 50 m, counts as abandoned, and civilians in a vehicle the other side has taken over are lost. An evac point that can't be set up leaves the town's civilians where they are.
+- Evac: civilians now gather on the evac point to wait for their ride. They used to stand in a loose ring 15-35 m out, now and then stepped closer and walking straight back out. Within 75 m of the point each one walks the last stretch on their own and stops within a few metres of it.
 - Lifting an IED gives its hideout a recruit back only if the team that laid it is still out.
 - Loads refunded to a construction truck (a cancelled FOB or roadblock, a dismantled roadblock) stay paid, so a FOB no longer refuses them.
 - A depot's technical stuck on its way home ends its raid once its crew is out of contact, instead of keeping the depot busy all match.
