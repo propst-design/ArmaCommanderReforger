@@ -3255,6 +3255,10 @@ class ACR_Squad : Managed
  static const float STALL_SECONDS_HELPLESS = 3;  // under fire with no gunner
  static const float STALL_SECONDS_EVADING = 10;  // ...but getting away from an armed vehicle (turning round)
  static const float STALL_ARRIVED = 40;          // closer than this to the target counts as there
+ // Progress that restarts the stall clock: this far from where it started. Was any 5 m at over 1 m/s,
+ // which a vehicle turning circles in a field met every few seconds, so it was never stuck (Jacob's
+ // 19 Nov game: an MT-LB "doing donuts"; srv:armourcrew: one spun in place 50 s, no DRIVE line).
+ static const float STALL_PROGRESS_M = 15;
  static const int UNSTICK_TRIES = 2;
  static const int REROUTE_TRIES = 1;
 

@@ -19,6 +19,9 @@ modded class ACR_Squad
 
  int UnstickTries() { return m_iUnsticks; }
 
+ // Times DriveWatch took this squad's vehicle as stuck (unstick, re-route or hold): tests.
+ int m_iStallsTaken;
+
  int Reroutes() { return m_iReroutes; }
 
  bool IsUnsticking() { return m_bUnsticking; }
@@ -144,7 +147,7 @@ modded class ACR_Squad
    return;
   if (!underFire) m_bDroveOut = false;
   ACR_Transport.SanitizeVehicleHorn(vehicle, !eligible || !wantsToMove);
-  if (!wantsToMove || vehicle != m_StallVehicle || (speed > 1.0 && vector.DistanceXZ(vehicle.GetOrigin(), m_StallPos) > 5))
+  if (!wantsToMove || vehicle != m_StallVehicle || (speed > 1.0 && vector.DistanceXZ(vehicle.GetOrigin(), m_StallPos) > STALL_PROGRESS_M))
   {
    if (vehicle != m_StallVehicle || !wantsToMove) { m_iUnsticks = 0; m_iReroutes = 0; }
    else if (m_iUnsticks > 0 && vector.DistanceXZ(vehicle.GetOrigin(), m_vUnstickFrom) > UNSTICK_CLEAR) { m_iUnsticks = 0; m_iReroutes = 0; } // got past it: the next stuck spot may re-route too
@@ -248,6 +251,7 @@ modded class ACR_Squad
   float limit = s_fStallSeconds;
   if (underFire || armed) limit = STALL_SECONDS_FIGHTING;
   if (stalled < limit) return;
+  m_iStallsTaken++;
   if (m_iUnsticks >= UNSTICK_TRIES)
   {
    if (fightingVehicle)
