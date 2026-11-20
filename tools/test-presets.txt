@@ -312,6 +312,7 @@ worksshots|-acrWorksShotsTest 1|600|Worlds/ACR_Kolguyev.ent
 contentpack|-acrContentPackTest 1|120
 contentpackwinter|-acrContentPackWinterTest 1|120
 crewaudit|-acrCrewAuditTest 1|150
+modernpack|-acrModernPackTest 1|120
 faceoff|-acrFaceOffTest 1|100
 counterbattery|-acrCounterBatteryTest 1|300
 ammorun|-acrAmmoRunTest 1|540

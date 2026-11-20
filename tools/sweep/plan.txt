@@ -312,6 +312,7 @@ ACA|srv:worksshots|skip|600   # measurement/screenshots or soak: no pass/fail me
 ACA|srv:contentpack|track|120   # passes 38/0 in the main checkout but "no pack plugged in" in _wt/sweep (5 Nov): the sweep lacks the pack add-on it needs; investigate
 ACA|srv:contentpackwinter|track|120   # as contentpack
 ACA|srv:crewaudit|track|150   # needs the Cold War pack loaded, as contentpack (82/82 in _wt/aca-fullcrew, 6 Nov); without it only vanilla vehicles are bought
+ACA|srv:modernpack|track|120   # needs the Modern pack stack (ACAModern + RHS + WCS, from E:/ArmaReforgerMods-server) and -acrFactions ru_us in the args; 13/13 in _wt/modern-release (20 Nov)
 ACA|srv:quickstartfia|nightly|90   # median 35s, 1 runs/14d
 ACA|srv:helidown|nightly|160   # median 96s, 1 runs/14d
 ACA|srv:basedefenceskolguyev|weekly|120   # not run in the last 14 days; server capability not yet seen

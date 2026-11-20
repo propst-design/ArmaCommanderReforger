@@ -40,6 +40,7 @@ class ACR_TestHarness : Managed
  static const int MODE_MORTARGIVEUP = 122; // a mortar that can't reach its base isn't sent there again
  static const int MODE_CONTENTPACK = 145; // #108 a content pack plugged into ACR_ContentSocket (138-144 left for open branches)
  static const int MODE_DECK = 290; // the deck builder (#106)
+ static const int MODE_MODERNPACK = 299; // #109 the Modern pack on the RHS sides: buy lists, setup skin, crews
  static const int MODE_CREWAUDIT = 270; // every bought vehicle gets its full crew, no riders (6 Nov)
  static const int MODE_FACEOFF = 271; // the drive watch's queue and back-up checks go by the vehicle's own lane (7 Nov soak)
  static const int MODE_STOPSTART = 277; // a second match in one session: Stop clears the per-match state, Start runs again (server-capable)
@@ -178,6 +179,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrContentPackTest", flag)) mode = MODE_CONTENTPACK;
   if (System.GetCLIParam("acrContentPackWinterTest", flag)) mode = MODE_CONTENTPACK;
   if (System.GetCLIParam("acrCrewAuditTest", flag)) mode = MODE_CREWAUDIT;
+  if (System.GetCLIParam("acrModernPackTest", flag)) mode = MODE_MODERNPACK;
   if (System.GetCLIParam("acrFaceOffTest", flag)) mode = MODE_FACEOFF;
   if (System.GetCLIParam("acrCounterBatteryTest", flag)) mode = MODE_COUNTERBATTERY;
   if (System.GetCLIParam("acrIntroTest", flag)) mode = MODE_INTRO;
@@ -369,6 +371,7 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_MORTARGIVEUP) { ACR_TestMortarGiveUp.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_CONTENTPACK) { ACR_TestContentPack.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_CREWAUDIT) { ACR_TestCrewAudit.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_MODERNPACK) { ACR_TestModernPack.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_FACEOFF) { ACR_TestFaceOff.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_COUNTERBATTERY) { ACR_TestCounterBattery.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_INTRO) { ACR_TestIntro.Run(this, m_Ticks); return; }
