@@ -210,6 +210,7 @@ ACA|srv:bbbfiremaneuverperf|skip|160   # measurement/screenshots or soak: no pas
 ACA|srv:bbbfiremaneuverprobe|skip|170   # measurement/screenshots or soak: no pass/fail meaning, run by hand
 ACA|srv:bbbfiremaneuverduck|weekly|170   # not run in the last 14 days; server capability not yet seen
 ACA|srv:setup|weekly|90   # not run in the last 14 days; server capability not yet seen
+ACA|srv:setuplobby|nightly|90   # setup lobby rows/requests/layout (0.7.0), ~30 s
 ACA|srv:setupui|skip|90   # setup dialog UI: needs a client
 ACA|srv:setupmap|skip|180   # setup dialog UI: needs a client (VM exceptions on a headless server, 5 Nov)
 ACA|srv:reserve|nightly|120   # median 32s, 3 runs/14d

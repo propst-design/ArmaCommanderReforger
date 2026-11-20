@@ -23,16 +23,20 @@ class ACR_Options
  protected static ref map<string, string> s_Preset;
  protected static string s_sPresetName;
 
+ // While true, Get answers as if the setup screen and the preset had set nothing: the server's own
+ // default (ACR_Setup.DefaultValue, the setup lobby's "changed" dot). Set and cleared in one call.
+ static bool s_bDefaults;
+
  // The option's text, or false when no source sets it.
  static bool Get(string name, out string value)
  {
-  if (s_Set.Find(name, value)) return true;
+  if (!s_bDefaults && s_Set.Find(name, value)) return true;
   if (System.IsCLIParam(name))
   {
    if (!System.GetCLIParam(name, value)) value = "";
    return true;
   }
-  if (Preset().Find(name, value)) return true;
+  if (!s_bDefaults && Preset().Find(name, value)) return true;
   if (Header().Find(name, value)) return true;
   value = "";
   return false;

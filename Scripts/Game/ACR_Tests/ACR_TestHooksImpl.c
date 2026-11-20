@@ -62,6 +62,8 @@ modded class ACR_TestHooks
   if (ACR_TestSetup.MapWanted()) ACR_TestSetup.RunMap(seconds);
   // -acrSetupPresetsTest: setup presets (ACR_TestSetupPresets, #143).
   if (ACR_TestSetupPresets.Wanted()) ACR_TestSetupPresets.Run(seconds);
+  // -acrSetupLobbyTest: the setup lobby's rows, requests, layout and dialog preset (ACR_TestSetupLobby, 0.7.0).
+  if (ACR_TestSetupLobby.Wanted()) ACR_TestSetupLobby.Run(seconds);
   if (System.IsCLIParam("acrEveronSurveyTest")) ACR_TestPlaces.SurveyEveron(seconds);
   if (System.IsCLIParam("acrEveronPadsTest")) ACR_TestPads.SurveyEveron(seconds);
   // -acrSkirmishTest / -acrSkirmishSouthTest: skirmish layouts on Everon (ACR_TestSkirmish).
