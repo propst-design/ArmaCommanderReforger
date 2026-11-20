@@ -228,6 +228,48 @@ class ACR_SetupLobbyModel
   return name + ": " + help;
  }
 
+ // How many monospace characters fit across a width (the character's width as measured, plus a margin).
+ static int TipChars(float width, float charWidth)
+ {
+  if (charWidth <= 0) return 12;
+  return Math.Max(12, Math.Floor(width / (charWidth * 1.03)));
+ }
+
+ // Text broken at spaces into lines of at most perLine characters (a longer word is cut).
+ static string Wrap(string text, int perLine, out int lines)
+ {
+  array<string> words = {};
+  text.Split(" ", words, true);
+  string result = "";
+  string current = "";
+  lines = 1;
+  foreach (string listed : words)
+  {
+   string word = listed;
+   while (word.Length() > perLine)
+   {
+    if (!current.IsEmpty())
+    {
+     result += current + "\n";
+     lines++;
+     current = "";
+    }
+    result += word.Substring(0, perLine) + "\n";
+    lines++;
+    word = word.Substring(perLine, word.Length() - perLine);
+   }
+   if (current.IsEmpty()) current = word;
+   else if (current.Length() + 1 + word.Length() <= perLine) current += " " + word;
+   else
+   {
+    result += current + "\n";
+    lines++;
+    current = word;
+   }
+  }
+  return result + current;
+ }
+
  static string TabAbout(int tab)
  {
   if (tab == 0) return "where the match is fought, how hard the enemy pushes, and who else is out there: FIA and zombies.";
@@ -275,6 +317,31 @@ class ACR_SetupLobbyHelp
   if (!m_sFocused.IsEmpty()) return m_sFocused;
   return "tab:" + tab.ToString();
  }
+}
+
+// Which control's tooltip shows (device skins): the last control the pointer entered or the focus
+// reached; leaving it, or its focus moving away, hides the tooltip, and so does a tab change. The
+// pointer resting on empty space shows none, keyboard and gamepad focus show the focused control's
+// (20 Nov: it stayed up after the pointer left everything, falling back to the focus).
+class ACR_SetupLobbyTipState
+{
+ string m_sShown;
+
+ void Hover(string key, bool on)
+ {
+  if (on) m_sShown = key;
+  else if (m_sShown == key) m_sShown = "";
+ }
+
+ void Focus(string key, bool on)
+ {
+  if (on) m_sShown = key;
+  else if (m_sShown == key) m_sShown = "";
+ }
+
+ void Clear() { m_sShown = ""; }
+
+ string Shown() { return m_sShown; }
 }
 
 // Focus on a control: the right panel says what it does (spin boxes have no invoker for it, BBB's
@@ -336,6 +403,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  protected static const ResourceName LAYOUT_TEXT = "{B537936D5B7E2BA1}UI/layouts/WidgetLibrary/TextWidgets/Text_BodySmall.layout";
  protected static const ResourceName LAYOUT_EDIT = "{0022F0B45ADBC5AC}UI/layouts/WidgetLibrary/EditBox/WLib_EditBox.layout";
  protected static const float INDENT = 36;
+ protected static const float TIP_WIDTH = 420;
+ static const float ARROW_SIZE = 28;
+ static const float DEVICE_MAP = 340;
+ protected static const float TIP_PAD = 9;
+ protected static const int TIP_FONT = 14;
  protected static const string REPORT = "Found a bug? Please report it: discord.gg/WK8xGSztB (issues channel; no GitHub account needed).";
 
  protected ref ACR_SetupTheme m_Theme;
@@ -354,11 +426,15 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  // The device skins' tooltip: what a themed control does, in plain words, on hover and on focus.
  protected Widget m_wTip;
  protected TextWidget m_wTipText;
- protected string m_sTipHover;
- protected Widget m_wTipHover;
- protected string m_sTipFocus;
- protected Widget m_wTipFocus;
+ protected ref ACR_SetupLobbyTipState m_TipState = new ACR_SetupLobbyTipState();
+ protected Widget m_wTipShown;
  protected ref map<string, string> m_RowLetters = new map<string, string>();
+ // The terminal's monospace copies of the library controls' own texts (their font can't be set
+ // from script): a button's label over its own (kept, invisible, so the button keeps its size), a
+ // row's label and value in place of its own (hidden).
+ protected ref map<SCR_ButtonTextComponent, TextWidget> m_MonoButtons = new map<SCR_ButtonTextComponent, TextWidget>();
+ protected ref map<string, TextWidget> m_MonoLabels = new map<string, TextWidget>();
+ protected ref map<string, TextWidget> m_MonoValues = new map<string, TextWidget>();
  protected ref ACR_SetupLobbyHelp m_Help = new ACR_SetupLobbyHelp();
 
  protected ref array<ref ACR_SetupLobbyRow> m_aRows = {};
@@ -463,12 +539,14 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    m_wHelp = Mono(side, m_wHelp);
    m_wStatus = Mono(side, m_wStatus);
   }
-  Size(m_wPageTitle, 22);
-  Size(m_wTabTitle, 18);
-  Size(m_wSubtitle, 15);
-  Size(m_wSummary, 17);
-  Size(m_wHelp, 15);
-  Size(m_wStatus, 14);
+  bool monoHeading = m_Theme.m_sHeadingLayout == ACR_SetupTheme.HEADING_MONO;
+  bool monoBody = m_Theme.m_bMonoBody;
+  Size(m_wPageTitle, 22, monoHeading);
+  Size(m_wTabTitle, 18, monoHeading);
+  Size(m_wSubtitle, 15, monoBody);
+  Size(m_wSummary, 17, monoBody);
+  Size(m_wHelp, 15, monoBody);
+  Size(m_wStatus, 14, monoBody);
   BuildTip(root);
  }
 
@@ -495,6 +573,14 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   Rule(root.FindAnyWidget("TopRule"), theme.m_Line);
   Rule(root.FindAnyWidget("FooterRule"), theme.m_Line);
   if (theme.m_bRail) Rule(root.FindAnyWidget("RailLine"), theme.m_Line);
+  // A smaller map sketch: with the status bar and rules the page ran past the screen at 1105 px and
+  // cut the footer's keys line (20 Nov).
+  SizeLayoutWidget mapSize = SizeLayoutWidget.Cast(root.FindAnyWidget("MapSize"));
+  if (mapSize)
+  {
+   mapSize.SetWidthOverride(DEVICE_MAP);
+   mapSize.SetHeightOverride(DEVICE_MAP);
+  }
  }
 
  protected static void Reveal(Widget w, Color color)
@@ -521,7 +607,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (!words) return;
   AlignableSlot.SetPadding(words, 0, 0, 0, 0);
   words.SetText(text);
-  words.SetExactFontSize(14);
+  MonoFont(words, 14);
   words.SetColor(theme.m_Decor);
  }
 
@@ -538,9 +624,10 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   return mono;
  }
 
- protected static void Size(TextWidget w, int size)
+ protected static void Size(TextWidget w, int size, bool mono = false)
  {
-  if (w) w.SetExactFontSize(size);
+  if (mono) MonoFont(w, size);
+  else if (w) w.SetExactFontSize(size);
  }
 
  // A heading in the skin's heading font, in place of the layout's own (hidden).
@@ -630,7 +717,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    string name = m_Theme.TabLabel(index);
    if (name.IsEmpty()) name = TabText(index);
    if (index != ACR_Setup.LOBBY_PRESETS && ACR_SetupLobbyModel.ChangedOn(m_aRows, index) > 0) name += "  " + m_Theme.m_sChanged;
-   tabButton.SetText(m_Theme.Text(name));
+   ButtonText(tabButton, m_Theme.Text(name));
    Paint(tabButton, index == m_iTab, m_Theme.m_bRail);
   }
  }
@@ -679,20 +766,22 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   while (m_wRows.GetChildren()) m_wRows.GetChildren().RemoveFromHierarchy();
   m_RowWidgets.Clear();
   m_Spins.Clear();
+  m_MonoLabels.Clear();
+  m_MonoValues.Clear();
   m_aRowHandlers.Clear();
   // Buttons of the tabs and the footer stay; the rows' go.
   array<SCR_ButtonBaseComponent> gone = {};
   foreach (SCR_ButtonBaseComponent button, string key : m_Buttons) if (!key.StartsWith("tab:") && !key.StartsWith("footer")) gone.Insert(button);
-  foreach (SCR_ButtonBaseComponent old : gone) m_Buttons.Remove(old);
+  foreach (SCR_ButtonBaseComponent old : gone)
+  {
+   m_Buttons.Remove(old);
+   m_MonoButtons.Remove(SCR_ButtonTextComponent.Cast(old));
+  }
   string heading = m_Theme.TabHeading(m_iTab);
   if (heading.IsEmpty()) heading = TabText(m_iTab);
   if (m_wTabTitle) m_wTabTitle.SetText(m_Theme.Text(heading));
-  // The rows go: no tooltip may point at them.
-  m_sTipHover = "";
-  m_wTipHover = null;
-  m_sTipFocus = "";
-  m_wTipFocus = null;
-  if (m_wTip) m_wTip.SetVisible(false);
+  // The rows go (or the tab changed): no tooltip may stay or point at them.
+  HideTip();
   if (m_iTab == ACR_Setup.LOBBY_PRESETS)
   {
    BuildPresets();
@@ -748,7 +837,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   {
    ACR_SetupLobbyRow action = ACR_SetupLobbyModel.Find(m_aRows, buttonKey);
    SCR_ButtonTextComponent textButton = SCR_ButtonTextComponent.Cast(button);
-   if (action && textButton && action.m_sKind == "action") textButton.SetText(m_Theme.Text(action.m_sText));
+   if (action && textButton && action.m_sKind == "action") ButtonText(textButton, m_Theme.Text(action.m_sText));
   }
   if (m_sFocus != "") Describe(m_sFocus);
  }
@@ -790,17 +879,27 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  static void SpinLook(Widget w, ACR_SetupTheme theme)
  {
   if (!w || !theme || !theme.m_bCompact) return;
-  Compact(w, 34);
+  Compact(w, FitHeight(16));
   Color clear = new Color(0, 0, 0, 0);
   Widget back = w.FindAnyWidget("Background");
   if (back) back.SetColor(clear);
   Widget highlight = w.FindAnyWidget("LineHighlight");
-  if (highlight) highlight.SetColor(theme.m_Line);
+  // The row's hover and focus band: a dark fill, not the bright rule colour (20 Nov: green on green).
+  if (highlight) highlight.SetColor(theme.m_ButtonHover);
   array<string> arrows = {"ButtonLeft", "ButtonRight"};
   foreach (string arrowName : arrows)
   {
    Widget arrow = w.FindAnyWidget(arrowName);
    if (!arrow) continue;
+   SizeLayoutWidget arrowSize = SizeLayoutWidget.Cast(arrow.FindAnyWidget("SizeLayout"));
+   if (arrowSize)
+   {
+    // 20 Nov: the arrows came out tiny in the thin rows.
+    arrowSize.EnableWidthOverride(true);
+    arrowSize.SetWidthOverride(ARROW_SIZE);
+    arrowSize.EnableHeightOverride(true);
+    arrowSize.SetHeightOverride(ARROW_SIZE);
+   }
    Widget arrowBack = arrow.FindAnyWidget("BackgroundImage");
    if (arrowBack) arrowBack.SetColor(clear);
    Widget mark = arrow.FindAnyWidget("Panel");
@@ -844,6 +943,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  }
 
  // ---------------------------------------------------------------- tooltip (device skins)
+ // The tooltip: a framed box sized to its text, which is wrapped here (the font is monospace, so a
+ // line's width is its length): 20 Nov, its text ran out of a box sized by the layout.
  protected void BuildTip(Widget root)
  {
   if (!root || m_wTip) return;
@@ -853,7 +954,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   FrameSlot.SetAnchorMin(m_wTip, 0, 0);
   FrameSlot.SetAnchorMax(m_wTip, 0, 0);
   FrameSlot.SetAlignment(m_wTip, 0, 0);
-  FrameSlot.SetSizeToContent(m_wTip, true);
+  FrameSlot.SetSizeToContent(m_wTip, false);
   Widget edge = ws.CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, m_Theme.m_Line, 0, m_wTip);
   if (edge)
   {
@@ -867,14 +968,12 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    AlignableSlot.SetVerticalAlign(inside, LayoutVerticalAlign.Stretch);
    AlignableSlot.SetPadding(inside, 1, 1, 1, 1);
   }
-  SizeLayoutWidget width = SizeLayoutWidget.Cast(ws.CreateWidget(WidgetType.SizeLayoutWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR, Color.FromInt(Color.WHITE), 0, m_wTip));
-  if (!width) return;
-  width.EnableWidthOverride(true);
-  width.SetWidthOverride(440);
-  m_wTipText = TextWidget.Cast(ws.CreateWidgets(ACR_SetupTheme.HEADING_MONO, width));
+  m_wTipText = TextWidget.Cast(ws.CreateWidgets(ACR_SetupTheme.HEADING_MONO, m_wTip));
   if (!m_wTipText) return;
-  AlignableSlot.SetPadding(m_wTipText, 10, 6, 10, 6);
-  m_wTipText.SetExactFontSize(14);
+  AlignableSlot.SetHorizontalAlign(m_wTipText, LayoutHorizontalAlign.Stretch);
+  AlignableSlot.SetVerticalAlign(m_wTipText, LayoutVerticalAlign.Stretch);
+  AlignableSlot.SetPadding(m_wTipText, TIP_PAD, TIP_PAD, TIP_PAD, TIP_PAD);
+  MonoFont(m_wTipText, TIP_FONT);
   m_wTipText.SetColor(m_Theme.m_Help);
  }
 
@@ -883,35 +982,22 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  void Tip(string key, Widget w, bool on, bool hover)
  {
   if (!m_wTip) return;
-  if (hover)
+  if (hover) m_TipState.Hover(key, on);
+  else m_TipState.Focus(key, on);
+  if (on && m_TipState.Shown() == key) m_wTipShown = w;
+  if (m_TipState.Shown().IsEmpty() || !m_wTipShown)
   {
-   if (on)
-   {
-    m_sTipHover = key;
-    m_wTipHover = w;
-   }
-   else if (m_sTipHover == key)
-   {
-    m_sTipHover = "";
-    m_wTipHover = null;
-   }
+   m_wTip.SetVisible(false);
+   return;
   }
-  else
-  {
-   if (on)
-   {
-    m_sTipFocus = key;
-    m_wTipFocus = w;
-   }
-   else if (m_sTipFocus == key)
-   {
-    m_sTipFocus = "";
-    m_wTipFocus = null;
-   }
-  }
-  if (!m_sTipHover.IsEmpty() && m_wTipHover) ShowTip(m_sTipHover, m_wTipHover);
-  else if (!m_sTipFocus.IsEmpty() && m_wTipFocus) ShowTip(m_sTipFocus, m_wTipFocus);
-  else m_wTip.SetVisible(false);
+  ShowTip(m_TipState.Shown(), m_wTipShown);
+ }
+
+ protected void HideTip()
+ {
+  m_TipState.Clear();
+  m_wTipShown = null;
+  if (m_wTip) m_wTip.SetVisible(false);
  }
 
  protected void ShowTip(string key, Widget w)
@@ -922,7 +1008,6 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    m_wTip.SetVisible(false);
    return;
   }
-  m_wTipText.SetText(text);
   WorkspaceWidget ws = GetGame().GetWorkspace();
   float x, y, wide, high;
   w.GetScreenPos(x, y);
@@ -933,18 +1018,133 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   high = ws.DPIUnscale(high);
   float screenWide = ws.DPIUnscale(ws.GetWidth());
   float screenHigh = ws.DPIUnscale(ws.GetHeight());
-  // Beside a tab (the rail is narrow), under anything else; kept on the screen.
-  float left = x + 12;
-  float top = y + high + 4;
-  if (key.StartsWith("tab:"))
+  // Where: a tab's in the rail's own empty space under the tabs (beside them it covered the Match
+  // tab's side panels), a row's under the row, a footer button's above it. Its width: the rail's, or
+  // up to TIP_WIDTH, kept on the screen.
+  float boxWide = TIP_WIDTH;
+  float left = x;
+  float top = y + high + 6;
+  bool above = key.StartsWith("footer");
+  if (key.StartsWith("tab:") && m_wTabs)
   {
-   left = x + wide + 8;
-   top = y;
+   float railX, railY, railW, railH;
+   m_wTabs.GetScreenPos(railX, railY);
+   m_wTabs.GetScreenSize(railW, railH);
+   left = ws.DPIUnscale(railX);
+   boxWide = Math.Max(ws.DPIUnscale(railW) - 16, 200);
+   top = y + high + 6;
+   SCR_ButtonTextComponent last = m_TabButtons.Get(ACR_Setup.LOBBY_TABS - 1);
+   if (last)
+   {
+    float lastX, lastY, lastW, lastH;
+    last.GetRootWidget().GetScreenPos(lastX, lastY);
+    last.GetRootWidget().GetScreenSize(lastW, lastH);
+    top = ws.DPIUnscale(lastY + lastH) + 12;
+   }
   }
-  left = Math.Min(left, screenWide - 470);
-  if (top > screenHigh - 150) top = y - 110;
+  float charWidth, lineHeight;
+  MonoMetrics(TIP_FONT, charWidth, lineHeight);
+  int perLine = ACR_SetupLobbyModel.TipChars(boxWide - 2 * TIP_PAD, charWidth);
+  int lines = 1;
+  string wrapped = ACR_SetupLobbyModel.Wrap(text, perLine, lines);
+  m_wTipText.SetText(wrapped);
+  float boxHigh = lines * lineHeight + 2 * TIP_PAD + 2;
+  float measuredW, measuredH;
+  m_wTipText.GetTextSize(measuredW, measuredH);
+  if (measuredH > 0) boxHigh = Math.Max(boxHigh, ws.DPIUnscale(measuredH) + 2 * TIP_PAD + 2);
+  if (above) top = y - boxHigh - 6;
+  left = Math.Max(4, Math.Min(left, screenWide - boxWide - 4));
+  if (top + boxHigh > screenHigh - 4) top = y - boxHigh - 6;
+  top = Math.Max(4, top);
   FrameSlot.SetPos(m_wTip, left, top);
+  FrameSlot.SetSize(m_wTip, boxWide, boxHigh);
   m_wTip.SetVisible(true);
+ }
+
+ // A button's words, and the terminal's monospace copy over them.
+ protected void ButtonText(SCR_ButtonTextComponent button, string text)
+ {
+  button.SetText(text);
+  if (!m_Theme.m_bMonoBody) return;
+  TextWidget mono = m_MonoButtons.Get(button);
+  TextWidget own = button.GetTextWidget();
+  if (!mono)
+  {
+   Widget overlay = button.GetRootWidget().FindAnyWidget("Overlay");
+   if (!overlay || !own) return;
+   mono = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets(ACR_SetupTheme.HEADING_MONO, overlay));
+   if (!mono) return;
+   AlignableSlot.SetVerticalAlign(mono, LayoutVerticalAlign.Center);
+   AlignableSlot.SetHorizontalAlign(mono, LayoutHorizontalAlign.Center);
+   AlignableSlot.SetPadding(mono, 12, 0, 12, 0);
+   MonoFont(mono, 14);
+   m_MonoButtons.Set(button, mono);
+  }
+  mono.SetText(text);
+  if (own)
+  {
+   mono.SetColor(own.GetColor());
+   own.SetOpacity(0);
+  }
+ }
+
+ // The terminal: a row's label and value in monospace, in place of the spin box's own.
+ protected void MonoRow(string key, Widget spin, string label, string value, Color labelColor)
+ {
+  if (!m_Theme.m_bMonoBody || !spin) return;
+  TextWidget monoLabel = m_MonoLabels.Get(key);
+  if (!monoLabel)
+  {
+   Widget labelRow = spin.FindAnyWidget("LabelRoot");
+   Widget labelFrame = spin.FindAnyWidget("Frame0");
+   if (labelRow && labelFrame)
+   {
+    labelFrame.SetVisible(false);
+    monoLabel = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets(ACR_SetupTheme.HEADING_MONO, labelRow));
+    if (monoLabel)
+    {
+     LayoutSlot.SetSizeMode(monoLabel, LayoutSizeMode.Fill);
+     AlignableSlot.SetVerticalAlign(monoLabel, LayoutVerticalAlign.Center);
+     AlignableSlot.SetPadding(monoLabel, 8, 0, 4, 0);
+     MonoFont(monoLabel, 15);
+     m_MonoLabels.Set(key, monoLabel);
+    }
+   }
+  }
+  if (monoLabel)
+  {
+   monoLabel.SetText(label);
+   monoLabel.SetColor(labelColor);
+  }
+  TextWidget monoValue = m_MonoValues.Get(key);
+  if (!monoValue)
+  {
+   Widget own = spin.FindAnyWidget("SelectionText");
+   if (own && own.GetParent())
+   {
+    own.SetVisible(false);
+    monoValue = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets(ACR_SetupTheme.HEADING_MONO, own.GetParent()));
+    if (monoValue)
+    {
+     AlignableSlot.SetHorizontalAlign(monoValue, LayoutHorizontalAlign.Center);
+     AlignableSlot.SetVerticalAlign(monoValue, LayoutVerticalAlign.Center);
+     AlignableSlot.SetPadding(monoValue, 6, 0, 6, 0);
+     MonoFont(monoValue, 15);
+     monoValue.SetColor(m_Theme.m_ButtonText);
+     m_MonoValues.Set(key, monoValue);
+    }
+   }
+  }
+  if (monoValue) monoValue.SetText(value);
+ }
+
+ static void HideItemBars(Widget spin)
+ {
+  if (!spin) return;
+  Widget bars = spin.FindAnyWidget("SizeLayout0");
+  if (bars) bars.SetVisible(false);
+  Widget hints = spin.FindAnyWidget("HintBar");
+  if (hints) hints.SetVisible(false);
  }
 
  protected void SetSpin(SCR_SpinBoxComponent spin, ACR_SetupLobbyRow row)
@@ -958,6 +1158,9 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    spin.AddItem(value);
    spin.SetCurrentItem(0, false, false, false);
   }
+  // The spin box's item bars (one per item; ours are two copies of the value) drew through the
+  // value on the tablet (20 Nov); adding items can bring them back, so they go after every fill.
+  HideItemBars(spin.GetRootWidget());
   string plain = m_Theme.RowLabel(row.m_sKey);
   if (plain.IsEmpty()) plain = row.m_sLabel;
   string letter = "";
@@ -966,12 +1169,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (row.m_bChanged) label = m_Theme.m_sChanged + label;
   if (!m_Theme.m_sCursor.IsEmpty() && row.m_sKey == m_sFocus) label = m_Theme.m_sCursor + label;
   spin.SetLabel(label);
+  Color labelColor = m_Theme.m_Text;
+  if (row.m_bChanged) labelColor = m_Theme.m_Changed;
   TextWidget labelWidget = spin.GetLabel();
-  if (labelWidget)
-  {
-   if (row.m_bChanged) labelWidget.SetColor(m_Theme.m_Changed);
-   else labelWidget.SetColor(m_Theme.m_Text);
-  }
+  if (labelWidget) labelWidget.SetColor(labelColor);
+  MonoRow(row.m_sKey, spin.GetRootWidget(), label, value, labelColor);
   m_bFilling = false;
  }
 
@@ -1128,7 +1330,13 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    while (m_wFooter.GetChildren()) m_wFooter.GetChildren().RemoveFromHierarchy();
    array<SCR_ButtonBaseComponent> gone = {};
    foreach (SCR_ButtonBaseComponent button, string key : m_Buttons) if (key.StartsWith("footer")) gone.Insert(button);
-   foreach (SCR_ButtonBaseComponent old : gone) m_Buttons.Remove(old);
+   foreach (SCR_ButtonBaseComponent old : gone)
+   {
+    m_Buttons.Remove(old);
+    m_MonoButtons.Remove(SCR_ButtonTextComponent.Cast(old));
+   }
+   m_MonoLabels.Remove("footerpreset");
+   m_MonoValues.Remove("footerpreset");
    m_FooterPreset = null;
    m_sFooterSig = "";
    // The skin's keys line (real bindings only) on its own line under the footer: beside the
@@ -1162,6 +1370,10 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
     // Room between the footer's buttons (they touched with the rows' 2 px).
     AlignableSlot.SetPadding(made.GetRootWidget(), 12, 2, 0, 2);
     AlignableSlot.SetVerticalAlign(made.GetRootWidget(), LayoutVerticalAlign.Center);
+    // Room round the words inside the button (20 Nov: Load preset and Reset tab filled their boxes
+    // edge to edge); the button grows with its label.
+    TextWidget words = made.GetTextWidget();
+    if (words) AlignableSlot.SetPadding(words, 16, 4, 16, 4);
     // Start stands out in the skin's strong colour; its key badge sits right of it.
     if (part != "footerstart") continue;
     PaintStart(made);
@@ -1200,8 +1412,10 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   }
   if (names.IsEmpty()) m_FooterPreset.AddItem("(no presets)");
   m_FooterPreset.SetCurrentItem(pick, false, false, false);
+  HideItemBars(m_FooterPreset.GetRootWidget());
   if (pick < names.Count()) m_sFooterPick = names[pick];
   else m_sFooterPick = "";
+  MonoRow("footerpreset", m_FooterPreset.GetRootWidget(), m_Theme.Text("Preset to load"), m_FooterPreset.GetItemName(pick), m_Theme.m_Text);
   m_bFilling = false;
  }
 
@@ -1223,7 +1437,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   else m_wKeys = AddText(footerRow.GetParent(), m_Theme.m_sKeys, 0);
   if (!m_wKeys) return;
   m_wKeys.SetText(m_Theme.m_sKeys);
-  if (m_Theme.m_bDevice) m_wKeys.SetExactFontSize(13);
+  if (m_Theme.m_bDevice) MonoFont(m_wKeys, 13);
   m_wKeys.SetColor(m_Theme.m_Decor);
   AlignableSlot.SetPadding(m_wKeys, 0, 4, 0, 0);
  }
@@ -1232,6 +1446,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  {
   if (m_bFilling || index < 0 || index >= m_aFooterPresets.Count()) return;
   m_sFooterPick = m_aFooterPresets[index];
+  MonoRow("footerpreset", spin.GetRootWidget(), m_Theme.Text("Preset to load"), spin.GetItemName(index), m_Theme.m_Text);
  }
 
  // ---------------------------------------------------------------- right panel
@@ -1402,8 +1617,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
 
  protected TextWidget AddText(Widget parent, string text, float indent)
  {
-  TextWidget widget = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets(LAYOUT_TEXT, parent));
+  ResourceName layout = LAYOUT_TEXT;
+  if (m_Theme.m_bMonoBody && parent != m_wMapDots) layout = ACR_SetupTheme.HEADING_MONO;
+  TextWidget widget = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets(layout, parent));
   if (!widget) return null;
+  if (layout == ACR_SetupTheme.HEADING_MONO) MonoFont(widget, 15);
   if (parent != m_wMapDots) AlignableSlot.SetPadding(widget, indent, 4, 4, 4);
   widget.SetText(text);
   widget.SetColor(m_Theme.m_Text);
@@ -1418,7 +1636,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (fill) LayoutSlot.SetSizeMode(widget, LayoutSizeMode.Fill);
   SCR_ButtonTextComponent button = SCR_ButtonTextComponent.FindButtonTextComponent(widget);
   if (!button) return null;
-  button.SetText(m_Theme.Text(text));
+  ButtonText(button, m_Theme.Text(text));
   Paint(button, false);
   Widget border = widget.FindAnyWidget("Border");
   if (border) border.SetColor(m_Theme.m_ButtonBorder);
@@ -1459,7 +1677,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    else textButton.m_wBorder.SetOpacity(1);
   }
   textButton.m_bShowBorderOnHover = false;
-  Compact(textButton.GetRootWidget(), 32);
+  Compact(textButton.GetRootWidget(), FitHeight(16));
   TextWidget label = textButton.GetTextWidget();
   if (!label) return;
   label.SetExactFontSize(16);
@@ -1484,6 +1702,66 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (label) label.SetColor(text);
   textButton.m_TextDefault = text;
   textButton.m_TextToggled = text;
+ }
+
+ // A control's height for its font: the text's own height (descenders included: 25 px at 16 pt,
+ // measured) and room above and below (20 Nov: rows of 34 px and buttons of 32 cut the descenders).
+ static float FitHeight(int fontSize)
+ {
+  return Math.Ceil(fontSize * 1.6) + 16;
+ }
+
+ // The monospace font draws far bigger than its size says (measured 20 Nov: at 15 its line is
+ // 37.5 px, the body font's 25 px at 16), which clipped and spilled the terminal's text. Its sizes go
+ // through this scale, measured once against the body font (bare static: initializer budget).
+ protected static float s_fMonoScale;
+ static float MonoScale()
+ {
+  if (s_fMonoScale > 0) return s_fMonoScale;
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  if (!ws) return 1;
+  TextWidget mono = TextWidget.Cast(ws.CreateWidgets(ACR_SetupTheme.HEADING_MONO));
+  TextWidget body = TextWidget.Cast(ws.CreateWidgets(LAYOUT_TEXT));
+  float monoW, monoH, bodyW, bodyH;
+  if (mono && body)
+  {
+   mono.SetExactFontSize(20);
+   body.SetExactFontSize(20);
+   mono.SetText("Mg");
+   body.SetText("Mg");
+   mono.GetTextSize(monoW, monoH);
+   body.GetTextSize(bodyW, bodyH);
+  }
+  if (mono) mono.RemoveFromHierarchy();
+  if (body) body.RemoveFromHierarchy();
+  if (monoH > 0 && bodyH > 0) s_fMonoScale = bodyH / monoH;
+  else return 1;
+  return s_fMonoScale;
+ }
+
+ // A monospace text at the size it should look.
+ static void MonoFont(TextWidget w, int visual)
+ {
+  if (w) w.SetExactFontSize(Math.Max(6, Math.Round(visual * MonoScale())));
+ }
+
+ // A monospace character's width and a line's height at a look size, in layout units (the tooltip
+ // wraps and sizes itself from these).
+ static void MonoMetrics(int visual, out float charWidth, out float lineHeight)
+ {
+  charWidth = visual * 0.62;
+  lineHeight = visual * 1.6;
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  if (!ws) return;
+  TextWidget probe = TextWidget.Cast(ws.CreateWidgets(ACR_SetupTheme.HEADING_MONO));
+  if (!probe) return;
+  MonoFont(probe, visual);
+  float w, h;
+  probe.SetText("MMMMMMMMMM");
+  probe.GetTextSize(w, h);
+  if (w > 0) charWidth = ws.DPIUnscale(w) / 10;
+  if (h > 0) lineHeight = ws.DPIUnscale(h);
+  probe.RemoveFromHierarchy();
  }
 
  // A widget library control's own height (its "SizeLayout" child), for the denser device skins.
@@ -1548,7 +1826,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    if (i == 0)
    {
     widget.SetColor(edge);
-    widget.SetExactFontSize(22);
+    if (m_Theme.m_bMonoBody) MonoFont(widget, 20);
+    else widget.SetExactFontSize(22);
    }
   }
  }

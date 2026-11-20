@@ -7,7 +7,7 @@
 // is also built where the server has a workspace). What it can't see: how the screen looks.
 class ACR_TestSetupLobby
 {
- static const int CHECKS = 21;
+ static const int CHECKS = 22;
  protected static const ResourceName LAYOUT = "{AC230926A00100F6}UI/layouts/ACR/ACR_SetupLobby.layout";
  protected static const ResourceName SPIN = "{C9DF0E6590F6C388}UI/layouts/WidgetLibrary/SpinBox/WLib_SpinBox.layout";
 
@@ -134,6 +134,99 @@ class ACR_TestSetupLobby
   if (!details.IsEmpty()) firstDetail = details[0];
   ACR_TestRegress.Check("lobby: the map sketch draws both HQs bigger than the bases", hqMarks == 2 && bigOthers == 0 && sizesOk, string.Format("%1 HQs of %2 bases (%3, layout %4); sizes ok %5", hqMarks, details.Count(), firstDetail, ACR_Setup.Current("layout"), sizesOk));
 
+ }
+
+ // 22 (20 Nov, item 8): text fits its control. The server lays nothing out (sizes read 0), but it
+ // measures text: a row's and a button's label (descenders included) against the height the device
+ // skins give them, and the tooltip's wrapped text against its box.
+ protected static void TextFits()
+ {
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  if (!ws)
+  {
+   ACR_TestRegress.Skip("lobby: labels fit their rows and buttons; the tooltip's text fits its box", "no workspace on this server");
+   return;
+  }
+  string wrong;
+  Widget root = ws.CreateWidgets(LAYOUT);
+  Widget rows = root.FindAnyWidget("Rows");
+  float tw, th;
+  array<string> skins = {"tablet", "crt"};
+  foreach (string skinName : skins)
+  {
+   ACR_SetupTheme theme = ACR_SetupTheme.Named(skinName);
+   // A row: the library's label at the row's font, and the monospace copy the terminal shows.
+   Widget spin = ws.CreateWidgets(SPIN, rows);
+   ACR_SetupLobby.SpinLook(spin, theme);
+   SizeLayoutWidget rowSize = SizeLayoutWidget.Cast(spin.FindAnyWidget("SizeLayout"));
+   TextWidget label = TextWidget.Cast(spin.FindAnyWidget("Text"));
+   if (label)
+   {
+    label.SetText(theme.Text("Blue force gjpqy"));
+    label.GetTextSize(tw, th);
+    if (th <= 0 || th + 12 > ACR_SetupLobby.FitHeight(16)) wrong += string.Format("%1:row text %2 in %3 ", skinName, th, ACR_SetupLobby.FitHeight(16));
+   }
+   if (!rowSize) wrong += skinName + ":rowsize ";
+   TextWidget mono = TextWidget.Cast(ws.CreateWidgets(ACR_SetupTheme.HEADING_MONO, rows));
+   ACR_SetupLobby.MonoFont(mono, 15);
+   mono.SetText("A. BLUE FORCE gjpqy");
+   mono.GetTextSize(tw, th);
+   if (th <= 0 || th + 12 > ACR_SetupLobby.FitHeight(16)) wrong += string.Format("%1:mono text %2 ", skinName, th);
+   // A button: "Execute" at the device font, in the height it gets.
+   Widget button = ws.CreateWidgets("{75C912A1C89BE6C2}UI/layouts/WidgetLibrary/Buttons/WLib_ButtonText.layout", rows);
+   SCR_ButtonTextComponent text = SCR_ButtonTextComponent.FindButtonTextComponent(button);
+   if (text && text.GetTextWidget())
+   {
+    text.SetText(theme.StartLabel() + " gjpqy");
+    text.GetTextWidget().SetExactFontSize(16);
+    text.GetTextWidget().GetTextSize(tw, th);
+    if (th <= 0 || th + 12 > ACR_SetupLobby.FitHeight(16)) wrong += string.Format("%1:button text %2 ", skinName, th);
+   }
+  }
+  // The tooltip: wrapped lines no longer than the width allows, and the box tall and wide enough for
+  // the text as measured, for the longest tooltip there is.
+  array<ref ACR_SetupLobbyRow> parsed = {};
+  ACR_SetupLobbyModel.Parse(ACR_Setup.Rows(), parsed);
+  string longest = ACR_SetupLobbyModel.Tooltip(parsed, "tab:0");
+  foreach (ACR_SetupLobbyRow row : parsed)
+  {
+   string tip = ACR_SetupLobbyModel.Tooltip(parsed, row.m_sKey);
+   if (tip.Length() > longest.Length()) longest = tip;
+  }
+  float charWidth, lineHeight;
+  ACR_SetupLobby.MonoMetrics(14, charWidth, lineHeight);
+  int perLine = ACR_SetupLobbyModel.TipChars(420 - 18, charWidth);
+  int lines;
+  string wrapped = ACR_SetupLobbyModel.Wrap(longest, perLine, lines);
+  array<string> pieces = {};
+  wrapped.Split("\n", pieces, false);
+  foreach (string piece : pieces) if (piece.Length() > perLine) wrong += "tip:line ";
+  TextWidget tipText = TextWidget.Cast(ws.CreateWidgets(ACR_SetupTheme.HEADING_MONO, rows));
+  ACR_SetupLobby.MonoFont(tipText, 14);
+  tipText.SetText(wrapped);
+  tipText.GetTextSize(tw, th);
+  float boxHigh = lines * lineHeight + 2;
+  if (tw <= 0 || tw > 420 - 18 + 1 || th > boxHigh + 1) wrong += string.Format("tip:box text %1x%2 box %3x%4 lines %5 scale %6 ", tw, th, 420 - 18, boxHigh, lines, ACR_SetupLobby.MonoScale());
+  // The tooltip shows and hides on the right events (the state the screen uses).
+  ACR_SetupLobbyTipState state = new ACR_SetupLobbyTipState();
+  state.Hover("tab:1", true);
+  state.Focus("tab:1", true);
+  bool shown = state.Shown() == "tab:1";
+  state.Hover("tab:1", false);
+  bool leftEmpty = state.Shown() == "";
+  state.Hover("west", true);
+  state.Focus("tab:1", false);
+  bool swapped = state.Shown() == "west";
+  state.Hover("east", true);
+  state.Hover("west", false);
+  bool clean = state.Shown() == "east";
+  state.Hover("east", false);
+  state.Focus("ai", true);
+  bool keyboard = state.Shown() == "ai";
+  state.Clear();
+  if (!shown || !leftEmpty || !swapped || !clean || !keyboard || state.Shown() != "") wrong += string.Format("tip:state %1%2%3%4%5 ", shown, leftEmpty, swapped, clean, keyboard);
+  root.RemoveFromHierarchy();
+  ACR_TestRegress.Check("lobby: labels fit their rows and buttons; the tooltip's text fits its box", wrong.IsEmpty(), wrong);
  }
 
  static void Run(int second)
@@ -392,6 +485,7 @@ class ACR_TestSetupLobby
   bool presetWords = ACR_SetupLobbyModel.LoadedPreset(fake) == "Large battle" && loadedLine == "Loaded preset: Large battle" && ACR_SetupLobbyModel.LoadedPreset(parsed) == "" && noneLine == "Loaded preset: none (the scenario's own setup)";
   ACR_TestRegress.Check("lobby: the loaded preset is named apart from the picker's choice", presetWords, loadedLine + " | " + noneLine);
   Tooltips(parsed);
+  TextFits();
   ACR_TestRegress.Complete("setuplobby", CHECKS);
  }
 }
