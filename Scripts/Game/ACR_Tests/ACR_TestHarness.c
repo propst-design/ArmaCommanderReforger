@@ -103,6 +103,7 @@ class ACR_TestHarness : Managed
  static const int MODE_STRUCTLAYOUT = 126; // 117: map-polygon-guard, 125: roadblock-friendly-lane
  static const int MODE_POSSITING = 72; // 68-71: ride job, defend swap, LAV ride, mine siting (own branches)
  static const int MODE_ATTACKREACH = 79; // 69-78: the playtest branches
+ static const int MODE_SUPPLYRUNS = 342; // #242 supply runs, hubs and recorded routes (ACR_TestSupplyRuns)
  static const int MODE_FOBAI = 58; // 52 / 53 / 55 / 56 / 57: Fortify / roadblocks / patrol / ambush / QRF
  static const int MODE_SQUADAI = 63; // 59-62: defenders, budget, cap scale, aim (own branches)
  static const int MODE_TWOIC = 75; // 74: the slope tilt (own branch)
@@ -248,6 +249,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrPositionSitingTest", flag)) mode = MODE_POSSITING;
   if (System.GetCLIParam("acrAttackReachTest", flag)) mode = MODE_ATTACKREACH;
   if (System.GetCLIParam("acrFobAITest", flag)) mode = MODE_FOBAI;
+  if (System.GetCLIParam("acrSupplyRunsTest", flag)) mode = MODE_SUPPLYRUNS;
   if (System.GetCLIParam("acrSquadAITest", flag)) mode = MODE_SQUADAI;
   if (System.GetCLIParam("acrTwoICTest", flag)) mode = MODE_TWOIC;
   if (System.GetCLIParam("acrPatrolTest", flag)) mode = MODE_PATROL;
@@ -449,6 +451,7 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_POSSITING) { ACR_TestPositionSiting.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_ATTACKREACH) { ACR_TestAttackReach.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_FOBAI) { ACR_TestFobAI.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_SUPPLYRUNS) { ACR_TestSupplyRuns.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_SQUADAI) { ACR_TestSquadAI.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_TWOIC) { ACR_TestTwoIC.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_PATROL) { ACR_TestPatrol.Run(this, m_Ticks); return; }

@@ -316,7 +316,7 @@ class ACR_Setup
  // it was last, a page away).
  static array<string> RowKeys()
  {
-  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
+  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic", "supplyruns", "hubs", "saveroutes"};
   return keys;
  }
 
@@ -401,13 +401,16 @@ class ACR_Setup
   if (key == "evadearmour") return "Unarmed vehicles evade armour";
   if (key == "fieldsoffire") return "Guns clear bushes round them";
   if (key == "twoic") return "Second-in-command (2IC)";
+  if (key == "supplyruns") return "Supply runs (trucks supply FOBs)";
+  if (key == "hubs") return "Logistics hubs";
+  if (key == "saveroutes") return "Save supply routes";
   return key;
  }
 
  // The Experimental tab's rows: off by default, on/off unless Values says more.
  static bool Experimental(string key)
  {
-  return key == "periodjets" || key == "squadtactics" || key == "pullover" || key == "evadearmour" || key == "fieldsoffire" || key == "twoic";
+  return key == "periodjets" || key == "squadtactics" || key == "pullover" || key == "evadearmour" || key == "fieldsoffire" || key == "twoic" || key == "supplyruns" || key == "hubs" || key == "saveroutes";
  }
 
  // What a row does, shown under the rows when it is pointed at or focused (ACR_SetupDialog.OnRowFocus).
@@ -420,6 +423,9 @@ class ACR_Setup
   if (key == "evadearmour") return "An unarmed vehicle that sees an armed enemy vehicle drives 300 m\naway, then carries on. Needs Better Battle Buddies' setting on too.";
   if (key == "fieldsoffire") return "Built guns, checkpoint posts and Fortify pieces clear the bushes\nround them and in front of a gun, the same on every screen.";
   if (key == "twoic") return "2IC: the AI runs the squads nobody leads while you buy and build.\nI'm the 2IC: the AI commander runs the side; you keep your squads.";
+  if (key == "supplyruns") return "FOB supplies come by construction truck from a hub (20 RP to load);\nthe old delivery stays as a fallback at 40 RP / 180 s. Spawns stay on RP.";
+  if (key == "hubs") return "Trucks load and restock only at the HQ, ports and FOBs with\na supply depot, not at every base. Needs supply runs to matter most.";
+  if (key == "saveroutes") return "Routes supply trucks drove are kept in the host's profile for\nthis map and used in later matches. Nothing leaves this machine.";
   return "";
  }
 
@@ -554,6 +560,9 @@ class ACR_Setup
   if (key == "evadearmour") return "acrEvadeArmour";
   if (key == "fieldsoffire") return "acrFieldsOfFire";
   if (key == "twoic") return "acr2IC";
+  if (key == "supplyruns") return "acrSupplyRuns";
+  if (key == "hubs") return "acrLogisticsHubs";
+  if (key == "saveroutes") return "acrSaveRoutes";
   return "";
  }
 

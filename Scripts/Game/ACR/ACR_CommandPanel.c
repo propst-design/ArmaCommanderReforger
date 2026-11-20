@@ -1247,6 +1247,18 @@ class ACR_CommandPanel : Managed
   else m_FobAIButton.SetText("AI manages this FOB: off");
  }
 
+ // #242: with supply runs on, the order sends a construction truck; the paid delivery is the floor.
+ protected int m_iFobSupplyLabel = -1;
+ void SetFobSupplyRuns(bool runs)
+ {
+  int want = 0;
+  if (runs) want = 1;
+  if (!m_FobSupplyButton || want == m_iFobSupplyLabel) return;
+  m_iFobSupplyLabel = want;
+  if (runs) m_FobSupplyButton.SetText(string.Format("Supply run: 500 supplies - %1 RP (truck)", ACR_SupplyRuns.RUN_COST));
+  else m_FobSupplyButton.SetText("Order 500 supplies - 20 RP / 60 s");
+ }
+
  // Upgrade states: ACR_FobSlots.FeedState (decoded with FeedBuilding / FeedBuilt).
  void SetFob(bool visible, bool canOrder, bool canBuild, array<int> slotStates = null, int stock = 0, bool ready = false, string factionKey = "")
  {

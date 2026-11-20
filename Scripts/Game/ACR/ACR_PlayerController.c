@@ -1781,6 +1781,7 @@ modded class SCR_PlayerController
       slotStates.Insert(m_ACR_Data.m_BaseSupply[supplyOffset + 3 + s]);
      }
      m_ACR_Panel.SetFob(stock >= 0, ready && capacity - stock >= ACR_FobSupply.DELIVERY_AMOUNT && delivery == 0 && m_ACR_RP >= ACR_FobSupply.DELIVERY_COST, ready && stock > 0, slotStates, stock, ready, factionKey);
+     m_ACR_Panel.SetFobSupplyRuns((m_ACR_Data.m_BaseContested[baseIndex] & 4) != 0);
      m_ACR_Panel.SetFobAI(m_ACR_IsCommander && delivery >= 0, (m_ACR_Data.m_BaseContested[baseIndex] & 2) != 0);
     }
     else if (m_ACR_Data.m_BaseSupply.Count() > supplyOffset + 2)

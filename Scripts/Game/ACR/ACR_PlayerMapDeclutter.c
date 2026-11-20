@@ -152,7 +152,7 @@ modded class ACR_OrderDisplay
    int side = ACR_EBaseSide.FREE;
    if (i < data.m_DeclSide.Count()) side = data.m_DeclSide[i];
    bool keep = i >= data.m_DeclKeep.Count() || data.m_DeclKeep[i];
-   bool contested = i < data.m_BaseContested.Count() && data.m_BaseContested[i] == 1;
+   bool contested = i < data.m_BaseContested.Count() && (data.m_BaseContested[i] & 1) != 0;
    int color = ACR_MapDeclutter.SideColor(side).PackToInt();
    if (!data.m_bDeclFar && !data.m_bDeclZonesOff && i < data.m_BaseRadii.Count())
    {
@@ -1447,7 +1447,7 @@ modded class SCR_PlayerController
   ACR_MapDeclutter.FrontBases(data.m_BasePositions, data.m_DeclSide, front);
   foreach (int b, string baseName : data.m_BaseNames)
   {
-   bool contested = b < data.m_BaseContested.Count() && data.m_BaseContested[b] == 1;
+   bool contested = b < data.m_BaseContested.Count() && (data.m_BaseContested[b] & 1) != 0;
    bool isFront = b < front.Count() && front[b];
    data.m_DeclKeep.Insert(ACR_MapDeclutter.KeepsName(data.m_bDeclFar, data.m_DeclSide[b], data.m_DeclHQ[b], contested, isFront, baseName == m_ACR_SelectedBase));
   }
@@ -1514,7 +1514,7 @@ modded class SCR_PlayerController
    for (int b = 0; b < count; b++)
    {
     bool first = data.m_BaseNames[b] == m_ACR_SelectedBase;
-    first = first || (b < data.m_BaseContested.Count() && data.m_BaseContested[b] == 1);
+    first = first || (b < data.m_BaseContested.Count() && (data.m_BaseContested[b] & 1) != 0);
     first = first || (b < data.m_DeclHQ.Count() && data.m_DeclHQ[b]) || (b < data.m_DeclSide.Count() && data.m_DeclSide[b] == ACR_EBaseSide.OWN);
     if (first == (pass == 0)) order.Insert(b);
    }
@@ -2234,7 +2234,7 @@ modded class SCR_PlayerController
   foreach (int b, string name : m_ACR_Data.m_BaseNames)
   {
    if (b >= m_ACR_Data.m_DeclSide.Count() || m_ACR_Data.m_DeclSide[b] != ACR_EBaseSide.OWN) continue;
-   if (b < m_ACR_Data.m_BaseContested.Count() && m_ACR_Data.m_BaseContested[b] == 1)
+   if (b < m_ACR_Data.m_BaseContested.Count() && (m_ACR_Data.m_BaseContested[b] & 1) != 0)
    {
     attacked = ACR_MapDeclutter.ShortName(name);
     break;

@@ -604,6 +604,7 @@ class ACR_MapFeed
    int flag = 0;
    if (base.m_bContested) flag = 1;
    if (base.m_sOwner == frame.m_sKey) flag += ACR_FobAI.FeedFlag(base); // +2: handed to the AI
+   if (base.m_bBuilt && ACR_SupplyRuns.On()) flag += 4; // +4: supply runs on (#242: the FOB panel's order says so)
    frame.m_BaseContested.Insert(flag);
    int stock = -1;
    if (base.m_bBuilt && base.m_sOwner == frame.m_sKey && base.m_FobSupply) stock = ACR_FobSupply.Stock(base.m_FobSupply);

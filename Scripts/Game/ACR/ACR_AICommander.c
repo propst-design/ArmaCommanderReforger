@@ -11,7 +11,8 @@ enum ACR_EAITask
  FORTIFY,   // digging in or upgrading a position on an approach (-acrFortifyAI)
  SWEEP,     // clearing a road where FIA ambushed the side (ACR_Insurgency, #89)
  RESCUE,    // driving an evac: to the XP, loading, to a base (ACR_Evac, #107)
- PALLET     // going for a supply pallet (ACR_Airdrop, #107)
+ PALLET,    // going for a supply pallet (ACR_Airdrop, #107)
+ SUPPLY_RUN // a construction truck crew driving a supply run (ACR_SupplyRuns, #242)
 }
 
 // Strategic AI for one faction, adapted from the Arma 3 mod's ai_strategic.sqf

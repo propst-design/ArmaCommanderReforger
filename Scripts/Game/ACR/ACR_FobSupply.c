@@ -341,6 +341,8 @@ class ACR_FobSupply
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!truck || !manager || !manager.m_Logistics) return "";
   if (moved > 0) manager.m_Logistics.UnloadedPaid(truck, moved);
+  // #242: a player's own unload of a paid load into a FOB gets the player-run bonus (+25%).
+  if (moved > 0 && playerId > 0 && ACR_SupplyRuns.On()) PlayerBonus(truck, moved, playerId);
   int kept = (int)Math.Round(wanted - Math.Max(0, moved));
   if (kept < 1) return "";
   string line;
@@ -351,6 +353,23 @@ class ACR_FobSupply
   return line;
  }
 
+
+ // #242 ruling 4: player-driven loads +25%, added to the FOB the truck stands in, room permitting.
+ static void PlayerBonus(IEntity truck, float moved, int playerId)
+ {
+  vector at = truck.GetOrigin();
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base.FobOnline() || !base.m_FobSupply || vector.DistanceXZ(at, base.GetOrigin()) > base.m_fRadius) continue;
+   SCR_ResourceContainer store = ACR_Logistics.SupplyContainer(base.m_FobSupply);
+   if (!store) return;
+   float bonus = Math.Floor(Math.Min(moved * ACR_SupplyRuns.PLAYER_BONUS, store.GetMaxResourceValue() - store.GetResourceValue()));
+   if (bonus < 1) return;
+   store.SetResourceValue(store.GetResourceValue() + bonus);
+   PrintFormat("[ACR] FOB UNLOAD player-run bonus: +%1 supplies into %2", bonus, base.m_sName);
+   return;
+  }
+ }
 
  // A FOB's own store (the HQ's crates the paid editor spends), not a depot or a truck.
  static bool IsFobStore(SCR_ResourceContainer container)
@@ -406,7 +425,16 @@ class ACR_FobSupply
   if (!build)
   {
    int before = manager.m_Bases.GetRP(key);
-   string result = Order(manager, key, base);
+   string result;
+   // #242 supply runs: a construction truck takes the load (cheaper, physical); the paid delivery
+   // is the floor when no truck is free or a run is already on its way (press again).
+   if (ACR_SupplyRuns.On() && manager.m_SupplyRuns && !manager.m_SupplyRuns.RunTo(base))
+   {
+    int code;
+    result = manager.m_SupplyRuns.Order(key, base, code);
+    if (code == ACR_SupplyRuns.ORDER_NO_TRUCK) result = result + ". " + Order(manager, key, base);
+   }
+   else result = Order(manager, key, base);
    if (manager.m_Bases.GetRP(key) < before) manager.LogSpend(pc, key, before, "construction supplies for " + base.m_sName);
    return result;
   }
@@ -418,6 +446,20 @@ class ACR_FobSupply
   return "FOB construction opened";
  }
 
+ // The abstract delivery's price and time: with supply runs on it is the floor, 2x RP and 3x time
+ // (#242 ruling 1), so a truck run is always the better deal.
+ static int DeliveryCost()
+ {
+  if (ACR_SupplyRuns.On()) return ACR_SupplyRuns.FloorCost();
+  return DELIVERY_COST;
+ }
+
+ static float DeliveryMs()
+ {
+  if (ACR_SupplyRuns.On()) return ACR_SupplyRuns.FloorMs();
+  return DELIVERY_MS;
+ }
+
  static string Order(ACR_Manager manager, string key, ACR_Base base)
  {
   if (!Replication.IsServer() || !manager || !base || base.m_bRetired || !ACR_Base.s_All.Contains(base) || !base.m_bBuilt || base.m_sOwner != key || !base.m_FobSupply) return "Select one of your built FOBs";
@@ -426,12 +468,14 @@ class ACR_FobSupply
   if (base.m_iSupplyDelivery > 0) return "A supply delivery is already on order";
   SCR_ResourceContainer container = ACR_Logistics.SupplyContainer(base.m_FobSupply);
   if (!container || container.GetMaxResourceValue() - Stock(base.m_FobSupply) < DELIVERY_AMOUNT) return "FOB needs room for 500 supplies";
-  if (!manager.m_Bases.Spend(key, DELIVERY_COST)) return "Not enough RP (20 needed)";
+  int cost = DeliveryCost();
+  if (!manager.m_Bases.Spend(key, cost)) return string.Format("Not enough RP (%1 needed)", cost);
   base.m_iSupplyDelivery = DELIVERY_AMOUNT;
-  base.m_fSupplyDeliveryLeft = DELIVERY_MS;
+  base.m_fSupplyDeliveryLeft = DeliveryMs();
+  base.m_iSupplyDeliveryCost = cost;
   base.m_fSupplyDeliveryUpdated = GetGame().GetWorld().GetWorldTime();
   base.m_sSupplyDeliveryFaction = key;
-  return "500 construction supplies ordered: 20 RP, 60 seconds; pauses while contested";
+  return string.Format("500 construction supplies ordered: %1 RP, %2 seconds; pauses while contested", cost, Math.Round(DeliveryMs() / 1000));
  }
 
  static void Tick(ACR_Base base)
@@ -456,8 +500,8 @@ class ACR_FobSupply
    ACR_Manager owner = ACR_Manager.GetInstance();
    if (!base.m_sSupplyDeliveryFaction.IsEmpty() && owner && owner.m_Bases)
    {
-    owner.m_Bases.Refund(base.m_sSupplyDeliveryFaction, DELIVERY_COST);
-    PrintFormat("[ACR] BASE %1 supply delivery called off (captured): %2 RP refunded to %3", base.m_sName, DELIVERY_COST, base.m_sSupplyDeliveryFaction);
+    owner.m_Bases.Refund(base.m_sSupplyDeliveryFaction, base.SupplyDeliveryCost());
+    PrintFormat("[ACR] BASE %1 supply delivery called off (captured): %2 RP refunded to %3", base.m_sName, base.SupplyDeliveryCost(), base.m_sSupplyDeliveryFaction);
    }
    base.m_iSupplyDelivery = 0;
    base.m_fSupplyDeliveryLeft = 0;
@@ -481,6 +525,7 @@ class ACR_FobSupply
  static string Describe(ACR_Base base)
  {
   string detail = string.Format("\nFOB supplies: %1 / %2", Stock(base.m_FobSupply), CapacityOf(base));
+  if (ACR_SupplyRuns.On()) detail += string.Format("\nSupply order: a construction truck run (%1 RP at a hub); with no truck free, or ordered again during a run, a delivery (%2 RP, %3 s)", ACR_SupplyRuns.RUN_COST, ACR_SupplyRuns.FloorCost(), Math.Round(ACR_SupplyRuns.FloorMs() / 1000));
   if (base.m_bHqLost) detail += "\nHQ DESTROYED: offline until an Establish FOB order rebuilds it";
   else if (Stock(base.m_FobSupply) <= 0) detail += "\nOrder supplies, or park a construction truck by the HQ and unload it";
   if (base.m_iSupplyDelivery > 0)
@@ -490,6 +535,8 @@ class ACR_FobSupply
    else if (base.m_fSupplyDeliveryLeft <= 0) state = " (waiting for storage space)";
    detail += string.Format("\nDelivery: %1 supplies, %2 s%3", base.m_iSupplyDelivery, Math.Ceil(base.m_fSupplyDeliveryLeft / 1000), state);
   }
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (manager && manager.m_SupplyRuns) detail += manager.m_SupplyRuns.Describe(base);
   return detail;
  }
 }

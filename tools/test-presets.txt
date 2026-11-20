@@ -164,6 +164,7 @@ grabs|-acrGrabsTest 1|60
 mortarspot|-acrMortarSpotTest 1|60
 fobsiting|-acrFobSitingTest 1|180
 fobai|-acrFobAITest 1|200
+supplyruns|-acrSupplyRunsTest 1|360
 squadai|-acrSquadAITest 1|200
 twoic|-acrTwoICTest 1|200
 twoicui|-acrTwoICUITest 1|240
