@@ -116,6 +116,9 @@ class ACR_Setup
     else if (baseOwner == "USSR") baseOwner = east;
     string baseDetail = string.Format("Control point, %1 RP", base.m_iValue);
     if (!base.m_bIncome) baseDetail = "Control point, no income";
+    // HQs read as HQs, as on a generated layout (20 Nov: the lobby's sketch drew the world's own
+    // HQs at a plain base's size, its "HQ" test never matched "Control point, ...").
+    if (ACR_LogisticsRules.IsHQ(base) && !baseOwner.IsEmpty()) baseDetail = string.Format("HQ (%1), %2 RP", ACR_FactionSelection.DisplayName(baseOwner), base.m_iValue);
     if (base.m_bHidden) baseDetail += " | Hidden";
     AddPreview(base.GetOrigin(), base.m_sName, baseOwner, baseDetail, base.m_fRadius, ACR_QuickStart.Weight(base.m_bIncome, base.m_iValue), base.m_bHidden);
    }
@@ -156,6 +159,12 @@ class ACR_Setup
   s_PreviewOwners.Insert(owner);
   s_PreviewDetails.Insert(detail);
   s_PreviewRadii.Insert(radius);
+ }
+
+ // The planned layout's base details (tests: the lobby's map sketch sizes its squares by them).
+ static void PreviewDetails(notnull array<string> into)
+ {
+  into.Copy(s_PreviewDetails);
  }
 
  protected static void SendPreview(int playerId, SCR_PlayerController pc)

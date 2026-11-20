@@ -128,6 +128,96 @@ class ACR_SetupLobbyModel
   return note.m_sText;
  }
 
+ // The preset loaded now ("" for none), from the note line.
+ static string LoadedPreset(notnull array<ref ACR_SetupLobbyRow> rows)
+ {
+  string note = PresetInUse(rows);
+  int colon = note.IndexOf(": ");
+  if (colon < 0) return "";
+  string name = note.Substring(colon + 2, note.Length() - colon - 2);
+  if (name.StartsWith("none")) return "";
+  return name;
+ }
+
+ // The right panel's preset line (20 Nov: it said "Preset in use: none" while the footer picker
+ // showed "Default", which reads as a contradiction). "Loaded" here, "Preset to load" on the picker.
+ static string LoadedLine(notnull array<ref ACR_SetupLobbyRow> rows)
+ {
+  if (PresetInUse(rows).IsEmpty()) return "";
+  string name = LoadedPreset(rows);
+  if (name.IsEmpty()) return "Loaded preset: none (the scenario's own setup)";
+  return "Loaded preset: " + name;
+ }
+
+ // A base of the planned layout is an HQ: generated layouts say "HQ (US), 2 RP", the world's own
+ // bases "HQ (US), 2 RP" too since 20 Nov (ACR_Setup.UpdatePreview), the live map "... | HQ".
+ static bool IsHQDetail(string detail)
+ {
+  return detail.StartsWith("HQ") || detail.Contains("| HQ");
+ }
+
+ // The map sketch's square for a base: HQs biggest, hidden sites smallest.
+ static int MarkerSize(string detail)
+ {
+  if (IsHQDetail(detail)) return 18;
+  if (detail.Contains("Hidden")) return 6;
+  return 10;
+ }
+
+ // The footer's controls, left to right (the keys line sits under them on its own line).
+ static void FooterKeys(bool allowed, notnull array<string> into)
+ {
+  into.Clear();
+  if (!allowed)
+  {
+   into.Insert("footerdecks");
+   return;
+  }
+  into.Insert("footerpreset");
+  into.Insert("footerload");
+  into.Insert("footerreset");
+  into.Insert("footerstart");
+ }
+
+ // What the right panel says for a key: a row, a tab, a footer control or the Presets tab.
+ static string HelpFor(notnull array<ref ACR_SetupLobbyRow> rows, string key)
+ {
+  if (key.StartsWith("tab:"))
+  {
+   int tab = key.Substring(4, key.Length() - 4).ToInt();
+   int changed = ChangedOn(rows, tab);
+   string about = ACR_Setup.LobbyTabName(tab) + ": " + TabAbout(tab);
+   if (changed > 0) about += string.Format("\n%1 changed from this server's default.", changed);
+   return about;
+  }
+  if (key == "footerpreset" || key == "footerload") return "Load a saved setup: pick it in Preset to load, then press Load preset. The Presets tab saves, renames and shares them.";
+  if (key == "footerreset") return "Puts every row of this tab back to this server's default (a loaded preset still applies).";
+  if (key == "footerstart") return "Starts the match with this setup. Space on a keyboard, Y on a gamepad.";
+  if (key == "footerdecks") return "Build a deck and hand it in while the host sets up the match.";
+  if (key.StartsWith("preset")) return "Kept on the server in profile/ACA/SetupPresets. A server loads one with -acrPreset <name>; launch options still win over a preset.";
+  string help = ACR_Setup.Help(key);
+  ACR_SetupLobbyRow row = Find(rows, key);
+  if (help.IsEmpty() && row) help = row.m_sText;
+  if (help.IsEmpty()) return "Point at a row to see what it does.";
+  if (row && row.m_sKind == "value") help = row.m_sLabel + ": " + row.m_sValue + "\n" + help;
+  // A company or doctrine row: what the chosen one does.
+  ACR_SetupLobbyRow about = Find(rows, "about" + key);
+  if (about) help += "\n\n" + about.m_sText;
+  if (row && row.m_bChanged) help += "\n(changed from this server's default)";
+  return help;
+ }
+
+ static string TabAbout(int tab)
+ {
+  if (tab == 0) return "where the match is fought, how hard the enemy pushes, and who else is out there: FIA and zombies.";
+  if (tab == 1) return "the two sides, which ones an AI commands, how the match opens and the starting RP.";
+  if (tab == 2) return "the AI commanders, their doctrines and squad caps, minefields and fortifying, and how squads and guns behave.";
+  if (tab == 3) return "money, companies and decks, deployment, FOB services and supply.";
+  if (tab == 4) return "the 2IC, how players share command, the command map and the mission intro.";
+  if (tab == 5) return "features that ship switched off until they have been played.";
+  return "save the whole setup under a name, load it, share it.";
+ }
+
  // The two sides' faction keys (the map sketch colours bases by them).
  static void Sides(notnull array<ref ACR_SetupLobbyRow> rows, out string west, out string east)
  {
@@ -145,8 +235,29 @@ class ACR_SetupLobbyModel
  }
 }
 
-// Focus and mouse-over on a row: the right panel says what it does (spin boxes have no invoker for
-// it, BBB's settings tab does the same).
+// Which control the right panel describes: the focused one (keyboard, gamepad, or the mouse, which
+// focuses what it points at), else the open tab. Mouse-over alone no longer moves the help (20 Nov:
+// the pointer resting on the Economy tab kept its text up while Starting RP had the focus).
+class ACR_SetupLobbyHelp
+{
+ string m_sFocused;
+
+ void Focus(string key) { m_sFocused = key; }
+
+ void Blur(string key)
+ {
+  if (m_sFocused == key) m_sFocused = "";
+ }
+
+ string Key(int tab)
+ {
+  if (!m_sFocused.IsEmpty()) return m_sFocused;
+  return "tab:" + tab.ToString();
+ }
+}
+
+// Focus on a control: the right panel says what it does (spin boxes have no invoker for it, BBB's
+// settings tab does the same).
 class ACR_SetupLobbyHandler : ScriptedWidgetEventHandler
 {
  ACR_SetupLobby m_Lobby;
@@ -154,13 +265,13 @@ class ACR_SetupLobbyHandler : ScriptedWidgetEventHandler
 
  override bool OnFocus(Widget w, int x, int y)
  {
-  if (m_Lobby) m_Lobby.Describe(m_sKey);
+  if (m_Lobby) m_Lobby.Focused(m_sKey, true);
   return false;
  }
 
- override bool OnMouseEnter(Widget w, int x, int y)
+ override bool OnFocusLost(Widget w, int x, int y)
  {
-  if (m_Lobby) m_Lobby.Describe(m_sKey);
+  if (m_Lobby) m_Lobby.Focused(m_sKey, false);
   return false;
  }
 
@@ -197,6 +308,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  protected TextWidget m_wSummary;
  protected TextWidget m_wHelp;
  protected TextWidget m_wStatus;
+ protected TextWidget m_wKeys;
+ protected ref ACR_SetupLobbyHelp m_Help = new ACR_SetupLobbyHelp();
 
  protected ref array<ref ACR_SetupLobbyRow> m_aRows = {};
  protected ref array<ref ACR_SetupLobbyHandler> m_aRowHandlers = {};
@@ -339,8 +452,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   SCR_InputButtonComponent start = FindButton(BUTTON_CONFIRM);
   if (start)
   {
+   // The dialog's own Start is now only the key badge (Space, Y on a pad) right of the footer's
+   // Start match button, which mouse, keyboard and gamepad focus can press (20 Nov: it was text
+   // beside a badge, unlike the buttons next to it). The badge keeps the key working.
    start.SetVisible(m_bAllowed, false);
-   start.SetLabel(m_Theme.Text("Start"));
+   start.SetLabel("");
   }
   if (!m_bBuilt)
   {
@@ -680,39 +796,39 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    foreach (SCR_ButtonBaseComponent old : gone) m_Buttons.Remove(old);
    m_FooterPreset = null;
    m_sFooterSig = "";
-   // The skin's keys line (real bindings only); the buttons beside it say the same in plain words.
-   if (!m_Theme.m_sKeys.IsEmpty())
+   // The skin's keys line (real bindings only) on its own line under the footer: beside the
+   // buttons it squeezed them together at 1080p and on the Cold War terminal (20 Nov).
+   KeysLine();
+   array<string> keys = {};
+   ACR_SetupLobbyModel.FooterKeys(m_bAllowed, keys);
+   foreach (string key : keys)
    {
-    TextWidget keys = AddText(m_wFooter, m_Theme.m_sKeys, 0);
-    if (keys)
+    if (key == "footerpreset")
     {
-     keys.SetColor(m_Theme.m_Decor);
-     AlignableSlot.SetVerticalAlign(keys, LayoutVerticalAlign.Center);
-     AlignableSlot.SetPadding(keys, 0, 0, 16, 0);
-    }
-   }
-   if (m_bAllowed)
-   {
-    Widget spin = GetGame().GetWorkspace().CreateWidgets(LAYOUT_SPIN, m_wFooter);
-    if (spin)
-    {
+     Widget spin = GetGame().GetWorkspace().CreateWidgets(LAYOUT_SPIN, m_wFooter);
+     if (!spin) continue;
      LayoutSlot.SetSizeMode(spin, LayoutSizeMode.Fill);
      AlignableSlot.SetPadding(spin, 0, 0, 8, 0);
      m_FooterPreset = SCR_SpinBoxComponent.Cast(spin.FindHandler(SCR_SpinBoxComponent));
      if (m_FooterPreset)
      {
-      m_FooterPreset.SetLabel(m_Theme.Text("Preset"));
+      m_FooterPreset.SetLabel(m_Theme.Text("Preset to load"));
       m_FooterPreset.SetCycleMode(true);
       m_FooterPreset.m_OnChanged.Insert(OnFooterPreset);
       Widget hints = spin.FindAnyWidget("HintBar");
       if (hints) hints.SetVisible(false);
      }
-     Watch(spin, "footerpreset", m_aFixedHandlers);
+     Watch(spin, key, m_aFixedHandlers);
+     continue;
     }
-    AddButton(m_wFooter, "footerload", "Load preset", 0, m_aFixedHandlers);
-    AddButton(m_wFooter, "footerreset", "Reset tab", 0, m_aFixedHandlers);
+    SCR_ButtonTextComponent button = AddButton(m_wFooter, key, FooterText(key), 0, m_aFixedHandlers);
+    if (!button) continue;
+    // Room between the footer's buttons (they touched with the rows' 2 px).
+    AlignableSlot.SetPadding(button.GetRootWidget(), 12, 2, 0, 2);
+    AlignableSlot.SetVerticalAlign(button.GetRootWidget(), LayoutVerticalAlign.Center);
+    // Start stands out in the skin's strong colour; its key badge sits right of it.
+    if (key == "footerstart") Paint(button, true);
    }
-   else AddButton(m_wFooter, "footerdecks", "Build my deck", 0, m_aFixedHandlers);
   }
   foreach (SCR_ButtonBaseComponent footerButton, string footerKey : m_Buttons)
   {
@@ -732,16 +848,42 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   m_aFooterPresets.Copy(names);
   m_FooterPreset.ClearAll();
   int pick = 0;
+  string loaded = ACR_SetupLobbyModel.LoadedPreset(m_aRows);
   foreach (int i, string name : names)
   {
-   m_FooterPreset.AddItem(name);
-   if (inUse.EndsWith(": " + name)) pick = i;
+   // The loaded one says so, so the picker and the right panel's "Loaded preset" agree.
+   if (name == loaded)
+   {
+    m_FooterPreset.AddItem(m_Theme.Text(name + " (loaded)"));
+    pick = i;
+   }
+   else m_FooterPreset.AddItem(m_Theme.Text(name));
   }
   if (names.IsEmpty()) m_FooterPreset.AddItem("(no presets)");
   m_FooterPreset.SetCurrentItem(pick, false, false, false);
   if (pick < names.Count()) m_sFooterPick = names[pick];
   else m_sFooterPick = "";
   m_bFilling = false;
+ }
+
+ protected static string FooterText(string key)
+ {
+  if (key == "footerload") return "Load preset";
+  if (key == "footerreset") return "Reset tab";
+  if (key == "footerstart") return "Start match";
+  return "Build my deck";
+ }
+
+ // The skin's keys line, once, under the footer row.
+ protected void KeysLine()
+ {
+  if (m_wKeys || m_Theme.m_sKeys.IsEmpty()) return;
+  Widget footerRow = m_wFooter.GetParent();
+  if (!footerRow || !footerRow.GetParent()) return;
+  m_wKeys = AddText(footerRow.GetParent(), m_Theme.m_sKeys, 0);
+  if (!m_wKeys) return;
+  m_wKeys.SetColor(m_Theme.m_Decor);
+  AlignableSlot.SetPadding(m_wKeys, 0, 4, 0, 0);
  }
 
  protected void OnFooterPreset(SCR_SpinBoxComponent spin, int index)
@@ -758,13 +900,13 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (m_wSummary)
   {
    string summary = ACR_SetupLobbyModel.Summary(m_aRows);
-   string inUse = ACR_SetupLobbyModel.PresetInUse(m_aRows);
-   if (!inUse.IsEmpty()) summary += "\n" + inUse;
+   string loaded = ACR_SetupLobbyModel.LoadedLine(m_aRows);
+   if (!loaded.IsEmpty()) summary += "\n" + m_Theme.Text(loaded);
    m_wSummary.SetText(summary);
   }
   if (m_wSubtitle)
   {
-   if (m_bAllowed) m_wSubtitle.SetText("Pick a tab, change a row with its arrows (or left and right), then press Start. A dot marks a change from this server's default.");
+   if (m_bAllowed) m_wSubtitle.SetText("Pick a tab, change a row with its arrows (or left and right), then press Start match. A dot marks a change from this server's default.");
    else m_wSubtitle.SetText("Waiting for the host or an admin to set up the match and press Start. You can look; only they can change it.");
   }
   if (m_wStatus)
@@ -773,69 +915,49 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    if (!status.IsEmpty()) status += "\n\n";
    m_wStatus.SetText(status + REPORT);
   }
-  if (m_sFocus.IsEmpty()) Describe("");
+  ShowHelp();
   DrawMap(west, east);
  }
 
- // What the focused row does (the right panel).
+ // A control took or lost the focus (its handler): the help follows the focus, the open tab's
+ // description when nothing has it.
+ void Focused(string key, bool has)
+ {
+  if (has) m_Help.Focus(key);
+  else m_Help.Blur(key);
+  // A row keeps its place for Refocus and the cursor even while a tab or footer control has focus.
+  if (has && !key.StartsWith("tab:") && !key.StartsWith("footer") && !key.StartsWith("preset")) Describe(key);
+  else ShowHelp();
+ }
+
+ // A row is the one being worked on (focus, or one of its arrows clicked): the skin's cursor moves
+ // to it and the right panel describes it.
  void Describe(string key)
  {
-  if (key.StartsWith("tab:") || key.StartsWith("footer") || key.StartsWith("preset")) { DescribeOther(key); return; }
   string before = m_sFocus;
   m_sFocus = key;
-  // The skin's cursor follows the focus.
   if (!m_Theme.m_sCursor.IsEmpty() && before != key)
   {
    Relabel(before);
    Relabel(key);
   }
-  if (!m_wHelp) return;
-  string help = ACR_Setup.Help(key);
-  ACR_SetupLobbyRow row = ACR_SetupLobbyModel.Find(m_aRows, key);
-  if (help.IsEmpty() && row) help = row.m_sText;
-  if (help.IsEmpty()) help = "Point at a row to see what it does.";
-  else if (row && row.m_sKind == "value") help = row.m_sLabel + ": " + row.m_sValue + "\n" + help;
-  // A company or doctrine row: what the chosen one does.
-  ACR_SetupLobbyRow about = ACR_SetupLobbyModel.Find(m_aRows, "about" + key);
-  if (about) help += "\n\n" + about.m_sText;
-  if (row && row.m_bChanged) help += "\n(changed from this server's default)";
-  m_wHelp.SetText(help);
+  ShowHelp();
  }
+
+ // The right panel: what the focused control does.
+ protected void ShowHelp()
+ {
+  if (m_wHelp) m_wHelp.SetText(ACR_SetupLobbyModel.HelpFor(m_aRows, m_Help.Key(m_iTab)));
+ }
+
+ // What the right panel describes now (tests).
+ string HelpKey() { return m_Help.Key(m_iTab); }
 
  protected void Relabel(string key)
  {
   SCR_SpinBoxComponent spin = m_Spins.Get(key);
   ACR_SetupLobbyRow row = ACR_SetupLobbyModel.Find(m_aRows, key);
   if (spin && row) SetSpin(spin, row);
- }
-
- protected void DescribeOther(string key)
- {
-  if (!m_wHelp) return;
-  string help = "";
-  if (key.StartsWith("tab:"))
-  {
-   int tab = key.Substring(4, key.Length() - 4).ToInt();
-   int changed = ACR_SetupLobbyModel.ChangedOn(m_aRows, tab);
-   help = ACR_Setup.LobbyTabName(tab) + ": " + TabAbout(tab);
-   if (changed > 0) help += string.Format("\n%1 changed from this server's default.", changed);
-  }
-  else if (key == "footerpreset" || key == "footerload") help = "Load a saved setup: pick it here, then Load preset. The Presets tab saves, renames and shares them.";
-  else if (key == "footerreset") help = "Puts every row of this tab back to this server's default (a preset in use still applies).";
-  else if (key == "footerdecks") help = "Build a deck and hand it in while the host sets up the match.";
-  else if (key.StartsWith("preset")) help = "Kept on the server in profile/ACA/SetupPresets. A server loads one with -acrPreset <name>; launch options still win over a preset.";
-  m_wHelp.SetText(help);
- }
-
- protected static string TabAbout(int tab)
- {
-  if (tab == 0) return "where the match is fought, how hard the enemy pushes, and who else is out there: FIA and zombies.";
-  if (tab == 1) return "the two sides, which ones an AI commands, how the match opens and the starting RP.";
-  if (tab == 2) return "the AI commanders, their doctrines and squad caps, minefields and fortifying, and how squads and guns behave.";
-  if (tab == 3) return "money, companies and decks, deployment, FOB services and supply.";
-  if (tab == 4) return "the 2IC, how players share command, the command map and the mission intro.";
-  if (tab == 5) return "features that ship switched off until they have been played.";
-  return "save the whole setup under a name, load it, share it.";
  }
 
  // A sketch of the planned layout from the base preview the server sends the host (ACR_Setup.SendPreview):
@@ -850,6 +972,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (data) count = data.m_BasePositions.Count();
   string sig = string.Format("%1|%2|%3|%4", count, west, east, m_bAllowed);
   if (data && count > 0) sig += "|" + data.m_BaseNames[0] + data.m_BasePositions[0].ToString() + data.m_BaseNames[count - 1] + data.m_BaseOwners[count - 1] + data.m_BaseOwners[0];
+  if (data && count > 0 && data.m_BaseDetails.Count() == count) sig += "|" + data.m_BaseDetails[0] + data.m_BaseDetails[count - 1];
   if (sig == m_sMapSig) return;
   m_sMapSig = sig;
   while (m_wMapDots.GetChildren()) m_wMapDots.GetChildren().RemoveFromHierarchy();
@@ -873,26 +996,31 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   float width = Math.Max(maxs[0] - mins[0], 1);
   float depth = Math.Max(maxs[2] - mins[2], 1);
   bool names = count <= 24;
-  for (int i = 0; i < count; i++)
+  // Two passes: ordinary bases first, then the HQs on top with an outline, so a neighbour's square
+  // never hides one (20 Nov: the red HQ sat against a base's square at the same size).
+  array<int> order = {};
+  array<int> hqs = {};
+  for (int b = 0; b < count; b++)
   {
+   if (b < data.m_BaseDetails.Count() && ACR_SetupLobbyModel.IsHQDetail(data.m_BaseDetails[b])) hqs.Insert(b);
+   else order.Insert(b);
+  }
+  order.InsertAll(hqs);
+  foreach (int i : order)
+  {
+   string detail = "";
+   if (i < data.m_BaseDetails.Count()) detail = data.m_BaseDetails[i];
+   bool hq = ACR_SetupLobbyModel.IsHQDetail(detail);
    vector pos = data.m_BasePositions[i];
    float x = 0.04 + 0.92 * Math.Clamp((pos[0] - mins[0]) / width, 0, 1);
    float y = 0.04 + 0.92 * (1 - Math.Clamp((pos[2] - mins[2]) / depth, 0, 1));
    string owner = data.m_BaseOwners[i];
-   string detail = "";
-   if (i < data.m_BaseDetails.Count()) detail = data.m_BaseDetails[i];
-   // Hidden sites smaller; the colours are the side panels' (the quick start split shows as owners).
-   float size = 10;
-   if (detail.StartsWith("HQ")) size = 18;
-   else if (detail.Contains("Hidden")) size = 6;
-   Color color = m_Theme.Owner(owner, west, east);
-   Widget dot = GetGame().GetWorkspace().CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, color, 0, m_wMapDots);
+   // HQs biggest, hidden sites smaller; the colours are the side panels' (the quick start split
+   // shows as owners).
+   float size = ACR_SetupLobbyModel.MarkerSize(detail);
+   if (hq) Square(x, y, size + 6, m_Theme.m_Heading);
+   Widget dot = Square(x, y, size, m_Theme.Owner(owner, west, east));
    if (!dot) continue;
-   FrameSlot.SetAnchorMin(dot, x, y);
-   FrameSlot.SetAnchorMax(dot, x, y);
-   FrameSlot.SetAlignment(dot, 0.5, 0.5);
-   FrameSlot.SetPos(dot, 0, 0);
-   FrameSlot.SetSize(dot, size, size);
    if (!names) continue;
    TextWidget label = AddText(m_wMapDots, data.m_BaseNames[i], 0);
    if (!label) continue;
@@ -904,6 +1032,19 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    FrameSlot.SetPos(label, size * 0.5 + 3, 0);
    FrameSlot.SetSizeToContent(label, true);
   }
+ }
+
+ // A square on the map sketch, centred on (x, y) of the map's frame.
+ protected Widget Square(float x, float y, float size, Color color)
+ {
+  Widget dot = GetGame().GetWorkspace().CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, color, 0, m_wMapDots);
+  if (!dot) return null;
+  FrameSlot.SetAnchorMin(dot, x, y);
+  FrameSlot.SetAnchorMax(dot, x, y);
+  FrameSlot.SetAlignment(dot, 0.5, 0.5);
+  FrameSlot.SetPos(dot, 0, 0);
+  FrameSlot.SetSize(dot, size, size);
+  return dot;
  }
 
  // ---------------------------------------------------------------- widgets
@@ -1063,6 +1204,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    return;
   }
   if (key == "footerreset") { ACR_SetupClient.Request("resettab:" + m_iTab.ToString()); return; }
+  if (key == "footerstart") { OnConfirm(); return; }
   if (OnPresetButton(key)) return;
   ACR_SetupClient.Request(key);
  }

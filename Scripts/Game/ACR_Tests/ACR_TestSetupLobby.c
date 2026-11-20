@@ -7,7 +7,7 @@
 // is also built where the server has a workspace). What it can't see: how the screen looks.
 class ACR_TestSetupLobby
 {
- static const int CHECKS = 16;
+ static const int CHECKS = 20;
  protected static const ResourceName LAYOUT = "{AC230926A00100F6}UI/layouts/ACR/ACR_SetupLobby.layout";
  protected static const ResourceName SPIN = "{C9DF0E6590F6C388}UI/layouts/WidgetLibrary/SpinBox/WLib_SpinBox.layout";
 
@@ -243,6 +243,57 @@ class ACR_TestSetupLobby
   if (ACR_SetupTheme.Chosen() != "vanilla") themeWrong += "chosen:" + ACR_SetupTheme.Chosen() + " ";
   if (ACR_Setup.LobbyTabPrefix(0) != "1." || ACR_Setup.LobbyTabPrefix(1) != "2." || ACR_Setup.LobbyTabPrefix(5) != "A." || ACR_Setup.LobbyTabPrefix(6) != "B.") themeWrong += "prefix ";
   ACR_TestRegress.Check("lobby: three skins with every colour set, vanilla by default, plain tab names", themeWrong.IsEmpty(), themeWrong);
+
+  // 17. The map sketch: the planned layout names both HQs (the world's own bases too), drawn at 18
+  // against 10 for a base and 6 for a hidden site (20 Nov: every HQ came out at 10).
+  ACR_Setup.UpdatePreview();
+  array<string> details = {};
+  ACR_Setup.PreviewDetails(details);
+  int hqMarks = 0;
+  int bigOthers = 0;
+  foreach (string detail : details)
+  {
+   int size = ACR_SetupLobbyModel.MarkerSize(detail);
+   if (size == 18) hqMarks++;
+   else if (size > 10) bigOthers++;
+  }
+  bool sizesOk = ACR_SetupLobbyModel.MarkerSize("HQ (US), 2 RP") == 18 && ACR_SetupLobbyModel.MarkerSize("Control point, 1 RP | HQ") == 18 && ACR_SetupLobbyModel.MarkerSize("Control point, 1 RP") == 10 && ACR_SetupLobbyModel.MarkerSize("Control point, no income | Hidden") == 6;
+  string firstDetail = "none";
+  if (!details.IsEmpty()) firstDetail = details[0];
+  ACR_TestRegress.Check("lobby: the map sketch draws both HQs bigger than the bases", hqMarks == 2 && bigOthers == 0 && sizesOk, string.Format("%1 HQs of %2 bases (%3, layout %4); sizes ok %5", hqMarks, details.Count(), firstDetail, ACR_Setup.Current("layout"), sizesOk));
+
+  // 18. The right panel follows the focus: the focused row's help, not a tab's the pointer rests
+  // on; the open tab's description only when nothing has the focus (20 Nov: Starting RP focused
+  // showed "Economy and logistics: ...").
+  ACR_SetupLobbyHelp focus = new ACR_SetupLobbyHelp();
+  focus.Focus("startrp");
+  string rowHelp = ACR_SetupLobbyModel.HelpFor(parsed, focus.Key(1));
+  focus.Blur("tab:3");
+  bool kept = focus.Key(1) == "startrp";
+  focus.Blur("startrp");
+  string tabHelp = ACR_SetupLobbyModel.HelpFor(parsed, focus.Key(1));
+  bool helpOk = rowHelp.Contains("Requisition points") && rowHelp.StartsWith("Starting RP: ") && !rowHelp.Contains("Economy") && kept && tabHelp.StartsWith("Match: ") && !ACR_SetupLobbyModel.HelpFor(parsed, "footerstart").IsEmpty();
+  ACR_TestRegress.Check("lobby: the help shows the focused row, the tab only when nothing is focused", helpOk, rowHelp + " | " + tabHelp);
+
+  // 19. The footer: picker, Load preset, Reset tab, then Start match as a real button (its key
+  // badge right of it); a player who can't change the setup gets their deck builder.
+  array<string> footer = {};
+  ACR_SetupLobbyModel.FooterKeys(true, footer);
+  string hostFooter = "";
+  foreach (string footerKey : footer) hostFooter += footerKey + " ";
+  ACR_SetupLobbyModel.FooterKeys(false, footer);
+  string guestFooter = "";
+  foreach (string guestKey : footer) guestFooter += guestKey + " ";
+  ACR_TestRegress.Check("lobby: footer order picker, load, reset, start; guests get the deck builder", hostFooter == "footerpreset footerload footerreset footerstart " && guestFooter == "footerdecks ", hostFooter + "| " + guestFooter);
+
+  // 20. Preset wording: the right panel says which preset is loaded, the picker which one Load
+  // preset would load; "none" stays none (the server's note line is unchanged for the classic dialog).
+  array<ref ACR_SetupLobbyRow> fake = {};
+  ACR_SetupLobbyModel.Parse("presetnote\tPreset in use: Large battle\npresetrow:Large battle\tLarge battle (built-in)", fake);
+  string loadedLine = ACR_SetupLobbyModel.LoadedLine(fake);
+  string noneLine = ACR_SetupLobbyModel.LoadedLine(parsed);
+  bool presetWords = ACR_SetupLobbyModel.LoadedPreset(fake) == "Large battle" && loadedLine == "Loaded preset: Large battle" && ACR_SetupLobbyModel.LoadedPreset(parsed) == "" && noneLine == "Loaded preset: none (the scenario's own setup)";
+  ACR_TestRegress.Check("lobby: the loaded preset is named apart from the picker's choice", presetWords, loadedLine + " | " + noneLine);
   ACR_TestRegress.Complete("setuplobby", CHECKS);
  }
 }
