@@ -1353,12 +1353,6 @@ modded class SCR_PlayerController
   return super.ACR_OverOwnUI(widget);
  }
 
- override bool ACR_HandleMapRightClick()
- {
-  if (m_ACR_SquadPicker && m_ACR_SquadPicker.Contains(WidgetManager.GetWidgetUnderCursor())) return true;
-  return super.ACR_HandleMapRightClick();
- }
-
  protected ref array<Widget> m_aDeclBadges = {};
  protected ref array<TextWidget> m_aDeclBadgeTexts = {};
  protected ref array<Widget> m_aDeclChips = {};         // per base

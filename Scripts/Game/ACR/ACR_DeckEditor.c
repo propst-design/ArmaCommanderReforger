@@ -162,6 +162,12 @@ class ACR_DeckClient
 
  static bool IsOpen() { return s_Editor != null; }
 
+ // The widget is in the open editor: the map under it takes no clicks or wheel (ACR_OverOwnUI).
+ static bool Contains(Widget widget)
+ {
+  return s_Editor && s_Editor.Contains(widget);
+ }
+
  // Every frame on clients (ACR_Manager.OnFrame).
  static void Frame()
  {
@@ -410,6 +416,16 @@ class ACR_DeckEditor
   m_Root = null;
   m_Fixed.Clear();
   m_Rows.Clear();
+ }
+
+ bool Contains(Widget widget)
+ {
+  while (widget)
+  {
+   if (m_Root && widget == m_Root) return true;
+   widget = widget.GetParent();
+  }
+  return false;
  }
 
  protected Widget List(Widget parent, float width)

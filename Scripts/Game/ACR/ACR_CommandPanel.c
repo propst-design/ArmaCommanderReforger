@@ -1470,6 +1470,10 @@ modded class SCR_MapRadialUI
 // Drag to aim: while an order that takes a facing is armed, holding the right button aims it
 // (ACR_PlayerController.ACR_AimArmed) and doesn't pan the map. Any other time it pans as usual;
 // the keyboard and the screen edges pan either way.
+// Our boxes over the map (ACR_PlayerController.ACR_OverOwnUI: the panel, the deck editor, the
+// 2IC's...) take their own clicks: a press there neither starts a pan nor selects on the map
+// (the select fed the map's click handlers: setup moved a base, a click cleared the selection;
+// play-test 20 Nov, the deck editor). A pan that started on the map carries on over them.
 // (The container attribute must be repeated on a modded config class: without it the map
 // configs no longer know the class, and the map opens with no cursor module: no pan, no zoom.)
 [BaseContainerProps()]
@@ -1479,6 +1483,14 @@ modded class SCR_MapCursorModule
  {
   SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
   if (pc && pc.ACR_AimArmed()) return;
+  if (pc && (m_CursorState & EMapCursorState.CS_PAN) == 0 && pc.ACR_PointerOverOwnUI()) return;
   super.OnInputPanDrag(value, reason);
+ }
+
+ override protected void HandleSelect()
+ {
+  SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
+  if (pc && pc.ACR_PointerOverOwnUI()) return;
+  super.HandleSelect();
  }
 }
