@@ -24,8 +24,8 @@
 // Everything else (map bushes, and pieces of what the map
 // itself placed) by its spot on the game mode, gone for the whole mission (up to MAX_SPOTS of them).
 // A client clears from a record when the structure (or the game) streams in and whenever it grows.
-// Host option -acrFieldsOfFire 1 turns it on; off by default (an AI option until it has been played,
-// Jacob's options policy), the bushes stay as before.
+// On by default since 19 Nov (out of Experimental: played and trusted); host option -acrFieldsOfFire 0
+// turns it off and the bushes stay as before.
 class ACR_FieldOfFire
 {
  static const float ROUND_M = 7;          // all round a gun, a post or a piece
@@ -44,8 +44,8 @@ class ACR_FieldOfFire
  static bool On()
  {
   if (s_bTestOn) return true;
-  // A flag, the mission header or the setup screen's Experimental tab.
-  return ACR_LogisticsRules.Choice("acrFieldsOfFire", "0") == "1";
+  // A flag, the mission header or the setup screen's Engineers tab; on unless set to 0 (19 Nov).
+  return ACR_LogisticsRules.Choice("acrFieldsOfFire", "1") != "0";
  }
 
  // A gun: all round it, and its cone along the way it points.

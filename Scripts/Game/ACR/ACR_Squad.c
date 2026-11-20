@@ -3984,8 +3984,8 @@ class ACR_Squad : Managed
  // to move the vehicle off the road or to the side of the road instead of getting out in the middle of
  // the road"): an AI driver of ours on a road, not under fire, first drives forward onto the verge on his
  // right (BBB_PullOver: brakes, handbrake on), then everyone gets out. Under fire, with nowhere to pull
- // over to, or the option off: out where it stands, as before. Off by default until it has been
- // played: -acrPullOver 1 turns it on (it needs Better Battle Buddies' BBB_PullOver).
+ // over to, or the option off: out where it stands, as before. On by default since 19 Nov (out of
+ // Experimental: played); -acrPullOver 0 turns it off (it needs Better Battle Buddies' BBB_PullOver).
  static bool s_bTestPullOver; // srv:manners runs it without the host option
  protected bool m_bPulledOver;
  protected int m_iPullOverSerial;
@@ -3993,8 +3993,8 @@ class ACR_Squad : Managed
  static bool PullOverOn()
  {
   if (s_bTestPullOver) return true;
-  // A flag, the mission header or the setup screen's Experimental tab.
-  return ACR_LogisticsRules.Choice("acrPullOver", "0") == "1";
+  // A flag, the mission header or the setup screen's Logistics tab; on unless set to 0.
+  return ACR_LogisticsRules.Choice("acrPullOver", "1") != "0";
  }
 
  protected bool PullOverFirst(IEntity vehicle)

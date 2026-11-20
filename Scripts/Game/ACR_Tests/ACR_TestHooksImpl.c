@@ -13,6 +13,14 @@ modded class ACR_TestHooks
   return ACR_TestTwoICAll.s_sCommanded == factionKey && !factionKey.IsEmpty();
  }
 
+ // The 2IC is on by default (19 Nov): on the range it would take on the squads every test scripts, so it
+ // stays off there unless the test sets -acr2IC itself (the twoic tests).
+ override string OptionFallback(string option, string fallback)
+ {
+  if (m_Harness && option == "acr2IC") return "0";
+  return fallback;
+ }
+
  override void RangeStarted(ACR_TestRange range)
  {
   if (System.IsCLIParam("acrAirLiftTest") || System.IsCLIParam("acrAirLiftTwoTest") || System.IsCLIParam("acrAirLiftContactTest")) ACR_Options.Set("acrAI", "none");

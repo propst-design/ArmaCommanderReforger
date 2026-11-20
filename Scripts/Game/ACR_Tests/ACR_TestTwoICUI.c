@@ -18,7 +18,7 @@ class ACR_TestTwoICUI
   if (tick == 1)
   {
    foreach (ACR_FactionSettings settings : ACR_FactionSettings.s_All) settings.m_bAICommander = false;
-   ACR_Options.Unset("acr2IC");
+   ACR_Options.Set("acr2IC", "0"); // off to start (on by default since 19 Nov)
    ACR_Options.Unset("acrAIBuildShare");
    ACR_TwoIC.ResetForTest();
   }

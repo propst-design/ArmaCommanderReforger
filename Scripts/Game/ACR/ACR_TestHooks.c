@@ -43,6 +43,9 @@ class ACR_TestHooks
  string SetupPresetDir() { return ""; }
  // A side a test says a player commands (ACR_SquadAI.RunsAll): a server test has no players.
  bool PlayerCommandsForTest(string factionKey) { return false; }
+ // The value an option takes when no source sets it, for a test that needs another than the game's
+ // (fallback): the range keeps the 2IC off (ACR_SquadAI.TwoIC), its tests script the squads themselves.
+ string OptionFallback(string option, string fallback) { return fallback; }
  // Build the test classes' statics (ACR_StaticInit, at game creation).
  void InitStatics() {}
 }

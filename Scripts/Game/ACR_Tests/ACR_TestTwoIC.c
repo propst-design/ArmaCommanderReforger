@@ -18,7 +18,7 @@ class ACR_TestTwoIC
   if (tick == 1)
   {
    foreach (ACR_FactionSettings settings : ACR_FactionSettings.s_All) settings.m_bAICommander = false;
-   ACR_Options.Unset("acr2IC");
+   ACR_Options.Set("acr2IC", "0"); // off to start (on by default since 19 Nov)
   }
   ACR_Squad alpha = manager.FindSquadByGroup(h.m_Range.m_Group);
   ACR_Squad bravo = manager.FindSquadByGroup(h.m_Range.m_Bravo);

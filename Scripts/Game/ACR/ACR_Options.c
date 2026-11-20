@@ -308,6 +308,15 @@ class ACR_MissionHeader : SCR_MissionHeader
  int m_iAcrRoadblockDefenders;
  [Attribute("-1", UIWidgets.EditBox, "AI commanders set this percent of income aside for building: 0 default (off), at most 30 (-acrAIBuildShare)")]
  int m_iAcrAIBuildShare;
+ // Out of Experimental, on by default (19 Nov): a console or rented host turns them off here.
+ [Attribute("-1", UIWidgets.EditBox, "AC: Actual's period jets over recon flights and bomb runs: 1 default without RHS (off with RHS), 0 off (-acrPeriodJets)")]
+ int m_iAcrPeriodJets;
+ [Attribute("-1", UIWidgets.EditBox, "Built guns, checkpoint posts and Fortify pieces clear the bushes round them: 1 default, 0 off (-acrFieldsOfFire)")]
+ int m_iAcrFieldsOfFire;
+ [Attribute("-1", UIWidgets.EditBox, "A squad told to get out on a road has its driver pull onto the verge first: 1 default, 0 off (-acrPullOver)")]
+ int m_iAcrPullOver;
+ [Attribute("-1", UIWidgets.EditBox, "Second-in-command: 1 default (the 2IC runs the squads nobody leads), 2 I'm the 2IC (the AI commander runs the side), 0 off (-acr2IC)")]
+ int m_iAcr2IC;
 
  void Fill(map<string, string> values)
  {
@@ -384,6 +393,10 @@ class ACR_MissionHeader : SCR_MissionHeader
   Number(values, "acrFortifyDefenders3", m_iAcrFortifyDefenders3);
   Number(values, "acrRoadblockDefenders", m_iAcrRoadblockDefenders);
   Number(values, "acrAIBuildShare", m_iAcrAIBuildShare);
+  Number(values, "acrPeriodJets", m_iAcrPeriodJets);
+  Number(values, "acrFieldsOfFire", m_iAcrFieldsOfFire);
+  Number(values, "acrPullOver", m_iAcrPullOver);
+  Number(values, "acr2IC", m_iAcr2IC);
  }
 
  protected static void Text(map<string, string> values, string name, string value)

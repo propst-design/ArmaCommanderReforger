@@ -89,6 +89,7 @@ ACA|srv:fieldbridges|nightly|120   # median 41s, 3 runs/14d
 ACA|srv:fieldbridgeswz|nightly|150   # median 39s, 14 runs/14d
 ACA|srv:manners|weekly|540   # median 332s, 1 runs/14d
 ACA|srv:mannersgetout|weekly|150   # median 63s, 1 runs/14d
+ACA|srv:pullover|weekly|150   # pull over on by default + under fire (19 Nov)
 ACA|srv:fieldsoffire|weekly|120   # median 20s, 2 runs/14d
 ACA|srv:crewold|skip|120   # A/B control with the feature off or the old code: run beside its pair by hand
 ACA|srv:bbbaim|skip|3000   # long (3000s timeout): run by hand
