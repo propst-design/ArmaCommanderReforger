@@ -46,6 +46,13 @@ class ACR_SetupTheme : Managed
  protected static ref ACR_SetupTheme s_Current;
  static const ResourceName HEADING_MONO = "{AC230926A00100F7}UI/layouts/ACR/ACR_SetupHeadingMono.layout";
 
+ // The skins' colours are sRGB (as a designer picks them); widgets want linear and gamma them on the
+ // way out, so a colour given as is shows washed out (the terminal's near-black screen as a mid green).
+ protected static Color Srgb(int r, int g, int b, float a = 1)
+ {
+  return ACR_TwoICStyle.Rgb(r, g, b, a);
+ }
+
  // The skin for this machine: -acrSetupSkin, else the content socket's era, else vanilla.
  static ACR_SetupTheme Current()
  {
@@ -81,27 +88,27 @@ class ACR_SetupTheme : Managed
  {
   ACR_SetupTheme theme = new ACR_SetupTheme();
   theme.m_sName = "vanilla";
-  theme.m_Backdrop = Color.FromRGBA(5, 9, 15, 230);
-  theme.m_Panel = Color.FromRGBA(18, 26, 23, 255);
-  theme.m_Heading = Color.FromRGBA(255, 255, 255, 255);
-  theme.m_Decor = Color.FromRGBA(120, 150, 190, 255);
-  theme.m_Subtitle = Color.FromRGBA(158, 189, 230, 255);
-  theme.m_Text = Color.FromRGBA(255, 255, 255, 255);
-  theme.m_TextDim = Color.FromRGBA(170, 190, 215, 255);
-  theme.m_Help = Color.FromRGBA(209, 219, 230, 255);
-  theme.m_Status = Color.FromRGBA(242, 184, 89, 255);
-  theme.m_Changed = Color.FromRGBA(255, 178, 80, 255);
+  theme.m_Backdrop = Srgb(5, 9, 15, 0.902);
+  theme.m_Panel = Srgb(18, 26, 23);
+  theme.m_Heading = Srgb(255, 255, 255);
+  theme.m_Decor = Srgb(120, 150, 190);
+  theme.m_Subtitle = Srgb(158, 189, 230);
+  theme.m_Text = Srgb(255, 255, 255);
+  theme.m_TextDim = Srgb(170, 190, 215);
+  theme.m_Help = Srgb(209, 219, 230);
+  theme.m_Status = Srgb(242, 184, 89);
+  theme.m_Changed = Srgb(255, 178, 80);
   theme.m_Button = new Color(0.16, 0.42, 0.80, 0.40);
   theme.m_ButtonHover = new Color(0.26, 0.56, 0.96, 0.70);
   theme.m_ButtonPress = new Color(0.30, 0.62, 1.0, 0.95);
   theme.m_ButtonSelected = new Color(0.26, 0.56, 0.96, 0.85);
   theme.m_ButtonBorder = new Color(0.45, 0.72, 1.0, 1.0);
-  theme.m_West = Color.FromRGBA(80, 140, 255, 255);
-  theme.m_East = Color.FromRGBA(240, 80, 70, 255);
-  theme.m_Neutral = Color.FromRGBA(170, 170, 170, 255);
-  theme.m_Other = Color.FromRGBA(90, 190, 90, 255);
-  theme.m_WestPanel = Color.FromRGBA(30, 60, 120, 200);
-  theme.m_EastPanel = Color.FromRGBA(120, 30, 28, 200);
+  theme.m_West = Srgb(80, 140, 255);
+  theme.m_East = Srgb(240, 80, 70);
+  theme.m_Neutral = Srgb(170, 170, 170);
+  theme.m_Other = Srgb(90, 190, 90);
+  theme.m_WestPanel = Srgb(30, 60, 120, 0.784);
+  theme.m_EastPanel = Srgb(120, 30, 28, 0.784);
   theme.m_sChanged = "• ";
   return theme;
  }
@@ -111,27 +118,27 @@ class ACR_SetupTheme : Managed
  {
   ACR_SetupTheme theme = new ACR_SetupTheme();
   theme.m_sName = "crt";
-  theme.m_Backdrop = Color.FromRGBA(2, 8, 3, 245);
-  theme.m_Panel = Color.FromRGBA(6, 22, 8, 255);
-  theme.m_Heading = Color.FromRGBA(120, 255, 140, 255);
-  theme.m_Decor = Color.FromRGBA(60, 170, 75, 255);
-  theme.m_Subtitle = Color.FromRGBA(90, 220, 110, 255);
-  theme.m_Text = Color.FromRGBA(110, 245, 130, 255);
-  theme.m_TextDim = Color.FromRGBA(70, 170, 85, 255);
-  theme.m_Help = Color.FromRGBA(140, 255, 160, 255);
-  theme.m_Status = Color.FromRGBA(200, 255, 120, 255);
-  theme.m_Changed = Color.FromRGBA(220, 255, 140, 255);
+  theme.m_Backdrop = Srgb(2, 8, 3, 0.961);
+  theme.m_Panel = Srgb(6, 22, 8);
+  theme.m_Heading = Srgb(120, 255, 140);
+  theme.m_Decor = Srgb(60, 170, 75);
+  theme.m_Subtitle = Srgb(90, 220, 110);
+  theme.m_Text = Srgb(110, 245, 130);
+  theme.m_TextDim = Srgb(70, 170, 85);
+  theme.m_Help = Srgb(140, 255, 160);
+  theme.m_Status = Srgb(200, 255, 120);
+  theme.m_Changed = Srgb(220, 255, 140);
   theme.m_Button = new Color(0.05, 0.30, 0.08, 0.55);
   theme.m_ButtonHover = new Color(0.10, 0.50, 0.15, 0.80);
   theme.m_ButtonPress = new Color(0.20, 0.70, 0.25, 0.95);
   theme.m_ButtonSelected = new Color(0.12, 0.55, 0.18, 0.90);
   theme.m_ButtonBorder = new Color(0.35, 0.95, 0.40, 1.0);
-  theme.m_West = Color.FromRGBA(110, 170, 255, 255);
-  theme.m_East = Color.FromRGBA(255, 110, 90, 255);
-  theme.m_Neutral = Color.FromRGBA(90, 200, 105, 255);
-  theme.m_Other = Color.FromRGBA(230, 230, 120, 255);
-  theme.m_WestPanel = Color.FromRGBA(15, 40, 80, 210);
-  theme.m_EastPanel = Color.FromRGBA(80, 22, 18, 210);
+  theme.m_West = Srgb(110, 170, 255);
+  theme.m_East = Srgb(255, 110, 90);
+  theme.m_Neutral = Srgb(90, 200, 105);
+  theme.m_Other = Srgb(230, 230, 120);
+  theme.m_WestPanel = Srgb(15, 40, 80, 0.824);
+  theme.m_EastPanel = Srgb(80, 22, 18, 0.824);
   theme.m_bUpper = true;
   theme.m_sChanged = "* ";
   theme.m_sCursor = "> ";
@@ -146,27 +153,27 @@ class ACR_SetupTheme : Managed
  {
   ACR_SetupTheme theme = new ACR_SetupTheme();
   theme.m_sName = "tablet";
-  theme.m_Backdrop = Color.FromRGBA(24, 30, 27, 240);
-  theme.m_Panel = Color.FromRGBA(36, 44, 40, 255);
-  theme.m_Heading = Color.FromRGBA(235, 238, 230, 255);
-  theme.m_Decor = Color.FromRGBA(150, 165, 150, 255);
-  theme.m_Subtitle = Color.FromRGBA(200, 205, 190, 255);
-  theme.m_Text = Color.FromRGBA(232, 235, 228, 255);
-  theme.m_TextDim = Color.FromRGBA(165, 175, 160, 255);
-  theme.m_Help = Color.FromRGBA(215, 220, 210, 255);
-  theme.m_Status = Color.FromRGBA(255, 190, 60, 255);
-  theme.m_Changed = Color.FromRGBA(255, 190, 60, 255);
+  theme.m_Backdrop = Srgb(24, 30, 27, 0.941);
+  theme.m_Panel = Srgb(36, 44, 40);
+  theme.m_Heading = Srgb(235, 238, 230);
+  theme.m_Decor = Srgb(150, 165, 150);
+  theme.m_Subtitle = Srgb(200, 205, 190);
+  theme.m_Text = Srgb(232, 235, 228);
+  theme.m_TextDim = Srgb(165, 175, 160);
+  theme.m_Help = Srgb(215, 220, 210);
+  theme.m_Status = Srgb(255, 190, 60);
+  theme.m_Changed = Srgb(255, 190, 60);
   theme.m_Button = new Color(0.25, 0.30, 0.27, 0.85);
   theme.m_ButtonHover = new Color(0.35, 0.42, 0.37, 0.95);
   theme.m_ButtonPress = new Color(0.85, 0.62, 0.20, 0.95);
   theme.m_ButtonSelected = new Color(0.72, 0.52, 0.16, 0.95);
   theme.m_ButtonBorder = new Color(0.55, 0.62, 0.56, 1.0);
-  theme.m_West = Color.FromRGBA(90, 150, 240, 255);
-  theme.m_East = Color.FromRGBA(230, 85, 70, 255);
-  theme.m_Neutral = Color.FromRGBA(165, 172, 165, 255);
-  theme.m_Other = Color.FromRGBA(120, 200, 110, 255);
-  theme.m_WestPanel = Color.FromRGBA(30, 52, 90, 220);
-  theme.m_EastPanel = Color.FromRGBA(95, 34, 28, 220);
+  theme.m_West = Srgb(90, 150, 240);
+  theme.m_East = Srgb(230, 85, 70);
+  theme.m_Neutral = Srgb(165, 172, 165);
+  theme.m_Other = Srgb(120, 200, 110);
+  theme.m_WestPanel = Srgb(30, 52, 90, 0.863);
+  theme.m_EastPanel = Srgb(95, 34, 28, 0.863);
   theme.m_sChanged = "• ";
   theme.m_sDecor = "C2 TABLET  |  MATCH SETUP  |  LINK OK";
   theme.m_sKeys = "Space: Start    Q / E: change tab    Left / right: change a value";
