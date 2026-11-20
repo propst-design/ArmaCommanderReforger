@@ -254,6 +254,7 @@ driveroutesch|-acrDriveRoutesTest 1|500|Worlds/ACR_ChernarusMinus.ent
 driverouteschbbb|-acrDriveRoutesBBBTest 1|500|Worlds/ACR_ChernarusMinus.ent
 roadhops|-acrRoadHopsTest 1|500
 roadhopsoff|-acrRoadHopsOffTest 1|500
+driveflow|-acrDriveFlowTest 1|680
 keyhints|-acrKeyHintsTest 1|60|Worlds/ACR_Everon.ent
 panelshots|-acrPanelShotsTest 1|420
 panelfit|-acrPanelFitTest 1|1500

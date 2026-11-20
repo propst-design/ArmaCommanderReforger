@@ -2465,9 +2465,20 @@ class ACR_Squad : Managed
  }
 
  // Walks a route the AI commander planned (a covered approach), leg by leg like a land route.
+ // A crewed vehicle drives it as one trip to its end (#86 again, 20 Nov, Jacob: one waypoint per trip):
+ // on Reforger 1.9 every waypoint change ends the group's move and the driver plans again from a stop,
+ // whatever is queued behind it. A recorded supply route or a covered approach is the game's own road
+ // plan to the last point; the road hops stay the fallback for a drive that fails (OnGroupMoveFailed,
+ // DriveWatch's Reroute). -acrNoRoadHops 0 walks the legs as before.
  void WalkLegs(array<vector> legs, ResourceName prefab, float radius, string order, int kind)
  {
   if (!legs || legs.IsEmpty()) return;
+  if (legs.Count() > 1 && NoRoadHops() && IsMounted() && ACR_Transport.CrewedVehicle(this))
+  {
+   PrintFormat("[ACR] ROUTE %1: %2 legs driven as one trip to the last", m_Name, legs.Count());
+   RouteTo(legs[legs.Count() - 1], prefab, radius, order, kind);
+   return;
+  }
   StartRoute(legs, prefab, radius, order, kind);
  }
 
