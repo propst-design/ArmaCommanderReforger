@@ -192,6 +192,7 @@ class ACR_Rides : Managed
   if (RideOf(squad) || Unloading(squad)) return "already giving a ride";
   if (squad.m_iAITask == ACR_EAITask.RESCUE) return "on an evac (zombie containment)";
   if (squad.m_iAITask == ACR_EAITask.PALLET) return "recovering a supply pallet";
+  if (squad.m_iAITask == ACR_EAITask.SUPPLY_RUN) return "on a supply run";
   IEntity vehicle = ACR_Transport.CrewedVehicle(squad);
   if (!vehicle) return "no vehicle";
   // A fighting vehicle isn't a taxi for the AI's rides. A player's own Ride order may take one that

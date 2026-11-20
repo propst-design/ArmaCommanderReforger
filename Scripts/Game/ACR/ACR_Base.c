@@ -51,6 +51,7 @@ class ACR_Base : GenericEntity
  float m_fSupplyDeliveryLeft;
  float m_fSupplyDeliveryUpdated;
  string m_sSupplyDeliveryFaction;
+ int m_iSupplyDeliveryCost;         // RP paid for it (the floor price with #242 supply runs on), refunded if called off
  ref array<ref ACR_FobSlot> m_aFobSlots;
  ref ACR_FobSlot m_FobDefences;     // the defences upgrade (ACR_FobDefences)
  float m_fFobSlotsLastTick;
@@ -61,6 +62,7 @@ class ACR_Base : GenericEntity
  bool m_bPocket;                    // FIA pocket of resistance (ACR_Pockets) until someone captures it
  vector m_vDriveOut;                // last vehicle spot found here with a way out (ACR_Requisition.VehicleSpot)
  bool m_bDriveOut;
+ int m_iPortState;                 // #242 hubs: 0 not checked, 1 a port (deep water by its ring), 2 not (ACR_SupplyRuns.IsPort)
  ref set<int> m_DriveOutShut;        // vehicle-grid cells found shut in (yards), ...
  float m_fDriveOutShutAt;           // ...since this world time (ms): forgotten after a while
 
@@ -74,8 +76,8 @@ class ACR_Base : GenericEntity
   ACR_Manager owner = ACR_Manager.GetInstance();
   if (m_iSupplyDelivery > 0 && !m_sSupplyDeliveryFaction.IsEmpty() && owner && owner.m_Bases)
   {
-   owner.m_Bases.Refund(m_sSupplyDeliveryFaction, ACR_FobSupply.DELIVERY_COST);
-   PrintFormat("[ACR] BASE %1 supply delivery called off (HQ lost): %2 RP refunded to %3", m_sName, ACR_FobSupply.DELIVERY_COST, m_sSupplyDeliveryFaction);
+   owner.m_Bases.Refund(m_sSupplyDeliveryFaction, SupplyDeliveryCost());
+   PrintFormat("[ACR] BASE %1 supply delivery called off (HQ lost): %2 RP refunded to %3", m_sName, SupplyDeliveryCost(), m_sSupplyDeliveryFaction);
   }
   m_iSupplyDelivery = 0;
   m_fSupplyDeliveryLeft = 0;
@@ -83,6 +85,13 @@ class ACR_Base : GenericEntity
   ACR_SideStats stats = ACR_Report.Of(m_sOwner);
   if (stats) stats.m_iFobsLost++;
   ACR_Intel.FobEvent(this, m_sName + " offline: HQ lost, an Establish FOB order rebuilds it", m_sName + " HQ lost");
+ }
+
+ // RP the delivery on its way cost (older saves/orders without one: the plain price).
+ int SupplyDeliveryCost()
+ {
+  if (m_iSupplyDeliveryCost > 0) return m_iSupplyDeliveryCost;
+  return ACR_FobSupply.DELIVERY_COST;
  }
 
  // A built FOB that can deploy, serve and build (not retired, HQ standing).

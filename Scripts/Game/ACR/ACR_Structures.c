@@ -552,6 +552,19 @@ class ACR_Structures : Managed
   return null;
  }
 
+ // #242 hubs: a FOB with a built supply depot of its owner is a logistics hub (ACR_SupplyRuns.IsHub).
+ bool HasDepot(ACR_Base base)
+ {
+  if (!base || base.m_bRetired) return false;
+  foreach (ACR_Structure structure : m_Active)
+  {
+   if (structure.m_eKind != ACR_EStructure.DEPOT || structure.m_sFaction != base.m_sOwner) continue;
+   if (!structure.m_Entity || !structure.m_Composition || structure.m_Composition.ACR_BuildRejected() || !structure.m_Composition.IsCompositionSpawned()) continue;
+   if (vector.DistanceXZ(structure.m_vPos, base.GetOrigin()) <= base.m_fRadius) return true;
+  }
+  return false;
+ }
+
  bool HasRelay(ACR_Base base)
  {
   if (!base || base.m_bRetired) return false;

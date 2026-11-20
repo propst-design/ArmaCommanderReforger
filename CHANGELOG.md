@@ -6,6 +6,11 @@
   - **Stolen vehicles:** an empty, sound vehicle nobody is using (no player within 300 m, not a living squad's own vehicle, no arsenal on it) is driven to an FIA depot or to a hideout's new stash, and raids from there like FIA's technicals.
   - **Prisoners:** the knocked-out and those who surrendered are taken to the hideout. Holding them is propaganda: the hideout recruits faster, and the captive's side hears about it and gets a lead on where the hideout is. While the hideout is out, its prisoners sit unarmed in the middle of it. Walk up to them with no FIA nearby to free them, or destroy the hideout to free everyone it held. Each man freed gives his side 3 RP and costs the hideout a recruit. The AI commander sends more squads, from further away, to a hideout it has found that holds its men.
   - **Players taken prisoner** redeploy straight away; their side is told, and a stand-in in their uniform waits at the hideout to be freed.
+- Physical logistics, part 1 (Experimental tab, all off by default):
+  - **Supply runs** (`-acrSupplyRuns 1`): a FOB's building supplies come by truck. The FOB panel's supply order sends one of your free construction trucks to load 500 supplies at a hub (20 RP) and drive them to the FOB, where they go into its store on arrival. If the truck gets stuck or runs badly late, the run fails and you're told where the truck is. With no truck free, the old delivery is still there as a fallback, now at 40 RP and 180 s. Deploying at a FOB still costs RP alone. Loads a player drives in get 25% more supplies. AI commanders run supplies the same way.
+  - **Recorded routes:** every supply run that arrives is remembered, and later trucks on the same trip follow it. A truck that gets stuck on a remembered route goes back to normal road routing, and a route that fails twice is set aside until a truck drives it again. Off-road stretches of such routes are untested. `-acrSaveRoutes 1` keeps the routes in the host's profile for that map.
+  - **Logistics hubs** (`-acrLogisticsHubs 1`): trucks load and restock only at the HQ, ports and FOBs with a supply depot.
+- The map no longer misses that a FOB handed to the AI commander is contested.
 
 ## 0.6.2 — unreleased
 

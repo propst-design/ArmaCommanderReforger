@@ -236,6 +236,7 @@ modded class ACR_AICommander
   if (task == ACR_EAITask.SWEEP) return "clearing a road";
   if (task == ACR_EAITask.RESCUE) return "running an evac";
   if (task == ACR_EAITask.PALLET) return "recovering a supply pallet";
+  if (task == ACR_EAITask.SUPPLY_RUN) return "on a supply run";
   if (task == ACR_EAITask.ATTACK) return "attacking" + at;
   return "in reserve";
  }

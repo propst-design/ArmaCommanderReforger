@@ -96,6 +96,7 @@ class ACR_Manager : Managed
  }
  ref ACR_Rides m_Rides;
  ref ACR_Logistics m_Logistics;
+ ref ACR_SupplyRuns m_SupplyRuns; // #242 supply runs and recorded routes (-acrSupplyRuns)
  ref ACR_Structures m_Structures;
  ref ACR_Cleanup m_Cleanup;
  ref ACR_Launchers m_Launchers;
@@ -605,6 +606,8 @@ class ACR_Manager : Managed
   m_Structures.Tick();
   if (!m_Logistics) m_Logistics = new ACR_Logistics(this);
   m_Logistics.Tick();
+  if (!m_SupplyRuns && ACR_SupplyRuns.On()) m_SupplyRuns = new ACR_SupplyRuns(this);
+  if (m_SupplyRuns) m_SupplyRuns.Tick();
   t = ACR_Perf.Lap("logistics", t);
   if (!m_Cleanup) m_Cleanup = new ACR_Cleanup(this);
   m_Cleanup.Tick();

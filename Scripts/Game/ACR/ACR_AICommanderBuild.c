@@ -130,7 +130,7 @@ modded class ACR_AICommander
   foreach (ACR_Squad squad : mine)
   {
    if (!squad || squad.PlayerSteers() || squad.CountAlive() <= 0 || squad == m_FobEscort) continue;
-   if (squad.m_iAITask == ACR_EAITask.ATTACK || squad.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
+   if (squad.m_iAITask == ACR_EAITask.ATTACK || squad.m_iAITask == ACR_EAITask.SUPPLY_RUN || squad.OrderState() == ACR_EOrderState.BUILD_FOB) continue;
    // Not a squad giving or taking a ride (1 Nov live: a Humvee carrying medics was sent to build).
    if (m_Manager.m_Rides && m_Manager.m_Rides.RideOf(squad)) continue;
    IEntity truck = squad.ConstructionTruck();
@@ -152,6 +152,20 @@ modded class ACR_AICommander
    FactionAffiliationComponent aff = FactionAffiliationComponent.Cast(vehicle.FindComponent(FactionAffiliationComponent));
    if (!aff || !aff.GetAffiliatedFaction() || aff.GetAffiliatedFaction().GetFactionKey() != m_sFaction) continue;
    if (m_Manager.m_Logistics && m_Manager.m_Logistics.StockOf(vehicle) >= ACR_FobBuild.LOADS_RESERVED) return true;
+  }
+  return false;
+ }
+
+ // Any construction truck of ours still alive (#242: a run waits for one rather than buying more).
+ bool HasConstructionTruck()
+ {
+  array<IEntity> vehicles = {};
+  ACR_Vehicles.All(vehicles);
+  foreach (IEntity vehicle : vehicles)
+  {
+   if (!vehicle || ACR_Logistics.Health(vehicle) <= 0 || (ACR_Logistics.ServiceOf(vehicle) & ACR_EService.CONSTRUCTION) == 0) continue;
+   FactionAffiliationComponent aff = FactionAffiliationComponent.Cast(vehicle.FindComponent(FactionAffiliationComponent));
+   if (aff && aff.GetAffiliatedFaction() && aff.GetAffiliatedFaction().GetFactionKey() == m_sFaction) return true;
   }
   return false;
  }
@@ -378,6 +392,8 @@ modded class ACR_AICommander
  {
   if (!base || !base.m_FobSupply || !data) return false;
   if (base.m_iSupplyDelivery > 0) return false;
+  ACR_SupplyRuns runs = m_Manager.m_SupplyRuns;
+  if (runs && runs.RunTo(base)) return false; // #242: a supply run is on its way
   if (base.m_bContested || ACR_FobBuild.IsContested(base.GetOrigin(), m_sFaction)) return false;
 
   int stock = ACR_FobSupply.Stock(base.m_FobSupply);
@@ -390,7 +406,23 @@ modded class ACR_AICommander
   if (nextSlot >= 0) minNeeded = Math.Max(500, ACR_FobSlots.SlotCost(nextSlot, nextTier));
   if (stock >= minNeeded) return false;
 
-  if (Purse(data) < ACR_FobSupply.DELIVERY_COST + FOB_RP_COMBAT_RESERVE) return false;
+  // #242 supply runs (same rules as players): a construction truck run first; after
+  // FLOOR_AFTER_FAILS failed runs to this FOB lately, or with no truck to send, the dearer delivery.
+  if (ACR_SupplyRuns.On() && runs && runs.RecentFails(base) < ACR_SupplyRuns.FLOOR_AFTER_FAILS)
+  {
+   if (Purse(data) < ACR_SupplyRuns.RUN_COST + FOB_RP_COMBAT_RESERVE) return false;
+   int code;
+   string run = runs.Order(m_sFaction, base, code);
+   if (code == ACR_SupplyRuns.ORDER_STARTED)
+   {
+    Say(string.Format("[ACR] AI %1 sends a supply run to %2: %3", m_sFaction, base.m_sName, run));
+    return true;
+   }
+   if (code == ACR_SupplyRuns.ORDER_REFUSED) return false;
+   // No free truck: buy one if the side has none at all (it comes loaded and paid), else the floor.
+   if (!HasConstructionTruck() && BuyConstructionTruck(HomeBase())) return false;
+  }
+  if (Purse(data) < ACR_FobSupply.DeliveryCost() + FOB_RP_COMBAT_RESERVE) return false;
 
   string result = ACR_FobSupply.Order(m_Manager, m_sFaction, base);
   Say(string.Format("[ACR] AI %1 ordered supplies for %2: %3", m_sFaction, base.m_sName, result));

@@ -254,6 +254,41 @@ class ACR_Logistics : Managed
   m_Paid.Set(vehicle, StockOf(vehicle));
  }
 
+ // #242 supply runs: 'loads' of the truck's stock become paid (RP was spent at a hub). Free stock
+ // already aboard counts first; the stock grows only by what doesn't fit in it.
+ void LoadPaid(IEntity vehicle, float loads)
+ {
+  if (!vehicle || loads <= 0 || ServiceOf(vehicle) == 0) return;
+  float paid = PaidOf(vehicle);
+  float stock = StockOf(vehicle);
+  if (stock < paid + loads) AddStock(vehicle, paid + loads - stock);
+  m_Paid.Set(vehicle, Math.Min(StockOf(vehicle), paid + loads));
+ }
+
+ // #242 supply runs: the truck's paid load goes into the FOB's store (as much as there is room for),
+ // and 'bonusShare' of it more (a player-driven load, +25%) if room is left. Returns the supplies
+ // that came off the truck; 'bonus' is what the FOB got on top.
+ float UnloadPaidInto(IEntity vehicle, ACR_Base fob, float bonusShare, out float bonus)
+ {
+  bonus = 0;
+  int flags = ServiceOf(vehicle);
+  float perLoad = SuppliesPerLoad(flags);
+  if (!vehicle || !fob || !fob.m_FobSupply || perLoad <= 0) return 0;
+  SCR_ResourceContainer store = SupplyContainer(fob.m_FobSupply);
+  if (!store) return 0;
+  float room = store.GetMaxResourceValue() - store.GetResourceValue();
+  float moved = Math.Floor(Math.Min(PaidSupplies(vehicle), room));
+  if (moved < 1) return 0;
+  float loads = moved / perLoad;
+  float paid = PaidOf(vehicle);
+  if (!Use(vehicle, loads)) return 0;
+  if (m_Paid.Contains(vehicle)) m_Paid.Set(vehicle, Math.Max(0, Math.Min(paid - loads, StockOf(vehicle))));
+  bonus = Math.Floor(Math.Max(0, Math.Min(moved * bonusShare, room - moved)));
+  store.SetResourceValue(store.GetResourceValue() + moved + bonus);
+  PrintFormat("[ACR] FOB UNLOAD %1 into %2: %3 paid supplies (+%4 bonus)", vehicle, fob.m_sName, moved, bonus);
+  return moved;
+ }
+
  // Paid loads in the truck now, and the same in game supplies.
  float PaidOf(IEntity vehicle)
  {
@@ -748,7 +783,8 @@ class ACR_Logistics : Managed
   if (stock >= capacity) return;
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (base.m_bBuilt || base.m_bRetired || base.m_bContested || base.m_sOwner != faction || !ACR_LogisticsRules.CanDeploy(base)) continue;
+   // Any held deploy base that isn't a FOB; with -acrLogisticsHubs only the HQ, ports and hub FOBs (#242).
+   if (!ACR_SupplyRuns.RestocksAt(base, faction)) continue;
    if (vector.DistanceXZ(base.GetOrigin(), station.GetOrigin()) > base.m_fRadius) continue;
    SetStock(station, Math.Min(capacity, stock + capacity * RESTOCK_PER_TICK)); // free: never paid
    return;
