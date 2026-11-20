@@ -12,6 +12,8 @@
 # 3. Upload with Workbench's command line (version, changelog), confirmed from its log, then
 #    recorded in WORKSHOP-RELEASES.json and the add-on's CHANGELOG (committed, not pushed).
 # The Workshop page (description, pictures) is left as it is. -DryRun stops before the upload.
+# Add-ons: the MAP-/PACK- entries in release_console.py (PACK-COLDWAR, PACK-MODERN, ...). One with no
+# release recorded yet (never uploaded, no Workshop item) stops at the first step with what to do.
 [CmdletBinding()]
 param(
  [Parameter(Mandatory=$true)][ValidatePattern('^(MAP|PACK)-[A-Z]+$')][string]$Mod,
@@ -25,6 +27,8 @@ function Invoke-Backend([string[]]$Arguments) {
  if ($LASTEXITCODE -ne 0) { throw ('Blocked at ' + $Arguments[0] + '. The reason is printed above.') }
  return $out
 }
+# A first version (no Workshop item yet) is Jacob's Workbench upload, never this script's.
+Invoke-Backend @('addon-released', $Mod) | Out-Null
 if (Get-Process '*Workbench*' -ErrorAction SilentlyContinue) { throw 'Workbench is open. Close it first: the upload runs its own hidden Workbench.' }
 
 $notes = (Invoke-Backend @('addon-notes', $Mod)) | ConvertFrom-Json
