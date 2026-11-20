@@ -14,6 +14,7 @@
   - **Logistics hubs** (`-acrLogisticsHubs 1`): trucks load and restock only at the HQ, ports and FOBs with a supply depot.
 - The map no longer misses that a FOB handed to the AI commander is contested.
 - Out of Experimental, on by default: **period jets** (Battlefield tab; without RHS only, RHS keeps its FA-18), **guns clear bushes round them** (fields of fire, Engineers tab), **pull over before getting out** (Logistics tab) and the **second-in-command** (Command tab, as the plain 2IC; "I'm the 2IC" and off are still choices). Each can still be turned off on the setup screen, with `-acrPeriodJets 0`, `-acrFieldsOfFire 0`, `-acrPullOver 0`, `-acr2IC 0`, or in the mission header (new fields `m_iAcrPeriodJets`, `m_iAcrFieldsOfFire`, `m_iAcrPullOver`, `m_iAcr2IC`). A setup preset saved before this update keeps them off, as it was saved.
+- Pulling over before getting out no longer tips trucks and APCs over. The driver now brakes to a crawl on the road before turning off it, and eases the wheel on (a truck or an APC slower and with less lock than a car). The spot beside the road must be fairly level along and across, not much below or above the road's edge, and reachable without a ditch, bank or water on the way. Tall and heavy vehicles get stricter limits than cars. With no safe spot it stops at the road's edge, or in its lane. If the vehicle starts to roll or pitch partway, it stops at once and the crew gets out there. Needs Better Battle Buddies 0.3.0.
 
 ## 0.6.2 — unreleased
 
