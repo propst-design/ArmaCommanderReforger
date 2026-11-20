@@ -702,8 +702,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    shown.Insert(row.m_sText);
   }
   if (!m_aPresetNames.Contains(m_sPresetSelected)) m_sPresetSelected = "";
-  string inUse = ACR_SetupLobbyModel.PresetInUse(m_aRows);
-  if (!inUse.IsEmpty()) AddText(m_wRows, inUse, 8);
+  string loadedLine = ACR_SetupLobbyModel.LoadedLine(m_aRows);
+  if (!loadedLine.IsEmpty()) AddText(m_wRows, m_Theme.Text(loadedLine), 8);
   if (!m_bAllowed)
   {
    foreach (string listed : shown) AddText(m_wRows, listed, 24);
