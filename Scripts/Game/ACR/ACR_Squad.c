@@ -2620,11 +2620,11 @@ class ACR_Squad : Managed
   if (!m_QueuedHop || !m_Group || !RoadFlow() || !m_Waypoint) return false;
   if (waypoint && waypoint != m_Waypoint) return false;
   // The game fails the hop's move with its waypoint and position already cleared (srv:driveflow 20 Nov:
-  // the position read as the map's origin), so it is known by the hop having left the group, or the
-  // group being on the queued hop already (the second cancel, on deselection).
+  // the position read as the map's origin), first on completion (the hop still listed), then on
+  // deselection (the group on the queued hop). Both carry on while our queued hop is next.
   array<AIWaypoint> waypoints = {};
   m_Group.GetWaypoints(waypoints);
-  bool hopDone = !waypoints.Contains(m_Waypoint) || m_Group.GetCurrentWaypoint() == m_QueuedHop;
+  bool hopDone = m_Group.GetCurrentWaypoint() == m_Waypoint || m_Group.GetCurrentWaypoint() == m_QueuedHop || !waypoints.Contains(m_Waypoint);
   bool keep = (waypoint != null || hopDone) && waypoints.Contains(m_QueuedHop) && IsMounted() && ACR_Transport.CrewedVehicle(this) != null;
   if (s_bFlowLog) PrintFormat("[ACR] FLOWHOOK %1: cancel, related waypoint %2, hop done %3, queued hop listed %4, current is queued %5 -> keep %6", m_Name, waypoint != null, hopDone, waypoints.Contains(m_QueuedHop), m_Group.GetCurrentWaypoint() == m_QueuedHop, keep);
   return keep;
