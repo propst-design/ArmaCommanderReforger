@@ -210,7 +210,7 @@ class ACR_TestRegress
  }
 
  // Checks a full run makes (Skip counts as made). Raise it with every new check.
- static const int EXPECTED = 182; // includes six envelopment and three income/grab-stall checks, three downed-enemy garrison checks, one mission-intro option check, two vehicle-lane, two refit give-up, one service-job-end, one stuck-taxi and one hold-retry check, three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
+ static const int EXPECTED = 183; // includes one night-flare policy check, six envelopment and three income/grab-stall checks, three downed-enemy garrison checks, one mission-intro option check, two vehicle-lane, two refit give-up, one service-job-end, one stuck-taxi and one hold-retry check, three Outbreak-zombie/last-resort spawn, two doctrine-hysteresis, two truck drive-out, two vehicle-exit, one AI-transport-truck, one grab-by-truck, one enemy-HQ-next-in-line check, six attack-ground, one BBB fall-back intent, one no-pack attack-helicopter, five AI skill, one attack-abort share check, one garrison-spawn, two spawn-heap, nine BBB order-leash/intent, five roadblock placement, fourteen doctrine, two covered-approach, one attack-takers and one service-truck-at-cap check
  static SCR_AIGroup s_RecoveryGroup;
  static SCR_AIGroup s_BoardingGroup;
  static SCR_AIGroup s_CancelBoardingGroup;
@@ -459,6 +459,15 @@ class ACR_TestRegress
   }
   Check("BBB leash: transport regroup and construction remain binding", specialistBinding);
   CheckSquadTacticLeash(hooks, fixture);
+  // Night flares (20 Nov 2026): a squad the AI posts to defend in FAST may light; SILENT stays dark.
+  fixture.SetOrder("Flare policy fixture", ACR_EOrderState.DEFEND);
+  fixture.m_Mode = ACR_EMoveMode.COMBAT;
+  bool combatLights = hooks.AllowFlares(fixture.m_Group);
+  fixture.m_Mode = ACR_EMoveMode.FAST;
+  bool fastLights = hooks.AllowFlares(fixture.m_Group);
+  fixture.m_Mode = ACR_EMoveMode.SILENT;
+  bool silentDark = !hooks.AllowFlares(fixture.m_Group);
+  Check("BBB flares: defending squads light in combat and fast mode, never silent", combatLights && fastLights && silentDark, string.Format("combat %1 fast %2 silent dark %3 airlift %4", combatLights, fastLights, silentDark, ACR_AirLift.Busy(fixture)));
   fixture.m_Mode = savedMode; fixture.m_Commander = savedCommander;
   fixture.m_iOrderedBy = savedIssuer; fixture.m_bForced = savedForced;
   fixture.SetOrder(savedLabel, savedState);

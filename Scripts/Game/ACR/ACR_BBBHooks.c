@@ -217,13 +217,17 @@ class ACR_BBBHooks : BBB_Hooks
  }
 
  // Illumination is allowed for autonomous combat squads, never player command,
- // quiet travel, transport, regroup or a host-owned flanking maneuver.
+ // silent movement, transport, regroup or a host-owned flanking maneuver.
+ // FAST lights too (20 Nov 2026, Jacob: no flares at night): the AI commander and the 2IC (on by default
+ // since 0.7.0) send squads to defend a base in FAST, and they keep it through the fight there, so the
+ // old COMBAT-only rule left almost every AI-run squad dark. FAST is how fast it travels, not whether
+ // it may be seen; SILENT is the order not to give itself away.
  override bool AllowFlares(SCR_AIGroup group)
  {
   ACR_Squad squad = SquadOf(group);
   if (!squad) return true;
   if (ACR_AirLift.Busy(squad)) return false;
-  if (squad.m_Commander != 0 || squad.m_Mode != ACR_EMoveMode.COMBAT || squad.m_CombatFlank.Active()) return false;
+  if (squad.m_Commander != 0 || squad.m_Mode == ACR_EMoveMode.SILENT || squad.m_CombatFlank.Active()) return false;
   ACR_EOrderState state = squad.OrderState();
   return state == ACR_EOrderState.DEFEND || state == ACR_EOrderState.ASSAULT || state == ACR_EOrderState.SUPPRESS || state == ACR_EOrderState.HUNT;
  }

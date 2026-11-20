@@ -320,3 +320,4 @@ helidown|-acrHeliDownTest 1|160
 basedefenceskolguyev|-acrBaseDefencesTest 1|120|Worlds/ACR_Kolguyev.ent
 intro|-acrIntroTest 1|90
 stopstart|-acrStopStartTest 1|60
+nightflares|-acrNightFlaresTest 1|240

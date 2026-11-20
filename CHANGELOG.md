@@ -14,6 +14,7 @@
   - **Logistics hubs** (`-acrLogisticsHubs 1`): trucks load and restock only at the HQ, ports and FOBs with a supply depot.
 - The map no longer misses that a FOB handed to the AI commander is contested.
 - Out of Experimental, on by default: **period jets** (Battlefield tab; without RHS only, RHS keeps its FA-18), **guns clear bushes round them** (fields of fire, Engineers tab), **pull over before getting out** (Logistics tab) and the **second-in-command** (Command tab, as the plain 2IC; "I'm the 2IC" and off are still choices). Each can still be turned off on the setup screen, with `-acrPeriodJets 0`, `-acrFieldsOfFire 0`, `-acrPullOver 0`, `-acr2IC 0`, or in the mission header (new fields `m_iAcrPeriodJets`, `m_iAcrFieldsOfFire`, `m_iAcrPullOver`, `m_iAcr2IC`). A setup preset saved before this update keeps them off, as it was saved.
+- AI squads fire illumination flares at night again. A squad the AI commander or the 2IC sends to defend a base moves in Fast mode and stays in it through the fight there, and only squads in Combat mode were allowed to fire flares, so almost every AI-run squad stayed dark (the 2IC, now on by default, runs your own side's squads the same way). Squads in Fast mode may fire them now. Squads in Silent mode, under a player's command, flanking, or being flown in still don't.
 
 ## 0.6.2 — unreleased
 
