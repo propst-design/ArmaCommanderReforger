@@ -2615,20 +2615,18 @@ class ACR_Squad : Managed
  // even with the next one queued behind it (srv:driveflow: 4 of 12 hops). The move that completes onto
  // our own queued hop keeps its men going: ACR_RoadFlowMove skips that cancel, the next hop's move
  // takes over the driver within the tick. Anything else (a new order, a player, a recovery) cancels.
- // The activity is known by where it was going: the game fails it with its waypoint reference already
- // cleared when the waypoint completes (SCR_AIActivityBase.Fail(true)).
  bool FlowsOnFrom(AIWaypoint waypoint, vector moveTo)
  {
   if (!m_QueuedHop || !m_Group || !RoadFlow() || !m_Waypoint) return false;
   if (waypoint && waypoint != m_Waypoint) return false;
-  // The game's move aims anywhere inside the waypoint's circle, not at its origin.
-  float reach = m_Waypoint.GetCompletionRadius() + 10;
-  float off = vector.DistanceXZ(moveTo, m_Waypoint.GetOrigin());
-  bool keep = (waypoint != null || off <= reach) && IsMounted() && ACR_Transport.CrewedVehicle(this) != null;
+  // The game fails the hop's move with its waypoint and position already cleared (srv:driveflow 20 Nov:
+  // the position read as the map's origin), so it is known by the hop having left the group, or the
+  // group being on the queued hop already (the second cancel, on deselection).
   array<AIWaypoint> waypoints = {};
   m_Group.GetWaypoints(waypoints);
-  keep = keep && waypoints.Contains(m_QueuedHop);
-  if (s_bFlowLog) PrintFormat("[ACR] FLOWHOOK %1: cancel from a move %2 m off its hop (reach %3), related waypoint %4, queued hop listed %5, current is queued %6 -> keep %7", m_Name, Math.Round(off), Math.Round(reach), waypoint != null, waypoints.Contains(m_QueuedHop), m_Group.GetCurrentWaypoint() == m_QueuedHop, keep);
+  bool hopDone = !waypoints.Contains(m_Waypoint) || m_Group.GetCurrentWaypoint() == m_QueuedHop;
+  bool keep = (waypoint != null || hopDone) && waypoints.Contains(m_QueuedHop) && IsMounted() && ACR_Transport.CrewedVehicle(this) != null;
+  if (s_bFlowLog) PrintFormat("[ACR] FLOWHOOK %1: cancel, related waypoint %2, hop done %3, queued hop listed %4, current is queued %5 -> keep %6", m_Name, waypoint != null, hopDone, waypoints.Contains(m_QueuedHop), m_Group.GetCurrentWaypoint() == m_QueuedHop, keep);
   return keep;
  }
 

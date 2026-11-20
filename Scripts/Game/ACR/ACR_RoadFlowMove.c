@@ -2,7 +2,7 @@
 // game's move activity sends every agent of the group a cancel when it completes, fails or is
 // deselected; between two waypoints that stopped the driver dead at each hop. When the move that
 // ends is an ACA squad's order waypoint and the next waypoint is the hop ACA queued behind it
-// (ACR_Squad.FlowsOnFrom, matched by where the move was going), the cancel is skipped and the next hop's move takes the driver over.
+// (ACR_Squad.FlowsOnFrom), the cancel is skipped and the next hop's move takes the driver over.
 modded class SCR_AIMoveActivity
 {
  override protected void SendCancelMessagesToAllAgents()
