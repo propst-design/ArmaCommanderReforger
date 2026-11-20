@@ -15,7 +15,7 @@ class ACR_TestDriveFlow
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const float DIP_MS = 2.0;
  static const float NEAR_M = 45;
- static const int TRIP_LIMIT = 230; // s per trip
+ static const int TRIP_LIMIT = 300; // s per trip (srv:roadhops: median 277 s for this road)
  static ACR_Squad s_Truck;
  static ref array<vector> s_aSwitches; // where the truck was when its waypoint changed mid-trip
  static vector s_vEnd;
