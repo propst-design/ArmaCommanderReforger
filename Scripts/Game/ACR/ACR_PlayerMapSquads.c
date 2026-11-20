@@ -100,13 +100,6 @@ modded class SCR_PlayerController
   return super.ACR_OverOwnUI(widget);
  }
 
- override bool ACR_HandleMapRightClick()
- {
-  Widget under = WidgetManager.GetWidgetUnderCursor();
-  if ((m_ACR_SquadsList && m_ACR_SquadsList.Contains(under)) || (m_ACR_LayerBar && m_ACR_LayerBar.Contains(under))) return true;
-  return super.ACR_HandleMapRightClick();
- }
-
  // ---------------------------------------------------------------- layers
  protected void ACR_UpdateLayerBar(SCR_MapEntity mapEntity, bool want)
  {

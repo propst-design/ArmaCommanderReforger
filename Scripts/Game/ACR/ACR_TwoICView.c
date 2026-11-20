@@ -2165,14 +2165,6 @@ modded class SCR_PlayerController
   return super.ACR_OverOwnUI(widget);
  }
 
- // A right-click on the 2IC's boxes orders nothing.
- override bool ACR_HandleMapRightClick()
- {
-  Widget under = WidgetManager.GetWidgetUnderCursor();
-  if ((m_ACR_TwoICView && m_ACR_TwoICView.Contains(under)) || (m_ACR_TwoICPanel && m_ACR_TwoICPanel.Contains(under))) return true;
-  return super.ACR_HandleMapRightClick();
- }
-
  // The 2IC's squads, while the 2IC shows: an orange "2IC" badge by the symbol (sketch 1) instead
  // of the [AI] tag.
  protected bool ACR_TwoICRuns(int index)

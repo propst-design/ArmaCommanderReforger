@@ -1108,6 +1108,7 @@ modded class SCR_PlayerController
  protected void ACR_OnSetupMapClick(vector screenPos)
  {
   if (System.GetTickCount() - m_ACR_LastUiClick < 400) return; // the click picked a marker
+  if (ACR_PointerOverOwnUI()) return; // a click in the deck editor doesn't pick or move a base
   if (!ACR_SetupClient.s_bAllowed || !ACR_SetupClient.s_sRows.Contains("Show and edit")) return;
   SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
   if (!mapEntity) return;
@@ -1642,10 +1643,22 @@ modded class SCR_PlayerController
   SCR_MapEntity.GetOnSelection().Insert(ACR_OnMapClick);
  }
 
- // The cursor is over one of our boxes (the panel, the feed, the 2IC's: ACR_TwoICView).
+ // The cursor is over one of our boxes (the panel, the feed, the deck editor, the 2IC's:
+ // ACR_TwoICView). Every map input checks it, so a box laid over the map takes the click, the
+ // drag and the wheel and the map under it gets none of them: the wheel multiplier
+ // (ACR_UpdateMap), the map's select and right-button pan (SCR_MapCursorModule in
+ // ACR_CommandPanel.c), right-click orders and drag to aim, setup clicks and the ping key.
+ // A new box over the map is added here (or in an override), nowhere else.
  protected bool ACR_OverOwnUI(Widget widget)
  {
-  return m_ACR_Panel && m_ACR_Panel.Contains(widget);
+  if (m_ACR_Panel && m_ACR_Panel.Contains(widget)) return true;
+  return ACR_DeckClient.Contains(widget);
+ }
+
+ // The same, for the widget under the mouse (or the gamepad's map cursor, which moves it).
+ bool ACR_PointerOverOwnUI()
+ {
+  return ACR_OverOwnUI(WidgetManager.GetWidgetUnderCursor());
  }
 
  // A group marker's label (the 2IC tags its squads: ACR_TwoICView).
@@ -2064,7 +2077,7 @@ modded class SCR_PlayerController
  void ACR_AimDown()
  {
   m_ACR_AimHeld = false;
-  if (!ACR_AimArmed()) return;
+  if (!ACR_AimArmed() || ACR_PointerOverOwnUI()) return; // a press on our boxes aims nothing
   SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
   if (!mapEntity) return;
   float wx, wz;
@@ -2124,6 +2137,9 @@ modded class SCR_PlayerController
   bool aimed = m_ACR_AimReleased;
   m_ACR_AimReleased = false;
   m_ACR_AimHeld = false;
+  // A right-click on our boxes orders nothing and opens no radial menu (a drag to aim that
+  // started on the map may end over one: it still orders).
+  if (!aimed && ACR_PointerOverOwnUI()) return true;
   if (!ACR_Manager.GetInstance()) return false;
   if (ACR_EditorOpen()) return false;
   if (ACR_ModifierHeld("ACR_MapAlt"))
@@ -3315,7 +3331,7 @@ modded class SCR_PlayerController
    if (m_ACR_PingOnMap)
    {
     // On the map: holding opens the four-way picker at the cursor.
-    if (!m_ACR_PingPickerShown && mapOpen && !ACR_EditorOpen())
+    if (!m_ACR_PingPickerShown && mapOpen && !ACR_EditorOpen() && !ACR_PointerOverOwnUI())
     {
      SCR_MapEntity holdMap = SCR_MapEntity.GetMapInstance();
      float hx, hz;
@@ -3339,7 +3355,7 @@ modded class SCR_PlayerController
   if (m_ACR_PingOnMap || mapOpen)
   {
    // Map tap: Look here at the cursor (a hold already opened the picker).
-   if (!m_ACR_PingOnMap || !mapOpen || m_ACR_PingPickerShown || ACR_EditorOpen()) return;
+   if (!m_ACR_PingOnMap || !mapOpen || m_ACR_PingPickerShown || ACR_EditorOpen() || ACR_PointerOverOwnUI()) return; // not at a panel
    SCR_MapEntity tapMap = SCR_MapEntity.GetMapInstance();
    if (!tapMap) return;
    float tx, tz;
