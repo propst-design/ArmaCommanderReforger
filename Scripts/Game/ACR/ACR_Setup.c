@@ -316,7 +316,7 @@ class ACR_Setup
  // it was last, a page away).
  static array<string> RowKeys()
  {
-  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic", "supplyruns", "hubs", "saveroutes"};
+  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "twoic", "unitcap", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "periodjets", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "pullover", "mines", "minesreal", "minesai", "fortify", "fortifyai", "aibuild", "baseworks", "fieldsoffire", "squadtactics", "evadearmour", "supplyruns", "hubs", "saveroutes"};
   return keys;
  }
 
@@ -394,13 +394,14 @@ class ACR_Setup
   if (key == "fortifyai") return "AI commanders fortify";
   if (key == "baseworks") return "Fortify a whole base";
   if (key == "aicommander") return "AI commander";
-  // Experimental tab (Jacob, 5 Nov): features shipped off until they have been played.
+  // Out of Experimental, on by default (Jacob, 19 Nov: played and trusted).
   if (key == "periodjets") return "Period jets (no RHS)";
-  if (key == "squadtactics") return "AI squad tactics in objectives";
   if (key == "pullover") return "Pull over before getting out";
-  if (key == "evadearmour") return "Unarmed vehicles evade armour";
   if (key == "fieldsoffire") return "Guns clear bushes round them";
   if (key == "twoic") return "Second-in-command (2IC)";
+  // Experimental tab (Jacob, 5 Nov): features shipped off until they have been played.
+  if (key == "squadtactics") return "AI squad tactics in objectives";
+  if (key == "evadearmour") return "Unarmed vehicles evade armour";
   if (key == "supplyruns") return "Supply runs (trucks supply FOBs)";
   if (key == "hubs") return "Logistics hubs";
   if (key == "saveroutes") return "Save supply routes";
@@ -410,11 +411,13 @@ class ACR_Setup
  // The Experimental tab's rows: off by default, on/off unless Values says more.
  static bool Experimental(string key)
  {
-  return key == "periodjets" || key == "squadtactics" || key == "pullover" || key == "evadearmour" || key == "fieldsoffire" || key == "twoic" || key == "supplyruns" || key == "hubs" || key == "saveroutes";
+  // Period jets, pull over, fields of fire and the 2IC left it on 19 Nov (Jacob: played and trusted),
+  // on by default on their own tabs (ACR_SetupDialog.Tab).
+  return key == "squadtactics" || key == "evadearmour" || key == "supplyruns" || key == "hubs" || key == "saveroutes";
  }
 
- // What a row does, shown under the rows when it is pointed at or focused (ACR_SetupDialog.OnRowFocus).
- // Two short lines at most: the text under the rows doesn't wrap.
+ // What a row does, shown under the rows when it is pointed at or focused (ACR_SetupDialog.OnRowFocus,
+ // on the Experimental tab). Two short lines at most: the text under the rows doesn't wrap.
  static string Help(string key)
  {
   if (key == "periodjets") return "Without RHS: recon flights and bomb runs show period jets\n(RF-4C, Su-17, A-10, Su-25) with engine sound and falling bombs.";
@@ -503,7 +506,8 @@ class ACR_Setup
   else if (key == "mines" || key == "fortify" || key == "baseworks") values = {"1", "0"};
   else if (key == "minesreal" || key == "minesai" || key == "fortifyai") values = {"0", "1"};
   else if (key == "aicommander") values = {"new", "classic"};
-  else if (key == "twoic") values = {"0", "1", "2"};
+  else if (key == "twoic") values = {"1", "2", "0"};
+  else if (key == "periodjets" || key == "pullover" || key == "fieldsoffire") values = {"1", "0"};
   else if (Experimental(key)) values = {"0", "1"};
   return values;
  }
@@ -590,12 +594,18 @@ class ACR_Setup
    if (ACR_Options.Get("acrSeed", value) && value != "" && value != "0") return value;
    return "";
   }
-  // The 2IC is a flag: a bare -acr2IC is on (ACR_SquadAI.TwoIC), which the empty value would show as off.
-  // 2 is "I'm the 2IC" (ACR_SquadAI.ImThe2IC).
+  // The 2IC is a flag: a bare -acr2IC is on (ACR_SquadAI.TwoIC), which the empty value would show as off;
+  // unset it is on too (the plain 2IC by default, 19 Nov). 2 is "I'm the 2IC" (ACR_SquadAI.ImThe2IC).
   if (key == "twoic")
   {
    if (ACR_SquadAI.ImThe2IC()) return "2";
-   if (ACR_Options.Flag("acr2IC")) return "1";
+   if (ACR_SquadAI.TwoIC()) return "1";
+   return "0";
+  }
+  // On by default (out of Experimental, 19 Nov); period jets only without RHS (ACR_Aircraft).
+  if (key == "periodjets")
+  {
+   if (ACR_Aircraft.PeriodJetsOn()) return "1";
    return "0";
   }
   if (!ACR_Options.Get(Option(key), value)) value = "";
@@ -624,6 +634,7 @@ class ACR_Setup
    if (key == "capscale") return "0";
    if (key == "aicommander") return "new";
    if (key == "decks") return "1";
+   if (key == "pullover" || key == "fieldsoffire") return "1";
    if (Experimental(key)) return "0";
   }
   if (key == "threat" && value == "") return "normal";
@@ -736,7 +747,7 @@ class ACR_Setup
   if (key == "evadearmour" && value == "1") return "on (needs BBB's setting too)";
   if (key == "twoic" && value == "1") return "2IC: runs the squads nobody leads";
   if (key == "twoic" && value == "2") return "I'm the 2IC: the AI commands";
-  if (Experimental(key))
+  if (Experimental(key) || key == "twoic" || key == "periodjets" || key == "pullover" || key == "fieldsoffire")
   {
    if (value == "0") return "off";
    return "on";
@@ -1213,17 +1224,19 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
  }
 
  // The tab a row belongs to; rows nobody sorted yet land on the first tab, where they are seen
- // (the mission intro row sits there on purpose: Command is full at 13 rows, 11 Nov).
+ // (the mission intro row sits there on purpose: Command is full at 13 rows, 11 Nov). The 2IC row
+ // took Command's last place on 19 Nov; the AI build budget moved to Engineers beside the AI's
+ // mines and fortifying rows (srv:setup's one-page check).
  static int Tab(string key)
  {
   // A row's description line goes with its row.
   if (key.StartsWith("about")) return Tab(key.Substring(5, key.Length() - 5));
   if (key.StartsWith("preset")) return PRESETS_TAB;
-  if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "aibuild" || key == "capscale") return 1;
+  if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "twoic" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "capscale") return 1;
   if (key == "pricing" || key == "startrp" || key == "income" || key == "companywest" || key == "companyeast") return 2;
   if (key == "decks" || key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return 2;
-  if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "fobrelay" || key == "depotcapacity" || key == "servicecost" || key == "rpservice") return 3;
-  if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "baseworks") return 4;
+  if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "fobrelay" || key == "depotcapacity" || key == "servicecost" || key == "rpservice" || key == "pullover") return 3;
+  if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "aibuild" || key == "baseworks" || key == "fieldsoffire") return 4;
   if (ACR_Setup.Experimental(key)) return 5;
   return 0;
  }

@@ -6,7 +6,7 @@
 // then goes out as usual; the toggle takes it back halted, with no AI task. With the AI in
 // command of the side it runs every squad as before. Built on the FOB handover (ACR_FobAI): a
 // side without an AI commander gets the same AI-only instance (ACR_Manager.FobAICommanderFor).
-// The always-on second-in-command (#14, -acr2IC 1, off for now): while no AI commander is in
+// The always-on second-in-command (#14, -acr2IC 1, on by default from 19 Nov; -acr2IC 0 turns it off): while no AI commander is in
 // command of a side, every squad of it nobody has claimed is the AI's (Adopt). A player claims a
 // squad by leading it or giving it an order, until he hands it back with the panel's toggle.
 // Two modes, both kept (Jacob 7 Nov: they coexist as an option): -acr2IC 1, the 2IC, runs only
@@ -14,7 +14,17 @@
 // (RunsAll), runs the rest of the side too: purchases, logistics, FOBs, mortars, supports, fortifying.
 class ACR_SquadAI
 {
- static bool TwoIC() { return ACR_Options.Flag("acr2IC"); }
+ // On unless set to 0 / false / off / no (a bare -acr2IC is on). Unset, the plain 2IC (out of Experimental,
+ // on by default, Jacob 19 Nov); a test on the range keeps it off unless it sets it (ACR_TestHooks), as
+ // its scripted squads would be the 2IC's.
+ static bool TwoIC()
+ {
+  string value;
+  if (!ACR_Options.Get("acr2IC", value)) value = ACR_TestHooks.Get().OptionFallback("acr2IC", "1");
+  value.TrimInPlace();
+  value.ToLower();
+  return value != "0" && value != "false" && value != "off" && value != "no";
+ }
 
  // -acr2IC 2: "I'm the 2IC", the AI commander runs the side while a player commands (RunsAll).
  // 1 (or a bare -acr2IC) is the plain 2IC: the squads nobody claimed, no economy.

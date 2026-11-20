@@ -77,4 +77,8 @@ ACR_MissionHeader {
  m_iAcrFortifyDefenders3 -1
  m_iAcrRoadblockDefenders -1
  m_iAcrAIBuildShare -1
+ m_iAcrPeriodJets -1
+ m_iAcrFieldsOfFire -1
+ m_iAcrPullOver -1
+ m_iAcr2IC -1
 }

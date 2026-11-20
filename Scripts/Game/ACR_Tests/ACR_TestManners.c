@@ -9,10 +9,14 @@
 //     and doesn't drive on into the BTR (the BTR's gunner may stop it on the way).
 // Logs "[ACR] MANNERS ...". Every part is an option, off by default: the test turns them on.
 // VERDICT: 11 checks (head-on 2 x 3, get out 3, evade 2); -acrMannersGetOutTest: the 3 get-out checks.
+// -acrPullOverTest 1 (srv:pullover, ~2 min, 19 Nov): pull over as a host gets it, on by default (no test
+// switch): on unless -acrPullOver 0, the get out onto the verge (3 checks), then the same M1025 just hit
+// (BBB_Transport.OnVehicleHit) told to get out: no pull-over, out where it stands (3). 7 checks.
 class ACR_TestManners
 {
  static const int CHECKS = 11;
  static const int CHECKS_GETOUT = 3;
+ static const int CHECKS_PULLOVER = 7;
  static const ResourceName M1025 = "{4A71F755A4513227}Prefabs/Vehicles/Wheeled/M998/M1025.et";
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const ResourceName BTR = "{C012BB3488BEA0C2}Prefabs/Vehicles/Wheeled/BTR70/BTR70.et";
@@ -43,8 +47,11 @@ class ACR_TestManners
  protected static string TestName()
  {
   if (System.IsCLIParam("acrMannersGetOutTest")) return "mannersgetout";
+  if (PullOverTest()) return "pullover";
   return "manners";
  }
+
+ protected static bool PullOverTest() { return System.IsCLIParam("acrPullOverTest"); }
 
  protected void Check(string what, bool ok)
  {
@@ -64,7 +71,8 @@ class ACR_TestManners
    BBB_Traffic.s_bGiveWay = true;
    BBB_Traffic.s_bHandbrake = true;
    BBB_Traffic.s_bEvade = true;
-   ACR_Squad.s_bTestPullOver = true;
+   // srv:pullover checks the host's default instead (on since 19 Nov).
+   if (!PullOverTest()) ACR_Squad.s_bTestPullOver = true;
    ACR_Squad.s_bTestEvade = true;
    ACR_FactionSettings soviets = ACR_FactionSettings.Find("USSR");
    if (soviets) soviets.m_bAICommander = false;
@@ -83,6 +91,17 @@ class ACR_TestManners
    m_iStep = 1;
    if (System.IsCLIParam("acrMannersGetOutTest")) m_iStep = 2; // the get-out part alone
    if (System.IsCLIParam("acrMannersEvadeTest")) m_iStep = 3; // the evade part alone
+   if (PullOverTest())
+   {
+    // On by default (out of Experimental, 19 Nov); 0 turns it off.
+    bool byDefault = ACR_Squad.PullOverOn() && !ACR_Squad.s_bTestPullOver;
+    ACR_Options.Set("acrPullOver", "0");
+    bool off = !ACR_Squad.PullOverOn();
+    ACR_Options.Unset("acrPullOver");
+    PrintFormat("[ACR] MANNERS pull over on by default %1, -acrPullOver 0 off %2", byDefault, off);
+    Check("pull over: on by default, -acrPullOver 0 turns it off", byDefault && off && ACR_Squad.PullOverOn());
+    m_iStep = 2;
+   }
    m_iStepAt = tick;
   }
   if (m_iStep == 1) HeadOn(manager, tick);
@@ -92,6 +111,7 @@ class ACR_TestManners
   {
    PrintFormat("[ACR] MANNERS done: %1 passed, %2 failed", m_iPass, m_iFail);
    if (System.IsCLIParam("acrMannersGetOutTest")) ACR_TestRegress.Complete(TestName(), CHECKS_GETOUT);
+   else if (PullOverTest()) ACR_TestRegress.Complete(TestName(), CHECKS_PULLOVER);
    else ACR_TestRegress.Complete(TestName(), CHECKS);
    m_iStep = 99;
   }
@@ -315,6 +335,8 @@ class ACR_TestManners
     if (physics) { physics.SetVelocity(vector.Zero); physics.SetAngularVelocity(vector.Zero); }
    }
   }
+  // srv:pullover's second run: the vehicle was just hit, as a shot would mark it (BBB_Transport).
+  if (t == 13 && m_iRun == 2 && m_aVehicles.Count() == 1) BBB_Transport.OnVehicleHit(m_aVehicles[0]);
   if (t == 14 && m_aSquads.Count() == 1)
   {
    // Where it stands against the road (diagnostics for the pull-over's road snap).
@@ -345,6 +367,11 @@ class ACR_TestManners
    GetOutSuperseded(manager, tick, t);
    return;
   }
+  if (m_iRun == 2)
+  {
+   GetOutUnderFire(manager, tick, t);
+   return;
+  }
   if (t == 40)
   {
    IEntity vehicle = m_aVehicles[0];
@@ -370,8 +397,9 @@ class ACR_TestManners
    Check("get out: handbrake on", handbrake);
    Check("get out: the crew is out", aboard == 0);
    Clear(manager);
-   // Run 2: the same get-out, then a move order while it is still pulling over.
+   // Run 2: the same get-out, then a move order while it is still pulling over (srv:pullover: under fire).
    m_iRun = 1;
+   if (PullOverTest()) m_iRun = 2;
    m_iStepAt = tick;
   }
  }
@@ -413,6 +441,37 @@ class ACR_TestManners
    Clear(manager);
    Next(tick);
    if (System.IsCLIParam("acrMannersGetOutTest")) m_iStep = 4;
+  }
+ }
+
+ // Under fire (hit within 10 s): no pull-over, the crew gets out where the vehicle stands.
+ protected void GetOutUnderFire(ACR_Manager manager, int tick, int t)
+ {
+  if (m_aSquads.Count() != 1 || !m_aVehicles[0])
+  {
+   if (t == 16) Check("get out under fire: crewed", false);
+   if (t >= 16) { Clear(manager); m_iStep = 4; m_iStepAt = tick; }
+   return;
+  }
+  IEntity vehicle = m_aVehicles[0];
+  if (t == 16)
+  {
+   PrintFormat("[ACR] MANNERS get out under fire: order %1", m_aSquads[0].m_Order);
+   Check("get out under fire: no pull-over (getting out at once)", m_aSquads[0].m_Order != "Pulling over" && m_aSquads[0].m_OrderKind == ACR_EOrderKind.GET_OUT);
+  }
+  if (t == 40)
+  {
+   float moved = vector.DistanceXZ(vehicle.GetOrigin(), m_vGetOutAt);
+   int aboard;
+   array<AIAgent> agents = {};
+   m_aSquads[0].GetAgents(agents);
+   foreach (AIAgent agent : agents) if (agent.GetControlledEntity() && ChimeraCharacter.Cast(agent.GetControlledEntity()).IsInVehicle()) aboard++;
+   PrintFormat("[ACR] MANNERS get out under fire: moved %1 m, %2 still aboard", Math.Round(moved * 10) / 10, aboard);
+   Check("get out under fire: the vehicle stayed where it stood (moved under 4 m)", moved < 4);
+   Check("get out under fire: the crew is out", aboard == 0);
+   Clear(manager);
+   m_iStep = 4;
+   m_iStepAt = tick;
   }
  }
 

@@ -27,7 +27,7 @@ class ACR_TestTwoICFob
    foreach (ACR_FactionSettings settings : ACR_FactionSettings.s_All) settings.m_bAICommander = false;
    ACR_TwoIC.ResetForTest();
    ACR_TwoICSuggest.ResetForTest();
-   ACR_Options.Unset("acr2IC");
+   ACR_Options.Set("acr2IC", "0"); // off to start (on by default since 19 Nov)
    ACR_Options.Unset("acr2ICKeep");
    ACR_TestTwoICAll.s_sCommanded = "";
    s_iStep = 0;

@@ -5,10 +5,19 @@
 // Start applies them (threat high reaches the game, starting units spawn).
 class ACR_TestSetup
 {
- static const int CHECKS = 28;
+ static const int CHECKS = 30;
  protected static int s_iStartedAt = -1;
 
  static bool Wanted() { return System.IsCLIParam("acrSetupTest"); }
+
+ // What the game reads for a row that left Experimental (19 Nov).
+ protected static bool PromotedOn(string key)
+ {
+  if (key == "periodjets") return ACR_Aircraft.PeriodJetsOn();
+  if (key == "pullover") return ACR_Squad.PullOverOn();
+  if (key == "fieldsoffire") return ACR_FieldOfFire.On();
+  return ACR_SquadAI.TwoIC() && !ACR_SquadAI.ImThe2IC();
+ }
 
  protected static int Agents()
  {
@@ -85,7 +94,7 @@ class ACR_TestSetup
    ACR_TestRegress.Check("setup: the map preview is on the first tab with the battlefield", ACR_SetupDialog.Tab("map") == 0 && ACR_SetupDialog.Tab("seed") == 0 && ACR_SetupDialog.Tab("layout") == 0 && rows.Contains("map\t") && rows.IndexOf("map\t") < rows.IndexOf("pockets\t"), "");
    // The Experimental tab (5 Nov): every row there, off by default, drives its host option, and says
    // what it does in at most two lines that fit under the rows.
-   array<string> experimental = {"periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
+   array<string> experimental = {"squadtactics", "evadearmour"};
    int expDriven;
    int expHelped;
    string expWrong;
@@ -107,6 +116,48 @@ class ACR_TestSetup
    }
    ACR_TestRegress.Check("setup: the Experimental tab's rows start off and drive their host options", expDriven == experimental.Count(), expWrong);
    ACR_TestRegress.Check("setup: every Experimental row says what it does in two short lines", expHelped == experimental.Count(), expWrong);
+   // Out of Experimental (19 Nov): period jets (Battlefield; on without RHS), pull over (Logistics), fields
+   // of fire (Engineers) and the 2IC (Command, the plain 2IC) start on, and 0 turns each one off.
+   array<string> promoted = {"periodjets", "pullover", "fieldsoffire", "twoic"};
+   array<int> promotedTabs = {0, 3, 4, 1};
+   string periodDefault = "1";
+   if (ACR_Aircraft.RhsJet()) periodDefault = "0";
+   int promotedOk;
+   string promotedWrong;
+   foreach (int pi, string pKey : promoted)
+   {
+    string pDefault = "1";
+    if (pKey == "periodjets") pDefault = periodDefault;
+    array<string> pValues = ACR_Setup.Values(pKey);
+    bool startsOn = ACR_Setup.Current(pKey) == pDefault && !ACR_Setup.Experimental(pKey) && ACR_SetupDialog.Tab(pKey) == promotedTabs[pi] && rows.Contains(pKey + "\t") && pValues.Count() >= 2 && pValues[0] == "1";
+    bool readsOn = PromotedOn(pKey) == (pDefault == "1");
+    ACR_Setup.SetValue(pKey, "0");
+    bool turnsOff = ACR_Setup.Current(pKey) == "0" && !PromotedOn(pKey);
+    ACR_Options.Unset(ACR_Setup.Option(pKey));
+    bool backOn = ACR_Setup.Current(pKey) == pDefault;
+    if (startsOn && readsOn && turnsOff && backOn) promotedOk++;
+    else promotedWrong += string.Format("%1(start %2, reads %3, off %4, back %5, now %6, tab %7) ", pKey, startsOn, readsOn, turnsOff, backOn, ACR_Setup.Current(pKey), ACR_SetupDialog.Tab(pKey));
+   }
+   array<string> twoICValues = ACR_Setup.Values("twoic");
+   bool twoICModes = twoICValues.Count() == 3 && twoICValues.Contains("2") && twoICValues.Contains("0");
+   ACR_TestRegress.Check("setup: period jets, pull over, fields of fire and the 2IC left Experimental: on by default on their own tabs, 0 turns each off", promotedOk == promoted.Count() && twoICModes, promotedWrong + string.Format("rhs %1, 2IC modes %2", ACR_Aircraft.RhsJet(), twoICModes));
+   // A mission header still turns them off (console and rented hosts can't pass flags).
+   ACR_MissionHeader promotedHeader = new ACR_MissionHeader();
+   promotedHeader.m_iAcrPeriodJets = 0;
+   promotedHeader.m_iAcrPullOver = 0;
+   promotedHeader.m_iAcrFieldsOfFire = 0;
+   promotedHeader.m_iAcr2IC = 0;
+   map<string, string> promotedValues = new map<string, string>();
+   promotedHeader.Fill(promotedValues);
+   ACR_Options.UseHeaderForTest(promotedValues);
+   bool headerOff = !ACR_Aircraft.PeriodJetsOn() && !ACR_Squad.PullOverOn() && !ACR_FieldOfFire.On() && !ACR_SquadAI.TwoIC() && ACR_Setup.Current("twoic") == "0" && ACR_Setup.Current("pullover") == "0";
+   promotedHeader.m_iAcr2IC = 2;
+   promotedValues.Clear();
+   promotedHeader.Fill(promotedValues);
+   ACR_Options.UseHeaderForTest(promotedValues);
+   bool headerImThe2IC = ACR_SquadAI.ImThe2IC() && ACR_Setup.Current("twoic") == "2";
+   ACR_Options.UseHeaderForTest(null);
+   ACR_TestRegress.Check("setup: a mission header's 0 turns the four off, and its 2 picks I'm the 2IC", headerOff && headerImThe2IC, string.Format("off %1, I'm the 2IC %2", headerOff, headerImThe2IC));
    // The AI commander rework (#232) left the Experimental tab: one Command row, new by default, classic
    // turns all four parts off (ACR_AIRework).
    bool aiNew = ACR_Setup.Current("aicommander") == "new" && ACR_SetupDialog.Tab("aicommander") == 1 && rows.Contains("aicommander\t") && !rows.Contains("allocator\t");
