@@ -316,7 +316,7 @@ class ACR_Setup
  // it was last, a page away).
  static array<string> RowKeys()
  {
-  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "twoic", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "periodjets", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "pullover", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "fieldsoffire", "squadtactics", "evadearmour", "supplyruns", "hubs", "saveroutes"};
+  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "twoic", "unitcap", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "periodjets", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "pullover", "mines", "minesreal", "minesai", "fortify", "fortifyai", "aibuild", "baseworks", "fieldsoffire", "squadtactics", "evadearmour", "supplyruns", "hubs", "saveroutes"};
   return keys;
  }
 
@@ -1224,17 +1224,19 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
  }
 
  // The tab a row belongs to; rows nobody sorted yet land on the first tab, where they are seen
- // (the mission intro row sits there on purpose: Command is full at 13 rows, 11 Nov).
+ // (the mission intro row sits there on purpose: Command is full at 13 rows, 11 Nov). The 2IC row
+ // took Command's last place on 19 Nov; the AI build budget moved to Engineers beside the AI's
+ // mines and fortifying rows (srv:setup's one-page check).
  static int Tab(string key)
  {
   // A row's description line goes with its row.
   if (key.StartsWith("about")) return Tab(key.Substring(5, key.Length() - 5));
   if (key.StartsWith("preset")) return PRESETS_TAB;
-  if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "twoic" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "aibuild" || key == "capscale") return 1;
+  if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "twoic" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "capscale") return 1;
   if (key == "pricing" || key == "startrp" || key == "income" || key == "companywest" || key == "companyeast") return 2;
   if (key == "decks" || key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return 2;
   if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "fobrelay" || key == "depotcapacity" || key == "servicecost" || key == "rpservice" || key == "pullover") return 3;
-  if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "baseworks" || key == "fieldsoffire") return 4;
+  if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "aibuild" || key == "baseworks" || key == "fieldsoffire") return 4;
   if (ACR_Setup.Experimental(key)) return 5;
   return 0;
  }
