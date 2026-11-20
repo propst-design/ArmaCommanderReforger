@@ -56,6 +56,7 @@ manners|-acrMannersTest 1|540
 mannersgetout|-acrMannersGetOutTest 1|150
 mannersevade|-acrMannersEvadeTest 1|200
 pullover|-acrPullOverTest 1|150
+pulloverbank|-acrPullOverBankTest 1|200|Worlds/ACR_Everon.ent
 fieldsoffire|-acrFieldsOfFireTest 1|120
 allocator|-acrAllocatorTest 1|60
 allocperf|-acrAllocPerfTest 1|260|Worlds/ACR_Arland.ent

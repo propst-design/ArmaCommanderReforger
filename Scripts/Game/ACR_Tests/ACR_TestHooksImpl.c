@@ -38,6 +38,8 @@ modded class ACR_TestHooks
 
  override void ScenarioSecond(int seconds)
  {
+  // -acrPullOverBankTest 1 (srv:pulloverbank, Everon): a pull-over on a banked stretch, truck and APC.
+  if (System.IsCLIParam("acrPullOverBankTest")) ACR_TestPullOverBank.Run(seconds);
   // -acrAllocPerfTest / -acrAllocSoakTest: the soaks with the AI job allocator observing.
   if (seconds <= 5 && (System.IsCLIParam("acrAllocPerfTest") || System.IsCLIParam("acrAllocSoakTest"))) ACR_Options.Set("acrAIAllocator", "1");
   if (seconds <= 5 && (System.IsCLIParam("acrAllocControlPerfTest") || System.IsCLIParam("acrAllocControlSoakTest") || System.IsCLIParam("acrAllocControlLongSoakTest"))) ACR_Options.Set("acrAIAllocator", "2");
