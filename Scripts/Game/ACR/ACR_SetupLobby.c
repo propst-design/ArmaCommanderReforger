@@ -186,9 +186,9 @@ class ACR_SetupLobbyModel
   {
    int tab = key.Substring(4, key.Length() - 4).ToInt();
    int changed = ChangedOn(rows, tab);
-   string about = ACR_Setup.LobbyTabName(tab) + ": " + TabAbout(tab);
-   if (changed > 0) about += string.Format("\n%1 changed from this server's default.", changed);
-   return about;
+   string tabHelp = ACR_Setup.LobbyTabName(tab) + ": " + TabAbout(tab);
+   if (changed > 0) tabHelp += string.Format("\n%1 changed from this server's default.", changed);
+   return tabHelp;
   }
   if (key == "footerpreset" || key == "footerload") return "Load a saved setup: pick it in Preset to load, then press Load preset. The Presets tab saves, renames and shares them.";
   if (key == "footerreset") return "Puts every row of this tab back to this server's default (a loaded preset still applies).";
@@ -801,9 +801,9 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    KeysLine();
    array<string> keys = {};
    ACR_SetupLobbyModel.FooterKeys(m_bAllowed, keys);
-   foreach (string key : keys)
+   foreach (string part : keys)
    {
-    if (key == "footerpreset")
+    if (part == "footerpreset")
     {
      Widget spin = GetGame().GetWorkspace().CreateWidgets(LAYOUT_SPIN, m_wFooter);
      if (!spin) continue;
@@ -818,16 +818,16 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
       Widget hints = spin.FindAnyWidget("HintBar");
       if (hints) hints.SetVisible(false);
      }
-     Watch(spin, key, m_aFixedHandlers);
+     Watch(spin, part, m_aFixedHandlers);
      continue;
     }
-    SCR_ButtonTextComponent button = AddButton(m_wFooter, key, FooterText(key), 0, m_aFixedHandlers);
-    if (!button) continue;
+    SCR_ButtonTextComponent made = AddButton(m_wFooter, part, FooterText(part), 0, m_aFixedHandlers);
+    if (!made) continue;
     // Room between the footer's buttons (they touched with the rows' 2 px).
-    AlignableSlot.SetPadding(button.GetRootWidget(), 12, 2, 0, 2);
-    AlignableSlot.SetVerticalAlign(button.GetRootWidget(), LayoutVerticalAlign.Center);
+    AlignableSlot.SetPadding(made.GetRootWidget(), 12, 2, 0, 2);
+    AlignableSlot.SetVerticalAlign(made.GetRootWidget(), LayoutVerticalAlign.Center);
     // Start stands out in the skin's strong colour; its key badge sits right of it.
-    if (key == "footerstart") Paint(button, true);
+    if (part == "footerstart") Paint(made, true);
    }
   }
   foreach (SCR_ButtonBaseComponent footerButton, string footerKey : m_Buttons)
