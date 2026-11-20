@@ -39,6 +39,7 @@ class ACR_TestDriveFlow
    s_aPoints = {};
    s_aDipped = {};
    ACR_Squad.s_bRoadHopsOn = true; // trip A: an ordered move over road hops
+   ACR_Squad.s_bFlowLog = true;
    ACR_FactionSettings soviets = ACR_FactionSettings.Find(ACR_FactionSelection.East());
    if (soviets) soviets.m_bAICommander = false;
    ACR_FactionSettings us = ACR_FactionSettings.Find(ACR_FactionSelection.West());

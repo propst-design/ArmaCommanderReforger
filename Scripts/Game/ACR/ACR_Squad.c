@@ -2619,16 +2619,21 @@ class ACR_Squad : Managed
  // cleared when the waypoint completes (SCR_AIActivityBase.Fail(true)).
  bool FlowsOnFrom(AIWaypoint waypoint, vector moveTo)
  {
-  if (!m_QueuedHop || !m_Group || !RoadFlow()) return false;
+  if (!m_QueuedHop || !m_Group || !RoadFlow() || !m_Waypoint) return false;
   if (waypoint && waypoint != m_Waypoint) return false;
-  if (!waypoint && (!m_Waypoint || vector.DistanceXZ(moveTo, m_Waypoint.GetOrigin()) > 3)) return false;
-  if (!IsMounted() || !ACR_Transport.CrewedVehicle(this)) return false;
+  // The game's move aims anywhere inside the waypoint's circle, not at its origin.
+  float reach = m_Waypoint.GetCompletionRadius() + 10;
+  float off = vector.DistanceXZ(moveTo, m_Waypoint.GetOrigin());
+  bool keep = (waypoint != null || off <= reach) && IsMounted() && ACR_Transport.CrewedVehicle(this) != null;
   array<AIWaypoint> waypoints = {};
   m_Group.GetWaypoints(waypoints);
-  return waypoints.Contains(m_QueuedHop);
+  keep = keep && waypoints.Contains(m_QueuedHop);
+  if (s_bFlowLog) PrintFormat("[ACR] FLOWHOOK %1: cancel from a move %2 m off its hop (reach %3), related waypoint %4, queued hop listed %5, current is queued %6 -> keep %7", m_Name, Math.Round(off), Math.Round(reach), waypoint != null, waypoints.Contains(m_QueuedHop), m_Group.GetCurrentWaypoint() == m_QueuedHop, keep);
+  return keep;
  }
 
  static int s_iFlowsKept; // tests: cancels skipped onto a queued hop
+ static bool s_bFlowLog;  // tests (srv:driveflow): log every cancel KeepsDriving is asked about
 
  static bool KeepsDriving(AIGroup owner, AIWaypoint waypoint, vector moveTo)
  {
@@ -2637,6 +2642,7 @@ class ACR_Squad : Managed
   SCR_AIGroup group = SCR_AIGroup.Cast(owner);
   if (!manager || !group) return false;
   ACR_Squad squad = manager.FindSquadByGroup(group);
+  if (squad && s_bFlowLog && !squad.m_QueuedHop) PrintFormat("[ACR] FLOWHOOK %1: cancel with no hop queued (related waypoint %2, is the order's %3)", squad.m_Name, waypoint != null, waypoint && waypoint == squad.m_Waypoint);
   if (!squad || !squad.FlowsOnFrom(waypoint, moveTo)) return false;
   s_iFlowsKept++;
   return true;
