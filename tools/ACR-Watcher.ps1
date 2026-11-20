@@ -235,8 +235,19 @@ function Invoke-ServerTest($id, $preset, $config, $packed) {
         # Unpacked mods resolve their own prefabs only through resourceDatabase.rdb (gitignored,
         # written when Workbench opens the project). A fresh worktree has none: the server logs
         # 'Wrong GUID/name for resource' and tests fail or pass on half-loaded prefabs (1 Nov).
-        foreach ($modDir in @($ProjectRoot, (Join-Path $AddonsDir 'BetterBattleBuddies'))) {
-            if ((Test-Path -LiteralPath (Join-Path $modDir 'addon.gproj')) -and !(Test-Path -LiteralPath (Join-Path $modDir 'resourceDatabase.rdb'))) {
+        # A worktree without one gets a copy of its main checkout's (20 Nov: three sessions lost a
+        # queued run to the refusal in one day). Resources the branch itself adds still log 'Wrong
+        # GUID/name' but load by path; refused only when the main checkout has none either.
+        $mainAddons = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'my games\ArmaReforgerWorkbench\addons'
+        foreach ($pair in @(@($ProjectRoot, 'ArmaCommanderReforger'), @((Join-Path $AddonsDir 'BetterBattleBuddies'), 'BetterBattleBuddies'))) {
+            $modDir = $pair[0]
+            $rdb = Join-Path $modDir 'resourceDatabase.rdb'
+            if (!(Test-Path -LiteralPath (Join-Path $modDir 'addon.gproj')) -or (Test-Path -LiteralPath $rdb)) { continue }
+            $mainRdb = Join-Path (Join-Path $mainAddons $pair[1]) 'resourceDatabase.rdb'
+            if ((Test-Path -LiteralPath $mainRdb) -and ($mainRdb -ne $rdb)) {
+                Copy-Item -LiteralPath $mainRdb -Destination $rdb
+                Write-Host "[$time] Copied resourceDatabase.rdb into $modDir from the main checkout" -ForegroundColor Yellow
+            } else {
                 Write-Result $id @('status=refused', "reason=no resourceDatabase.rdb in $modDir (open its addon.gproj in Workbench once)"); return
             }
         }
