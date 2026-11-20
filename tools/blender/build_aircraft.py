@@ -770,6 +770,77 @@ for plane in PLANES:
         bpy.ops.render.render(write_still=True)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT, ".local-aircraft", name + ".blend"), copy=True)
 
+# ---------- nozzle glows (ACR_JetGlow): night-time hot metal in the turbojets' pipes, and the recon jets' burner ----------
+# Unit meshes in nozzle radii, origin on the nozzle's exit, nose +X: ACR_JetGlow places one on each nozzle and scales it
+# by that nozzle's radius. Each has its own emissive material (no texture), which the prefab's
+# ParametricMaterialInstanceComponent dims from nothing to full, so the colour and brightness are the emats' below.
+#  NozzleGlow: a ring of hot pipe (0.45 to 1 radius) facing aft only, single-sided: from ahead it is a back face.
+#  NozzleBurner: a reheat plume 12 radii long, pinched in four places like shock diamonds, closed at the nozzle.
+NOZZLE_MATS = {
+    "ACR_NozzleGlow": "Color=0 0 0 1|Emissive=1 0.36 0.08 0|EmissiveLV=0|CastShadow=0|ReceiveShadow=0|MetalnessScale=0|EnableFarHiding=0",
+    "ACR_NozzleBurner": "Color=0 0 0 1|Emissive=1 0.52 0.17 0|EmissiveLV=0|CastShadow=0|ReceiveShadow=0|MetalnessScale=0|EnableFarHiding=0",
+}
+
+
+def nozzle_glow(bm, seg=24):
+    outer = [bm.verts.new((0.0, math.cos(2 * math.pi * i / seg), math.sin(2 * math.pi * i / seg))) for i in range(seg)]
+    inner = [bm.verts.new((0.0, 0.45 * v.co.y, 0.45 * v.co.z)) for v in outer]
+    for i in range(seg):
+        j = (i + 1) % seg
+        f = bm.faces.new((outer[i], outer[j], inner[j], inner[i]))
+        f.normal_update()
+        if f.normal.x > 0:
+            f.normal_flip()
+
+
+def nozzle_burner(bm, seg=16):
+    st = [(0.0, 0.92), (-1.2, 0.86), (-2.6, 0.55), (-3.6, 0.72), (-5.0, 0.44), (-6.0, 0.56), (-7.6, 0.32), (-8.6, 0.38),
+          (-10.5, 0.15), (-12.0, 0.0)]
+    rings = []
+    for x, r in st:
+        if r < 1e-4:
+            rings.append([bm.verts.new((x, 0.0, 0.0))])
+        else:
+            rings.append([bm.verts.new((x, r * math.cos(2 * math.pi * i / seg), r * math.sin(2 * math.pi * i / seg)))
+                          for i in range(seg)])
+    for a, b in zip(rings, rings[1:]):
+        if len(b) == 1:
+            for i in range(seg):
+                bm.faces.new((a[i], a[(i + 1) % seg], b[0]))
+        else:
+            for i in range(seg):
+                bm.faces.new((a[i], a[(i + 1) % seg], b[(i + 1) % seg], b[i]))
+    bm.faces.new(rings[0])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+
+
+for name, build in (("ACR_NozzleGlow", nozzle_glow), ("ACR_NozzleBurner", nozzle_burner)):
+    if ONLY and name[4:] not in ONLY:
+        continue
+    nm = bpy.data.materials.new(name)  # Workbench links Data/<name>.emat
+    job.insert(1, "EMAT %s||%s" % (posix(os.path.join(DATA, name + ".emat")), NOZZLE_MATS[name]))
+    bm = bmesh.new()
+    build(bm)
+    uv = bm.loops.layers.uv.new("UVMap")
+    for f in bm.faces:
+        for loop in f.loops:
+            loop[uv].uv = (0.5, 0.5)
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    ob = bpy.data.objects.new(name, me)
+    scene.collection.objects.link(ob)
+    ob.data.materials.append(nm)
+    for o in scene.objects:
+        o.select_set(o == ob)
+    bpy.context.view_layer.objects.active = ob
+    fbx = os.path.join(OUT, name + ".fbx")
+    bpy.ops.export_scene.fbx(filepath=fbx, use_selection=True, axis_forward="-Z", axis_up="Y",
+                             apply_unit_scale=True, mesh_smooth_type="FACE", use_tspace=False,
+                             add_leaf_bones=False, bake_anim=False, path_mode="STRIP")
+    job.append("FBX %s" % posix(fbx))
+    report.append("%s (nozzle effect): %d faces" % (name, len(me.polygons)))
+
 with open(os.path.join(JOB_DIR, "aircraft_job.txt"), "w") as f:
     f.write("\n".join(job) + "\n")
 print("\n".join(["[aircraft] " + r for r in report] + ["[aircraft] job: " + os.path.join(JOB_DIR, "aircraft_job.txt")]))

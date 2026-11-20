@@ -352,6 +352,11 @@ class ACR_LocalFlyover : Managed
 	ref array<vector> m_aHardpoints;
 	ref array<ref ACR_FallingBomb> m_aBombs;
 	int m_iLanded; // tests
+	// Night-time nozzle glows (ACR_JetGlow; none on the A-10), and the recon jets' afterburner over the corridor.
+	ref ACR_JetGlow m_Glow;
+	bool m_bReconDash;
+	static const float ATTACK_LEAD_S = 6;  // the glow is up a little from this long before a bomb is let go...
+	static const float ATTACK_TAIL_S = 2;  // ...to this long after
 
 	static const ResourceName BOMB_MK82 = "{AC230926A00100E4}Prefabs/Vehicles/Aircraft/ACR_Mk82.et";
 	static const ResourceName BOMB_FAB250 = "{AC230926A00100E5}Prefabs/Vehicles/Aircraft/ACR_FAB250.et";
@@ -540,6 +545,8 @@ class ACR_LocalFlyover : Managed
 			flyover.m_bScreams = prefab == ACR_ReconRun.RECON_JET_WEST || prefab == ACR_ReconRun.RECON_JET_EAST || prefab == ACR_Supports.BOMB_JET_EAST;
 			flyover.m_bFlybys = flyover.m_bScreams || prefab == ACR_Supports.BOMB_JET_WEST;
 			flyover.m_sBomb = Hardpoints(prefab, flyover.m_aHardpoints);
+			flyover.m_Glow = ACR_JetGlow.Create(prefab);
+			flyover.m_bReconDash = prefab == ACR_ReconRun.RECON_JET_WEST || prefab == ACR_ReconRun.RECON_JET_EAST;
 		}
 		flyover.Orient();
 		s_All.Insert(flyover);
@@ -652,6 +659,27 @@ class ACR_LocalFlyover : Managed
 		return false;
 	}
 
+	// Where this machine's player looks from (the nozzle glows): the current camera, else where they listen.
+	static bool Eye(out vector at)
+	{
+		CameraManager cameras = GetGame().GetCameraManager();
+		if (cameras && cameras.CurrentCamera())
+		{
+			at = cameras.CurrentCamera().GetOrigin();
+			return true;
+		}
+		return Listener(at);
+	}
+
+	// 0 to 1: the bomber on its attack run, from ATTACK_LEAD_S before a bomb is let go to ATTACK_TAIL_S after.
+	float AttackRun(float elapsed)
+	{
+		float run = 0;
+		foreach (ACR_FallingBomb bomb : m_aBombs)
+			run = Math.Max(run, Math.Clamp(Math.Min(elapsed - bomb.m_fReleaseAt + ATTACK_LEAD_S, bomb.m_fReleaseAt + ATTACK_TAIL_S - elapsed), 0, 1));
+		return run;
+	}
+
 	static ACR_LocalFlyover Latest()
 	{
 		if (s_All.IsEmpty()) return null;
@@ -670,6 +698,7 @@ class ACR_LocalFlyover : Managed
 		{
 			GetGame().GetCallqueue().Remove(Step);
 			ClearBombs();
+			if (m_Glow) m_Glow.Clear();
 			m_Plane = null;
 			s_All.RemoveItem(this);
 			return;
@@ -702,6 +731,14 @@ class ACR_LocalFlyover : Managed
 		// spawned, 5 km off, and never drawn overhead (Jacob, 4 Nov), and its sound sat astray
 		m_Plane.Update();
 		StepBombs(transform, elapsed);
+		if (m_Glow)
+		{
+			vector eye;
+			bool seeing = Eye(eye);
+			float burner = 0;
+			if (m_bReconDash) burner = ACR_JetGlow.Dash(elapsed);
+			m_Glow.Step(transform, seeing, eye, Math.Max(burner, AttackRun(elapsed)), burner);
+		}
 		vector listener;
 		bool heard = Listener(listener);
 		// The engine is heard where the plane was when that sound left it (sound covers 343 m/s,
@@ -749,6 +786,7 @@ class ACR_LocalFlyover : Managed
 		if (heard && distance <= keep && elapsed <= m_fSeconds + MAX_TAIL_S) return;
 		GetGame().GetCallqueue().Remove(Step);
 		ClearBombs();
+		if (m_Glow) m_Glow.Clear();
 		SCR_EntityHelper.DeleteEntityAndChildren(m_Plane);
 		m_Plane = null;
 		s_All.RemoveItem(this);
