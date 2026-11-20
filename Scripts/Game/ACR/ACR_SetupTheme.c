@@ -42,7 +42,8 @@ class ACR_SetupTheme : Managed
  string m_sDecor;          // one decoration line above the title ("" = none)
  string m_sKeys;           // the keys line in the footer ("" = none); real bindings only
  ResourceName m_sHeadingLayout; // a text layout with the heading font ("" = the lobby layout's own)
- // Button labels: every button's, and the open tab's (the terminal's open tab is inverse video).
+ // Button labels: every button's, and the open tab's. Fills stay dark enough that a library default
+ // label colour still reads (20 Nov: the terminal's inverse video came out green on green).
  ref Color m_ButtonText;
  ref Color m_ButtonSelectedText;
  // Start: one filled button, set apart from the rest of the footer.
@@ -185,8 +186,8 @@ class ACR_SetupTheme : Managed
   theme.m_sDecor = "";
   theme.m_sKeys = "SPACE: EXECUTE    Q / E: NEXT PARA    LEFT / RIGHT: CHANGE    POINT AT AN ITEM FOR WHAT IT DOES";
   theme.m_sHeadingLayout = HEADING_MONO;
-  // An opaque phosphor screen in a grey-brown case; rules in dim green; the open tab and Start in
-  // inverse video, as a terminal highlights its choice.
+  // An opaque phosphor screen in a grey-brown case; rules in dim green; the open tab and Start a
+  // darker green fill under bright text (20 Nov: inverse video came out green on green).
   theme.m_bDevice = true;
   theme.m_bRail = true;
   theme.m_bCompact = true;
@@ -196,13 +197,13 @@ class ACR_SetupTheme : Managed
   theme.m_Line = Srgb(47, 191, 85);
   theme.m_StatusBack = Srgb(4, 26, 8);
   theme.m_ButtonText = Srgb(110, 245, 130);
-  theme.m_ButtonSelectedText = Srgb(4, 26, 8);
-  theme.m_ButtonSelected = Srgb(75, 255, 122, 1.0);
+  theme.m_ButtonSelectedText = Srgb(190, 255, 200);
+  theme.m_ButtonSelected = Srgb(18, 92, 36, 1.0);
   theme.m_ButtonHover = Srgb(14, 58, 23, 1.0);
   theme.m_Button = Srgb(4, 26, 8, 0.0);
-  theme.m_Start = Srgb(75, 255, 122);
-  theme.m_StartHover = Srgb(140, 255, 170);
-  theme.m_StartText = Srgb(4, 26, 8);
+  theme.m_Start = Srgb(18, 92, 36);
+  theme.m_StartHover = Srgb(14, 76, 30);
+  theme.m_StartText = Srgb(190, 255, 200);
   theme.m_sStatusLeft = "TACCS-4 FIELD TERMINAL  REL 2.1";
   theme.m_sStatusRight = "OPORD 001 // MATCH SETUP";
   theme.m_bLettered = true;
@@ -252,9 +253,9 @@ class ACR_SetupTheme : Managed
   theme.m_ButtonHover = Srgb(36, 48, 38, 1.0);
   theme.m_ButtonPress = Srgb(58, 84, 58, 1.0);
   theme.m_ButtonSelected = Srgb(47, 74, 48, 1.0);
-  theme.m_Start = Srgb(110, 175, 98);
-  theme.m_StartHover = Srgb(130, 195, 116);
-  theme.m_StartText = Srgb(8, 20, 8);
+  theme.m_Start = Srgb(48, 108, 44);
+  theme.m_StartHover = Srgb(40, 92, 36);
+  theme.m_StartText = Srgb(236, 246, 232);
   theme.m_sStatusLeft = "C2 // MATCH SETUP";
   theme.m_sStatusRight = "NET OK";
   theme.m_sKeys = "Space: Execute    Q / E: change tab    Left / right: change a value    Point at anything for what it does";
