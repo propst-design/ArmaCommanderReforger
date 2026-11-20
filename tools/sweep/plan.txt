@@ -183,6 +183,7 @@ ACA|srv:grabs|nightly|60   # median 24s, 4 runs/14d
 ACA|srv:mortarspot|weekly|60   # not run in the last 14 days; server capability not yet seen
 ACA|srv:fobsiting|weekly|180   # not run in the last 14 days; server capability not yet seen
 ACA|srv:fobai|nightly|200   # median 26s, 1 runs/14d
+ACA|srv:supplyruns|nightly|360   # #242 supply runs, hubs, recorded routes (~4-5 min, two truck drives)
 ACA|srv:squadai|nightly|200   # median 60s, 3 runs/14d
 ACA|srv:twoic|nightly|200   # median 69s, 3 runs/14d
 ACA|srv:twoicui|skip|240   # needs a player (game client)
