@@ -5,16 +5,23 @@
 //     server's config can override them under gameProperties.missionHeader),
 //  2. -acr command-line flags (our launchers, srv: tests, buddy sessions),
 //  3. the in-game setup screen (Set; the screen itself comes next).
+// A setup preset (#143, ACR_SetupPresets) sits between 1 and 2: it beats the mission header,
+// launch parameters still beat it, and the setup screen's clicks beat everything.
 // Readers ask with the flag name ("acrThreat") and get the flag's text ("high").
 class ACR_Options
 {
  protected static ref map<string, string> s_Set;
+ protected static ref map<string, string> s_NoPreset;
  // Called by ACR_StaticInit at game start (static initializer budget: HANDBOOK Pitfalls).
  static void ACR_InitStatics()
  {
   s_Set = new map<string, string>();
+  s_NoPreset = new map<string, string>();
  }
  protected static ref map<string, string> s_Header;
+ // The preset in use (null = not read yet this match) and its name ("" = none).
+ protected static ref map<string, string> s_Preset;
+ protected static string s_sPresetName;
 
  // The option's text, or false when no source sets it.
  static bool Get(string name, out string value)
@@ -25,9 +32,67 @@ class ACR_Options
    if (!System.GetCLIParam(name, value)) value = "";
    return true;
   }
+  if (Preset().Find(name, value)) return true;
   if (Header().Find(name, value)) return true;
   value = "";
   return false;
+ }
+
+ // Only the launch parameter or the mission header (what picks the preset itself: -acrPreset).
+ static bool Launch(string name, out string value)
+ {
+  if (System.IsCLIParam(name))
+  {
+   if (!System.GetCLIParam(name, value)) value = "";
+   return true;
+  }
+  if (Header().Find(name, value)) return true;
+  value = "";
+  return false;
+ }
+
+ // The preset layer. Read on the server only: a client's own profile (its auto-load preset as a
+ // host) must never change what it reads while it plays on somebody else's server.
+ protected static map<string, string> Preset()
+ {
+  if (RplSession.Mode() == RplMode.Client) return s_NoPreset;
+  if (s_Preset) return s_Preset;
+  s_Preset = new map<string, string>();
+  s_sPresetName = ACR_SetupPresets.AutoLoad(s_Preset);
+  return s_Preset;
+ }
+
+ // The setup screen loaded a preset (server): it replaces the one in use.
+ static void UsePreset(string name, notnull map<string, string> values)
+ {
+  s_Preset = new map<string, string>();
+  foreach (string key, string value : values) s_Preset.Set(key, value);
+  s_sPresetName = name;
+ }
+ static string PresetName()
+ {
+  Preset();
+  return s_sPresetName;
+ }
+ // A value the preset sets (Get for the whole stack); false when the preset doesn't set it.
+ static bool PresetValue(string name, out string value)
+ {
+  return Preset().Find(name, value);
+ }
+ // A preset value that doesn't fit this world (ACR_SetupPresets.Check) is dropped.
+ static void DropPresetValue(string name)
+ {
+  Preset().Remove(name);
+ }
+ static void SetPresetValue(string name, string value)
+ {
+  Preset().Set(name, value);
+ }
+ // Next match: the auto-load preset is read again (setup choices reset per match, Jacob 31 Oct).
+ static void ForgetPreset()
+ {
+  s_Preset = null;
+  s_sPresetName = "";
  }
 
  // On/off options: set and not "0"/"false" (a bare -acrGameMasterAll counts as on).
@@ -39,12 +104,13 @@ class ACR_Options
   return value != "0" && value != "false";
  }
 
- // Where the option came from: "screen", "flag", "header" or "" (not set).
+ // Where the option came from: "screen", "flag", "preset", "header" or "" (not set).
  static string Source(string name)
  {
   string value;
   if (s_Set.Find(name, value)) return "screen";
   if (System.IsCLIParam(name)) return "flag";
+  if (Preset().Find(name, value)) return "preset";
   if (Header().Find(name, value)) return "header";
   return "";
  }
@@ -83,6 +149,8 @@ class ACR_Options
   }
   string headerName = "none";
   if (GetGame().GetMissionHeader()) headerName = GetGame().GetMissionHeader().ClassName();
+  string preset = PresetName();
+  if (preset != "") headerName += ", preset " + preset;
   PrintFormat("[ACR] OPTIONS header %1:%2", headerName, line);
  }
 }
@@ -164,6 +232,8 @@ class ACR_MissionHeader : SCR_MissionHeader
  int m_iAcrMarksmen;
  [Attribute("-1", UIWidgets.EditBox, "Setup screen before the match: 1 = the host or an admin picks options and presses Start (-acrSetup)")]
  int m_iAcrSetup;
+ [Attribute("", UIWidgets.EditBox, "Setup preset loaded at the start of every match, by name, from the server profile's ACA/SetupPresets or built in (Default, Large battle); launch parameters still beat it (-acrPreset)")]
+ string m_sAcrPreset;
 
  [Attribute("", UIWidgets.EditBox, "New-unit deployment: military, all or hq (-acrDeployment)")]
  string m_sAcrDeployment;
@@ -277,6 +347,7 @@ class ACR_MissionHeader : SCR_MissionHeader
   Number(values, "acrGameMasterAll", m_iAcrGameMasterAll);
   Number(values, "acrMarksmen", m_iAcrMarksmen);
   Number(values, "acrSetup", m_iAcrSetup);
+  Text(values, "acrPreset", m_sAcrPreset);
   Text(values, "acrDeployment", m_sAcrDeployment);
   Text(values, "acrReinforcement", m_sAcrReinforcement);
   Text(values, "acrFobServices", m_sAcrFobServices);
