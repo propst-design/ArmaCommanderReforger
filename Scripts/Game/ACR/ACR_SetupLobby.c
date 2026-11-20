@@ -831,9 +831,9 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  {
   if (tab == 0) return "where the match is fought, how hard the enemy pushes, and who else is out there: FIA and zombies.";
   if (tab == 1) return "the two sides, which ones an AI commands, how the match opens and the starting RP.";
-  if (tab == 2) return "the AI commanders, their doctrines and squad caps, minefields and fortifying.";
+  if (tab == 2) return "the AI commanders, their doctrines and squad caps, minefields and fortifying, and how squads and guns behave.";
   if (tab == 3) return "money, companies and decks, deployment, FOB services and supply.";
-  if (tab == 4) return "how players share command, the command map and the mission intro.";
+  if (tab == 4) return "the 2IC, how players share command, the command map and the mission intro.";
   if (tab == 5) return "features that ship switched off until they have been played.";
   return "save the whole setup under a name, load it, share it.";
  }

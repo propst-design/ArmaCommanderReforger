@@ -364,11 +364,13 @@ class ACR_Setup
   // 3. Forces and AI: the AI commanders and their squads, minefields and fortifying.
   if (key == "aicommander" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "unitcap" || key == "capscale" || key == "aibuild" || key == "holdguns") return 2;
   if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "baseworks") return 2;
+  // Out of Experimental on 19 Nov (on by default): how squads and guns behave, and the period jets.
+  if (key == "pullover" || key == "fieldsoffire" || key == "periodjets") return 2;
   // 4. Economy and logistics.
   if (key == "pricing" || key == "income" || key == "companywest" || key == "companyeast" || key == "decks" || key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return 3;
   if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "servicecost" || key == "rpservice" || key == "fobrelay" || key == "depotcapacity") return 3;
   // 5. Command: how players share and see command.
-  if (key == "shared" || key == "declutter" || key == "intro") return 4;
+  if (key == "shared" || key == "declutter" || key == "intro" || key == "twoic") return 4;
   if (Experimental(key)) return 5;
   return LOBBY_FIRST;
  }

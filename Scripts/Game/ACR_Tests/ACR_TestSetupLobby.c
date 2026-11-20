@@ -78,7 +78,8 @@ class ACR_TestSetupLobby
   if (Field("layout", 2) != "0" || Field("threat", 2) != "0" || Field("guerrillas", 2) != "0" || Field("pockets", 2) != "0") wrong += "battlefield ";
   if (Field("aicommander", 2) != "2" || Field("doctrinewest", 2) != "2" || Field("unitcap", 2) != "2" || Field("mines", 2) != "2" || Field("fortify", 2) != "2") wrong += "forces ";
   if (Field("decks", 2) != "3" || Field("deployment", 2) != "3" || Field("pricing", 2) != "3") wrong += "economy ";
-  if (Field("shared", 2) != "4" || Field("declutter", 2) != "4" || Field("intro", 2) != "4") wrong += "command ";
+  if (Field("shared", 2) != "4" || Field("declutter", 2) != "4" || Field("intro", 2) != "4" || Field("twoic", 2) != "4") wrong += "command ";
+  if (Field("pullover", 2) != "2" || Field("fieldsoffire", 2) != "2" || Field("periodjets", 2) != "2") wrong += "promoted ";
   if (Field("supplyruns", 2) != "5") wrong += "experimental ";
   if (ACR_Setup.LOBBY_FIRST != 1 || ACR_Setup.LobbyTabName(ACR_Setup.LOBBY_FIRST) != "Match") wrong += "first ";
   if (ACR_SetupLobbyModel.Kind("presetrow:Default", "Default (built-in)") != "preset" || ACR_Setup.LobbyTab("presetrow:Default") != ACR_Setup.LOBBY_PRESETS) wrong += "presets ";
