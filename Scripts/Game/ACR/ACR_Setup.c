@@ -45,7 +45,7 @@ class ACR_Setup
    s_bDecided = true;
    string value;
    s_bWanted = ACR_Options.Get("acrSetup", value) && value == "1";
-   if (System.IsCLIParam("acrSetupTest") || System.IsCLIParam("acrSetupUiTest") || System.IsCLIParam("acrSetupGenTest") || System.IsCLIParam("acrSetupMapTest")) s_bWanted = true;
+   if (System.IsCLIParam("acrSetupTest") || System.IsCLIParam("acrSetupUiTest") || System.IsCLIParam("acrSetupGenTest") || System.IsCLIParam("acrSetupMapTest") || System.IsCLIParam("acrSetupPresetsTest")) s_bWanted = true;
    else if (ACR_TestHooks.Get().SkipSetup()) s_bWanted = false;
    if (s_bWanted) Print("[ACR] SETUP phase: waiting for the host or an admin to press Start");
   }
@@ -234,6 +234,8 @@ class ACR_Setup
  {
   array<int> players = {};
   GetGame().GetPlayerManager().GetPlayers(players);
+  // A preset loaded at the start of the match is checked against this world once it is up.
+  if (!s_bStarted) ACR_SetupPresets.CheckPending();
   if (!s_bStarted) UpdatePreview();
   string rows = Rows();
   foreach (int id : players)
@@ -258,7 +260,10 @@ class ACR_Setup
  protected static string Info(int left)
  {
   string info = "";
-  if (Current("layout").StartsWith("gen:")) info = "Generated layout: support helicopters come from off the map; build a helipad to buy helicopters. ";
+  // What the preset in use said (a value that fell back, a launch option that kept its own).
+  string preset = ACR_SetupPresets.Report();
+  if (!preset.IsEmpty()) info = preset + " ";
+  if (Current("layout").StartsWith("gen:")) info += "Generated layout: support helicopters come from off the map; build a helipad to buy helicopters. ";
   if (left >= 0) info += string.Format("Starts by itself in %1 s.", left);
   return info;
  }
@@ -269,8 +274,7 @@ class ACR_Setup
  {
   string rows;
   bool generated = Current("layout").StartsWith("gen:");
-  // The map preview sits right under the battlefield and its seed (25 Oct: it was last, a page away).
-  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
+  array<string> keys = RowKeys();
   foreach (string key : keys)
   {
    if (key == "seed" && !generated && Current("quickstart") == "off") continue;
@@ -302,7 +306,18 @@ class ACR_Setup
    // (pn10b, 26 Oct: in the rows, the descriptions ran past the buttons).
    if (key == "companywest" || key == "companyeast" || key == "doctrinewest" || key == "doctrineeast") rows += "about" + key + "\t" + About(key) + "\n";
   }
+  // The Presets tab (#143): the server's presets, managed from the host's dialog.
+  rows += ACR_SetupPresets.Rows();
   return rows;
+ }
+
+ // Every row of the setup screen in order; setup presets (ACR_SetupPresets) save the options
+ // behind these rows. The map preview sits right under the battlefield and its seed (25 Oct:
+ // it was last, a page away).
+ static array<string> RowKeys()
+ {
+  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "unitcap", "aibuild", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "mines", "minesreal", "minesai", "fortify", "fortifyai", "baseworks", "periodjets", "squadtactics", "pullover", "evadearmour", "fieldsoffire", "twoic"};
+  return keys;
  }
 
  // The line under the tab's rows for a company or doctrine row: "Blue: Combat Engineers: two tier I
@@ -766,21 +781,33 @@ class ACR_Setup
 
  static void SetValue(string key, string value)
  {
-  if (key == "west") { ACR_Options.Set("acrFactions", value + "," + ACR_FactionSelection.East()); return; }
-  if (key == "east") { ACR_Options.Set("acrFactions", ACR_FactionSelection.West() + "," + value); return; }
+  map<string, string> options = new map<string, string>();
+  OptionsFor(key, value, options);
+  foreach (string option, string optionValue : options)
+  {
+   // The battlefield's two options always take their value ("" = no named layout).
+   if (option == "acrLayout" || option == "acrSize" || optionValue != "") ACR_Options.Set(option, optionValue);
+   // "" = back to the scenario's default: drop the screen's value (a flag, preset or header may still set it).
+   else ACR_Options.Unset(option);
+  }
+ }
+
+ // The host options behind a row's value (SetValue, and setup presets saving the current setup).
+ static void OptionsFor(string key, string value, notnull map<string, string> into)
+ {
+  if (key == "west") { into.Set("acrFactions", value + "," + ACR_FactionSelection.East()); return; }
+  if (key == "east") { into.Set("acrFactions", ACR_FactionSelection.West() + "," + value); return; }
+  if (key == "seed") { into.Set("acrSeed", value); return; }
   if (key == "layout")
   {
-   if (value == "full") { ACR_Options.Set("acrLayout", ""); ACR_Options.Set("acrSize", "full"); }
-   else if (value.StartsWith("gen:")) { ACR_Options.Set("acrLayout", "generated"); ACR_Options.Set("acrSize", value.Substring(4, value.Length() - 4)); }
-   else if (value.StartsWith("size:")) { ACR_Options.Set("acrLayout", ""); ACR_Options.Set("acrSize", value.Substring(5, value.Length() - 5)); }
-   else { ACR_Options.Set("acrLayout", value.Substring(5, value.Length() - 5)); ACR_Options.Set("acrSize", ""); }
+   if (value == "full") { into.Set("acrLayout", ""); into.Set("acrSize", "full"); }
+   else if (value.StartsWith("gen:")) { into.Set("acrLayout", "generated"); into.Set("acrSize", value.Substring(4, value.Length() - 4)); }
+   else if (value.StartsWith("size:")) { into.Set("acrLayout", ""); into.Set("acrSize", value.Substring(5, value.Length() - 5)); }
+   else if (value.StartsWith("name:")) { into.Set("acrLayout", value.Substring(5, value.Length() - 5)); into.Set("acrSize", ""); }
    return;
   }
   string option = Option(key);
-  if (option == "") return;
-  // "" = back to the scenario's default: drop the screen's value (a flag or header may still set it).
-  if (value == "") ACR_Options.Unset(option);
-  else ACR_Options.Set(option, value);
+  if (option != "") into.Set(option, value);
  }
 
  // A client asked (server side).
@@ -798,6 +825,13 @@ class ACR_Setup
    ACR_Generator.ClearMoves();
    Broadcast();
    return "Layout edits undone";
+  }
+  // Setup presets (#143): save, load, rename, delete, auto-load, copy and paste.
+  if (key.StartsWith("preset:"))
+  {
+   string presetResult = ACR_SetupPresets.Handle(playerId, key.Substring(7, key.Length() - 7));
+   Broadcast();
+   return presetResult;
   }
   if (key.StartsWith("delete:"))
   {
@@ -1155,7 +1189,9 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
  // The tabs across the top (25 Oct redesign): the battlefield first, with its seed and map
  // preview together, then who commands, money, logistics and engineering.
 // Experimental: features shipped off by default until they have been played (Jacob, 5 Nov).
- static const int TABS = 6;
+ // Presets (#143): save the whole setup under a name, load, share.
+ static const int TABS = 7;
+ static const int PRESETS_TAB = 6;
  static string TabName(int tab)
  {
   if (tab == 1) return "Command";
@@ -1163,6 +1199,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
   if (tab == 3) return "Logistics";
   if (tab == 4) return "Engineers";
   if (tab == 5) return "Experimental";
+  if (tab == PRESETS_TAB) return "Presets";
   return "Battlefield";
  }
 
@@ -1172,6 +1209,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
  {
   // A row's description line goes with its row.
   if (key.StartsWith("about")) return Tab(key.Substring(5, key.Length() - 5));
+  if (key.StartsWith("preset")) return PRESETS_TAB;
   if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "aibuild" || key == "capscale") return 1;
   if (key == "pricing" || key == "startrp" || key == "income" || key == "companywest" || key == "companyeast") return 2;
   if (key == "decks" || key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return 2;
@@ -1222,6 +1260,9 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
    m_wRows = GetGame().GetWorkspace().CreateWidget(WidgetType.VerticalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, content);
    AlignableSlot.SetPadding(m_wRows, 0, 8, 0, 0);
   }
+  // The Presets tab's name box is rebuilt with the rows: keep what was typed.
+  if (m_PresetName) m_sPresetTyped = m_PresetName.GetValue();
+  m_PresetName = null;
   while (m_wTabs.GetChildren()) m_wTabs.GetChildren().RemoveFromHierarchy();
   while (m_wRows.GetChildren()) m_wRows.GetChildren().RemoveFromHierarchy();
   m_Keys.Clear();
@@ -1233,6 +1274,11 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
   }
   array<string> lines = {};
   rows.Split("\n", lines, true);
+  if (m_iTab == PRESETS_TAB)
+  {
+   FillPresets(lines);
+   return;
+  }
   array<string> keys = {};
   array<string> texts = {};
   array<string> abouts = {};
@@ -1271,6 +1317,119 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
    if (m_iPage == m_iPages - 1) more = string.Format("Back to the first page (page %1 of %2)", m_iPage + 1, m_iPages);
    AddButton(m_wRows, "next_page", more);
   }
+ }
+
+ // ---------------------------------------------------------------- Presets tab (#143)
+ protected static const ResourceName LAYOUT_EDIT = "{0022F0B45ADBC5AC}UI/layouts/WidgetLibrary/EditBox/WLib_EditBox.layout";
+ protected SCR_EditBoxComponent m_PresetName;
+ protected string m_sPresetTyped;
+ protected string m_sPresetSelected;
+ protected ref array<string> m_aPresetNames = {};
+
+ // The name box, Save and Paste; the presets (click one to pick it); what to do with the picked one.
+ protected void FillPresets(notnull array<string> lines)
+ {
+  m_aPresetNames.Clear();
+  array<string> shown = {};
+  string note;
+  foreach (string line : lines)
+  {
+   array<string> parts = {};
+   line.Split("\t", parts, false);
+   if (parts.Count() < 2) continue;
+   if (parts[0] == "presetnote") note = parts[1];
+   else if (parts[0].StartsWith("presetrow:"))
+   {
+    m_aPresetNames.Insert(parts[0].Substring(10, parts[0].Length() - 10));
+    shown.Insert(parts[1]);
+   }
+  }
+  if (!m_aPresetNames.Contains(m_sPresetSelected)) m_sPresetSelected = "";
+  if (!note.IsEmpty()) AddText(m_wRows, note);
+  Widget edit = GetGame().GetWorkspace().CreateWidgets(LAYOUT_EDIT, m_wRows);
+  if (edit)
+  {
+   AlignableSlot.SetPadding(edit, 2, 2, 2, 2);
+   m_PresetName = SCR_EditBoxComponent.Cast(edit.FindHandler(SCR_EditBoxComponent));
+   if (m_PresetName)
+   {
+    m_PresetName.SetLabel("Name");
+    m_PresetName.SetValue(m_sPresetTyped);
+   }
+  }
+  Widget top = GetGame().GetWorkspace().CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_wRows);
+  AddButton(top, "presetsave", "Save the setup under this name", true);
+  AddButton(top, "presetimport", "Paste from the clipboard", true);
+  // The list, paged on a short screen (the name box and both action lines take five rows).
+  int perPage = PageRows(ScreenHeight()) - 5;
+  if (perPage < 3) perPage = 3;
+  m_iPages = (m_aPresetNames.Count() + perPage - 1) / perPage;
+  if (m_iPages < 1) m_iPages = 1;
+  if (m_iPage >= m_iPages) m_iPage = m_iPages - 1;
+  int first = m_iPage * perPage;
+  for (int i = first; i < m_aPresetNames.Count() && i < first + perPage; i++)
+  {
+   string text = shown[i];
+   if (m_aPresetNames[i] == m_sPresetSelected) text = "> " + text + " <";
+   AddButton(m_wRows, "presetpick:" + i.ToString(), text);
+  }
+  if (m_iPages > 1) AddButton(m_wRows, "next_page", string.Format("More presets (page %1 of %2)...", m_iPage + 1, m_iPages));
+  if (m_sPresetSelected.IsEmpty())
+  {
+   AddText(m_wRows, "Pick a preset to load, rename, delete or copy it,\nor to load it at the start of every match.");
+  }
+  else
+  {
+   Widget acts = GetGame().GetWorkspace().CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_wRows);
+   AddButton(acts, "presetload", "Load", true);
+   AddButton(acts, "presetrename", "Rename to the name above", true);
+   AddButton(acts, "presetdelete", "Delete", true);
+   Widget more = GetGame().GetWorkspace().CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_wRows);
+   bool every = shown[m_aPresetNames.Find(m_sPresetSelected)].Contains(", loads every match");
+   string everyText = "Load at every match: off";
+   if (every) everyText = "Load at every match: on";
+   AddButton(more, "presetauto", everyText, true);
+   AddButton(more, "presetexport", "Copy to the clipboard", true);
+  }
+  AddText(m_wRows, "Kept on the server in profile/ACA/SetupPresets. A server loads one\nwith -acrPreset <name>; launch options still win over a preset.");
+ }
+
+ protected string PresetTyped()
+ {
+  if (m_PresetName) m_sPresetTyped = m_PresetName.GetValue();
+  return m_sPresetTyped;
+ }
+
+ // A Presets tab button: true when it was one.
+ protected bool OnPresetRow(string key)
+ {
+  if (key.StartsWith("presetpick:"))
+  {
+   int index = key.Substring(11, key.Length() - 11).ToInt();
+   if (index >= 0 && index < m_aPresetNames.Count())
+   {
+    m_sPresetSelected = m_aPresetNames[index];
+    // The picked name fills the box: Save then updates it, or type a new name to rename it.
+    m_sPresetTyped = m_sPresetSelected;
+    if (m_PresetName) m_PresetName.SetValue(m_sPresetTyped);
+   }
+   Fill(m_sRows, m_sInfo);
+   return true;
+  }
+  if (key == "presetsave") { ACR_SetupClient.Request("preset:save:" + PresetTyped()); return true; }
+  if (key == "presetimport") { ACR_SetupClient.Request("preset:import:" + System.ImportFromClipboard()); return true; }
+  if (!key.StartsWith("preset") || m_sPresetSelected.IsEmpty()) return key.StartsWith("preset");
+  if (key == "presetload") ACR_SetupClient.Request("preset:load:" + m_sPresetSelected);
+  else if (key == "presetdelete") ACR_SetupClient.Request("preset:delete:" + m_sPresetSelected);
+  else if (key == "presetauto") ACR_SetupClient.Request("preset:auto:" + m_sPresetSelected);
+  else if (key == "presetexport") ACR_SetupClient.Request("preset:export:" + m_sPresetSelected);
+  else if (key == "presetrename")
+  {
+   string to = PresetTyped();
+   ACR_SetupClient.Request("preset:rename:" + m_sPresetSelected + "\t" + to);
+   m_sPresetSelected = ACR_SetupPresets.CleanName(to);
+  }
+  return true;
  }
 
  void ShowTab(int tab)
@@ -1340,6 +1499,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
   if (key == "next_page") { m_iPage = (m_iPage + 1) % m_iPages; Fill(m_sRows, m_sInfo); return; }
   if (key == "map") { ACR_SetupClient.OpenPreviewMap(); return; }
   if (key == "deckeditor") { ACR_DeckClient.OpenFromSetup(); return; }
+  if (OnPresetRow(key)) return;
   ACR_SetupClient.Request(key);
  }
 

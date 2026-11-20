@@ -38,6 +38,9 @@ class ACR_TestHooks
  // A test that plays a match unattended (the soaks) skips the setup phase the mission header asks for:
  // pak: servers start from the shipped header, and nobody presses Start (ACR_Setup.Wanted).
  bool SkipSetup() { return false; }
+ // Setup presets' folder for a test (ACR_SetupPresets.Dir), "" = profile/ACA/SetupPresets: the
+ // test's files and auto-load mark never reach the presets every other test run reads.
+ string SetupPresetDir() { return ""; }
  // A side a test says a player commands (ACR_SquadAI.RunsAll): a server test has no players.
  bool PlayerCommandsForTest(string factionKey) { return false; }
  // Build the test classes' statics (ACR_StaticInit, at game creation).

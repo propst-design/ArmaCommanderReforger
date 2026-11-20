@@ -276,6 +276,9 @@ class ACR_Manager : Managed
   // Setup screen choices are per match (Jacob, 31 Oct), and a rotation reads its own header.
   ACR_Options.ClearSet();
   ACR_Options.ForgetHeader();
+  // A setup preset (#143) is read again at the next match: -acrPreset or the auto-load mark.
+  ACR_SetupPresets.Reset();
+  ACR_Options.ForgetPreset();
   if (!s_Instance) return;
   if (GetGame()) GetGame().GetCallqueue().Remove(s_Instance.Tick);
   if (s_Instance.m_Supports) s_Instance.m_Supports.CancelPending();
@@ -429,6 +432,8 @@ class ACR_Manager : Managed
   ACR_PlayerSide.Key();
   if (ACR_CivilianSocket.Get().Plugged()) PrintFormat("[ACR] Civilian socket: %1 plugged in, %2 AI slots", ACR_CivilianSocket.Get().Name(), ACR_CivilianSocket.Get().AiHeadroom());
   RaiseActiveAILimit();
+  // Without a setup phase nothing checked the match's preset yet: log what fell back (#143).
+  ACR_SetupPresets.CheckPending();
   ACR_Options.Log();
   PrintFormat("[ACR] Threat level: %1", ThreatName(threat));
   PrintFormat("[ACR] Host options: skill %1, reaction %2, soldier cap %3, AI %4, unit cap %5, start RP %6, income x%7, shared command %8",

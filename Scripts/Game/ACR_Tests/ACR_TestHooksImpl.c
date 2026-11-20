@@ -52,6 +52,8 @@ modded class ACR_TestHooks
   if (ACR_TestSetup.ReserveWanted()) ACR_TestSetup.RunReserve(seconds);
   if (ACR_TestSetup.GenWanted()) ACR_TestSetup.RunGen(seconds);
   if (ACR_TestSetup.MapWanted()) ACR_TestSetup.RunMap(seconds);
+  // -acrSetupPresetsTest: setup presets (ACR_TestSetupPresets, #143).
+  if (ACR_TestSetupPresets.Wanted()) ACR_TestSetupPresets.Run(seconds);
   if (System.IsCLIParam("acrEveronSurveyTest")) ACR_TestPlaces.SurveyEveron(seconds);
   if (System.IsCLIParam("acrEveronPadsTest")) ACR_TestPads.SurveyEveron(seconds);
   // -acrSkirmishTest / -acrSkirmishSouthTest: skirmish layouts on Everon (ACR_TestSkirmish).
@@ -136,6 +138,13 @@ modded class ACR_TestHooks
 
  // The soaks play unattended: on a pak: server (started from the mission header, setup phase on)
  // they waited for a Start nobody pressed and ran 2 h with no squads (11 Nov, #232 A/B).
+ // The presets test keeps its files out of the real presets folder (ACR_SetupPresets.Dir).
+ override string SetupPresetDir()
+ {
+  if (ACR_TestSetupPresets.Wanted()) return ACR_TestSetupPresets.DIR;
+  return "";
+ }
+
  override bool SkipSetup()
  {
   if (System.IsCLIParam("acrSoakTest") || System.IsCLIParam("acrPerfTest") || System.IsCLIParam("acrPerfScaleTest") || System.IsCLIParam("acrAllocPerfTest") || System.IsCLIParam("acrAllocControlPerfTest")) return true;

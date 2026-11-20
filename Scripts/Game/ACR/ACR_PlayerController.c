@@ -511,6 +511,16 @@ modded class SCR_PlayerController
   PrintFormat("[ACR] SETUP player %1: %2", GetPlayerId(), result);
   Rpc(ACR_FeedbackOwner, result);
  }
+ // Setup presets (#143): "Copy to the clipboard" on the host's or admin's own machine.
+ void ACR_SendSetupClipboard(string text)
+ {
+  Rpc(ACR_SetupClipboardOwner, text);
+ }
+ [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
+ protected void ACR_SetupClipboardOwner(string text)
+ {
+  System.ExportToClipboard(text);
+ }
  // Layout editor: move a base of the generated layout (the server checks the spot).
  void ACR_RequestSetupMove(string name, float x, float z)
  {

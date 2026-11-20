@@ -54,7 +54,8 @@ class ACR_TestSetup
    {
     array<string> rowParts = {};
     rowLine.Split("\t", rowParts, false);
-    if (rowParts.Count() < 2 || rowParts[0] == "map" || rowParts[0] == "undo") continue;
+    // The Presets tab's lines are names, not option rows (#143).
+    if (rowParts.Count() < 2 || rowParts[0] == "map" || rowParts[0] == "undo" || rowParts[0].StartsWith("preset")) continue;
     array<string> shownTexts = {};
     if (rowParts[0].StartsWith("about")) shownTexts.Insert(rowParts[1]);
     else
