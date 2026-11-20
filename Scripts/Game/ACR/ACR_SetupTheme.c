@@ -42,6 +42,25 @@ class ACR_SetupTheme : Managed
  string m_sDecor;          // one decoration line above the title ("" = none)
  string m_sKeys;           // the keys line in the footer ("" = none); real bindings only
  ResourceName m_sHeadingLayout; // a text layout with the heading font ("" = the lobby layout's own)
+ // Button labels: every button's, and the open tab's (the terminal's open tab is inverse video).
+ ref Color m_ButtonText;
+ ref Color m_ButtonSelectedText;
+ // Start: one filled button, set apart from the rest of the footer.
+ ref Color m_Start;
+ ref Color m_StartHover;
+ ref Color m_StartText;
+ // Structure (20 Nov, Jacob: the tablet and the terminal should look like devices, not a recoloured
+ // see-through overlay). All off in the vanilla skin, which keeps the command panel's look.
+ bool m_bDevice;           // a bezel round an opaque screen: the world doesn't show through
+ ref Color m_Bezel;        // the device's body (the backdrop, opaque)
+ ref Color m_Screen;       // the screen inside it
+ ref Color m_Line;         // 1 px rules and dividers, the rows' value boxes
+ ref Color m_StatusBack;   // the status bar's strip
+ string m_sStatusLeft;     // the status bar: what the device is, left
+ string m_sStatusRight;    // and what it is doing, right (plain words)
+ bool m_bRail;             // tabs as a narrow text-only rail with thin dividers, one filled tab
+ bool m_bCompact;          // denser: smaller type, thin rows, values in a thin box
+ bool m_bMonoBody;         // the help, summary and status lines in the monospace font too
 
  protected static ref ACR_SetupTheme s_Current;
  static const ResourceName HEADING_MONO = "{AC230926A00100F7}UI/layouts/ACR/ACR_SetupHeadingMono.layout";
@@ -121,6 +140,15 @@ class ACR_SetupTheme : Managed
   theme.m_WestPanel = Srgb(30, 60, 120, 0.784);
   theme.m_EastPanel = Srgb(120, 30, 28, 0.784);
   theme.m_sChanged = "• ";
+  theme.m_ButtonText = Srgb(255, 255, 255);
+  theme.m_ButtonSelectedText = Srgb(255, 255, 255);
+  theme.m_Start = theme.m_ButtonSelected;
+  theme.m_StartHover = theme.m_ButtonHover;
+  theme.m_StartText = Srgb(255, 255, 255);
+  theme.m_Bezel = theme.m_Backdrop;
+  theme.m_Screen = theme.m_Backdrop;
+  theme.m_Line = theme.m_ButtonBorder;
+  theme.m_StatusBack = theme.m_Panel;
   return theme;
  }
 
@@ -153,9 +181,29 @@ class ACR_SetupTheme : Managed
   theme.m_bUpper = true;
   theme.m_sChanged = "* ";
   theme.m_sCursor = "> ";
-  theme.m_sDecor = "FT-80 FIELD TERMINAL  //  MATCH SETUP  //  READY";
+  theme.m_sDecor = "";
   theme.m_sKeys = "SPACE: START    Q / E: CHANGE TAB    LEFT / RIGHT: CHANGE A VALUE";
   theme.m_sHeadingLayout = HEADING_MONO;
+  // An opaque phosphor screen in a grey-brown case; rules in dim green; the open tab and Start in
+  // inverse video, as a terminal highlights its choice.
+  theme.m_bDevice = true;
+  theme.m_bRail = true;
+  theme.m_bCompact = true;
+  theme.m_bMonoBody = true;
+  theme.m_Bezel = Srgb(43, 42, 38);
+  theme.m_Screen = Srgb(4, 26, 8);
+  theme.m_Line = Srgb(47, 191, 85);
+  theme.m_StatusBack = Srgb(4, 26, 8);
+  theme.m_ButtonText = Srgb(110, 245, 130);
+  theme.m_ButtonSelectedText = Srgb(4, 26, 8);
+  theme.m_ButtonSelected = Srgb(75, 255, 122, 1.0);
+  theme.m_ButtonHover = Srgb(14, 58, 23, 1.0);
+  theme.m_Button = Srgb(4, 26, 8, 0.0);
+  theme.m_Start = Srgb(75, 255, 122);
+  theme.m_StartHover = Srgb(140, 255, 170);
+  theme.m_StartText = Srgb(4, 26, 8);
+  theme.m_sStatusLeft = "FIELD TERMINAL";
+  theme.m_sStatusRight = "MATCH SETUP · READY";
   return theme;
  }
 
@@ -186,18 +234,44 @@ class ACR_SetupTheme : Managed
   theme.m_WestPanel = Srgb(30, 52, 90, 0.863);
   theme.m_EastPanel = Srgb(95, 34, 28, 0.863);
   theme.m_sChanged = "• ";
-  theme.m_sDecor = "C2 TABLET  |  MATCH SETUP  |  LINK OK";
+  theme.m_sDecor = "";
+  // A rugged tablet: dark bezel, near-black screen, a status strip, a text-only tab rail with one
+  // filled dark-green tab, compact rows, one filled green Start (the approved mock-up, 19 Nov).
+  theme.m_bDevice = true;
+  theme.m_bRail = true;
+  theme.m_bCompact = true;
+  theme.m_Bezel = Srgb(42, 45, 42);
+  theme.m_Screen = Srgb(16, 20, 17);
+  theme.m_Line = Srgb(63, 90, 64);
+  theme.m_StatusBack = Srgb(27, 34, 28);
+  theme.m_ButtonText = Srgb(201, 214, 196);
+  theme.m_ButtonSelectedText = Srgb(226, 240, 220);
+  theme.m_Button = Srgb(16, 20, 17, 0.0);
+  theme.m_ButtonHover = Srgb(36, 48, 38, 1.0);
+  theme.m_ButtonPress = Srgb(58, 84, 58, 1.0);
+  theme.m_ButtonSelected = Srgb(47, 74, 48, 1.0);
+  theme.m_Start = Srgb(110, 175, 98);
+  theme.m_StartHover = Srgb(130, 195, 116);
+  theme.m_StartText = Srgb(8, 20, 8);
+  theme.m_sStatusLeft = "Command tablet";
+  theme.m_sStatusRight = "Match setup · connected";
   theme.m_sKeys = "Space: Start    Q / E: change tab    Left / right: change a value";
   return theme;
  }
 
  // A white button label's contrast on a button fill (WCAG ratio), the fill blended over this skin's
  // backdrop over a dark scene. The colours are linear here, so their weighted sum is the luminance.
- float LabelContrast(Color fill)
+ float LabelContrast(Color fill, Color text = null)
  {
-  float back = Luminance(m_Backdrop) * m_Backdrop.A();
+  Color ground = m_Backdrop;
+  if (m_bDevice) ground = m_Screen;
+  float back = Luminance(ground) * ground.A();
   float lum = Luminance(fill) * fill.A() + back * (1 - fill.A());
-  return 1.05 / (lum + 0.05);
+  float ink = 1;
+  if (text) ink = Luminance(text);
+  float hi = Math.Max(lum, ink);
+  float lo = Math.Min(lum, ink);
+  return (hi + 0.05) / (lo + 0.05);
  }
 
  protected static float Luminance(Color c)

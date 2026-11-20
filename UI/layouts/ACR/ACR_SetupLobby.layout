@@ -20,6 +20,38 @@ FrameWidgetClass {
    }
    Color 0.02 0.035 0.06 0.9
   }
+  ImageWidgetClass "{AC23092600F60201}" {
+   Name "ScreenEdge"
+   Slot FrameWidgetSlot "{AC23092600F60202}" {
+    Anchor 0.026 0.036 0.974 0.964
+    PositionX 0
+    OffsetLeft 0
+    PositionY 0
+    OffsetTop 0
+    SizeX 0
+    OffsetRight 0
+    SizeY 0
+    OffsetBottom 0
+   }
+   "Is Visible" 0
+   Color 0 0 0 1
+  }
+  ImageWidgetClass "{AC23092600F60203}" {
+   Name "Screen"
+   Slot FrameWidgetSlot "{AC23092600F60204}" {
+    Anchor 0.028 0.04 0.972 0.96
+    PositionX 0
+    OffsetLeft 0
+    PositionY 0
+    OffsetTop 0
+    SizeX 0
+    OffsetRight 0
+    SizeY 0
+    OffsetBottom 0
+   }
+   "Is Visible" 0
+   Color 0 0 0 1
+  }
   VerticalLayoutWidgetClass "{AC23092600F6000B}" {
    Name "Page"
    Slot FrameWidgetSlot "{AC23092600F6000C}" {
@@ -34,6 +66,53 @@ FrameWidgetClass {
     OffsetBottom 0
    }
    {
+    OverlayWidgetClass "{AC23092600F60205}" {
+     Name "StatusBar"
+     Slot LayoutSlot "{AC23092600F60206}" {
+      Padding 0 0 0 0
+     }
+     "Is Visible" 0
+     {
+      ImageWidgetClass "{AC23092600F60207}" {
+       Name "StatusBack"
+       Slot OverlayWidgetSlot "{AC23092600F60208}" {
+        HorizontalAlign 3
+        VerticalAlign 3
+       }
+       Color 0 0 0 1
+      }
+      HorizontalLayoutWidgetClass "{AC23092600F60209}" {
+       Name "StatusLine"
+       Slot OverlayWidgetSlot "{AC23092600F6020A}" {
+        HorizontalAlign 3
+        VerticalAlign 3
+        Padding 10 3 10 3
+       }
+       {
+        HorizontalLayoutWidgetClass "{AC23092600F6020B}" {
+         Name "StatusLeft"
+         Slot LayoutSlot "{AC23092600F6020C}" {
+          SizeMode Fill
+         }
+        }
+        HorizontalLayoutWidgetClass "{AC23092600F6020D}" {
+         Name "StatusRight"
+         Slot LayoutSlot "{AC23092600F6020E}" {
+         }
+        }
+       }
+      }
+     }
+    }
+    ImageWidgetClass "{AC23092600F6020F}" {
+     Name "TopRule"
+     Slot LayoutSlot "{AC23092600F60210}" {
+      HorizontalAlign 3
+      Padding 0 0 0 10
+     }
+     "Is Visible" 0
+     Color 0 0 0 1
+    }
     TextWidgetClass "{AC23092600F60101}" {
      Name "Decor"
      Slot LayoutSlot "{AC23092600F60102}" {
@@ -88,6 +167,15 @@ FrameWidgetClass {
         SizeMode Fill
         FillWeight 0.2
        }
+      }
+      ImageWidgetClass "{AC23092600F60213}" {
+       Name "RailLine"
+       Slot LayoutSlot "{AC23092600F60214}" {
+        VerticalAlign 3
+        Padding 0 0 16 0
+       }
+       "Is Visible" 0
+       Color 0 0 0 1
       }
       VerticalLayoutWidgetClass "{AC23092600F60016}" {
        Name "Centre"
@@ -234,6 +322,15 @@ FrameWidgetClass {
        }
       }
      }
+    }
+    ImageWidgetClass "{AC23092600F60211}" {
+     Name "FooterRule"
+     Slot LayoutSlot "{AC23092600F60212}" {
+      HorizontalAlign 3
+      Padding 0 10 0 0
+     }
+     "Is Visible" 0
+     Color 0 0 0 1
     }
     HorizontalLayoutWidgetClass "{AC23092600F60029}" {
      Name "Footer"

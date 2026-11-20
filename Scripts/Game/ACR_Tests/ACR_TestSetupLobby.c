@@ -50,23 +50,6 @@ class ACR_TestSetupLobby
   return false;
  }
 
- protected static void DumpTree(Widget w, int depth, string tag)
- {
-  if (!w || depth > 8) return;
-  string pad = "";
-  for (int d = 0; d < depth; d++) pad += ". ";
-  string extra = "";
-  TextWidget text = TextWidget.Cast(w);
-  if (text) extra = " text='" + text.GetText() + "'";
-  PrintFormat("[ACR] WTREE %1 %2%3 <%4> visible %5%6", tag, pad, w.GetName(), w.Type().ToString(), w.IsVisible(), extra);
-  Widget child = w.GetChildren();
-  while (child)
-  {
-   DumpTree(child, depth + 1, tag);
-   child = child.GetSibling();
-  }
- }
-
  static void Run(int second)
  {
   if (second != 6) return;
@@ -228,22 +211,45 @@ class ACR_TestSetupLobby
   {
    Widget root = workspace.CreateWidgets(LAYOUT);
    string missing;
-   array<string> names = {"Tabs", "Rows", "RowsScroll", "MapDots", "MapBack", "Backdrop", "FooterLeft", "ButtonsRight", "Title", "TitleHolder", "Decor", "Subtitle", "TabTitle", "TabTitleHolder", "Summary", "Help", "Status"};
+   array<string> names = {"Tabs", "Rows", "RowsScroll", "MapDots", "MapBack", "Backdrop", "FooterLeft", "ButtonsRight", "Title", "TitleHolder", "Decor", "Subtitle", "TabTitle", "TabTitleHolder", "Summary", "Help", "Status", "Screen", "ScreenEdge", "StatusBar", "StatusBack", "StatusLeft", "StatusRight", "TopRule", "FooterRule", "RailLine"};
    foreach (string name : names) if (!root || !root.FindAnyWidget(name)) missing += name + " ";
    bool spinOk = false;
    if (root && root.FindAnyWidget("Rows"))
    {
     Widget spin = workspace.CreateWidgets(SPIN, root.FindAnyWidget("Rows"));
     spinOk = spin && spin.FindHandler(SCR_SpinBoxComponent) != null;
-    // The widget library's trees in the log (names and types), for the skins' styling.
-    if (spin) DumpTree(spin, 0, "spin");
-    Widget libButton = workspace.CreateWidgets("{75C912A1C89BE6C2}UI/layouts/WidgetLibrary/Buttons/WLib_ButtonText.layout", root.FindAnyWidget("Rows"));
-    if (libButton) DumpTree(libButton, 0, "button");
+    // The parts of the widget library's spin box the device skins restyle by name (20 Nov).
+    if (spin)
+    {
+     array<string> parts = {"SizeLayout", "Background", "LineHighlight", "ButtonLeft", "ButtonRight", "SelectionText", "BackgroundImage", "Panel"};
+     foreach (string part : parts) if (!spin.FindAnyWidget(part)) missing += "spin:" + part + " ";
+    }
     // The CRT skin's heading font layout builds too.
     Widget mono = workspace.CreateWidgets(ACR_SetupTheme.HEADING_MONO, root.FindAnyWidget("TitleHolder"));
     spinOk = spinOk && TextWidget.Cast(mono) != null;
    }
    if (root) root.RemoveFromHierarchy();
+   // 15b. The device skins' structure: an opaque screen in a bezel, the status bar with its words,
+   // the rules and the rail line; vanilla keeps the see-through page.
+   array<string> skinNames = {"vanilla", "tablet", "crt"};
+   foreach (string skinKey : skinNames)
+   {
+    ACR_SetupTheme look = ACR_SetupTheme.Named(skinKey);
+    Widget themed = workspace.CreateWidgets(LAYOUT);
+    if (!themed) { missing += skinKey + ":build "; continue; }
+    ACR_SetupLobby.Structure(themed, look);
+    bool device = look.m_bDevice;
+    Widget screen = themed.FindAnyWidget("Screen");
+    Widget bar = themed.FindAnyWidget("StatusBar");
+    Widget leftWords = themed.FindAnyWidget("StatusLeft");
+    bool built = screen && screen.IsVisible() && bar && bar.IsVisible() && themed.FindAnyWidget("TopRule").IsVisible() && themed.FindAnyWidget("FooterRule").IsVisible() && leftWords && TextWidget.Cast(leftWords.GetChildren()) && themed.FindAnyWidget("Backdrop").GetColor().A() >= 0.999;
+    bool hidden = screen && !screen.IsVisible() && bar && !bar.IsVisible() && !themed.FindAnyWidget("RailLine").IsVisible();
+    if (device && !built) missing += skinKey + ":device ";
+    if (!device && !hidden) missing += skinKey + ":plain ";
+    if (device && look.m_bRail && !themed.FindAnyWidget("RailLine").IsVisible()) missing += skinKey + ":rail ";
+    themed.RemoveFromHierarchy();
+   }
+   if (!ACR_SetupTheme.Tablet().m_bDevice || !ACR_SetupTheme.Crt().m_bDevice || ACR_SetupTheme.Vanilla().m_bDevice) missing += "devices ";
    ACR_TestRegress.Check("lobby: the layout builds its named parts", loaded && root && missing.IsEmpty() && spinOk, string.Format("loaded %1, root %2, missing: %3, spin %4", loaded, root != null, missing, spinOk));
   }
   // 16. The theme table: three skins, every colour set, plain words kept (upper case only in the CRT),
@@ -259,10 +265,13 @@ class ACR_TestSetupLobby
    if (!theme.m_West || !theme.m_East || !theme.m_Neutral || !theme.m_Other || !theme.m_WestPanel || !theme.m_EastPanel) themeWrong += skinName + ":sides ";
    if (theme.m_sChanged.IsEmpty()) themeWrong += skinName + ":mark ";
    if (!theme.m_sHeadingLayout.IsEmpty() && !Resource.Load(theme.m_sHeadingLayout).IsValid()) themeWrong += skinName + ":font ";
-   // White button labels readable in every state: WCAG AA 4.5:1 (20 Nov: 1.6-3.5:1 on the tablet).
-   if (theme.m_Button && theme.m_ButtonHover && theme.m_ButtonPress && theme.m_ButtonSelected)
+   // Button labels readable in every state, the open tab and Start too: WCAG AA 4.5:1 (20 Nov:
+   // 1.6-3.5:1 on the tablet).
+   if (!theme.m_ButtonText || !theme.m_ButtonSelectedText || !theme.m_Start || !theme.m_StartHover || !theme.m_StartText || !theme.m_Bezel || !theme.m_Screen || !theme.m_Line || !theme.m_StatusBack) themeWrong += skinName + ":device ";
+   else if (theme.m_Button && theme.m_ButtonHover && theme.m_ButtonPress && theme.m_ButtonSelected)
    {
-    float worst = Math.Min(Math.Min(theme.LabelContrast(theme.m_Button), theme.LabelContrast(theme.m_ButtonHover)), Math.Min(theme.LabelContrast(theme.m_ButtonPress), theme.LabelContrast(theme.m_ButtonSelected)));
+    float worst = Math.Min(Math.Min(theme.LabelContrast(theme.m_Button, theme.m_ButtonText), theme.LabelContrast(theme.m_ButtonHover, theme.m_ButtonText)), Math.Min(theme.LabelContrast(theme.m_ButtonPress, theme.m_ButtonText), theme.LabelContrast(theme.m_ButtonSelected, theme.m_ButtonSelectedText)));
+    worst = Math.Min(worst, Math.Min(theme.LabelContrast(theme.m_Start, theme.m_StartText), theme.LabelContrast(theme.m_StartHover, theme.m_StartText)));
     if (worst < 4.5) themeWrong += string.Format("%1:contrast %2 ", skinName, worst);
    }
   }

@@ -402,6 +402,94 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    m_wDecor.SetText(m_Theme.m_sDecor);
    m_wDecor.SetColor(m_Theme.m_Decor);
   }
+  Structure(root, m_Theme);
+  if (!m_Theme.m_bDevice) return;
+  // Denser and calmer type on a device; the terminal's body text in its monospace font too.
+  if (m_Theme.m_bMonoBody)
+  {
+   Widget side = root.FindAnyWidget("Side");
+   m_wSubtitle = Mono(root.FindAnyWidget("TitleHolder"), m_wSubtitle);
+   m_wSummary = Mono(side, m_wSummary);
+   m_wHelp = Mono(side, m_wHelp);
+   m_wStatus = Mono(side, m_wStatus);
+  }
+  Size(m_wPageTitle, 22);
+  Size(m_wTabTitle, 18);
+  Size(m_wSubtitle, 15);
+  Size(m_wSummary, 17);
+  Size(m_wHelp, 15);
+  Size(m_wStatus, 14);
+ }
+
+ // The device skins' structure (tablet, terminal): the world hidden behind an opaque screen in a
+ // bezel, a status bar and 1 px rules, a thin line beside the tab rail. Static, so the server's test
+ // can build the layout and check it. Vanilla: nothing changes.
+ static void Structure(Widget root, ACR_SetupTheme theme)
+ {
+  if (!root || !theme || !theme.m_bDevice) return;
+  Widget backdrop = root.FindAnyWidget("Backdrop");
+  if (backdrop) backdrop.SetColor(theme.m_Bezel);
+  Reveal(root.FindAnyWidget("ScreenEdge"), theme.m_Line);
+  Reveal(root.FindAnyWidget("Screen"), theme.m_Screen);
+  Widget page = root.FindAnyWidget("Page");
+  if (page)
+  {
+   FrameSlot.SetAnchorMin(page, 0.045, 0.06);
+   FrameSlot.SetAnchorMax(page, 0.955, 0.94);
+  }
+  Reveal(root.FindAnyWidget("StatusBar"), null);
+  Reveal(root.FindAnyWidget("StatusBack"), theme.m_StatusBack);
+  StatusText(root.FindAnyWidget("StatusLeft"), theme.m_sStatusLeft, theme);
+  StatusText(root.FindAnyWidget("StatusRight"), theme.m_sStatusRight, theme);
+  Rule(root.FindAnyWidget("TopRule"), theme.m_Line);
+  Rule(root.FindAnyWidget("FooterRule"), theme.m_Line);
+  if (theme.m_bRail) Rule(root.FindAnyWidget("RailLine"), theme.m_Line);
+ }
+
+ protected static void Reveal(Widget w, Color color)
+ {
+  if (!w) return;
+  w.SetVisible(true);
+  if (color) w.SetColor(color);
+ }
+
+ // A 1 px line: stretched along its layout, one pixel across.
+ protected static void Rule(Widget w, Color color)
+ {
+  ImageWidget line = ImageWidget.Cast(w);
+  if (!line) return;
+  Reveal(line, color);
+  line.SetSize(1, 1);
+ }
+
+ // The status bar's words in the monospace font (once: a holder keeps its text).
+ protected static void StatusText(Widget holder, string text, ACR_SetupTheme theme)
+ {
+  if (!holder || text.IsEmpty() || holder.GetChildren()) return;
+  TextWidget words = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets(ACR_SetupTheme.HEADING_MONO, holder));
+  if (!words) return;
+  AlignableSlot.SetPadding(words, 0, 0, 0, 0);
+  words.SetText(text);
+  words.SetExactFontSize(14);
+  words.SetColor(theme.m_Decor);
+ }
+
+ // A text in the monospace font in place of the layout's own (hidden), appended to the holder.
+ protected TextWidget Mono(Widget holder, TextWidget old)
+ {
+  if (!holder || !old) return old;
+  TextWidget mono = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets(ACR_SetupTheme.HEADING_MONO, holder));
+  if (!mono) return old;
+  mono.SetColor(old.GetColor());
+  mono.SetText(old.GetText());
+  AlignableSlot.SetPadding(mono, 0, 4, 0, 8);
+  old.SetVisible(false);
+  return mono;
+ }
+
+ protected static void Size(TextWidget w, int size)
+ {
+  if (w) w.SetExactFontSize(size);
  }
 
  // A heading in the skin's heading font, in place of the layout's own (hidden).
@@ -476,6 +564,14 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    {
     SCR_ButtonTextComponent button = AddButton(m_wTabs, "tab:" + tab.ToString(), TabText(tab), 0, m_aFixedHandlers);
     if (button) m_TabButtons.Set(tab, button);
+    // The rail: text-only tabs flush on the rail, a thin divider under each.
+    if (!m_Theme.m_bRail) continue;
+    if (button) AlignableSlot.SetPadding(button.GetRootWidget(), 0, 0, 0, 0);
+    ImageWidget divider = ImageWidget.Cast(GetGame().GetWorkspace().CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, m_Theme.m_Line, 0, m_wTabs));
+    if (!divider) continue;
+    AlignableSlot.SetHorizontalAlign(divider, LayoutHorizontalAlign.Stretch);
+    divider.SetSize(1, 1);
+    divider.SetOpacity(0.5);
    }
   }
   foreach (int index, SCR_ButtonTextComponent tabButton : m_TabButtons)
@@ -483,7 +579,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    string name = TabText(index);
    if (index != ACR_Setup.LOBBY_PRESETS && ACR_SetupLobbyModel.ChangedOn(m_aRows, index) > 0) name += "  " + m_Theme.m_sChanged;
    tabButton.SetText(m_Theme.Text(name));
-   Paint(tabButton, index == m_iTab);
+   Paint(tabButton, index == m_iTab, m_Theme.m_bRail);
   }
  }
 
@@ -602,6 +698,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   Widget w = GetGame().GetWorkspace().CreateWidgets(LAYOUT_SPIN, m_wRows);
   if (!w) return;
   AlignableSlot.SetPadding(w, 4 + indent, 2, 4, 2);
+  if (m_Theme.m_bCompact) AlignableSlot.SetPadding(w, 4 + indent, 0, 4, 0);
+  SpinLook(w);
   SCR_SpinBoxComponent spin = SCR_SpinBoxComponent.Cast(w.FindHandler(SCR_SpinBoxComponent));
   if (!spin) return;
   spin.SetCycleMode(true);
@@ -614,6 +712,38 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   spin.SetEnabled(m_bAllowed, false);
   m_RowWidgets.Set(row.m_sKey, w);
   m_Spins.Set(row.m_sKey, spin);
+ }
+
+ // A device skin's row (the widget library's spin box, its parts by name): a thin row with no
+ // filled bar, the label and value in smaller type, the arrows as light marks round the value.
+ // The control itself is untouched, so mouse, keys and pad work as before.
+ protected void SpinLook(Widget w)
+ {
+  if (!w || !m_Theme.m_bCompact) return;
+  Compact(w, 34);
+  Color clear = new Color(0, 0, 0, 0);
+  Widget back = w.FindAnyWidget("Background");
+  if (back) back.SetColor(clear);
+  Widget highlight = w.FindAnyWidget("LineHighlight");
+  if (highlight) highlight.SetColor(m_Theme.m_Line);
+  array<string> arrows = {"ButtonLeft", "ButtonRight"};
+  foreach (string arrowName : arrows)
+  {
+   Widget arrow = w.FindAnyWidget(arrowName);
+   if (!arrow) continue;
+   Widget arrowBack = arrow.FindAnyWidget("BackgroundImage");
+   if (arrowBack) arrowBack.SetColor(clear);
+   Widget mark = arrow.FindAnyWidget("Panel");
+   if (mark) mark.SetColor(m_Theme.m_Decor);
+  }
+  TextWidget value = TextWidget.Cast(w.FindAnyWidget("SelectionText"));
+  if (value)
+  {
+   value.SetExactFontSize(16);
+   value.SetColor(m_Theme.m_ButtonText);
+  }
+  TextWidget label = TextWidget.Cast(w.FindAnyWidget("Text"));
+  if (label) label.SetExactFontSize(16);
  }
 
  protected void SetSpin(SCR_SpinBoxComponent spin, ACR_SetupLobbyRow row)
@@ -809,6 +939,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
      if (!spin) continue;
      LayoutSlot.SetSizeMode(spin, LayoutSizeMode.Fill);
      AlignableSlot.SetPadding(spin, 0, 0, 8, 0);
+     SpinLook(spin);
      m_FooterPreset = SCR_SpinBoxComponent.Cast(spin.FindHandler(SCR_SpinBoxComponent));
      if (m_FooterPreset)
      {
@@ -827,7 +958,10 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
     AlignableSlot.SetPadding(made.GetRootWidget(), 12, 2, 0, 2);
     AlignableSlot.SetVerticalAlign(made.GetRootWidget(), LayoutVerticalAlign.Center);
     // Start stands out in the skin's strong colour; its key badge sits right of it.
-    if (part == "footerstart") Paint(made, true);
+    if (part != "footerstart") continue;
+    PaintStart(made);
+    // On a device, Start stands apart from the secondary controls.
+    if (m_Theme.m_bDevice) AlignableSlot.SetPadding(made.GetRootWidget(), 40, 2, 0, 2);
    }
   }
   foreach (SCR_ButtonBaseComponent footerButton, string footerKey : m_Buttons)
@@ -880,8 +1014,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (m_wKeys || m_Theme.m_sKeys.IsEmpty()) return;
   Widget footerRow = m_wFooter.GetParent();
   if (!footerRow || !footerRow.GetParent()) return;
-  m_wKeys = AddText(footerRow.GetParent(), m_Theme.m_sKeys, 0);
+  if (m_Theme.m_bDevice) m_wKeys = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets(ACR_SetupTheme.HEADING_MONO, footerRow.GetParent()));
+  else m_wKeys = AddText(footerRow.GetParent(), m_Theme.m_sKeys, 0);
   if (!m_wKeys) return;
+  m_wKeys.SetText(m_Theme.m_sKeys);
+  if (m_Theme.m_bDevice) m_wKeys.SetExactFontSize(13);
   m_wKeys.SetColor(m_Theme.m_Decor);
   AlignableSlot.SetPadding(m_wKeys, 0, 4, 0, 0);
  }
@@ -1088,12 +1225,70 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  }
 
  // The skin's button colours (the vanilla hover is white behind white text); the open tab stands out.
- protected void Paint(SCR_ButtonBaseComponent button, bool selected)
+ // On a device skin (tablet, terminal): tabs are text-only on the rail, other buttons thin
+ // outlines; the open tab and Start are the only filled ones. The focus border stays on, so
+ // keyboard and gamepad players always see where they are.
+ protected void Paint(SCR_ButtonBaseComponent button, bool selected, bool tab = false)
  {
   Color normal = m_Theme.m_Button;
-  if (selected) normal = m_Theme.m_ButtonSelected;
-  button.SetBackgroundColors(normal, m_Theme.m_ButtonHover, m_Theme.m_ButtonPress, m_Theme.m_ButtonPress, m_Theme.m_ButtonPress);
+  Color hover = m_Theme.m_ButtonHover;
+  Color press = m_Theme.m_ButtonPress;
+  Color text = m_Theme.m_ButtonText;
+  if (selected)
+  {
+   // The open tab keeps its fill under the pointer: the terminal's dark label needs its light ground.
+   normal = m_Theme.m_ButtonSelected;
+   hover = normal;
+   press = normal;
+   text = m_Theme.m_ButtonSelectedText;
+  }
+  Fill(button, normal, hover, press, text);
+  if (!m_Theme.m_bDevice) return;
+  SCR_ButtonTextComponent textButton = SCR_ButtonTextComponent.Cast(button);
+  if (!textButton) return;
+  if (textButton.m_wBorder)
+  {
+   textButton.m_wBorder.SetColor(m_Theme.m_Line);
+   // Rail tabs show the border only on focus; other buttons are thin outlines.
+   if (tab) textButton.m_wBorder.SetOpacity(0);
+   else textButton.m_wBorder.SetOpacity(1);
+  }
+  textButton.m_bShowBorderOnHover = false;
+  Compact(textButton.GetRootWidget(), 32);
+  TextWidget label = textButton.GetTextWidget();
+  if (!label) return;
+  label.SetExactFontSize(16);
+  if (tab) AlignableSlot.SetHorizontalAlign(label, LayoutHorizontalAlign.Left);
+ }
+
+ // Start: the one filled button of the footer.
+ protected void PaintStart(SCR_ButtonBaseComponent button)
+ {
+  Fill(button, m_Theme.m_Start, m_Theme.m_StartHover, m_Theme.m_StartHover, m_Theme.m_StartText);
+  SCR_ButtonTextComponent textButton = SCR_ButtonTextComponent.Cast(button);
+  if (m_Theme.m_bDevice && textButton && textButton.m_wBorder) textButton.m_wBorder.SetColor(m_Theme.m_StartHover);
+ }
+
+ protected void Fill(SCR_ButtonBaseComponent button, Color normal, Color hover, Color press, Color text)
+ {
+  button.SetBackgroundColors(normal, hover, press, press, press);
   if (button.m_wBackground) button.m_wBackground.SetColor(normal);
+  SCR_ButtonTextComponent textButton = SCR_ButtonTextComponent.Cast(button);
+  if (!textButton || !text) return;
+  TextWidget label = textButton.GetTextWidget();
+  if (label) label.SetColor(text);
+  textButton.m_TextDefault = text;
+  textButton.m_TextToggled = text;
+ }
+
+ // A widget library control's own height (its "SizeLayout" child), for the denser device skins.
+ protected static void Compact(Widget control, float height)
+ {
+  if (!control) return;
+  SizeLayoutWidget size = SizeLayoutWidget.Cast(control.FindAnyWidget("SizeLayout"));
+  if (!size) return;
+  size.EnableHeightOverride(true);
+  size.SetHeightOverride(height);
  }
 
  // ---------------------------------------------------------------- Match: the two sides
