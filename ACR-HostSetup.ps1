@@ -51,6 +51,57 @@ function Get-MapAddons {
   return $maps
 }
 
+# The chosen expansion pack's own Workshop mods that aren't in any of the addon folders. The game
+# drops a pack whose dependency is missing without a word on screen (20 Nov: the Modern pack without
+# WCS_Stryker left the setup screen in the vanilla look and the pack's vehicles out). Names come
+# from the pack's README ("WCS_Stryker (5B02128D896F7DE8)"); returns 'Name (GUID)' strings.
+function Get-MissingPackMods([string]$addonsDir, [string]$pack) {
+  $missing = @()
+  $entry = $script:ACRPacks | Where-Object { $_.Key -eq $pack } | Select-Object -First 1
+  if (!$entry) { return $missing }
+  $root = Split-Path $PSScriptRoot -Parent
+  $packDir = Join-Path $root $entry.Folder
+  $project = Join-Path $packDir 'addon.gproj'
+  if (!(Test-Path -LiteralPath $project)) { return $missing }
+  $text = Get-Content -LiteralPath $project -Raw
+  $block = [regex]::Match($text, 'Dependencies\s*\{([^}]*)\}')
+  if (!$block.Success) { return $missing }
+  # The game's own data, ACA and BBB are always there.
+  $have = @{ '58D0FB3206B6F859' = 1; '5614BBCCBB55ED1C' = 1; '6566A2D70498DA6B' = 1; 'AC230926A0010001' = 1; 'BBB0261015000001' = 1 }
+  foreach ($dir in $addonsDir.Split(',')) {
+    if (!$dir -or !(Test-Path -LiteralPath $dir)) { continue }
+    foreach ($addon in Get-ChildItem -LiteralPath $dir -Directory -ErrorAction SilentlyContinue) {
+      $m = [regex]::Match($addon.Name, '_([0-9A-Fa-f]{16})$')
+      if ($m.Success) { $have[$m.Groups[1].Value.ToUpper()] = 1; continue }
+      $gproj = Join-Path $addon.FullName 'addon.gproj'
+      if (!(Test-Path -LiteralPath $gproj)) { continue }
+      $g = [regex]::Match((Get-Content -LiteralPath $gproj -Raw), 'GUID\s+"([0-9A-Fa-f]{16})"')
+      if ($g.Success) { $have[$g.Groups[1].Value.ToUpper()] = 1 }
+    }
+  }
+  $readme = ''
+  $readmePath = Join-Path $packDir 'README.md'
+  if (Test-Path -LiteralPath $readmePath) { $readme = Get-Content -LiteralPath $readmePath -Raw }
+  foreach ($dep in [regex]::Matches($block.Groups[1].Value, '"([0-9A-Fa-f]{16})"')) {
+    $id = $dep.Groups[1].Value.ToUpper()
+    if ($have.ContainsKey($id)) { continue }
+    $name = [regex]::Match($readme, '([A-Za-z0-9_\-:. ]+?) \(' + $id + '\)')
+    if ($name.Success) { $missing += ($name.Groups[1].Value.Trim() + ' (' + $id + ')') } else { $missing += $id }
+  }
+  return $missing
+}
+
+# Says so before the game starts, and waits for Enter, when the pack can't load.
+function Confirm-PackMods([string]$addonsDir, [string]$pack) {
+  $missing = @(Get-MissingPackMods $addonsDir $pack)
+  if ($missing.Count -eq 0) { return }
+  Write-Host ''
+  Write-Host ('The ' + (Get-PackLabel $pack) + ' pack will NOT load: these Workshop mods it needs are not downloaded:') -ForegroundColor Yellow
+  foreach ($m in $missing) { Write-Host ('  ' + $m) -ForegroundColor Yellow }
+  Write-Host 'Download them in the game (Workshop) and start again. Without them the game starts without the pack.' -ForegroundColor Yellow
+  Read-Host 'Press Enter to start anyway, or close this window'
+}
+
 # A pack or a map add-on brings Workshop mods of its own, as faction mods and ACE do.
 function Test-NeedsModAddons([string]$pair, [string]$ace, [string]$pack, [string]$mapId) {
   return ($pair -ne 'vanilla' -or $ace -eq 'yes' -or ($pack -and $pack -ne 'none') -or [bool]$mapId)

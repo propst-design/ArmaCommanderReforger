@@ -47,6 +47,7 @@ try {
     $setup = Show-HostSetup
     $addonsDir = $addonsPath
     if ($setup.NeedsMods) { $addonsDir = Add-ModAddons $addonsDir } # faction mods, ACE, expansion packs, map add-ons
+    Confirm-PackMods $addonsDir $setup.Pack
     $withAio = Add-OptionalMods $addonsDir $setup.Addons $setup
     $mod = '-addonsDir "' + $withAio[0] + '" -addons ' + $withAio[1]
     $zt = Connect-ZeroTier
@@ -103,6 +104,7 @@ try {
     $joinSetup = Show-JoinModSetup
     $addonsDir = $addonsPath
     if ($joinSetup.NeedsMods) { $addonsDir = Add-ModAddons $addonsDir } # faction mods, ACE, expansion packs, map add-ons
+    Confirm-PackMods $addonsDir $joinSetup.Pack
     $withAio = Add-OptionalMods $addonsDir $joinSetup.Addons $joinSetup
     $mod = '-addonsDir "' + $withAio[0] + '" -addons ' + $withAio[1]
     Write-Host ('Selected ' + $joinSetup.Factions + ', ACE=' + $joinSetup.ACE + ', expansion=' + $joinSetup.Pack + '. Match these to the host or the server will reject the connection.') -ForegroundColor Yellow

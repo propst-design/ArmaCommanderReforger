@@ -36,6 +36,7 @@ try {
  if ($setup) {
   $addonList = $setup.Addons
   if ($setup.NeedsMods) { $addonsDir = Add-ModAddons $addonsDir } # faction mods, ACE, expansion packs, map add-ons
+  Confirm-PackMods $addonsDir $setup.Pack
  }
  if (!$TestProfile) {
   . (Join-Path $PSScriptRoot 'ACR-Find.ps1')
