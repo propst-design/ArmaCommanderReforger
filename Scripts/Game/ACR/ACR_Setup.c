@@ -308,8 +308,7 @@ class ACR_Setup
    if (key == "companywest" || key == "companyeast" || key == "doctrinewest" || key == "doctrineeast") rows += Line("about" + key, About(key));
   }
   // The setup lobby's map sketch colours bases by side: the two sides' faction keys (the classic dialog skips it).
-  rows += "lobbysides	" + ACR_FactionSelection.West() + "," + ACR_FactionSelection.East() + "
-";
+  rows += "lobbysides\t" + ACR_FactionSelection.West() + "," + ACR_FactionSelection.East() + "\n";
   // The Presets tab (#143): the server's presets, managed from the host's dialog.
   rows += ACR_SetupPresets.Rows();
   return rows;
@@ -440,8 +439,7 @@ class ACR_Setup
   return keys;
  }
 
- // The line under the tab's rows for a company or doctrine row: "Blue: Combat Engineers: two tier I
- // positions at its front", "Red: Fortress: holds in depth, counterattacks lost bases".
+ // The line under the tab's rows for a company or doctrine row: "Blue: Combat Engineers: two tier I\n // positions at its front", "Red: Fortress: holds in depth, counterattacks lost bases".
  static string About(string key)
  {
   string side = "Blue: ";
@@ -541,83 +539,53 @@ class ACR_Setup
  static string Help(string key)
  {
   // The setup lobby's right panel (Jacob 19 Nov: the help of the focused row): the main rows too.
-  if (key == "west" || key == "east") return "The two sides that fight. Any playable faction of this world;
-the world's US and USSR bases go to the chosen pair at Start.";
-  if (key == "layout") return "Which bases are in play: the world's own (whole map or a part)
-or a layout generated for this match, whose bases you can move.";
-  if (key == "seed") return "The number a generated layout and a quick start split come from.
-Type one to replay a layout; the same seed gives the same map.";
-  if (key == "map") return "Opens the planned layout on the map. With a generated layout,
-click a base, then where it should go; HQs can only be moved.";
+  if (key == "west" || key == "east") return "The two sides that fight. Any playable faction of this world;\nthe world's US and USSR bases go to the chosen pair at Start.";
+  if (key == "layout") return "Which bases are in play: the world's own (whole map or a part)\nor a layout generated for this match, whose bases you can move.";
+  if (key == "seed") return "The number a generated layout and a quick start split come from.\nType one to replay a layout; the same seed gives the same map.";
+  if (key == "map") return "Opens the planned layout on the map. With a generated layout,\nclick a base, then where it should go; HQs can only be moved.";
   if (key == "undo") return "Puts every moved or deleted base of this seed back.";
-  if (key == "quickstart") return "Off: both sides start from their HQ. Even: the map is split along
-a front. Uneven: one side holds two thirds, the other has double RP.";
-  if (key == "threat") return "Prices, stock, the soldier limit and the AI squad cap, and how
-many attacks an AI commander runs at once.";
+  if (key == "quickstart") return "Off: both sides start from their HQ. Even: the map is split along\na front. Uneven: one side holds two thirds, the other has double RP.";
+  if (key == "threat") return "Prices, stock, the soldier limit and the AI squad cap, and how\nmany attacks an AI commander runs at once.";
   if (key == "ai") return "Which sides an AI commander runs.";
   if (key == "startrp") return "Requisition points each side starts with.";
-  if (key == "aicommander") return "New: lanes, the allocator and the defence forecast.
-Classic: the commander from before 0.6.0.";
-  if (key == "doctrinewest" || key == "doctrineeast") return "How this side's AI commander fights: blitz, firepower, fortress,
-raider or balanced. The line under the rows says what it does.";
+  if (key == "aicommander") return "New: lanes, the allocator and the defence forecast.\nClassic: the commander from before 0.6.0.";
+  if (key == "doctrinewest" || key == "doctrineeast") return "How this side's AI commander fights: blitz, firepower, fortress,\nraider or balanced. The line under the rows says what it does.";
   if (key == "doctrineadapt") return "A commander that keeps losing switches to another doctrine.";
   if (key == "unitcap") return "Most AI squads each side's AI commander keeps at once.";
-  if (key == "capscale") return "Bigger maps get bigger armies: the AI squad cap and the soldier
-cap grow with the map, between x1 and x2.";
-  if (key == "aibuild") return "Share of each AI commander's income set aside for roadblocks,
-minefields and Fortify positions.";
-  if (key == "holdguns") return "Gunners stay on the static guns of a spot their squad holds
-instead of wandering off.";
-  if (key == "shared") return "Several players can share a side's command (the scenario's
-shared-command setting).";
-  if (key == "declutter") return "The calm command map: dark panels, merged lines, squads at a base
-gathered into one icon. Off: the classic map.";
-  if (key == "intro") return "A short orbit of your side's HQ with the title, the first time
-each player takes control in a match.";
-  if (key == "pockets") return "On whole and half maps, neutral bases away from both starts
-begin held by an FIA garrison.";
-  if (key == "guerrillas") return "Small FIA cells outside the bases on whole and half maps: road
-ambushes that follow the traffic. FIA rows appear under this one.";
+  if (key == "capscale") return "Bigger maps get bigger armies: the AI squad cap and the soldier\ncap grow with the map, between x1 and x2.";
+  if (key == "aibuild") return "Share of each AI commander's income set aside for roadblocks,\nminefields and Fortify positions.";
+  if (key == "holdguns") return "Gunners stay on the static guns of a spot their squad holds\ninstead of wandering off.";
+  if (key == "shared") return "Several players can share a side's command (the scenario's\nshared-command setting).";
+  if (key == "declutter") return "The calm command map: dark panels, merged lines, squads at a base\ngathered into one icon. Off: the classic map.";
+  if (key == "intro") return "A short orbit of your side's HQ with the title, the first time\neach player takes control in a match.";
+  if (key == "pockets") return "On whole and half maps, neutral bases away from both starts\nbegin held by an FIA garrison.";
+  if (key == "guerrillas") return "Small FIA cells outside the bases on whole and half maps: road\nambushes that follow the traffic. FIA rows appear under this one.";
   if (key == "fiaallegiance") return "Which main side the FIA fights for, or neither.";
-  if (key == "fialeaning") return "FIA treats each side by its conduct; the standing shows on the
-command panel.";
+  if (key == "fialeaning") return "FIA treats each side by its conduct; the standing shows on the\ncommand panel.";
   if (key == "fiahidden") return "No FIA messages: pockets are found by walking into them.";
-  if (key == "zombies") return "Project Outbreak zombie nests on open bases and in the country.
-The mode and the start appear under this row.";
-  if (key == "zombiemode") return "Both sides and the zombies, or one side against the zombies
-while the other sits out.";
-  if (key == "outbreak") return "Nests across the map, or one ground zero that spreads while
-you rescue survivors.";
-  if (key == "pricing") return "Stepped: each purchase makes the next of that unit dearer.
-Fixed stock: set prices, but only so many of each unit.";
+  if (key == "zombies") return "Project Outbreak zombie nests on open bases and in the country.\nThe mode and the start appear under this row.";
+  if (key == "zombiemode") return "Both sides and the zombies, or one side against the zombies\nwhile the other sits out.";
+  if (key == "outbreak") return "Nests across the map, or one ground zero that spreads while\nyou rescue survivors.";
+  if (key == "pricing") return "Stepped: each purchase makes the next of that unit dearer.\nFixed stock: set prices, but only so many of each unit.";
   if (key == "income") return "Multiplies every side's RP income.";
-  if (key == "companywest" || key == "companyeast") return "The kind of company this side fields. The line under the rows
-says what it brings.";
-  if (key == "decks") return "Each side buys from a deck of cards instead of the whole list.
-The deck rows appear under this one.";
+  if (key == "companywest" || key == "companyeast") return "The kind of company this side fields. The line under the rows\nsays what it brings.";
+  if (key == "decks") return "Each side buys from a deck of cards instead of the whole list.\nThe deck rows appear under this one.";
   if (key == "deckeditor") return "Opens the deck builder on your screen. Hand a deck in to use it.";
-  if (key == "deckpoints") return "How many points a deck may cost. By threat: 100 low, 150 normal,
-250 high.";
+  if (key == "deckpoints") return "How many points a deck may cost. By threat: 100 low, 150 normal,\n250 high.";
   if (key == "deckwest" || key == "deckeast") return "The deck this side buys from.";
-  if (key == "deployment") return "Where new units may be deployed: military bases, HQs and FOBs,
-only HQs and FOBs, or every deployment point.";
+  if (key == "deployment") return "Where new units may be deployed: military bases, HQs and FOBs,\nonly HQs and FOBs, or every deployment point.";
   if (key == "reinforcement") return "Where infantry replacements walk in from.";
-  if (key == "fobservices") return "Supplies: a FOB's service buildings draw on its supply store.
-Free: unlimited free service anywhere.";
+  if (key == "fobservices") return "Supplies: a FOB's service buildings draw on its supply store.\nFree: unlimited free service anywhere.";
   if (key == "servicecost") return "Supplies one service load takes from the FOB's store.";
-  if (key == "rpservice") return "RP per soldier serviced instantly at a FOB when services cost
-supplies. 0 makes it free.";
-  if (key == "fobrelay") return "A built FOB needs a finished radio relay before new units deploy
-there or infantry is reinforced there.";
+  if (key == "rpservice") return "RP per soldier serviced instantly at a FOB when services cost\nsupplies. 0 makes it free.";
+  if (key == "fobrelay") return "A built FOB needs a finished radio relay before new units deploy\nthere or infantry is reinforced there.";
   if (key == "depotcapacity") return "Extra supplies a FOB's supply depot can store.";
-  if (key == "mines") return "Squads can be ordered to lay minefields. Its two rows appear
-under this one.";
+  if (key == "mines") return "Squads can be ordered to lay minefields. Its two rows appear\nunder this one.";
   if (key == "minesreal") return "Own mines are dangerous to everyone, our AI included.";
   if (key == "minesai") return "AI commanders lay minefields too.";
   if (key == "fortify") return "Squads can be ordered to dig in and fortify a position.";
   if (key == "fortifyai") return "AI commanders fortify their positions too.";
-  if (key == "baseworks") return "Fortify on the middle of a base we hold works the whole town,
-site by site.";
+  if (key == "baseworks") return "Fortify on the middle of a base we hold works the whole town,\nsite by site.";
   if (key == "periodjets") return "Without RHS: recon flights and bomb runs show period jets\n(RF-4C, Su-17, A-10, Su-25) with engine sound and falling bombs.";
   if (key == "squadtactics") return "AI squads use Better Battle Buddies' squad tactics (flank, bound,\nsearch) inside a base they attack or defend, never leaving it.";
   if (key == "pullover") return "A squad told to get out on a road first has its driver pull\nonto the verge. Under fire it gets out where it stands.";

@@ -105,7 +105,7 @@ class ACR_SetupLobbyModel
  // "US vs USSR, generated, whole map, seed 123".
  static string Summary(notnull array<ref ACR_SetupLobbyRow> rows)
  {
-  string west, east, layout, seed;
+  string west, east, layout;
   ACR_SetupLobbyRow row = Find(rows, "west");
   if (row) west = row.m_sValue;
   row = Find(rows, "east");
@@ -273,7 +273,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   m_sInfo = info;
   ACR_SetupLobbyModel.Parse(rows, m_aRows);
   FillTabs();
-  string shape = Shape();
+  string shape = RowsShape();
   if (shape != m_sShape || allowedChanged) BuildRows(shape);
   else UpdateRows();
   FillFooter(allowedChanged);
@@ -315,7 +315,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (tab >= ACR_Setup.LOBBY_TABS) tab = 0;
   m_iTab = tab;
   FillTabs();
-  BuildRows(Shape());
+  BuildRows(RowsShape());
   FillFooter(false);
   FillSide();
  }
@@ -326,7 +326,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  // ---------------------------------------------------------------- the centre column
  // Which rows the tab shows and of what kind: the column is rebuilt only when this changes, so a
  // value change keeps the focus where it is.
- protected string Shape()
+ protected string RowsShape()
  {
   string shape = m_iTab.ToString();
   array<ACR_SetupLobbyRow> shown = {};
@@ -577,7 +577,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
     m_sPresetTyped = m_sPresetSelected;
     if (m_PresetName) m_PresetName.SetValue(m_sPresetTyped);
    }
-   BuildRows(Shape());
+   BuildRows(RowsShape());
    return true;
   }
   if (key == "presetsave") { ACR_SetupClient.Request("preset:save:" + PresetTyped()); return true; }
