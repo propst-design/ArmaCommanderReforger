@@ -50,6 +50,92 @@ class ACR_TestSetupLobby
   return false;
  }
 
+ // 15b, by itself (the check's function has a 64-local limit).
+ protected static string Devices(WorkspaceWidget workspace)
+ {
+  string missing;
+  // 15b. The device skins' structure: an opaque screen in a bezel, the status bar with its words,
+  // the rules and the rail line; vanilla keeps the see-through page.
+  array<string> skinNames = {"vanilla", "tablet", "crt"};
+  foreach (string skinKey : skinNames)
+  {
+   ACR_SetupTheme look = ACR_SetupTheme.Named(skinKey);
+   Widget themed = workspace.CreateWidgets(LAYOUT);
+   if (!themed) { missing += skinKey + ":build "; continue; }
+   ACR_SetupLobby.Structure(themed, look);
+   bool device = look.m_bDevice;
+   Widget screen = themed.FindAnyWidget("Screen");
+   Widget bar = themed.FindAnyWidget("StatusBar");
+   Widget leftWords = themed.FindAnyWidget("StatusLeft");
+   bool built = screen && screen.IsVisible() && bar && bar.IsVisible() && themed.FindAnyWidget("TopRule").IsVisible() && themed.FindAnyWidget("FooterRule").IsVisible() && leftWords && TextWidget.Cast(leftWords.GetChildren()) && themed.FindAnyWidget("Backdrop").GetColor().A() >= 0.999;
+   bool hidden = screen && !screen.IsVisible() && bar && !bar.IsVisible() && !themed.FindAnyWidget("RailLine").IsVisible();
+   if (device && !built) missing += skinKey + ":device ";
+   if (!device && !hidden) missing += skinKey + ":plain ";
+   if (device && look.m_bRail && !themed.FindAnyWidget("RailLine").IsVisible()) missing += skinKey + ":rail ";
+   themed.RemoveFromHierarchy();
+  }
+  if (!ACR_SetupTheme.Tablet().m_bDevice || !ACR_SetupTheme.Crt().m_bDevice || ACR_SetupTheme.Vanilla().m_bDevice) missing += "devices ";
+  return missing;
+ }
+
+ protected static void Tooltips(notnull array<ref ACR_SetupLobbyRow> parsed)
+ {
+  array<string> footer = {};
+  // 21. Themed wording (Jacob, 20 Nov): the tablet and terminal may say SITREP, EXEC, Execute, Area
+  // of ops... but every themed tab, row and button has a plain tooltip; vanilla keeps plain labels.
+  string tipWrong;
+  array<string> devices = {"tablet", "crt"};
+  foreach (string deviceName : devices)
+  {
+   ACR_SetupTheme skin = ACR_SetupTheme.Named(deviceName);
+   if (skin.StartLabel() != "Execute") tipWrong += deviceName + ":execute ";
+   for (int t = 0; t < ACR_Setup.LOBBY_TABS; t++)
+   {
+    string tip = ACR_SetupLobbyModel.Tooltip(parsed, "tab:" + t.ToString());
+    if (skin.TabLabel(t).IsEmpty() || !tip.StartsWith(ACR_Setup.LobbyTabName(t) + ": ") || tip.Length() < 20) tipWrong += string.Format("%1:tab%2 ", deviceName, t);
+   }
+   foreach (ACR_SetupLobbyRow tipRow : parsed)
+   {
+    if (tipRow.m_sKind != "value" && tipRow.m_sKind != "seed" && tipRow.m_sKind != "action") continue;
+    string rowTip = ACR_SetupLobbyModel.Tooltip(parsed, tipRow.m_sKey);
+    if (rowTip.IsEmpty() || rowTip.Contains("\n")) tipWrong += deviceName + ":" + tipRow.m_sKey + " ";
+    // A renamed row's tooltip names it plainly.
+    else if (!skin.RowLabel(tipRow.m_sKey).IsEmpty() && !rowTip.StartsWith(tipRow.m_sLabel + ": ")) tipWrong += deviceName + ":plain:" + tipRow.m_sKey + " ";
+   }
+   array<string> buttons = {};
+   ACR_SetupLobbyModel.FooterKeys(true, buttons);
+   ACR_SetupLobbyModel.FooterKeys(false, footer);
+   buttons.InsertAll(footer);
+   foreach (string buttonKey : buttons) if (ACR_SetupLobbyModel.Tooltip(parsed, buttonKey).Length() < 20) tipWrong += deviceName + ":" + buttonKey + " ";
+  }
+  ACR_SetupTheme plainSkin = ACR_SetupTheme.Vanilla();
+  if (!plainSkin.TabLabel(1).IsEmpty() || !plainSkin.RowLabel("layout").IsEmpty() || plainSkin.StartLabel() != "Start match" || !plainSkin.TabHeading(1).IsEmpty()) tipWrong += "vanilla:themed ";
+  if (!ACR_SetupLobbyModel.Tooltip(parsed, "footerstart").StartsWith("Start the match")) tipWrong += "execute:plain ";
+  ACR_TestRegress.Check("lobby: themed tabs, rows and buttons all have a plain tooltip; vanilla stays plain", tipWrong.IsEmpty(), tipWrong);
+ }
+
+ protected static void MapSketch()
+ {
+  // 17. The map sketch: the planned layout names both HQs (the world's own bases too), drawn at 18
+  // against 10 for a base and 6 for a hidden site (20 Nov: every HQ came out at 10).
+  ACR_Setup.UpdatePreview();
+  array<string> details = {};
+  ACR_Setup.PreviewDetails(details);
+  int hqMarks = 0;
+  int bigOthers = 0;
+  foreach (string detail : details)
+  {
+   int size = ACR_SetupLobbyModel.MarkerSize(detail);
+   if (size == 18) hqMarks++;
+   else if (size > 10) bigOthers++;
+  }
+  bool sizesOk = ACR_SetupLobbyModel.MarkerSize("HQ (US), 2 RP") == 18 && ACR_SetupLobbyModel.MarkerSize("Control point, 1 RP | HQ") == 18 && ACR_SetupLobbyModel.MarkerSize("Control point, 1 RP") == 10 && ACR_SetupLobbyModel.MarkerSize("Control point, no income | Hidden") == 6;
+  string firstDetail = "none";
+  if (!details.IsEmpty()) firstDetail = details[0];
+  ACR_TestRegress.Check("lobby: the map sketch draws both HQs bigger than the bases", hqMarks == 2 && bigOthers == 0 && sizesOk, string.Format("%1 HQs of %2 bases (%3, layout %4); sizes ok %5", hqMarks, details.Count(), firstDetail, ACR_Setup.Current("layout"), sizesOk));
+
+ }
+
  static void Run(int second)
  {
   if (second != 6) return;
@@ -237,27 +323,7 @@ class ACR_TestSetupLobby
     }
    }
    if (root) root.RemoveFromHierarchy();
-   // 15b. The device skins' structure: an opaque screen in a bezel, the status bar with its words,
-   // the rules and the rail line; vanilla keeps the see-through page.
-   array<string> skinNames = {"vanilla", "tablet", "crt"};
-   foreach (string skinKey : skinNames)
-   {
-    ACR_SetupTheme look = ACR_SetupTheme.Named(skinKey);
-    Widget themed = workspace.CreateWidgets(LAYOUT);
-    if (!themed) { missing += skinKey + ":build "; continue; }
-    ACR_SetupLobby.Structure(themed, look);
-    bool device = look.m_bDevice;
-    Widget screen = themed.FindAnyWidget("Screen");
-    Widget bar = themed.FindAnyWidget("StatusBar");
-    Widget leftWords = themed.FindAnyWidget("StatusLeft");
-    bool built = screen && screen.IsVisible() && bar && bar.IsVisible() && themed.FindAnyWidget("TopRule").IsVisible() && themed.FindAnyWidget("FooterRule").IsVisible() && leftWords && TextWidget.Cast(leftWords.GetChildren()) && themed.FindAnyWidget("Backdrop").GetColor().A() >= 0.999;
-    bool hidden = screen && !screen.IsVisible() && bar && !bar.IsVisible() && !themed.FindAnyWidget("RailLine").IsVisible();
-    if (device && !built) missing += skinKey + ":device ";
-    if (!device && !hidden) missing += skinKey + ":plain ";
-    if (device && look.m_bRail && !themed.FindAnyWidget("RailLine").IsVisible()) missing += skinKey + ":rail ";
-    themed.RemoveFromHierarchy();
-   }
-   if (!ACR_SetupTheme.Tablet().m_bDevice || !ACR_SetupTheme.Crt().m_bDevice || ACR_SetupTheme.Vanilla().m_bDevice) missing += "devices ";
+   missing += Devices(workspace);
    ACR_TestRegress.Check("lobby: the layout builds its named parts", loaded && root && missing.IsEmpty() && spinOk, string.Format("loaded %1, root %2, missing: %3, spin %4", loaded, root != null, missing, spinOk));
   }
   // 16. The theme table: three skins, every colour set, plain words kept (upper case only in the CRT),
@@ -291,23 +357,7 @@ class ACR_TestSetupLobby
   if (ACR_Setup.LobbyTabPrefix(0) != "1." || ACR_Setup.LobbyTabPrefix(1) != "2." || ACR_Setup.LobbyTabPrefix(5) != "A." || ACR_Setup.LobbyTabPrefix(6) != "B.") themeWrong += "prefix ";
   ACR_TestRegress.Check("lobby: three skins with every colour set, vanilla by default, plain tab names", themeWrong.IsEmpty(), themeWrong);
 
-  // 17. The map sketch: the planned layout names both HQs (the world's own bases too), drawn at 18
-  // against 10 for a base and 6 for a hidden site (20 Nov: every HQ came out at 10).
-  ACR_Setup.UpdatePreview();
-  array<string> details = {};
-  ACR_Setup.PreviewDetails(details);
-  int hqMarks = 0;
-  int bigOthers = 0;
-  foreach (string detail : details)
-  {
-   int size = ACR_SetupLobbyModel.MarkerSize(detail);
-   if (size == 18) hqMarks++;
-   else if (size > 10) bigOthers++;
-  }
-  bool sizesOk = ACR_SetupLobbyModel.MarkerSize("HQ (US), 2 RP") == 18 && ACR_SetupLobbyModel.MarkerSize("Control point, 1 RP | HQ") == 18 && ACR_SetupLobbyModel.MarkerSize("Control point, 1 RP") == 10 && ACR_SetupLobbyModel.MarkerSize("Control point, no income | Hidden") == 6;
-  string firstDetail = "none";
-  if (!details.IsEmpty()) firstDetail = details[0];
-  ACR_TestRegress.Check("lobby: the map sketch draws both HQs bigger than the bases", hqMarks == 2 && bigOthers == 0 && sizesOk, string.Format("%1 HQs of %2 bases (%3, layout %4); sizes ok %5", hqMarks, details.Count(), firstDetail, ACR_Setup.Current("layout"), sizesOk));
+  MapSketch();
 
   // 18. The right panel follows the focus: the focused row's help, not a tab's the pointer rests
   // on; the open tab's description only when nothing has the focus (20 Nov: Starting RP focused
@@ -341,37 +391,7 @@ class ACR_TestSetupLobby
   string noneLine = ACR_SetupLobbyModel.LoadedLine(parsed);
   bool presetWords = ACR_SetupLobbyModel.LoadedPreset(fake) == "Large battle" && loadedLine == "Loaded preset: Large battle" && ACR_SetupLobbyModel.LoadedPreset(parsed) == "" && noneLine == "Loaded preset: none (the scenario's own setup)";
   ACR_TestRegress.Check("lobby: the loaded preset is named apart from the picker's choice", presetWords, loadedLine + " | " + noneLine);
-  // 21. Themed wording (Jacob, 20 Nov): the tablet and terminal may say SITREP, EXEC, Execute, Area
-  // of ops... but every themed tab, row and button has a plain tooltip; vanilla keeps plain labels.
-  string tipWrong;
-  array<string> devices = {"tablet", "crt"};
-  foreach (string deviceName : devices)
-  {
-   ACR_SetupTheme skin = ACR_SetupTheme.Named(deviceName);
-   if (skin.StartLabel() != "Execute") tipWrong += deviceName + ":execute ";
-   for (int t = 0; t < ACR_Setup.LOBBY_TABS; t++)
-   {
-    string tip = ACR_SetupLobbyModel.Tooltip(parsed, "tab:" + t.ToString());
-    if (skin.TabLabel(t).IsEmpty() || !tip.StartsWith(ACR_Setup.LobbyTabName(t) + ": ") || tip.Length() < 20) tipWrong += string.Format("%1:tab%2 ", deviceName, t);
-   }
-   foreach (ACR_SetupLobbyRow tipRow : parsed)
-   {
-    if (tipRow.m_sKind != "value" && tipRow.m_sKind != "seed" && tipRow.m_sKind != "action") continue;
-    string rowTip = ACR_SetupLobbyModel.Tooltip(parsed, tipRow.m_sKey);
-    if (rowTip.IsEmpty() || rowTip.Contains("\n")) tipWrong += deviceName + ":" + tipRow.m_sKey + " ";
-    // A renamed row's tooltip names it plainly.
-    else if (!skin.RowLabel(tipRow.m_sKey).IsEmpty() && !rowTip.StartsWith(tipRow.m_sLabel + ": ")) tipWrong += deviceName + ":plain:" + tipRow.m_sKey + " ";
-   }
-   array<string> buttons = {};
-   ACR_SetupLobbyModel.FooterKeys(true, buttons);
-   ACR_SetupLobbyModel.FooterKeys(false, footer);
-   buttons.InsertAll(footer);
-   foreach (string buttonKey : buttons) if (ACR_SetupLobbyModel.Tooltip(parsed, buttonKey).Length() < 20) tipWrong += deviceName + ":" + buttonKey + " ";
-  }
-  ACR_SetupTheme plainSkin = ACR_SetupTheme.Vanilla();
-  if (!plainSkin.TabLabel(1).IsEmpty() || !plainSkin.RowLabel("layout").IsEmpty() || plainSkin.StartLabel() != "Start match" || !plainSkin.TabHeading(1).IsEmpty()) tipWrong += "vanilla:themed ";
-  if (!ACR_SetupLobbyModel.Tooltip(parsed, "footerstart").StartsWith("Start the match")) tipWrong += "execute:plain ";
-  ACR_TestRegress.Check("lobby: themed tabs, rows and buttons all have a plain tooltip; vanilla stays plain", tipWrong.IsEmpty(), tipWrong);
+  Tooltips(parsed);
   ACR_TestRegress.Complete("setuplobby", CHECKS);
  }
 }
