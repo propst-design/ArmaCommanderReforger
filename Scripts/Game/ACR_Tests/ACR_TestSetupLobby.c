@@ -238,6 +238,12 @@ class ACR_TestSetupLobby
    if (!theme.m_West || !theme.m_East || !theme.m_Neutral || !theme.m_Other || !theme.m_WestPanel || !theme.m_EastPanel) themeWrong += skinName + ":sides ";
    if (theme.m_sChanged.IsEmpty()) themeWrong += skinName + ":mark ";
    if (!theme.m_sHeadingLayout.IsEmpty() && !Resource.Load(theme.m_sHeadingLayout).IsValid()) themeWrong += skinName + ":font ";
+   // White button labels readable in every state: WCAG AA 4.5:1 (20 Nov: 1.6-3.5:1 on the tablet).
+   if (theme.m_Button && theme.m_ButtonHover && theme.m_ButtonPress && theme.m_ButtonSelected)
+   {
+    float worst = Math.Min(Math.Min(theme.LabelContrast(theme.m_Button), theme.LabelContrast(theme.m_ButtonHover)), Math.Min(theme.LabelContrast(theme.m_ButtonPress), theme.LabelContrast(theme.m_ButtonSelected)));
+    if (worst < 4.5) themeWrong += string.Format("%1:contrast %2 ", skinName, worst);
+   }
   }
   if (ACR_SetupTheme.Crt().Text("Starting RP") != "STARTING RP" || ACR_SetupTheme.Vanilla().Text("Starting RP") != "Starting RP") themeWrong += "case ";
   if (ACR_SetupTheme.Chosen() != "vanilla") themeWrong += "chosen:" + ACR_SetupTheme.Chosen() + " ";

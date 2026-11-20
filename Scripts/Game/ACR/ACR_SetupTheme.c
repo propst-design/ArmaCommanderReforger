@@ -48,6 +48,9 @@ class ACR_SetupTheme : Managed
 
  // The skins' colours are sRGB (as a designer picks them); widgets want linear and gamma them on the
  // way out, so a colour given as is shows washed out (the terminal's near-black screen as a mid green).
+ // Buttons too (20 Nov): they were raw Color values, which the engine showed far lighter (the tablet's
+ // tabs light grey under white labels, 1.6-3.5:1). Every button state now gives its white label at
+ // least 5:1 (WCAG AA 4.5:1), worked out on these sRGB values blended over the backdrop.
  protected static Color Srgb(int r, int g, int b, float a = 1)
  {
   return ACR_TwoICStyle.Rgb(r, g, b, a);
@@ -99,18 +102,18 @@ class ACR_SetupTheme : Managed
   theme.m_Backdrop = Srgb(5, 9, 15, 0.902);
   theme.m_Panel = Srgb(18, 26, 23);
   theme.m_Heading = Srgb(255, 255, 255);
-  theme.m_Decor = Srgb(120, 150, 190);
+  theme.m_Decor = Srgb(150, 178, 215);
   theme.m_Subtitle = Srgb(158, 189, 230);
   theme.m_Text = Srgb(255, 255, 255);
   theme.m_TextDim = Srgb(170, 190, 215);
   theme.m_Help = Srgb(209, 219, 230);
   theme.m_Status = Srgb(242, 184, 89);
   theme.m_Changed = Srgb(255, 178, 80);
-  theme.m_Button = new Color(0.16, 0.42, 0.80, 0.40);
-  theme.m_ButtonHover = new Color(0.26, 0.56, 0.96, 0.70);
-  theme.m_ButtonPress = new Color(0.30, 0.62, 1.0, 0.95);
-  theme.m_ButtonSelected = new Color(0.26, 0.56, 0.96, 0.85);
-  theme.m_ButtonBorder = new Color(0.45, 0.72, 1.0, 1.0);
+  theme.m_Button = Srgb(30, 60, 110, 0.80);
+  theme.m_ButtonHover = Srgb(40, 85, 150, 0.92);
+  theme.m_ButtonPress = Srgb(28, 72, 140, 1.0);
+  theme.m_ButtonSelected = Srgb(35, 95, 175, 0.95);
+  theme.m_ButtonBorder = Srgb(115, 175, 255);
   theme.m_West = Srgb(80, 140, 255);
   theme.m_East = Srgb(240, 80, 70);
   theme.m_Neutral = Srgb(170, 170, 170);
@@ -136,11 +139,11 @@ class ACR_SetupTheme : Managed
   theme.m_Help = Srgb(140, 255, 160);
   theme.m_Status = Srgb(200, 255, 120);
   theme.m_Changed = Srgb(220, 255, 140);
-  theme.m_Button = new Color(0.05, 0.30, 0.08, 0.55);
-  theme.m_ButtonHover = new Color(0.10, 0.50, 0.15, 0.80);
-  theme.m_ButtonPress = new Color(0.20, 0.70, 0.25, 0.95);
-  theme.m_ButtonSelected = new Color(0.12, 0.55, 0.18, 0.90);
-  theme.m_ButtonBorder = new Color(0.35, 0.95, 0.40, 1.0);
+  theme.m_Button = Srgb(10, 45, 15, 0.85);
+  theme.m_ButtonHover = Srgb(20, 80, 30, 0.92);
+  theme.m_ButtonPress = Srgb(15, 100, 30, 1.0);
+  theme.m_ButtonSelected = Srgb(25, 110, 40, 0.95);
+  theme.m_ButtonBorder = Srgb(90, 240, 105);
   theme.m_West = Srgb(110, 170, 255);
   theme.m_East = Srgb(255, 110, 90);
   theme.m_Neutral = Srgb(90, 200, 105);
@@ -171,11 +174,11 @@ class ACR_SetupTheme : Managed
   theme.m_Help = Srgb(215, 220, 210);
   theme.m_Status = Srgb(255, 190, 60);
   theme.m_Changed = Srgb(255, 190, 60);
-  theme.m_Button = new Color(0.25, 0.30, 0.27, 0.85);
-  theme.m_ButtonHover = new Color(0.35, 0.42, 0.37, 0.95);
-  theme.m_ButtonPress = new Color(0.85, 0.62, 0.20, 0.95);
-  theme.m_ButtonSelected = new Color(0.72, 0.52, 0.16, 0.95);
-  theme.m_ButtonBorder = new Color(0.55, 0.62, 0.56, 1.0);
+  theme.m_Button = Srgb(52, 62, 56, 0.90);
+  theme.m_ButtonHover = Srgb(74, 88, 80, 0.95);
+  theme.m_ButtonPress = Srgb(150, 100, 20, 1.0);
+  theme.m_ButtonSelected = Srgb(125, 85, 15, 0.95);
+  theme.m_ButtonBorder = Srgb(140, 158, 143);
   theme.m_West = Srgb(90, 150, 240);
   theme.m_East = Srgb(230, 85, 70);
   theme.m_Neutral = Srgb(165, 172, 165);
@@ -186,6 +189,20 @@ class ACR_SetupTheme : Managed
   theme.m_sDecor = "C2 TABLET  |  MATCH SETUP  |  LINK OK";
   theme.m_sKeys = "Space: Start    Q / E: change tab    Left / right: change a value";
   return theme;
+ }
+
+ // A white button label's contrast on a button fill (WCAG ratio), the fill blended over this skin's
+ // backdrop over a dark scene. The colours are linear here, so their weighted sum is the luminance.
+ float LabelContrast(Color fill)
+ {
+  float back = Luminance(m_Backdrop) * m_Backdrop.A();
+  float lum = Luminance(fill) * fill.A() + back * (1 - fill.A());
+  return 1.05 / (lum + 0.05);
+ }
+
+ protected static float Luminance(Color c)
+ {
+  return 0.2126 * c.R() + 0.7152 * c.G() + 0.0722 * c.B();
  }
 
  // A label, value, tab or button in this skin's case (help text is not passed through here).
