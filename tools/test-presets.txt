@@ -301,6 +301,7 @@ placeauditkolguyev|-acrPlaceAuditTest 1|180|Worlds/ACR_Kolguyev.ent
 voidspawn|-acrVoidSpawnTest 1|180|Worlds/ACR_ChernarusMinus.ent
 voidspawneveron|-acrVoidSpawnTest 1|180|Worlds/ACR_Everon.ent
 truckpark|-acrTruckParkTest 1|180|Worlds/ACR_ChernarusMinus.ent
+lightrides|-acrLightRidesTest 1|200|Worlds/ACR_Everon.ent
 parts|-acrPartsTest 1|360
 wings|-acrWingsTest 1|240|Worlds/ACR_Everon.ent
 wingsarland|-acrWingsTest 1|240|Worlds/ACR_Arland.ent

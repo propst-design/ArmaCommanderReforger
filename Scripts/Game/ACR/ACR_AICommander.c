@@ -6367,7 +6367,10 @@ class ACR_AICommander : Managed
   int maxTransports = 4;
   if (ACR_Manager.ThreatOption() == 2) maxTransports = 5;
   maxTransports += m_Doctrine.m_iTransports;
-  if (m_Manager.m_Rides && m_Manager.m_Rides.ShortOfTransport(m_sFaction) && m_Manager.m_Rides.CountTransports(m_sFaction) < maxTransports)
+  // A small party (a team, a squad's remnant) found no ride: a jeep, right-sized and cheap.
+  bool lightShort = m_Manager.m_Rides && m_Manager.m_Rides.ShortOfLightRide(m_sFaction);
+  if (lightShort && BuyLightRide(data, spawn, UrgentTroops(combatLine, cap))) return;
+  if (m_Manager.m_Rides && (lightShort || m_Manager.m_Rides.ShortOfTruck(m_sFaction)) && m_Manager.m_Rides.CountTransports(m_sFaction) < maxTransports)
   {
    // The cheapest truck; a rich side (#28) takes an armed one (an APC) when it has one.
    bool armedRide = FireFactor() > 1;
@@ -6384,6 +6387,7 @@ class ACR_AICommander : Managed
    {
     Say(string.Format("[ACR] AI %1 requisition (transport): %2", m_sFaction, m_Manager.PurchaseAt(m_sFaction, truck, spawn)));
     m_Manager.m_Rides.m_NoTransportAt.Remove(m_sFaction);
+    m_Manager.m_Rides.m_NoLightAt.Remove(m_sFaction);
     return;
    }
   }
@@ -6559,6 +6563,75 @@ class ACR_AICommander : Managed
  // Share of the AI squad cap a fighting unit takes: one, or half for a 2-3 man team of a
  // doctrine built on them (Raider), so it fields about as many men as the others
  // (the soldier cap still bounds the total).
+ // Light rides (20 Nov, Jacob: "I don't see the AI buying jeeps or HMMWVs for rides at all"). Before
+ // this the AI bought only trucks (m_bTransport: the catalog's VEHICLE_TRUCK), and the unit pick skips
+ // unarmed cars, so an unarmed UAZ, M151 or HMMWV was never bought. Small parties now get one; trucks
+ // still take squads. At most MAX_LIGHT_RIDES (one more at high threat); they don't count against
+ // the squad cap (no gun: ACR_Squad.IsCombatUnit) nor the truck quota (under 4 seats).
+ static const int MAX_LIGHT_RIDES = 2;
+
+ // An unarmed car a team can ride in: not a truck, carrier, aircraft, armour or service vehicle, and
+ // no group of its own aboard. Catalog and content-socket entries alike (neither flags jeeps).
+ static bool IsLightRide(ACR_RequisitionEntry entry)
+ {
+  if (!entry || entry.m_sVehicle.IsEmpty() || !entry.m_sGroup.IsEmpty() || !entry.m_sPassengers.IsEmpty()) return false;
+  if (entry.m_bArmed || entry.m_bTransport || entry.m_bCarrier || entry.m_bSquadCarrier || entry.m_bAircraft || entry.m_bRare) return false;
+  if (entry.m_bMortarTeam || entry.m_bObserverTeam || entry.m_iSupportHeli != 0) return false;
+  if (entry.m_sVehicle.Contains("/Helicopters/") || entry.m_sVehicle.Contains("/Planes/") || entry.m_sVehicle.Contains("/Tracked/")) return false;
+  return !IsServiceVehicle(entry);
+ }
+
+ // Our crewed light rides: a light-ride prefab (whoever sits in it, so one that spawns with a man in
+ // a hatch can't be bought again and again), or any other unarmed taxi with under 4 passenger seats.
+ int CountLightRides(ACR_FactionData data)
+ {
+  array<ResourceName> prefabs = {};
+  foreach (ACR_RequisitionEntry entry : data.m_aRequisitions)
+   if (IsLightRide(entry)) prefabs.Insert(entry.m_sVehicle);
+  int count;
+  foreach (ACR_Squad squad : m_Manager.m_Squads)
+  {
+   if (ACR_Rides.FactionOf(squad) != m_sFaction) continue;
+   IEntity vehicle = ACR_Transport.CrewedVehicle(squad);
+   if (!vehicle) continue;
+   if (vehicle.GetPrefabData() && prefabs.Contains(vehicle.GetPrefabData().GetPrefabName())) { count++; continue; }
+   if (squad.HasGunner(vehicle) || ACR_Logistics.ServiceOf(vehicle) != 0) continue;
+   if (!CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent))) continue;
+   if (ACR_Rides.CargoSeats(vehicle) < 4) count++;
+  }
+  return count;
+ }
+
+ // The cheapest light ride on offer, when the side has fewer than its share. urgent (short of
+ // troops): only if the purse still buys the cheapest squad on foot afterwards, so a jeep never
+ // takes the RP the line needs. True: bought one.
+ protected bool BuyLightRide(ACR_FactionData data, ACR_Base spawn, bool urgent)
+ {
+  int maxLight = MAX_LIGHT_RIDES;
+  if (ACR_Manager.ThreatOption() == 2) maxLight++;
+  int have = CountLightRides(data);
+  if (have >= maxLight) return false;
+  int purse = Purse(data);
+  int pick = -1;
+  int cheapestFoot = -1;
+  foreach (int e, ACR_RequisitionEntry offer : data.m_aRequisitions)
+  {
+   if (!ACR_Requisition.Available(data, offer)) continue;
+   if (offer.m_sVehicle.IsEmpty() && !offer.m_sGroup.IsEmpty() && !offer.m_bMortarTeam && !offer.m_bObserverTeam && !IsSpecialistTeam(offer))
+   {
+    if (cheapestFoot < 0 || offer.m_iCost < cheapestFoot) cheapestFoot = offer.m_iCost;
+    continue;
+   }
+   if (!IsLightRide(offer) || offer.m_iCost > purse) continue;
+   if (pick < 0 || offer.m_iCost < data.m_aRequisitions[pick].m_iCost) pick = e;
+  }
+  if (pick < 0) return false;
+  if (urgent && cheapestFoot > 0 && purse - data.m_aRequisitions[pick].m_iCost < cheapestFoot) return false;
+  Say(string.Format("[ACR] AI %1 requisition (light ride, %2 of %3): %4", m_sFaction, have + 1, maxLight, m_Manager.PurchaseAt(m_sFaction, pick, spawn)));
+  m_Manager.m_Rides.m_NoLightAt.Remove(m_sFaction);
+  return true;
+ }
+
  protected float CapSlots(ACR_Squad squad)
  {
   if (squad.m_bLeftovers) return 0; // men a player dismissed from other squads: not a unit it bought
