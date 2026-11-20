@@ -101,7 +101,12 @@ class ACR_Rides : Managed
  protected ACR_Manager m_Manager;
  ref array<ref ACR_Ride> m_Rides = {};
  ref array<ref ACR_Ride> m_Unloading = {};    // rides over, transport waiting for its riders to get out
- ref map<string, float> m_NoTransportAt = new map<string, float>(); // faction -> last time a ride found no transport
+ ref map<string, float> m_NoTransportAt = new map<string, float>(); // faction -> last time a ride for more than LIGHT_PARTY found no transport
+ ref map<string, float> m_NoLightAt = new map<string, float>();     // ...and for a party a jeep seats (LIGHT_PARTY or fewer)
+ // A party this small fits a jeep (a UAZ, M151 or HMMWV: three passenger seats). The AI commander
+ // buys a light car for those shortages and a truck for bigger ones (20 Nov: it only ever bought
+ // trucks, so Jacob never saw a jeep give a ride; about half the refused rides were 1-4 men).
+ static const int LIGHT_PARTY = 3;
 
  void ACR_Rides(ACR_Manager manager)
  {
@@ -323,8 +328,32 @@ class ACR_Rides : Managed
  // Recently needed a transport and found none (the AI commander buys one).
  bool ShortOfTransport(string faction)
  {
-  if (!m_NoTransportAt.Contains(faction)) return false;
-  return GetGame().GetWorld().GetWorldTime() - m_NoTransportAt.Get(faction) < 180000;
+  return ShortOfTruck(faction) || ShortOfLightRide(faction);
+ }
+
+ // ...for a party bigger than a jeep seats (the AI buys a truck).
+ bool ShortOfTruck(string faction)
+ {
+  return Recent(m_NoTransportAt, faction);
+ }
+
+ // ...for a party of LIGHT_PARTY or fewer (the AI buys a jeep, or a truck when it has none to buy).
+ bool ShortOfLightRide(string faction)
+ {
+  return Recent(m_NoLightAt, faction);
+ }
+
+ protected static bool Recent(map<string, float> times, string faction)
+ {
+  if (!times.Contains(faction)) return false;
+  return GetGame().GetWorld().GetWorldTime() - times.Get(faction) < 180000;
+ }
+
+ // A ride for 'seats' found no transport (also what a test plants to stand for one).
+ void NoTransportFor(string faction, int seats)
+ {
+  if (seats <= LIGHT_PARTY) m_NoLightAt.Set(faction, GetGame().GetWorld().GetWorldTime());
+  else m_NoTransportAt.Set(faction, GetGame().GetWorld().GetWorldTime());
  }
 
  int CountTransports(string faction)
@@ -347,14 +376,15 @@ class ACR_Rides : Managed
  }
 
  // How many of those there are (the AI allocator's truck budget: one squad a truck).
- int CountIdleTransports(string faction, bool handedOnly = false)
+ // minSeats: a jeep counts for a small party (a ride refusal's test for buying one).
+ int CountIdleTransports(string faction, bool handedOnly = false, int minSeats = 4)
  {
   int count;
   foreach (ACR_Squad squad : m_Manager.m_Squads)
   {
    if (handedOnly && !squad.m_bAICommanded) continue;
    if (!IsFreeTransport(squad, faction)) continue; // (a truck that gave up stuck lately isn't: WhyNotTaxi)
-   if (FreeSeats(ACR_Transport.CrewedVehicle(squad)) >= 4) count++;
+   if (FreeSeats(ACR_Transport.CrewedVehicle(squad)) >= minSeats) count++;
   }
   return count;
  }
@@ -388,7 +418,10 @@ class ACR_Rides : Managed
    // Short of trucks only when none is idle anywhere: one parked too far off is the motor pool's
    // job (ACR_AICommander.PositionTransports), not a reason to buy another at the rear base
    // (6 Nov: a new truck for nearly every refused ride, 29 in 3 h, parked in rows at the HQ).
-   if (!HasIdleTransport(faction, handedOnly)) m_NoTransportAt.Set(faction, GetGame().GetWorld().GetWorldTime());
+   // A small party counts an idle jeep too (CountIdleTransports doesn't: under 4 seats).
+   bool idle = HasIdleTransport(faction, handedOnly);
+   if (!idle && seats <= LIGHT_PARTY) idle = CountIdleTransports(faction, handedOnly, seats) > 0;
+   if (!idle) NoTransportFor(faction, seats);
    float maxFetch = MAX_PICKUP;
    float shareFetch = PICKUP_SHARE;
    if (wideFetch)

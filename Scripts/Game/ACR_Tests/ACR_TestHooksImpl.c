@@ -88,6 +88,8 @@ modded class ACR_TestHooks
   if (!m_Harness && (System.IsCLIParam("acrDriveRoutesTest") || System.IsCLIParam("acrDriveRoutesBBBTest"))) ACR_TestDriveRoutes.Run(null, seconds);
   // -acrTruckParkTest: where idle service trucks wait at a base (ACR_TestTruckPark).
   if (System.IsCLIParam("acrTruckParkTest")) ACR_TestTruckPark.Run(seconds);
+  // -acrLightRidesTest: the AI commander buys jeeps for small parties' rides (ACR_TestLightRides).
+  if (System.IsCLIParam("acrLightRidesTest")) ACR_TestLightRides.Run(seconds);
   if (System.IsCLIParam("acrPartsTest")) ACR_TestParts.Run(seconds);
   if (System.IsCLIParam("acrWingsTest") || System.IsCLIParam("acrWingsOffTest") || System.IsCLIParam("acrWingShotsTest")) ACR_TestWings.Run(seconds);
   if (System.IsCLIParam("acrWorksShotsTest") || System.IsCLIParam("acrWorksShotsCompactTest") || ACR_TestBaseWorks.StyleTest("acrStyleShots")) ACR_TestWorksShots.Run(seconds);
