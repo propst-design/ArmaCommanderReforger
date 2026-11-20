@@ -16,9 +16,9 @@
 // Hubs (-acrLogisticsHubs 1): trucks load and restock only at the HQ, ports (a base with deep water
 //    by its ring) and hub FOBs (a FOB with a built supply depot). Off: any held deploy base, as before.
 // Recorded routes: every run that arrives is recorded (both sides, each keeps its own): its track
-//    thinned to bend points. A later run between the same ends replays it as a chain of move legs
-//    (ACR_Squad.WalkLegs: #86's FlowHops, SkipStraightHops, DriveWatch and OnGroupMoveFailed all
-//    apply unchanged). A leg that sticks falls back to road routing where it stands (ACR_Squad.Reroute)
+//    thinned to bend points. A later run between the same ends replays it through ACR_Squad.WalkLegs,
+//    which drives a crewed truck there as one trip to the route's end (#86, 20 Nov: on Reforger 1.9 each
+//    waypoint change stops the driver); DriveWatch and OnGroupMoveFailed apply unchanged. A leg that sticks falls back to road routing where it stands (ACR_Squad.Reroute)
 //    and the route is marked suspect; a second failure sets it aside for the match until a drive
 //    restores it. Routes that cross an enemy base or a known FIA road are skipped while that stands.
 //    Routes live in the match; -acrSaveRoutes 1 keeps them in the host's profile per map

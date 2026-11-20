@@ -1,23 +1,23 @@
 // -acrDriveFlowTest 1 (server-capable, ~7 min): #86 came back on 20 Nov (Jacob: "AI drivers pause at
-// every waypoint in their route"). A crewed truck drives two multi-waypoint trips on the test range's
-// east road and back, and every second its speed is checked against the trip's intermediate waypoints:
-//  A. an ordered move over road hops (RouteTo with road hops on, as -acrNoRoadHops 0, the same hops DriveWatch's
-//     re-route and a failed move fall back to);
+// every waypoint in their route"). On Reforger 1.9 every waypoint change ends the group's move and the
+// driver plans again from a stop, so a crewed vehicle drives each trip on one waypoint (Jacob, 20 Nov).
+// A crewed truck drives two trips on the test range's east road and back:
+//  A. an ordered move (RouteTo, ~1.8 km);
 //  B. a supply run's recorded route replayed (the road track thinned to bend points by
 //     ACR_SupplyRuns.Thin, driven at FAST through ACR_Squad.WalkLegs, as ACR_SupplyRuns.Send does).
-// A dip is a drop below DIP_MS within NEAR_M of an intermediate waypoint after it had got going (over
-// 5 m/s); each waypoint counts once. A stop-start trip dips at nearly every one. Logs "[ACR] FLOW ...".
-// VERDICT: per trip, it is a multi-waypoint trip, it arrives, and at most MAX_DIPS dips (6 checks).
+// Every second the truck's speed is read. A dip is a drop below DIP_MS after it had got going (over
+// 5 m/s) within NEAR_M of a spot where its waypoint changed; stops elsewhere (the hill ~600 m out
+// stops it on every build, 18 Nov's included) don't count. Logs "[ACR] FLOW ...".
+// VERDICT: per trip, the input is a real trip, it arrives, one waypoint for the whole trip, and no dip
+// where the waypoint changed (8 checks).
 class ACR_TestDriveFlow
 {
  static const ResourceName TRUCK = "{F1FBD0972FA5FE09}Prefabs/Vehicles/Wheeled/M923A1/M923A1_transport.et";
  static const float DIP_MS = 2.0;
  static const float NEAR_M = 45;
- static const int MAX_DIPS = 1; // a junction or a slow corner, not one per waypoint
  static const int TRIP_LIMIT = 230; // s per trip
  static ACR_Squad s_Truck;
- static ref array<vector> s_aPoints; // the trip's intermediate waypoints
- static ref array<bool> s_aDipped;
+ static ref array<vector> s_aSwitches; // where the truck was when its waypoint changed mid-trip
  static vector s_vEnd;
  static string s_sTrip;
  static int s_iTrip;     // 0 none yet, 1 A, 2 B, 3 done
@@ -36,10 +36,7 @@ class ACR_TestDriveFlow
   if (!manager) return;
   if (tick == 1)
   {
-   s_aPoints = {};
-   s_aDipped = {};
-   ACR_Squad.s_bRoadHopsOn = true; // trip A: an ordered move over road hops
-   ACR_Squad.s_bFlowLog = true;
+   s_aSwitches = {};
    ACR_FactionSettings soviets = ACR_FactionSettings.Find(ACR_FactionSelection.East());
    if (soviets) soviets.m_bAICommander = false;
    ACR_FactionSettings us = ACR_FactionSettings.Find(ACR_FactionSelection.West());
@@ -62,42 +59,36 @@ class ACR_TestDriveFlow
   s_vLast = here;
   if (s_Truck.m_MoveTarget != s_vTarget)
   {
+   if (s_iTargets > 0) s_aSwitches.Insert(here);
    s_vTarget = s_Truck.m_MoveTarget;
    s_iTargets++;
-   PrintFormat("[ACR] FLOW %1 t=%2 new waypoint %3 at %4 m/s, %5 m ahead", s_sTrip, tick, s_vTarget, speed, (int)vector.DistanceXZ(here, s_vTarget));
+   PrintFormat("[ACR] FLOW %1 t=%2 waypoint %3: %4 at %5 m/s, %6 m ahead", s_sTrip, tick, s_iTargets, s_vTarget, speed, (int)vector.DistanceXZ(here, s_vTarget));
   }
   if (speed > 5) s_bRolling = true;
   else if (speed < DIP_MS && s_bRolling)
   {
    s_bRolling = false;
    s_iStops++;
-   int near = -1;
-   float best = NEAR_M;
-   foreach (int i, vector p : s_aPoints)
-   {
-    float d = vector.DistanceXZ(here, p);
-    if (d < best) { best = d; near = i; }
-   }
-   if (near >= 0 && !s_aDipped[near])
-   {
-    s_aDipped[near] = true;
-    s_iDips++;
-   }
-   PrintFormat("[ACR] FLOW %1 stop %2 at t=%3, %4 m driven, nearest waypoint %5 (%6 m), order '%7'", s_sTrip, s_iStops, tick, (int)s_fDriven, near, (int)best, s_Truck.m_Order);
+   float best = 99999;
+   foreach (vector p : s_aSwitches) best = Math.Min(best, vector.DistanceXZ(here, p));
+   bool dip = best <= NEAR_M;
+   if (dip) s_iDips++;
+   PrintFormat("[ACR] FLOW %1 stop %2 at t=%3, %4 m driven, %5 m from a waypoint change -> dip %6, order '%7'", s_sTrip, s_iStops, tick, (int)s_fDriven, (int)best, dip, s_Truck.m_Order);
   }
   float toEnd = vector.DistanceXZ(here, s_vEnd);
   if (tick % 10 == 0) PrintFormat("[ACR] FLOW %1 t=%2 speed %3 m/s, %4 m to go, waypoints %5, stops %6, dips %7", s_sTrip, tick, speed, (int)toEnd, s_iTargets, s_iStops, s_iDips);
   bool arrived = toEnd < 60;
   if (!arrived && tick - s_iStarted < TRIP_LIMIT) return;
-  string summary = string.Format("%1: arrived %2 after %3 s, %4 m, %5 intermediate waypoints, %6 waypoints given, %7 stops, %8 dips at waypoints, %9 hop moves carried on", s_sTrip, arrived, tick - s_iStarted, (int)s_fDriven, s_aPoints.Count(), s_iTargets, s_iStops, s_iDips, ACR_Squad.s_iFlowsKept);
+  string summary = string.Format("%1: arrived %2 after %3 s, %4 m, %5 waypoints given, %6 stops, %7 dips where the waypoint changed", s_sTrip, arrived, tick - s_iStarted, (int)s_fDriven, s_iTargets, s_iStops, s_iDips);
   Print("[ACR] FLOW RESULT " + summary);
   ACR_TestRegress.Check("driveflow " + s_sTrip + ": the truck gets there", arrived, summary);
-  ACR_TestRegress.Check("driveflow " + s_sTrip + ": no stop at each waypoint (at most " + MAX_DIPS + " dips)", s_iDips <= MAX_DIPS, summary);
+  ACR_TestRegress.Check("driveflow " + s_sTrip + ": one waypoint for the whole trip", s_iTargets == 1, summary);
+  ACR_TestRegress.Check("driveflow " + s_sTrip + ": no stop where the waypoint changed", s_iDips == 0, summary);
   if (s_iTrip == 1) StartTrip(h, tick, 2);
   else
   {
    s_iTrip = 3;
-   ACR_TestRegress.Complete("driveflow", 6);
+   ACR_TestRegress.Complete("driveflow", 8);
   }
  }
 
@@ -114,12 +105,14 @@ class ACR_TestDriveFlow
   s_bRolling = false;
   s_vLast = vehicle.GetOrigin();
   s_vTarget = vector.Zero;
-  s_aPoints.Clear();
-  s_aDipped.Clear();
+  s_aSwitches.Clear();
   if (trip == 1)
   {
    s_sTrip = "ordered move";
-   s_Truck.RouteTo(h.Ground("2931 0 2743"), ACR_Squad.WP_MOVE, 25, "Moving", 0);
+   vector goal = h.Ground("2931 0 2743");
+   float length = vector.DistanceXZ(vehicle.GetOrigin(), goal);
+   ACR_TestRegress.Check("driveflow ordered move: a long trip (over 1.5 km)", length > 1500, string.Format("%1 m", (int)length));
+   s_Truck.RouteTo(goal, ACR_Squad.WP_MOVE, 25, "Moving", 0);
    s_vEnd = s_Truck.RouteDestination();
   }
   else
@@ -133,22 +126,11 @@ class ACR_TestDriveFlow
    ACR_SupplyRuns.Thin(track, legs);
    if (!legs.IsEmpty()) legs.RemoveOrdered(0); // where it stands
    if (legs.IsEmpty()) legs.Insert(h.Ground("1236 0 2795"));
-   s_vEnd = legs[legs.Count() - 1];
+   ACR_TestRegress.Check("driveflow supply route: a recorded route of 3 or more legs", legs.Count() >= 3, string.Format("%1 legs", legs.Count()));
    s_Truck.SetMode(ACR_EMoveMode.FAST);
    s_Truck.WalkLegs(legs, ACR_Squad.WP_MOVE, -1, "Supply run to the test FOB", 0);
+   s_vEnd = s_Truck.RouteDestination();
   }
-  array<vector> planned = {};
-  array<int> kinds = {};
-  s_Truck.GetPlannedPoints(planned, kinds);
-  // The waypoint it is on now and every leg after it, less the trip's end.
-  if (vector.DistanceXZ(s_Truck.m_MoveTarget, s_vEnd) > 30) s_aPoints.Insert(s_Truck.m_MoveTarget);
-  foreach (vector p : planned)
-  {
-   if (vector.DistanceXZ(p, s_vEnd) <= 30) continue;
-   s_aPoints.Insert(p);
-  }
-  foreach (vector q : s_aPoints) s_aDipped.Insert(false);
-  PrintFormat("[ACR] FLOW %1 starts at t=%2: %3 intermediate waypoints, end %4", s_sTrip, tick, s_aPoints.Count(), s_vEnd);
-  ACR_TestRegress.Check("driveflow " + s_sTrip + ": a multi-waypoint trip (3 or more on the way)", s_aPoints.Count() >= 3, string.Format("%1 waypoints on the way", s_aPoints.Count()));
+  PrintFormat("[ACR] FLOW %1 starts at t=%2, end %3", s_sTrip, tick, s_vEnd);
  }
 }
