@@ -110,7 +110,7 @@ function Open-CheckedProject {
  Write-Host "Uploaded $Mod $($notes.version). Download its Workshop update, then use option 6." -ForegroundColor Green
  Start-ChangelogRelay $Mod
 }
-$mapMods = @('MAP-CHERNARUS','MAP-GULFCOAST','MAP-KUNAR','MAP-WESTZAGORIA','MAP-ZIMNITRITA','PACK-COLDWAR','PACK-ZOMBIES','PACK-CIVPOP')
+$mapMods = @('MAP-CHERNARUS','MAP-GULFCOAST','MAP-KUNAR','MAP-WESTZAGORIA','MAP-ZIMNITRITA','PACK-COLDWAR','PACK-MODERN','PACK-ZOMBIES','PACK-CIVPOP')
 $allMods = @('ACA','BBB','AIO') + $mapMods
 function Read-MapMod {
  for ($i = 0; $i -lt $mapMods.Count; $i++) { Write-Host ("  {0}  {1}" -f ($i + 1), $mapMods[$i]) }

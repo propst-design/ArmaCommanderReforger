@@ -47,6 +47,8 @@ for _key, (_folder, _title, _n, _short) in MAPS.items():
 # starts a generated ACA world, and passes when the pack reports itself plugged in.
 PACKS = {
     'PACK-COLDWAR': ('ACAColdWar', 'Cold War pack', 'AC230926CC000002', ['Scripts', 'Prefabs'], 'Cold War'),
+    # Modern pack (#109, 20 Nov): scripts only, for the RHS sides. First version uploaded by Jacob in Workbench.
+    'PACK-MODERN': ('ACAModern', 'Modern pack', 'AC230926DD000003', ['Scripts'], 'Modern'),
 }
 for _key, (_folder, _title, _guid, _dirs, _name) in PACKS.items():
     SPECS[_key] = dict(folder=_folder, title='Arma Commander: Actual - ' + _title, guid=_guid,
@@ -237,6 +239,13 @@ def workshop_draft(source, version, dependency_only=False, required=False):
         raise Blocked(f'{WORKSHOP_DRAFT} is {len(text)} characters; Workbench takes '
                       f'{WORKSHOP_CHANGELOG_LIMIT}.')
     return text
+
+
+def first_upload_message(mod):
+    return (f'{mod} has no Workshop release recorded yet, so there is nothing to update. Its first version is '
+            'uploaded by Jacob in Workbench (release console option 9 to prepare and check it, then option 10 to '
+            'open it for Publish Project); when he says it is up, record it: release_console.py record-publication '
+            f'{mod} --version <version> --evidence <Workshop page>. After that, Publish-AddOn.ps1 publishes updates.')
 
 
 def notes_digest(text, version):
@@ -528,7 +537,7 @@ class Console:
         clean_commit(source)
         releases = self.release_history(mod)['releases']
         if not releases:
-            raise Blocked(f'{mod}: upload the first version in Workbench (option 10), then record it (record-publication).')
+            raise Blocked(first_upload_message(mod))
         live = max(releases, key=lambda r: tuple(map(int, r['version'].split('.'))))
         since = live.get('sourceCommit')
         if not since:
@@ -697,7 +706,7 @@ class Console:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['prepare', 'check', 'status', 'installed', 'notes', 'publish-info',
-                                           'record-publication', 'addon-notes', 'addon-dirs'])
+                                           'record-publication', 'addon-notes', 'addon-dirs', 'addon-released'])
     parser.add_argument('mod', choices=SPECS, nargs='?')
     parser.add_argument('--installed-root', type=Path, default=Path('E:/ArmaReforgerMods/addons'))
     parser.add_argument('--version')
@@ -724,6 +733,14 @@ def main():
         parser.error('Choose a mod.')
     if options.action == 'addon-notes':
         print(json.dumps(console.addon_notes(options.mod)))
+        return
+    if options.action == 'addon-released':
+        # Publish-AddOn.ps1 asks first: an add-on never uploaded (no Workshop item yet) can't take a CLI update.
+        if not (console.source(options.mod) / 'addon.gproj').is_file():
+            raise Blocked(f'{options.mod}: no {SPECS[options.mod]["folder"]} beside ACA ({console.source(options.mod)}).')
+        if not console.release_history(options.mod)['releases']:
+            raise Blocked(first_upload_message(options.mod))
+        print(json.dumps(dict(mod=options.mod, versions=[r['version'] for r in console.release_history(options.mod)['releases']])))
         return
     if options.action == 'record-publication':
         if not options.version or not options.evidence:
