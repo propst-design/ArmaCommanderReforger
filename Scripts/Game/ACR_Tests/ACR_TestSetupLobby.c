@@ -241,6 +241,9 @@ class ACR_TestSetupLobby
   }
   if (ACR_SetupTheme.Crt().Text("Starting RP") != "STARTING RP" || ACR_SetupTheme.Vanilla().Text("Starting RP") != "Starting RP") themeWrong += "case ";
   if (ACR_SetupTheme.Chosen() != "vanilla") themeWrong += "chosen:" + ACR_SetupTheme.Chosen() + " ";
+  // The skin in use is the one the socket's era picks now (no stale cache after a reset).
+  ACR_SetupTheme.Reset();
+  if (ACR_SetupTheme.Current().m_sName != ACR_SetupTheme.Chosen()) themeWrong += "cached:" + ACR_SetupTheme.Current().m_sName + " ";
   if (ACR_Setup.LobbyTabPrefix(0) != "1." || ACR_Setup.LobbyTabPrefix(1) != "2." || ACR_Setup.LobbyTabPrefix(5) != "A." || ACR_Setup.LobbyTabPrefix(6) != "B.") themeWrong += "prefix ";
   ACR_TestRegress.Check("lobby: three skins with every colour set, vanilla by default, plain tab names", themeWrong.IsEmpty(), themeWrong);
 
