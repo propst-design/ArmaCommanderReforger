@@ -7,9 +7,11 @@
 // (Prefabs/Vehicles/Aircraft) load as models of their size; off by default (-acrPeriodJets) the defaults
 // are as before them, and with it on each side flies its own. Their bombs
 // load too, and where a player watches, a bomber's bomb hangs on its pylon, falls and lands on time.
+// Their night-time nozzle glows (ACR_JetGlow): which jets have them, night/dash timing, and shown only from behind,
+// at night, inside 2 km (checked on a glow stepped by hand: a dedicated server flies no local jet of its own).
 class ACR_TestRecon
 {
- static const int CHECKS = 15;
+ static const int CHECKS = 17;
  static const int CALL_TICK = 6;
  static const int CHECK_TICK = 50;
  static ACR_Squad s_Enemy;
@@ -45,7 +47,7 @@ class ACR_TestRecon
   if (s_iReadyAt == 0 && clock >= 4) s_iReadyAt = clock;
   if (s_iReadyAt == 0) return;
   int tick = clock - s_iReadyAt + 4;
-  if (tick == 4) { Pure(manager); Aircraft(); }
+  if (tick == 4) { Pure(manager); Aircraft(); Glow(); }
   if (tick == 4 || tick == 14 || tick == 22) Drop(tick);
   if (tick == CALL_TICK) Call(h, manager, alpha);
   // Held where they were put (a halted squad still walks back into formation), so the spots the
@@ -120,6 +122,71 @@ class ACR_TestRecon
   bool recon = westRecon == ACR_ReconRun.RECON_JET_WEST && eastRecon == ACR_ReconRun.RECON_JET_EAST;
   ACR_Options.Unset("acrPeriodJets");
   ACR_TestRegress.Check("aircraft: with -acrPeriodJets 1 each side flies its own recon and bomb-run jet", bombs && recon, string.Format("bomb %1 / %2, recon %3 / %4, rhs %5", FilePath.StripPath(westBomb), FilePath.StripPath(eastBomb), FilePath.StripPath(westRecon), FilePath.StripPath(eastRecon), rhs));
+ }
+
+ // Nozzle glows: the RF-4C's two with burners, the Su-17's one, the Su-25's two without, none on the A-10, and
+ // the flyover carries one for the jets that have them. Then an RF-4C's, stepped by hand 400 m up at night: shown
+ // with its burners from 800 m astern, nothing from ahead, from 45 deg off the tail, from 2.5 km or by day, and
+ // gone with the jet.
+ static void Glow()
+ {
+  ACR_JetGlow rf4c = ACR_JetGlow.Create(ACR_ReconRun.RECON_JET_WEST);
+  ACR_JetGlow su17 = ACR_JetGlow.Create(ACR_ReconRun.RECON_JET_EAST);
+  ACR_JetGlow su25 = ACR_JetGlow.Create(ACR_Supports.BOMB_JET_EAST);
+  ACR_JetGlow a10 = ACR_JetGlow.Create(ACR_Supports.BOMB_JET_WEST);
+  bool table = rf4c && rf4c.m_aNozzles.Count() == 2 && rf4c.m_bBurner && su17 && su17.m_aNozzles.Count() == 1 && su17.m_bBurner && su25 && su25.m_aNozzles.Count() == 2 && !su25.m_bBurner && !a10;
+  float half = ACR_ReconRun.CORRIDOR_LENGTH * 0.5 / ACR_ReconRun.SPEED;
+  float dashIn = ACR_JetGlow.Dash(ACR_ReconRun.DELAY_S - half - 1);
+  float dashOver = ACR_JetGlow.Dash(ACR_ReconRun.DELAY_S);
+  float dashOff = ACR_JetGlow.Dash(5) + ACR_JetGlow.Dash(ACR_ReconRun.DELAY_S + half + ACR_JetGlow.DASH_TAIL_S + 1);
+  float noon = ACR_JetGlow.NightAt(12, 6, 20);
+  float dusk = ACR_JetGlow.NightAt(20 + ACR_JetGlow.DUSK_H * 0.5, 6, 20);
+  float midnight = ACR_JetGlow.NightAt(0, 6, 20);
+  float dawn = ACR_JetGlow.NightAt(6 - ACR_JetGlow.DUSK_H * 0.5, 6, 20);
+  bool timing = dashIn == 1 && dashOver == 1 && dashOff == 0 && noon == 0 && midnight == 1 && Math.AbsFloat(dusk - 0.5) < 0.01 && Math.AbsFloat(dawn - 0.5) < 0.01;
+  vector flown = Vector(900, 0, 900);
+  ACR_LocalFlyover.Start(ACR_Supports.BOMB_JET_EAST, ACR_Manager.Ground(flown) + "0 400 0", "1 0 0", 200, 400, 0.5, true);
+  ACR_LocalFlyover su25Flight = ACR_LocalFlyover.Latest();
+  ACR_LocalFlyover.Start(ACR_Supports.BOMB_JET_WEST, ACR_Manager.Ground(flown) + "0 400 50", "1 0 0", 200, 400, 0.5, true);
+  ACR_LocalFlyover a10Flight = ACR_LocalFlyover.Latest();
+  bool carried = su25Flight && su25Flight.m_Glow && a10Flight && a10Flight != su25Flight && !a10Flight.m_Glow;
+  ACR_TestRegress.Check("jet glow: nozzles for the RF-4C (2, burners), Su-17M4R (1, burner) and Su-25 (2), none on the A-10; dash and dusk timing", table && timing && carried, string.Format("table %1, dash %2/%3/%4, night %5/%6/%7/%8, flyover glow %9", table, dashIn, dashOver, dashOff, noon, dusk, midnight, dawn, carried));
+
+  vector m[4];
+  m[0] = "1 0 0";
+  m[1] = "0 1 0";
+  m[2] = "0 0 1";
+  m[3] = ACR_Manager.Ground(Vector(900, 0, 1100)) + "0 400 0";
+  ACR_JetGlow.s_bTestNight = true;
+  ACR_JetGlow.s_fTestNight = 1;
+  string seen = "";
+  bool good = rf4c != null;
+  if (rf4c)
+  {
+   rf4c.Step(m, true, m[3] - "800 100 0", 0, 1);
+   bool drawn = rf4c.m_aGlows.Count() == 2 && rf4c.m_aGlows[0] && rf4c.m_aGlows[0].GetVObject() && rf4c.m_aBurners.Count() == 2 && rf4c.m_aBurners[0] && rf4c.m_aBurners[0].GetVObject();
+   seen += string.Format("astern %1+%2 (em %3/%4, ring %5 m, models %6)", rf4c.Visible(false), rf4c.Visible(true), rf4c.m_iGlowEmissive, rf4c.m_iBurnerEmissive, rf4c.m_fGlowScale, drawn);
+   good = drawn && rf4c.Visible(false) == 2 && rf4c.Visible(true) == 2 && rf4c.m_iGlowEmissive > 0 && rf4c.m_iBurnerEmissive > rf4c.m_iGlowEmissive;
+   rf4c.Step(m, true, m[3] - "800 100 0", 0, 0);
+   seen += string.Format(", cruising %1+%2", rf4c.Visible(false), rf4c.Visible(true));
+   good = good && rf4c.Visible(false) == 2 && rf4c.Visible(true) == 0;
+   array<vector> views = {"800 -100 0", "-570 -100 570", "-2500 -100 0"};
+   foreach (vector view : views)
+   {
+    rf4c.Step(m, true, m[3] + view, 0, 1);
+    seen += string.Format(", from %1: %2+%3", view, rf4c.Visible(false), rf4c.Visible(true));
+    good = good && rf4c.Visible(false) == 0 && rf4c.Visible(true) == 0;
+   }
+   ACR_JetGlow.s_fTestNight = 0;
+   rf4c.Step(m, true, m[3] - "800 100 0", 0, 1);
+   seen += string.Format(", by day %1+%2", rf4c.Visible(false), rf4c.Visible(true));
+   good = good && rf4c.Visible(false) == 0 && rf4c.Visible(true) == 0;
+   rf4c.Clear();
+   seen += string.Format(", cleared %1", rf4c.m_aGlows.IsEmpty() && rf4c.m_aBurners.IsEmpty());
+   good = good && rf4c.m_aGlows.IsEmpty();
+  }
+  ACR_JetGlow.s_bTestNight = false;
+  ACR_TestRegress.Check("jet glow: shown from behind at night inside 2 km (burner on the dash), never from ahead, off the tail, far off or by day", good, seen);
  }
 
  // An A-10 1 km off with one Snakeye landing 16 s in (a fall of ~9 s with its petals out): hung on its pylon

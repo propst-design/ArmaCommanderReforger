@@ -1,0 +1,9 @@
+MatPBRBasic {
+ Color 0 0 0 1
+ Emissive 1 0.52 0.17 0
+ EmissiveLV 0
+ CastShadow 0
+ ReceiveShadow 0
+ MetalnessScale 0
+ EnableFarHiding 0
+}

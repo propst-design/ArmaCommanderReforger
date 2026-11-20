@@ -1,0 +1,9 @@
+MetaFileClass {
+ Name "{AC230926A00100EC}Prefabs/Vehicles/Aircraft/ACR_NozzleGlow.et"
+ Configurations {
+  ETResourceClass PC {
+  }
+  ETResourceClass HEADLESS : PC {
+  }
+ }
+}

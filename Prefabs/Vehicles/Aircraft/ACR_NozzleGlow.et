@@ -1,0 +1,12 @@
+GenericEntity {
+ ID "AC230926EC000001"
+ components {
+  MeshObject "{AC230926EC000011}" {
+   Object "{1400BF78E59C9EDF}Assets/Vehicles/Aircraft/ACR_NozzleGlow.xob"
+  }
+  ParametricMaterialInstanceComponent "{AC230926EC000021}" {
+   EmissiveMultiplier 0
+  }
+ }
+ Flags 3
+}
