@@ -45,7 +45,7 @@ class ACR_Setup
    s_bDecided = true;
    string value;
    s_bWanted = ACR_Options.Get("acrSetup", value) && value == "1";
-   if (System.IsCLIParam("acrSetupTest") || System.IsCLIParam("acrSetupUiTest") || System.IsCLIParam("acrSetupGenTest") || System.IsCLIParam("acrSetupMapTest") || System.IsCLIParam("acrSetupPresetsTest")) s_bWanted = true;
+   if (System.IsCLIParam("acrSetupTest") || System.IsCLIParam("acrSetupUiTest") || System.IsCLIParam("acrSetupGenTest") || System.IsCLIParam("acrSetupMapTest") || System.IsCLIParam("acrSetupPresetsTest") || System.IsCLIParam("acrSetupLobbyTest")) s_bWanted = true;
    else if (ACR_TestHooks.Get().SkipSetup()) s_bWanted = false;
    if (s_bWanted) Print("[ACR] SETUP phase: waiting for the host or an admin to press Start");
   }
@@ -245,8 +245,9 @@ class ACR_Setup
    bool active = !s_bStarted;
    bool allowed = ACR_Manager.IsHostOrAdmin(id);
    if (active && allowed) SendPreview(id, pc);
+   // Everyone gets the rows: the setup lobby shows them read-only to players who can't change
+   // them (the classic dialog still shows those players a hint only).
    string text = rows;
-   if (!allowed) text = "";
    int left = SecondsLeft();
    string info = Info(left);
    string signature = string.Format("%1|%2|%3|%4", active, allowed, text, info);
@@ -284,31 +285,168 @@ class ACR_Setup
    if (key == "map")
    {
     if (s_PreviewNames.IsEmpty()) continue;
-    if (generated) rows += string.Format("map\tShow and edit the layout on the map (%1 bases)\n", s_PreviewNames.Count());
-    else rows += string.Format("map\tShow the layout on the map (%1 bases)\n", s_PreviewNames.Count());
+    if (generated) rows += Line("map", string.Format("Show and edit the layout on the map (%1 bases)", s_PreviewNames.Count()));
+    else rows += Line("map", string.Format("Show the layout on the map (%1 bases)", s_PreviewNames.Count()));
     continue;
    }
    // Deck builder (#106): the editor opens on this player's own screen (client side).
    if (key == "deckeditor")
    {
-    if (Current("decks") != "0") rows += "deckeditor\tBuild decks and hand one in\n";
+    if (Current("decks") != "0") rows += Line("deckeditor", "Build decks and hand one in");
     continue;
    }
    if ((key == "deckpoints" || key == "deckwest" || key == "deckeast") && Current("decks") == "0") continue;
    if (key == "undo")
    {
     int moves = ACR_Generator.MoveCount();
-    if (generated && moves > 0) rows += string.Format("undo\tUndo layout edits (%1)\n", moves);
+    if (generated && moves > 0) rows += Line("undo", string.Format("Undo layout edits (%1)", moves));
     continue;
    }
-   rows += key + "\t" + Label(key) + ": " + ValueName(key, Current(key)) + "\n";
+   rows += Line(key, Label(key) + ": " + ValueName(key, Current(key)));
    // The company and doctrine rows show a name; what it means goes on a line under the tab's rows
    // (pn10b, 26 Oct: in the rows, the descriptions ran past the buttons).
-   if (key == "companywest" || key == "companyeast" || key == "doctrinewest" || key == "doctrineeast") rows += "about" + key + "\t" + About(key) + "\n";
+   if (key == "companywest" || key == "companyeast" || key == "doctrinewest" || key == "doctrineeast") rows += Line("about" + key, About(key));
   }
+  // The setup lobby's map sketch colours bases by side: the two sides' faction keys (the classic dialog skips it).
+  rows += "lobbysides\t" + ACR_FactionSelection.West() + "," + ACR_FactionSelection.East() + "\n";
   // The Presets tab (#143): the server's presets, managed from the host's dialog.
   rows += ACR_SetupPresets.Rows();
   return rows;
+ }
+
+ // ---------------------------------------------------------------- setup lobby (0.7.0)
+ // One row line: "key\tLabel: value\ttab\tparent\tflags\n". The first two fields are what the
+ // classic dialog reads; the lobby (ACR_SetupLobby) also reads its tab (LobbyTab), the row it is
+ // indented under (Parent) and flags: "c" = differs from the server's default (a dot), "h" = its
+ // parent is off, so the lobby hides it. The presets' own lines (ACR_SetupPresets.Rows) keep two fields.
+ static string Line(string key, string text)
+ {
+  string flags = "";
+  if (Changed(key)) flags += "c";
+  if (!ParentOn(key)) flags += "h";
+  return string.Format("%1\t%2\t%3\t%4\t%5\n", key, text, LobbyTab(key), Parent(key), flags);
+ }
+
+ // The lobby's tabs (Jacob 19 Nov): ordered like the five paragraphs of an operations order, each
+ // led by its plain name with the paragraph number as a small prefix, then the annexes. The lobby
+ // opens on Match (paragraph 2, LOBBY_FIRST): the sides, who commands them, how the match opens.
+ static const int LOBBY_TABS = 7;
+ static const int LOBBY_FIRST = 1;
+ static const int LOBBY_PRESETS = 6;
+ static string LobbyTabName(int tab)
+ {
+  if (tab == 0) return "Battlefield and world";
+  if (tab == 2) return "Forces and AI";
+  if (tab == 3) return "Economy and logistics";
+  if (tab == 4) return "Command";
+  if (tab == 5) return "Experimental";
+  if (tab == LOBBY_PRESETS) return "Presets";
+  return "Match";
+ }
+
+ // The paragraph number shown before a tab's name: 1-5, then annexes A and B.
+ static string LobbyTabPrefix(int tab)
+ {
+  if (tab == 5) return "A.";
+  if (tab == LOBBY_PRESETS) return "B.";
+  return string.Format("%1.", tab + 1);
+ }
+
+ static int LobbyTab(string key)
+ {
+  if (key.StartsWith("about")) return LobbyTab(key.Substring(5, key.Length() - 5));
+  if (key.StartsWith("preset")) return LOBBY_PRESETS;
+  // 1. Battlefield and world: where, how hard, and who else is out there.
+  if (key == "layout" || key == "seed" || key == "map" || key == "undo" || key == "threat") return 0;
+  if (key == "pockets" || key == "guerrillas" || key == "fiaallegiance" || key == "fialeaning" || key == "fiahidden" || key == "zombies" || key == "zombiemode" || key == "outbreak") return 0;
+  // 2. Match: the sides, their commanders, how it opens.
+  if (key == "west" || key == "east" || key == "ai" || key == "quickstart" || key == "startrp") return 1;
+  // 3. Forces and AI: the AI commanders and their squads, minefields and fortifying.
+  if (key == "aicommander" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "unitcap" || key == "capscale" || key == "aibuild" || key == "holdguns") return 2;
+  if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "baseworks") return 2;
+  // Out of Experimental on 19 Nov (on by default): how squads and guns behave, and the period jets.
+  if (key == "pullover" || key == "fieldsoffire" || key == "periodjets") return 2;
+  // 4. Economy and logistics.
+  if (key == "pricing" || key == "income" || key == "companywest" || key == "companyeast" || key == "decks" || key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return 3;
+  if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "servicecost" || key == "rpservice" || key == "fobrelay" || key == "depotcapacity") return 3;
+  // 5. Command: how players share and see command.
+  if (key == "shared" || key == "declutter" || key == "intro" || key == "twoic") return 4;
+  if (Experimental(key)) return 5;
+  return LOBBY_FIRST;
+ }
+
+ // The row a row belongs under ("" = a top-level row).
+ static string Parent(string key)
+ {
+  if (key.StartsWith("about")) return key.Substring(5, key.Length() - 5);
+  if (key == "seed") return "layout";
+  if (key == "undo") return "map";
+  if (key == "fiaallegiance" || key == "fialeaning" || key == "fiahidden") return "guerrillas";
+  if (key == "zombiemode" || key == "outbreak") return "zombies";
+  if (key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return "decks";
+  if (key == "minesreal" || key == "minesai") return "mines";
+  if (key == "fortifyai" || key == "baseworks") return "fortify";
+  if (key == "servicecost") return "fobservices";
+  return "";
+ }
+
+ // False when the row's parent switches what it sets off (the lobby then hides the row; its value
+ // stays as it is and still counts, as a preset or a launch option may have set it).
+ static bool ParentOn(string key)
+ {
+  string parent = Parent(key);
+  // The FIA rows matter with either kind of FIA on the map: the resistance pockets or the guerrillas.
+  if (parent == "guerrillas") return Current("guerrillas") != "off" || Current("pockets") != "off";
+  if (parent == "zombies") return Current("zombies") != "off";
+  if (parent == "decks") return Current("decks") != "0";
+  if (parent == "mines") return Current("mines") != "0";
+  if (parent == "fortify") return Current("fortify") != "0";
+  if (parent == "fobservices") return Current("fobservices") == "supplies";
+  return true;
+ }
+
+ // The row's value with nothing from the setup screen or a preset: what the scenario and the launch
+ // options give.
+ static string DefaultValue(string key)
+ {
+  ACR_Options.s_bDefaults = true;
+  string value = Current(key);
+  ACR_Options.s_bDefaults = false;
+  return value;
+ }
+
+ // The row differs from the server's default (the lobby's dot). Action and text rows never do; the
+ // seed is random until someone sets one, so it has no default to differ from.
+ static bool Changed(string key)
+ {
+  if (key == "seed" || key == "map" || key == "undo" || key == "deckeditor" || key.StartsWith("about")) return false;
+  string now = Current(key);
+  string fallback = DefaultValue(key);
+  now.ToLower();
+  fallback.ToLower();
+  return now != fallback;
+ }
+
+ // Reset tab: every row of a lobby tab back to the server's default (its screen choices dropped; a
+ // preset in use still applies, as it does after a restart).
+ static string ResetTab(int tab)
+ {
+  int count = 0;
+  array<string> keys = RowKeys();
+  foreach (string key : keys)
+  {
+   if (LobbyTab(key) != tab || key == "map" || key == "undo" || key == "deckeditor") continue;
+   map<string, string> options = new map<string, string>();
+   OptionsFor(key, Current(key), options);
+   foreach (string option, string unused : options)
+   {
+    if (ACR_Options.Source(option) != "screen") continue;
+    ACR_Options.Unset(option);
+    count++;
+   }
+  }
+  Broadcast();
+  return string.Format("%1 reset (%2 settings back to the default)", LobbyTabName(tab), count);
  }
 
  // Every row of the setup screen in order; setup presets (ACR_SetupPresets) save the options
@@ -320,8 +458,7 @@ class ACR_Setup
   return keys;
  }
 
- // The line under the tab's rows for a company or doctrine row: "Blue: Combat Engineers: two tier I
- // positions at its front", "Red: Fortress: holds in depth, counterattacks lost bases".
+ // The line under the tab's rows for a company or doctrine row: "Blue: Combat Engineers: two tier I\n // positions at its front", "Red: Fortress: holds in depth, counterattacks lost bases".
  static string About(string key)
  {
   string side = "Blue: ";
@@ -420,6 +557,54 @@ class ACR_Setup
  // on the Experimental tab). Two short lines at most: the text under the rows doesn't wrap.
  static string Help(string key)
  {
+  // The setup lobby's right panel (Jacob 19 Nov: the help of the focused row): the main rows too.
+  if (key == "west" || key == "east") return "The two sides that fight. Any playable faction of this world;\nthe world's US and USSR bases go to the chosen pair at Start.";
+  if (key == "layout") return "Which bases are in play: the world's own (whole map or a part)\nor a layout generated for this match, whose bases you can move.";
+  if (key == "seed") return "The number a generated layout and a quick start split come from.\nType one to replay a layout; the same seed gives the same map.";
+  if (key == "map") return "Opens the planned layout on the map. With a generated layout,\nclick a base, then where it should go; HQs can only be moved.";
+  if (key == "undo") return "Puts every moved or deleted base of this seed back.";
+  if (key == "quickstart") return "Off: both sides start from their HQ. Even: the map is split along\na front. Uneven: one side holds two thirds, the other has double RP.";
+  if (key == "threat") return "Prices, stock, the soldier limit and the AI squad cap, and how\nmany attacks an AI commander runs at once.";
+  if (key == "ai") return "Which sides an AI commander runs.";
+  if (key == "startrp") return "Requisition points each side starts with.";
+  if (key == "aicommander") return "New: lanes, the allocator and the defence forecast.\nClassic: the commander from before 0.6.0.";
+  if (key == "doctrinewest" || key == "doctrineeast") return "How this side's AI commander fights: blitz, firepower, fortress,\nraider or balanced. The line under the rows says what it does.";
+  if (key == "doctrineadapt") return "A commander that keeps losing switches to another doctrine.";
+  if (key == "unitcap") return "Most AI squads each side's AI commander keeps at once.";
+  if (key == "capscale") return "Bigger maps get bigger armies: the AI squad cap and the soldier\ncap grow with the map, between x1 and x2.";
+  if (key == "aibuild") return "Share of each AI commander's income set aside for roadblocks,\nminefields and Fortify positions.";
+  if (key == "holdguns") return "Gunners stay on the static guns of a spot their squad holds\ninstead of wandering off.";
+  if (key == "shared") return "Several players can share a side's command (the scenario's\nshared-command setting).";
+  if (key == "declutter") return "The calm command map: dark panels, merged lines, squads at a base\ngathered into one icon. Off: the classic map.";
+  if (key == "intro") return "A short orbit of your side's HQ with the title, the first time\neach player takes control in a match.";
+  if (key == "pockets") return "On whole and half maps, neutral bases away from both starts\nbegin held by an FIA garrison.";
+  if (key == "guerrillas") return "Small FIA cells outside the bases on whole and half maps: road\nambushes that follow the traffic. FIA rows appear under this one.";
+  if (key == "fiaallegiance") return "Which main side the FIA fights for, or neither.";
+  if (key == "fialeaning") return "FIA treats each side by its conduct; the standing shows on the\ncommand panel.";
+  if (key == "fiahidden") return "No FIA messages: pockets are found by walking into them.";
+  if (key == "zombies") return "Project Outbreak zombie nests on open bases and in the country.\nThe mode and the start appear under this row.";
+  if (key == "zombiemode") return "Both sides and the zombies, or one side against the zombies\nwhile the other sits out.";
+  if (key == "outbreak") return "Nests across the map, or one ground zero that spreads while\nyou rescue survivors.";
+  if (key == "pricing") return "Stepped: each purchase makes the next of that unit dearer.\nFixed stock: set prices, but only so many of each unit.";
+  if (key == "income") return "Multiplies every side's RP income.";
+  if (key == "companywest" || key == "companyeast") return "The kind of company this side fields. The line under the rows\nsays what it brings.";
+  if (key == "decks") return "Each side buys from a deck of cards instead of the whole list.\nThe deck rows appear under this one.";
+  if (key == "deckeditor") return "Opens the deck builder on your screen. Hand a deck in to use it.";
+  if (key == "deckpoints") return "How many points a deck may cost. By threat: 100 low, 150 normal,\n250 high.";
+  if (key == "deckwest" || key == "deckeast") return "The deck this side buys from.";
+  if (key == "deployment") return "Where new units may be deployed: military bases, HQs and FOBs,\nonly HQs and FOBs, or every deployment point.";
+  if (key == "reinforcement") return "Where infantry replacements walk in from.";
+  if (key == "fobservices") return "Supplies: a FOB's service buildings draw on its supply store.\nFree: unlimited free service anywhere.";
+  if (key == "servicecost") return "Supplies one service load takes from the FOB's store.";
+  if (key == "rpservice") return "RP per soldier serviced instantly at a FOB when services cost\nsupplies. 0 makes it free.";
+  if (key == "fobrelay") return "A built FOB needs a finished radio relay before new units deploy\nthere or infantry is reinforced there.";
+  if (key == "depotcapacity") return "Extra supplies a FOB's supply depot can store.";
+  if (key == "mines") return "Squads can be ordered to lay minefields. Its two rows appear\nunder this one.";
+  if (key == "minesreal") return "Own mines are dangerous to everyone, our AI included.";
+  if (key == "minesai") return "AI commanders lay minefields too.";
+  if (key == "fortify") return "Squads can be ordered to dig in and fortify a position.";
+  if (key == "fortifyai") return "AI commanders fortify their positions too.";
+  if (key == "baseworks") return "Fortify on the middle of a base we hold works the whole town,\nsite by site.";
   if (key == "periodjets") return "Without RHS: recon flights and bomb runs show period jets\n(RF-4C, Su-17, A-10, Su-25) with engine sound and falling bombs.";
   if (key == "squadtactics") return "AI squads use Better Battle Buddies' squad tactics (flank, bound,\nsearch) inside a base they attack or defend, never leaving it.";
   if (key == "pullover") return "A squad told to get out on a road first has its driver pull\nonto the verge. Under fire it gets out where it stands.";
@@ -767,8 +952,9 @@ class ACR_Setup
   return value;
  }
 
- // Next value of a row (server, host/admin checked by the caller).
- static string Cycle(string key)
+ // Next value of a row (server, host/admin checked by the caller); step -1 = the one before (the
+ // setup lobby's left arrow).
+ static string Cycle(string key, int step = 1)
  {
   if (s_bStarted) return "The match has started";
   // The seed row rolls a new layout seed on every click.
@@ -793,7 +979,14 @@ class ACR_Setup
    currentLower.ToLower();
    if (lower == currentLower) index = i;
   }
-  string next = values[(index + 1) % values.Count()];
+  int count = values.Count();
+  int target = (index + 1) % count;
+  if (step < 0)
+  {
+   target = index - 1;
+   if (target < 0) target = count - 1;
+  }
+  string next = values[target];
   SetValue(key, next);
   Broadcast();
   return Label(key) + ": " + ValueName(key, next);
@@ -835,6 +1028,13 @@ class ACR_Setup
  {
   if (!Wanted() || s_bStarted) return "The match has already started";
   if (!ACR_Manager.IsHostOrAdmin(playerId)) return "Only the host or an admin can change the match setup";
+  return Act(playerId, key);
+ }
+
+ // A request the host or an admin made (Handle checked who asked; tests call it directly).
+ static string Act(int playerId, string key)
+ {
+  if (s_bStarted) return "The match has already started";
   if (key == "start")
   {
    Start(string.Format("player %1", playerId));
@@ -852,6 +1052,22 @@ class ACR_Setup
    string presetResult = ACR_SetupPresets.Handle(playerId, key.Substring(7, key.Length() - 7));
    Broadcast();
    return presetResult;
+  }
+  // The setup lobby: a row's left arrow, the seed typed in, Reset tab.
+  if (key.StartsWith("prev:")) return Cycle(key.Substring(5, key.Length() - 5), -1);
+  if (key.StartsWith("seedset:"))
+  {
+   int typed = key.Substring(8, key.Length() - 8).ToInt();
+   if (typed <= 0) return "A seed is a whole number above 0";
+   ACR_Options.Set("acrSeed", typed.ToString());
+   Broadcast();
+   return Label("seed") + ": " + typed.ToString();
+  }
+  if (key.StartsWith("resettab:"))
+  {
+   int tab = key.Substring(9, key.Length() - 9).ToInt();
+   if (tab < 0 || tab >= LOBBY_PRESETS) return "Nothing to reset on that tab";
+   return ResetTab(tab);
   }
   if (key.StartsWith("delete:"))
   {
@@ -887,6 +1103,10 @@ class ACR_SetupClient
  static string s_sRows;
  static string s_sInfo;
  protected static ref ACR_SetupDialog s_Dialog;
+ // The setup lobby (ACR_SetupLobby, 0.7.0); the classic dialog above with -acrSetupClassic 1, or when
+ // the lobby's layout can't be drawn on this machine.
+ protected static ref ACR_SetupLobby s_Lobby;
+ protected static bool s_bLobbyFailed;
  // Before anyone spawns there is no camera, so nothing is drawn (the loading screen stays on
  // screen, dialog included: Jacob 13 Oct heard the buttons but saw only the loading screen).
  // A plain camera over the battlefield until the player has a body.
@@ -923,6 +1143,12 @@ class ACR_SetupClient
   if (!s_bActive)
   {
    if (s_Dialog) { s_Dialog.Close(); s_Dialog = null; }
+   if (s_Lobby) { s_Lobby.Close(); s_Lobby = null; }
+   return;
+  }
+  if (!Classic())
+  {
+   ShowLobby();
    return;
   }
   if (!s_bAllowed)
@@ -955,6 +1181,50 @@ class ACR_SetupClient
    s_Dialog.Fill(s_sRows, s_sInfo);
   }
  }
+
+ // The classic dialog: asked for with -acrSetupClassic 1 on the machine that shows the screen (the
+ // fallback for one release), kept for the classic setup UI and map tests, or the lobby failed here.
+ static bool Classic()
+ {
+  if (s_bLobbyFailed) return true;
+  if (System.IsCLIParam("acrSetupUiTest") || System.IsCLIParam("acrSetupMapTest")) return true;
+  return ACR_Options.Flag("acrSetupClassic");
+ }
+
+ // The lobby for everyone: the host and admins change the rows, other players see them read-only.
+ protected static void ShowLobby()
+ {
+  // The layout preview or the deck builder: the map is open over the setup view; the lobby comes back when it closes.
+  SCR_MapEntity previewMap = SCR_MapEntity.GetMapInstance();
+  if (previewMap && previewMap.IsOpen())
+  {
+   GetGame().GetInputManager().ActivateContext("ACR_SetupMapContext", 100);
+   return;
+  }
+  if (!s_Lobby || !s_Lobby.GetRootWidget())
+  {
+   s_Lobby = new ACR_SetupLobby();
+   SCR_ConfigurableDialogUi.CreateFromPreset(ACR_SetupDialog.PRESETS, ACR_SetupLobby.TAG, s_Lobby);
+   if (!s_Lobby.GetRootWidget() || !s_Lobby.Ready())
+   {
+    // Never leave the host without a way to start: the classic dialog takes over.
+    Print("[ACR] SETUP lobby layout could not be drawn: using the classic setup dialog", LogLevel.WARNING);
+    s_Lobby.Close();
+    s_Lobby = null;
+    s_bLobbyFailed = true;
+    return;
+   }
+   s_bChanged = true;
+  }
+  if (s_bChanged)
+  {
+   s_bChanged = false;
+   s_Lobby.Fill(s_sRows, s_sInfo, s_bAllowed);
+  }
+ }
+
+ // The lobby on screen (tests).
+ static ACR_SetupLobby Lobby() { return s_Lobby; }
 
  protected static void ShowCamera()
  {
@@ -996,9 +1266,11 @@ class ACR_SetupClient
   CameraManager cameras = GetGame().GetCameraManager();
   if (cameras && cameras.CurrentCamera()) camera = cameras.CurrentCamera().ClassName() + " at " + cameras.CurrentCamera().GetOrigin().ToString();
   string dialog = "none";
-  if (s_Dialog && s_Dialog.GetRootWidget())
+  SCR_ConfigurableDialogUi shown = s_Dialog;
+  if (s_Lobby) shown = s_Lobby;
+  if (shown && shown.GetRootWidget())
   {
-   Widget root = s_Dialog.GetRootWidget();
+   Widget root = shown.GetRootWidget();
    float w, h;
    root.GetScreenSize(w, h);
    dialog = string.Format("visible %1 opacity %2 size %3x%4", root.IsVisible(), root.GetOpacity(), w, h);
@@ -1029,6 +1301,7 @@ class ACR_SetupClient
  static void OpenMap()
  {
   if (s_Dialog) { s_Dialog.Close(); s_Dialog = null; }
+  if (s_Lobby) { s_Lobby.Close(); s_Lobby = null; }
   GetGame().GetMenuManager().OpenMenu(ChimeraMenuPreset.MapMenu);
  }
 
@@ -1051,6 +1324,10 @@ class ACR_SetupClient
   s_bChanged = false;
   if (s_Dialog) s_Dialog.Close();
   s_Dialog = null;
+  if (s_Lobby) s_Lobby.Close();
+  s_Lobby = null;
+  s_bLobbyFailed = false;
+  ACR_SetupTheme.Reset();
  }
 }
 
@@ -1308,7 +1585,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
   {
    array<string> parts = {};
    line.Split("\t", parts, false);
-   if (parts.Count() < 2 || Tab(parts[0]) != m_iTab) continue;
+   if (parts.Count() < 2 || Tab(parts[0]) != m_iTab || parts[0].StartsWith("lobby")) continue;
    // A description line, shown under the rows (not a button).
    if (parts[0].StartsWith("about"))
    {

@@ -1,0 +1,272 @@
+FrameWidgetClass {
+ Name "ACR_SetupLobby"
+ Slot OverlayWidgetSlot "{AC23092600F60008}" {
+  HorizontalAlign 3
+  VerticalAlign 3
+ }
+ {
+  ImageWidgetClass "{AC23092600F60009}" {
+   Name "Backdrop"
+   Slot FrameWidgetSlot "{AC23092600F6000A}" {
+    Anchor 0 0 1 1
+    PositionX 0
+    OffsetLeft 0
+    PositionY 0
+    OffsetTop 0
+    SizeX 0
+    OffsetRight 0
+    SizeY 0
+    OffsetBottom 0
+   }
+   Color 0.02 0.035 0.06 0.9
+  }
+  VerticalLayoutWidgetClass "{AC23092600F6000B}" {
+   Name "Page"
+   Slot FrameWidgetSlot "{AC23092600F6000C}" {
+    Anchor 0.04 0.05 0.96 0.95
+    PositionX 0
+    OffsetLeft 0
+    PositionY 0
+    OffsetTop 0
+    SizeX 0
+    OffsetRight 0
+    SizeY 0
+    OffsetBottom 0
+   }
+   {
+    TextWidgetClass "{AC23092600F60101}" {
+     Name "Decor"
+     Slot LayoutSlot "{AC23092600F60102}" {
+      Padding 0 0 0 4
+     }
+     "Is Visible" 0
+     Color 1 1 1 1
+     Text ""
+     "Font Size" 16
+     "Min Font Size" 12
+    }
+    VerticalLayoutWidgetClass "{AC23092600F60103}" {
+     Name "TitleHolder"
+     Slot LayoutSlot "{AC23092600F60104}" {
+     }
+     {
+     TextWidgetClass "{AC23092600F6000D}" {
+      Name "Title"
+      Slot LayoutSlot "{AC23092600F6000E}" {
+       Padding 0 0 0 4
+      }
+      Color 1 1 1 1
+      Text "AC: Actual - match setup"
+      "Font Size" 32
+      "Min Font Size" 12
+      FontProperties FontProperties "{AC23092600F6000F}" {
+       Bold 1
+      }
+     }
+     }
+    }
+    TextWidgetClass "{AC23092600F60010}" {
+     Name "Subtitle"
+     Slot LayoutSlot "{AC23092600F60011}" {
+      Padding 0 0 0 12
+     }
+     Color 0.62 0.74 0.9 1
+     Text ""
+     "Font Size" 18
+     "Min Font Size" 12
+    }
+    HorizontalLayoutWidgetClass "{AC23092600F60012}" {
+     Name "Columns"
+     Slot LayoutSlot "{AC23092600F60013}" {
+      SizeMode Fill
+     }
+     {
+      VerticalLayoutWidgetClass "{AC23092600F60014}" {
+       Name "Tabs"
+       Slot LayoutSlot "{AC23092600F60015}" {
+        Padding 0 0 16 0
+        SizeMode Fill
+        FillWeight 0.2
+       }
+      }
+      VerticalLayoutWidgetClass "{AC23092600F60016}" {
+       Name "Centre"
+       Slot LayoutSlot "{AC23092600F60017}" {
+        Padding 0 0 16 0
+        SizeMode Fill
+        FillWeight 0.46
+       }
+       {
+        VerticalLayoutWidgetClass "{AC23092600F60105}" {
+         Name "TabTitleHolder"
+         Slot LayoutSlot "{AC23092600F60106}" {
+         }
+         {
+         TextWidgetClass "{AC23092600F60018}" {
+          Name "TabTitle"
+          Slot LayoutSlot "{AC23092600F60019}" {
+           Padding 4 0 0 8
+          }
+          Color 1 1 1 1
+          Text ""
+          "Font Size" 24
+          "Min Font Size" 12
+          FontProperties FontProperties "{AC23092600F6001A}" {
+           Bold 1
+          }
+         }
+         }
+        }
+        ScrollLayoutWidgetClass "{AC23092600F6001B}" {
+         Name "RowsScroll"
+         Slot LayoutSlot "{AC23092600F6001C}" {
+          SizeMode Fill
+         }
+         style Small
+         {
+          VerticalLayoutWidgetClass "{AC23092600F6001D}" {
+           Name "Rows"
+           Slot AlignableSlot "{AC23092600F6001E}" {
+            HorizontalAlign 3
+            Padding 0 0 10 0
+           }
+          }
+         }
+        }
+       }
+      }
+      VerticalLayoutWidgetClass "{AC23092600F6001F}" {
+       Name "Side"
+       Slot LayoutSlot "{AC23092600F60020}" {
+        SizeMode Fill
+        FillWeight 0.34
+       }
+       {
+        SizeLayoutWidgetClass "{AC23092600F60021}" {
+         Name "MapSize"
+         Slot LayoutSlot "{AC23092600F60022}" {
+          HorizontalAlign 1
+         }
+         AllowWidthOverride 1
+         WidthOverride 440
+         AllowHeightOverride 1
+         HeightOverride 440
+         {
+          FrameWidgetClass "{AC23092600F60023}" {
+           Name "Map"
+           Slot AlignableSlot "{AC23092600F60024}" {
+            HorizontalAlign 3
+            VerticalAlign 3
+           }
+           {
+            ImageWidgetClass "{AC23092600F60025}" {
+             Name "MapBack"
+             Slot FrameWidgetSlot "{AC23092600F60026}" {
+              Anchor 0 0 1 1
+              PositionX 0
+              OffsetLeft 0
+              PositionY 0
+              OffsetTop 0
+              SizeX 0
+              OffsetRight 0
+              SizeY 0
+              OffsetBottom 0
+             }
+             Color 0.07 0.1 0.09 1
+            }
+            FrameWidgetClass "{AC23092600F60027}" {
+             Name "MapDots"
+             Slot FrameWidgetSlot "{AC23092600F60028}" {
+              Anchor 0 0 1 1
+              PositionX 0
+              OffsetLeft 0
+              PositionY 0
+              OffsetTop 0
+              SizeX 0
+              OffsetRight 0
+              SizeY 0
+              OffsetBottom 0
+             }
+            }
+           }
+          }
+         }
+        }
+        TextWidgetClass "{AC23092600F60001}" {
+         Name "Summary"
+         Slot LayoutSlot "{AC23092600F60002}" {
+          Padding 0 12 0 8
+         }
+         Color 1 1 1 1
+         Text ""
+         "Font Size" 22
+         "Min Font Size" 12
+         Wrap 1
+         "Line Spacing" 70
+         FontProperties FontProperties "{AC23092600F60003}" {
+          Bold 1
+         }
+        }
+        TextWidgetClass "{AC23092600F60004}" {
+         Name "Help"
+         Slot LayoutSlot "{AC23092600F60005}" {
+          Padding 0 4 0 12
+         }
+         Color 0.82 0.86 0.9 1
+         Text ""
+         "Font Size" 18
+         "Min Font Size" 12
+         Wrap 1
+         "Line Spacing" 70
+        }
+        TextWidgetClass "{AC23092600F60006}" {
+         Name "Status"
+         Slot LayoutSlot "{AC23092600F60007}" {
+          Padding 0 0 0 0
+         }
+         Color 0.95 0.72 0.35 1
+         Text ""
+         "Font Size" 18
+         "Min Font Size" 12
+         Wrap 1
+         "Line Spacing" 70
+        }
+       }
+      }
+     }
+    }
+    HorizontalLayoutWidgetClass "{AC23092600F60029}" {
+     Name "Footer"
+     Slot LayoutSlot "{AC23092600F6002A}" {
+      Padding 0 12 0 0
+     }
+     {
+      HorizontalLayoutWidgetClass "{AC23092600F6002B}" {
+       Name "FooterLeft"
+       Slot LayoutSlot "{AC23092600F6002C}" {
+        SizeMode Fill
+       }
+      }
+      HorizontalLayoutWidgetClass "{AC23092600F6002D}" {
+       Name "ButtonsLeft"
+       Slot LayoutSlot "{AC23092600F6002E}" {
+       }
+      }
+      HorizontalLayoutWidgetClass "{AC23092600F6002F}" {
+       Name "ButtonsCenter"
+       Slot LayoutSlot "{AC23092600F60030}" {
+       }
+      }
+      HorizontalLayoutWidgetClass "{AC23092600F60031}" {
+       Name "ButtonsRight"
+       Slot LayoutSlot "{AC23092600F60032}" {
+        VerticalAlign 1
+       }
+       "Fill Origin" Right
+      }
+     }
+    }
+   }
+  }
+ }
+}

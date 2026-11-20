@@ -44,7 +44,8 @@ class ACR_TestSetup
    {
     array<string> parts = {};
     line.Split("\t", parts, false);
-    if (parts.Count() >= 2) tabRows[ACR_SetupDialog.Tab(parts[0])] = tabRows[ACR_SetupDialog.Tab(parts[0])] + 1;
+    // The setup lobby's meta lines (lobbysides) are never drawn by the classic dialog (ACR_SetupDialog.Fill).
+    if (parts.Count() >= 2 && !parts[0].StartsWith("lobby")) tabRows[ACR_SetupDialog.Tab(parts[0])] = tabRows[ACR_SetupDialog.Tab(parts[0])] + 1;
    }
    int perPage = ACR_SetupDialog.PageRows(1080);
    int largest;

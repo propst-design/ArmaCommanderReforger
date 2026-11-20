@@ -196,6 +196,7 @@ bbbfiremaneuverprobe|-acrBbbFireManeuverProbeTest 1|170|Worlds/BBB_TestArland.en
 bbbfiremaneuverduck|-acrBbbFireManeuverDuckTest 1|170|Worlds/BBB_TestArland.ent
 setup|-acrSetupTest 1|90|Worlds/ACR_Arland.ent
 setuppresets|-acrSetupPresetsTest 1|90|Worlds/ACR_Arland.ent
+setuplobby|-acrSetupLobbyTest 1|90|Worlds/ACR_Arland.ent
 setupui|-acrSetupUiTest 1|90|Worlds/ACR_Arland.ent
 setupmap|-acrSetupMapTest 1|180|Worlds/ACR_Kolguyev.ent
 reserve|-acrReserveTest 1|120|Worlds/ACR_Everon.ent
