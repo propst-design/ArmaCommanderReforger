@@ -2132,8 +2132,10 @@ class ACR_Squad : Managed
  // (each road hop was a waypoint end and a fresh engine path: brake, plan again); -acrNoRoadHops 0
  // brings the road hops back. The hops are the fallback: a failed move (OnGroupMoveFailed) and a
  // stuck vehicle (DriveWatch's Reroute) go on over the roads from where they stand.
+ static bool s_bRoadHopsOn; // tests (srv:driveflow): road hops on an ordered move, as -acrNoRoadHops 0
  static bool NoRoadHops()
  {
+  if (s_bRoadHopsOn) return false;
   string value;
   if (System.GetCLIParam("acrNoRoadHops", value)) return value != "0";
   return true;
@@ -2568,6 +2570,8 @@ class ACR_Squad : Managed
     m_MoveTarget = m_QueuedHop.GetOrigin();
     m_QueuedHop = null;
     if (!m_aRoute.IsEmpty()) m_aRoute.RemoveOrdered(0);
+    // The route's own end (a move, queued like a hop: FinalLegFlows) carries the order's radius.
+    if (m_aRoute.IsEmpty() && m_Route) m_fOrderRadius = m_Route.m_fRadius;
     m_iWaypointRecoveries = 0;
     m_fNextWaypointRecovery = 0;
     return true;
@@ -2577,10 +2581,10 @@ class ACR_Squad : Managed
    DropQueuedHop();
    return false;
   }
-  if (m_aRoute.Count() < 2 || !current || current != m_Waypoint || m_sOrderPrefab != WP_MOVE) return false;
+  if ((m_aRoute.Count() < 2 && !FinalLegFlows()) || !current || current != m_Waypoint || m_sOrderPrefab != WP_MOVE) return false;
   if (vector.DistanceXZ(driven.GetOrigin(), m_MoveTarget) > handover + 80) return true;
   SkipStraightHops();
-  if (m_aRoute.Count() < 2) return false;
+  if (m_aRoute.Count() < 2 && !FinalLegFlows()) return false;
   Resource resource = Resource.Load(WP_MOVE);
   if (!resource.IsValid()) return false;
   EntitySpawnParams params = new EntitySpawnParams();
@@ -2588,11 +2592,53 @@ class ACR_Squad : Managed
   params.Transform[3] = m_aRoute[0];
   AIWaypoint hop = AIWaypoint.Cast(GetGame().SpawnEntityPrefabLocal(resource, null, params));
   if (!hop) return false;
-  hop.SetCompletionRadius(25);
+  float radius = 25;
+  if (m_aRoute.Count() == 1) radius = m_Route.m_fRadius; // the route's end: its own order's radius
+  if (radius >= 0) hop.SetCompletionRadius(radius);
   SCR_AIWaypoint scripted = SCR_AIWaypoint.Cast(hop);
   if (scripted && m_bForced) scripted.SetPriorityLevel(SCR_AIActionBase.PRIORITY_LEVEL_PLAYER);
   m_Group.AddWaypoint(hop);
   m_QueuedHop = hop;
+  return true;
+ }
+
+ // The route's last leg is a plain move (an ordered move, a supply run, a re-route): it is queued
+ // behind the last hop like any other, so the driver doesn't stop to be handed it (#86, 20 Nov).
+ // A Defend, Garrison or Search & Destroy at the end keeps NextLeg's own waypoint.
+ protected bool FinalLegFlows()
+ {
+  return m_aRoute.Count() == 1 && m_Route && m_Route.m_sPrefab == WP_MOVE;
+ }
+
+ // #86 again (20 Nov, Reforger 1.9): the game's move activity now sends every agent a cancel when it
+ // completes (SCR_AIMoveActivity.OnActionCompleted), so the driver braked to a stop at each road hop
+ // even with the next one queued behind it (srv:driveflow: 4 of 12 hops). The move that completes onto
+ // our own queued hop keeps its men going: ACR_RoadFlowMove skips that cancel, the next hop's move
+ // takes over the driver within the tick. Anything else (a new order, a player, a recovery) cancels.
+ // The activity is known by where it was going: the game fails it with its waypoint reference already
+ // cleared when the waypoint completes (SCR_AIActivityBase.Fail(true)).
+ bool FlowsOnFrom(AIWaypoint waypoint, vector moveTo)
+ {
+  if (!m_QueuedHop || !m_Group || !RoadFlow()) return false;
+  if (waypoint && waypoint != m_Waypoint) return false;
+  if (!waypoint && (!m_Waypoint || vector.DistanceXZ(moveTo, m_Waypoint.GetOrigin()) > 3)) return false;
+  if (!IsMounted() || !ACR_Transport.CrewedVehicle(this)) return false;
+  array<AIWaypoint> waypoints = {};
+  m_Group.GetWaypoints(waypoints);
+  return waypoints.Contains(m_QueuedHop);
+ }
+
+ static int s_iFlowsKept; // tests: cancels skipped onto a queued hop
+
+ static bool KeepsDriving(AIGroup owner, AIWaypoint waypoint, vector moveTo)
+ {
+  if (!owner) return false;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  SCR_AIGroup group = SCR_AIGroup.Cast(owner);
+  if (!manager || !group) return false;
+  ACR_Squad squad = manager.FindSquadByGroup(group);
+  if (!squad || !squad.FlowsOnFrom(waypoint, moveTo)) return false;
+  s_iFlowsKept++;
   return true;
  }
 

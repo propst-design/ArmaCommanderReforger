@@ -19,6 +19,17 @@ modded class ACR_Squad
 
  int UnstickTries() { return m_iUnsticks; }
 
+ // Waiting that isn't being stuck (queueing, boarding, BBB driving it): both clocks start again. The
+ // circle clock kept running through the wait (70fa4f6), so a truck that had queued 35 s in a convoy
+ // was "turning circles" the moment the excuse ended and was backed up and sent over the road hops
+ // (Jacob's 19 Nov game, two trucks in Morton).
+ protected void ExcuseStall(IEntity vehicle, float now)
+ {
+  m_fStallSince = now;
+  m_vCirclePos = vehicle.GetOrigin();
+  m_fCircleSince = now;
+ }
+
  // Times DriveWatch took this squad's vehicle as stuck (unstick, re-route or hold): tests.
  int m_iStallsTaken;
 
@@ -187,7 +198,7 @@ modded class ACR_Squad
    }
    if (now - m_fBoardingSince < BOARDING_WAIT_MS)
    {
-    m_fStallSince = now;
+    ExcuseStall(vehicle, now);
     return;
    }
   }
@@ -206,7 +217,7 @@ modded class ACR_Squad
    }
    if (now - m_fQueueSince < QUEUE_WAIT_MS)
    {
-    m_fStallSince = now;
+    ExcuseStall(vehicle, now);
     return;
    }
   }
@@ -216,7 +227,7 @@ modded class ACR_Squad
   // the truck, so the 3 s unarmed-under-fire bail fired every time (pak:mannersevade 0/3).
   if (BBB_PilotHold.Driving(vehicle))
   {
-   m_fStallSince = now;
+   ExcuseStall(vehicle, now);
    return;
   }
   float stalled = (now - m_fStallSince) / 1000;

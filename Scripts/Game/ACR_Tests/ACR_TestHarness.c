@@ -50,6 +50,7 @@ class ACR_TestHarness : Managed
  static const int MODE_ARMOURCREW = 297; // fighting vehicles keep their crews and hold still (19 Nov)
  static const int MODE_RBGUNNER = 298; // a roadblock's machine-gun team keeps its gun manned (19 Nov)
  static const int MODE_ROADHOPS = 137; // #86 a vehicle drives through road hops (134-136 left for open branches)
+ static const int MODE_DRIVEFLOW = 343; // #86 again (20 Nov): no stop at each waypoint of an ordered move or a supply route
  static const int MODE_RIDE = 18;
  static const int MODE_LOGISTICS = 19;
  static const int MODE_QUEUE = 20;
@@ -190,6 +191,7 @@ class ACR_TestHarness : Managed
   if (System.GetCLIParam("acrRoadblockGunnerTest", flag)) mode = MODE_RBGUNNER;
   if (System.GetCLIParam("acrRoadHopsTest", flag)) mode = MODE_ROADHOPS;
   if (System.GetCLIParam("acrRoadHopsOffTest", flag)) mode = MODE_ROADHOPS;
+  if (System.GetCLIParam("acrDriveFlowTest", flag)) mode = MODE_DRIVEFLOW;
   if (System.GetCLIParam("acrRTSOverlayTest", flag)) mode = MODE_RTSOVERLAY;
   if (System.GetCLIParam("acrIntelMarksTest", flag)) mode = MODE_INTELMARKS;
   if (System.GetCLIParam("acrReconTest", flag)) mode = MODE_RECON;
@@ -379,6 +381,7 @@ class ACR_TestHarness : Managed
   if (m_Mode == MODE_ARMOURCREW) { ACR_TestArmourCrew.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RBGUNNER) { ACR_TestRoadblockGunner.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_ROADHOPS) { ACR_TestRoadHops.Run(this, m_Ticks); return; }
+  if (m_Mode == MODE_DRIVEFLOW) { ACR_TestDriveFlow.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RTSOVERLAY) { ACR_TestRTSOverlay.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_INTELMARKS) { ACR_TestIntelMarkers.Run(this, m_Ticks); return; }
   if (m_Mode == MODE_RECON) { ACR_TestRecon.Run(this, m_Ticks); return; }
