@@ -61,6 +61,7 @@ class ACR_SetupTheme : Managed
  bool m_bRail;             // tabs as a narrow text-only rail with thin dividers, one filled tab
  bool m_bCompact;          // denser: smaller type, thin rows, values in a thin box
  bool m_bMonoBody;         // the help, summary and status lines in the monospace font too
+ bool m_bLettered;         // rows lettered "A.", "B." as an order's sub-paragraphs (terminal)
 
  protected static ref ACR_SetupTheme s_Current;
  static const ResourceName HEADING_MONO = "{AC230926A00100F7}UI/layouts/ACR/ACR_SetupHeadingMono.layout";
@@ -182,7 +183,7 @@ class ACR_SetupTheme : Managed
   theme.m_sChanged = "* ";
   theme.m_sCursor = "> ";
   theme.m_sDecor = "";
-  theme.m_sKeys = "SPACE: START    Q / E: CHANGE TAB    LEFT / RIGHT: CHANGE A VALUE";
+  theme.m_sKeys = "SPACE: EXECUTE    Q / E: NEXT PARA    LEFT / RIGHT: CHANGE    POINT AT AN ITEM FOR WHAT IT DOES";
   theme.m_sHeadingLayout = HEADING_MONO;
   // An opaque phosphor screen in a grey-brown case; rules in dim green; the open tab and Start in
   // inverse video, as a terminal highlights its choice.
@@ -202,8 +203,9 @@ class ACR_SetupTheme : Managed
   theme.m_Start = Srgb(75, 255, 122);
   theme.m_StartHover = Srgb(140, 255, 170);
   theme.m_StartText = Srgb(4, 26, 8);
-  theme.m_sStatusLeft = "FIELD TERMINAL";
-  theme.m_sStatusRight = "MATCH SETUP · READY";
+  theme.m_sStatusLeft = "TACCS-4 FIELD TERMINAL  REL 2.1";
+  theme.m_sStatusRight = "OPORD 001 // MATCH SETUP";
+  theme.m_bLettered = true;
   return theme;
  }
 
@@ -253,9 +255,9 @@ class ACR_SetupTheme : Managed
   theme.m_Start = Srgb(110, 175, 98);
   theme.m_StartHover = Srgb(130, 195, 116);
   theme.m_StartText = Srgb(8, 20, 8);
-  theme.m_sStatusLeft = "Command tablet";
-  theme.m_sStatusRight = "Match setup · connected";
-  theme.m_sKeys = "Space: Start    Q / E: change tab    Left / right: change a value";
+  theme.m_sStatusLeft = "C2 // MATCH SETUP";
+  theme.m_sStatusRight = "NET OK";
+  theme.m_sKeys = "Space: Execute    Q / E: change tab    Left / right: change a value    Point at anything for what it does";
   return theme;
  }
 
@@ -280,6 +282,77 @@ class ACR_SetupTheme : Managed
  }
 
  // A label, value, tab or button in this skin's case (help text is not passed through here).
+ // Themed wording (Jacob, 20 Nov: the device skins may use the mock-ups' military words, as long as
+ // every themed control has a plain tooltip, ACR_SetupLobbyModel.Tooltip). "" = the plain words.
+ string TabLabel(int tab)
+ {
+  if (m_sName == "tablet")
+  {
+   if (tab == 0) return "SITREP";
+   if (tab == 1) return "MISSION";
+   if (tab == 2) return "EXEC";
+   if (tab == 3) return "SUSTAIN";
+   if (tab == 4) return "C2";
+   if (tab == 5) return "EXP";
+   return "PRESETS";
+  }
+  if (m_sName == "crt")
+  {
+   if (tab == 0) return "[1] SIT";
+   if (tab == 1) return "[2] MSN";
+   if (tab == 2) return "[3] EXEC";
+   if (tab == 3) return "[4] SUST";
+   if (tab == 4) return "[5] C2";
+   if (tab == 5) return "[A] EXP";
+   return "[B] PRST";
+  }
+  return "";
+ }
+
+ // The heading over a tab's rows ("" = the plain tab name).
+ string TabHeading(int tab)
+ {
+  if (m_sName == "crt") return string.Format("> PARA %1: %2", ACR_Setup.LobbyTabPrefix(tab).Substring(0, 1), Long(tab));
+  if (m_sName == "tablet") return Long(tab);
+  return "";
+ }
+
+ protected static string Long(int tab)
+ {
+  if (tab == 0) return "SITUATION";
+  if (tab == 1) return "MISSION";
+  if (tab == 2) return "EXECUTION";
+  if (tab == 3) return "SUSTAINMENT";
+  if (tab == 4) return "COMMAND AND SIGNAL";
+  if (tab == 5) return "ANNEX A: EXPERIMENTAL";
+  return "ANNEX B: PRESETS";
+ }
+
+ // A row's short themed label ("" = the server's plain one).
+ string RowLabel(string key)
+ {
+  if (!m_bDevice) return "";
+  if (key == "west") return "Blue force";
+  if (key == "east") return "Red force";
+  if (key == "ai") return "AI command";
+  if (key == "layout") return "Area of ops";
+  if (key == "quickstart") return "Opening";
+  if (key == "threat") return "Threat";
+  if (key == "startrp") return "Starting RP";
+  if (key == "aicommander") return "AI CO";
+  if (key == "unitcap") return "Squad cap";
+  if (key == "doctrinewest") return "Blue doctrine";
+  if (key == "doctrineeast") return "Red doctrine";
+  return "";
+ }
+
+ // The Start button's words.
+ string StartLabel()
+ {
+  if (m_bDevice) return "Execute";
+  return "Start match";
+ }
+
  string Text(string text)
  {
   if (!m_bUpper) return text;

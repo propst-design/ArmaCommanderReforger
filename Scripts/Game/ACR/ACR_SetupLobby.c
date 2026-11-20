@@ -207,6 +207,27 @@ class ACR_SetupLobbyModel
   return help;
  }
 
+ // The plain tooltip a device skin shows on a control whose label is themed ("SITREP", "Execute",
+ // "Area of ops"): its plain name and what it does, from the same help as the right panel.
+ static string Tooltip(notnull array<ref ACR_SetupLobbyRow> rows, string key)
+ {
+  if (key.StartsWith("tab:"))
+  {
+   int tabIndex = key.Substring(4, key.Length() - 4).ToInt();
+   return ACR_Setup.LobbyTabName(tabIndex) + ": " + TabAbout(tabIndex);
+  }
+  if (key == "footerstart") return "Start the match: starts it with this setup (Space, or Y on a gamepad).";
+  if (key.StartsWith("footer") || key.StartsWith("preset")) return HelpFor(rows, key);
+  ACR_SetupLobbyRow row = Find(rows, key);
+  string name = key;
+  if (row && !row.m_sLabel.IsEmpty()) name = row.m_sLabel;
+  else if (row) name = row.m_sText;
+  string help = ACR_Setup.Help(key);
+  help.Replace("\n", " ");
+  if (help.IsEmpty()) return name;
+  return name + ": " + help;
+ }
+
  static string TabAbout(int tab)
  {
   if (tab == 0) return "where the match is fought, how hard the enemy pushes, and who else is out there: FIA and zombies.";
@@ -265,13 +286,34 @@ class ACR_SetupLobbyHandler : ScriptedWidgetEventHandler
 
  override bool OnFocus(Widget w, int x, int y)
  {
-  if (m_Lobby) m_Lobby.Focused(m_sKey, true);
+  if (m_Lobby)
+  {
+   m_Lobby.Focused(m_sKey, true);
+   m_Lobby.Tip(m_sKey, w, true, false);
+  }
+  return false;
+ }
+
+ // The pointer: only the tooltip (the right panel follows the focus).
+ override bool OnMouseEnter(Widget w, int x, int y)
+ {
+  if (m_Lobby) m_Lobby.Tip(m_sKey, w, true, true);
+  return false;
+ }
+
+ override bool OnMouseLeave(Widget w, Widget enterW, int x, int y)
+ {
+  if (m_Lobby) m_Lobby.Tip(m_sKey, w, false, true);
   return false;
  }
 
  override bool OnFocusLost(Widget w, int x, int y)
  {
-  if (m_Lobby) m_Lobby.Focused(m_sKey, false);
+  if (m_Lobby)
+  {
+   m_Lobby.Focused(m_sKey, false);
+   m_Lobby.Tip(m_sKey, w, false, false);
+  }
   return false;
  }
 
@@ -309,6 +351,14 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  protected TextWidget m_wHelp;
  protected TextWidget m_wStatus;
  protected TextWidget m_wKeys;
+ // The device skins' tooltip: what a themed control does, in plain words, on hover and on focus.
+ protected Widget m_wTip;
+ protected TextWidget m_wTipText;
+ protected string m_sTipHover;
+ protected Widget m_wTipHover;
+ protected string m_sTipFocus;
+ protected Widget m_wTipFocus;
+ protected ref map<string, string> m_RowLetters = new map<string, string>();
  protected ref ACR_SetupLobbyHelp m_Help = new ACR_SetupLobbyHelp();
 
  protected ref array<ref ACR_SetupLobbyRow> m_aRows = {};
@@ -419,6 +469,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   Size(m_wSummary, 17);
   Size(m_wHelp, 15);
   Size(m_wStatus, 14);
+  BuildTip(root);
  }
 
  // The device skins' structure (tablet, terminal): the world hidden behind an opaque screen in a
@@ -576,7 +627,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   }
   foreach (int index, SCR_ButtonTextComponent tabButton : m_TabButtons)
   {
-   string name = TabText(index);
+   string name = m_Theme.TabLabel(index);
+   if (name.IsEmpty()) name = TabText(index);
    if (index != ACR_Setup.LOBBY_PRESETS && ACR_SetupLobbyModel.ChangedOn(m_aRows, index) > 0) name += "  " + m_Theme.m_sChanged;
    tabButton.SetText(m_Theme.Text(name));
    Paint(tabButton, index == m_iTab, m_Theme.m_bRail);
@@ -632,7 +684,15 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   array<SCR_ButtonBaseComponent> gone = {};
   foreach (SCR_ButtonBaseComponent button, string key : m_Buttons) if (!key.StartsWith("tab:") && !key.StartsWith("footer")) gone.Insert(button);
   foreach (SCR_ButtonBaseComponent old : gone) m_Buttons.Remove(old);
-  if (m_wTabTitle) m_wTabTitle.SetText(m_Theme.Text(TabText(m_iTab)));
+  string heading = m_Theme.TabHeading(m_iTab);
+  if (heading.IsEmpty()) heading = TabText(m_iTab);
+  if (m_wTabTitle) m_wTabTitle.SetText(m_Theme.Text(heading));
+  // The rows go: no tooltip may point at them.
+  m_sTipHover = "";
+  m_wTipHover = null;
+  m_sTipFocus = "";
+  m_wTipFocus = null;
+  if (m_wTip) m_wTip.SetVisible(false);
   if (m_iTab == ACR_Setup.LOBBY_PRESETS)
   {
    BuildPresets();
@@ -642,6 +702,16 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (m_iTab == ACR_Setup.LOBBY_FIRST) BuildSides();
   array<ACR_SetupLobbyRow> shown = {};
   ACR_SetupLobbyModel.Shown(m_aRows, m_iTab, shown);
+  // The terminal letters its rows as an order's sub-paragraphs: A., B., ...
+  m_RowLetters.Clear();
+  string letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  int lettered = 0;
+  foreach (ACR_SetupLobbyRow shownRow : shown)
+  {
+   if (shownRow.m_sKind != "value" || lettered >= letters.Length()) continue;
+   m_RowLetters.Set(shownRow.m_sKey, letters.Substring(lettered, 1) + ". ");
+   lettered++;
+  }
   foreach (ACR_SetupLobbyRow row : shown)
   {
    float indent = 0;
@@ -699,7 +769,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (!w) return;
   AlignableSlot.SetPadding(w, 4 + indent, 2, 4, 2);
   if (m_Theme.m_bCompact) AlignableSlot.SetPadding(w, 4 + indent, 0, 4, 0);
-  SpinLook(w);
+  SpinLook(w, m_Theme);
   SCR_SpinBoxComponent spin = SCR_SpinBoxComponent.Cast(w.FindHandler(SCR_SpinBoxComponent));
   if (!spin) return;
   spin.SetCycleMode(true);
@@ -717,15 +787,15 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  // A device skin's row (the widget library's spin box, its parts by name): a thin row with no
  // filled bar, the label and value in smaller type, the arrows as light marks round the value.
  // The control itself is untouched, so mouse, keys and pad work as before.
- protected void SpinLook(Widget w)
+ static void SpinLook(Widget w, ACR_SetupTheme theme)
  {
-  if (!w || !m_Theme.m_bCompact) return;
+  if (!w || !theme || !theme.m_bCompact) return;
   Compact(w, 34);
   Color clear = new Color(0, 0, 0, 0);
   Widget back = w.FindAnyWidget("Background");
   if (back) back.SetColor(clear);
   Widget highlight = w.FindAnyWidget("LineHighlight");
-  if (highlight) highlight.SetColor(m_Theme.m_Line);
+  if (highlight) highlight.SetColor(theme.m_Line);
   array<string> arrows = {"ButtonLeft", "ButtonRight"};
   foreach (string arrowName : arrows)
   {
@@ -734,16 +804,147 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    Widget arrowBack = arrow.FindAnyWidget("BackgroundImage");
    if (arrowBack) arrowBack.SetColor(clear);
    Widget mark = arrow.FindAnyWidget("Panel");
-   if (mark) mark.SetColor(m_Theme.m_Decor);
+   if (mark) mark.SetColor(theme.m_Decor);
   }
   TextWidget value = TextWidget.Cast(w.FindAnyWidget("SelectionText"));
   if (value)
   {
    value.SetExactFontSize(16);
-   value.SetColor(m_Theme.m_ButtonText);
+   value.SetColor(theme.m_ButtonText);
   }
   TextWidget label = TextWidget.Cast(w.FindAnyWidget("Text"));
   if (label) label.SetExactFontSize(16);
+  // The value in a thin box (the mock-ups): the spin box's arrows and value moved into an overlay
+  // over a 1 px frame. The parts keep their own handlers, so the control works as before.
+  Widget content = w.FindAnyWidget("ContentLayout");
+  Widget line = w.FindAnyWidget("HorizontalLayout");
+  if (!content || !line || content.GetParent() != line) return;
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  Widget box = ws.CreateWidget(WidgetType.OverlayWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, line);
+  if (!box) return;
+  LayoutSlot.SetSizeMode(box, LayoutSizeMode.Fill);
+  AlignableSlot.SetVerticalAlign(box, LayoutVerticalAlign.Center);
+  AlignableSlot.SetPadding(box, 8, 3, 0, 3);
+  Widget edge = ws.CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, theme.m_Line, 0, box);
+  if (edge)
+  {
+   AlignableSlot.SetHorizontalAlign(edge, LayoutHorizontalAlign.Stretch);
+   AlignableSlot.SetVerticalAlign(edge, LayoutVerticalAlign.Stretch);
+  }
+  Widget inside = ws.CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, theme.m_Screen, 0, box);
+  if (inside)
+  {
+   AlignableSlot.SetHorizontalAlign(inside, LayoutHorizontalAlign.Stretch);
+   AlignableSlot.SetVerticalAlign(inside, LayoutVerticalAlign.Stretch);
+   AlignableSlot.SetPadding(inside, 1, 1, 1, 1);
+  }
+  box.AddChild(content);
+  AlignableSlot.SetHorizontalAlign(content, LayoutHorizontalAlign.Stretch);
+  AlignableSlot.SetVerticalAlign(content, LayoutVerticalAlign.Center);
+ }
+
+ // ---------------------------------------------------------------- tooltip (device skins)
+ protected void BuildTip(Widget root)
+ {
+  if (!root || m_wTip) return;
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  m_wTip = ws.CreateWidget(WidgetType.OverlayWidgetTypeID, WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, Color.FromInt(Color.WHITE), 100, root);
+  if (!m_wTip) return;
+  FrameSlot.SetAnchorMin(m_wTip, 0, 0);
+  FrameSlot.SetAnchorMax(m_wTip, 0, 0);
+  FrameSlot.SetAlignment(m_wTip, 0, 0);
+  FrameSlot.SetSizeToContent(m_wTip, true);
+  Widget edge = ws.CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, m_Theme.m_Line, 0, m_wTip);
+  if (edge)
+  {
+   AlignableSlot.SetHorizontalAlign(edge, LayoutHorizontalAlign.Stretch);
+   AlignableSlot.SetVerticalAlign(edge, LayoutVerticalAlign.Stretch);
+  }
+  Widget inside = ws.CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, m_Theme.m_StatusBack, 0, m_wTip);
+  if (inside)
+  {
+   AlignableSlot.SetHorizontalAlign(inside, LayoutHorizontalAlign.Stretch);
+   AlignableSlot.SetVerticalAlign(inside, LayoutVerticalAlign.Stretch);
+   AlignableSlot.SetPadding(inside, 1, 1, 1, 1);
+  }
+  SizeLayoutWidget width = SizeLayoutWidget.Cast(ws.CreateWidget(WidgetType.SizeLayoutWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR, Color.FromInt(Color.WHITE), 0, m_wTip));
+  if (!width) return;
+  width.EnableWidthOverride(true);
+  width.SetWidthOverride(440);
+  m_wTipText = TextWidget.Cast(ws.CreateWidgets(ACR_SetupTheme.HEADING_MONO, width));
+  if (!m_wTipText) return;
+  AlignableSlot.SetPadding(m_wTipText, 10, 6, 10, 6);
+  m_wTipText.SetExactFontSize(14);
+  m_wTipText.SetColor(m_Theme.m_Help);
+ }
+
+ // A control got or lost the pointer (hover) or the focus: the tooltip follows the pointer while
+ // it rests on a control, else the focus.
+ void Tip(string key, Widget w, bool on, bool hover)
+ {
+  if (!m_wTip) return;
+  if (hover)
+  {
+   if (on)
+   {
+    m_sTipHover = key;
+    m_wTipHover = w;
+   }
+   else if (m_sTipHover == key)
+   {
+    m_sTipHover = "";
+    m_wTipHover = null;
+   }
+  }
+  else
+  {
+   if (on)
+   {
+    m_sTipFocus = key;
+    m_wTipFocus = w;
+   }
+   else if (m_sTipFocus == key)
+   {
+    m_sTipFocus = "";
+    m_wTipFocus = null;
+   }
+  }
+  if (!m_sTipHover.IsEmpty() && m_wTipHover) ShowTip(m_sTipHover, m_wTipHover);
+  else if (!m_sTipFocus.IsEmpty() && m_wTipFocus) ShowTip(m_sTipFocus, m_wTipFocus);
+  else m_wTip.SetVisible(false);
+ }
+
+ protected void ShowTip(string key, Widget w)
+ {
+  string text = ACR_SetupLobbyModel.Tooltip(m_aRows, key);
+  if (text.IsEmpty() || !m_wTipText)
+  {
+   m_wTip.SetVisible(false);
+   return;
+  }
+  m_wTipText.SetText(text);
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  float x, y, wide, high;
+  w.GetScreenPos(x, y);
+  w.GetScreenSize(wide, high);
+  x = ws.DPIUnscale(x);
+  y = ws.DPIUnscale(y);
+  wide = ws.DPIUnscale(wide);
+  high = ws.DPIUnscale(high);
+  float screenWide = ws.DPIUnscale(ws.GetWidth());
+  float screenHigh = ws.DPIUnscale(ws.GetHeight());
+  // Beside a tab (the rail is narrow), under anything else; kept on the screen.
+  float left = x + 12;
+  float top = y + high + 4;
+  if (key.StartsWith("tab:"))
+  {
+   left = x + wide + 8;
+   top = y;
+  }
+  left = Math.Min(left, screenWide - 470);
+  if (top > screenHigh - 150) top = y - 110;
+  FrameSlot.SetPos(m_wTip, left, top);
+  m_wTip.SetVisible(true);
  }
 
  protected void SetSpin(SCR_SpinBoxComponent spin, ACR_SetupLobbyRow row)
@@ -757,7 +958,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    spin.AddItem(value);
    spin.SetCurrentItem(0, false, false, false);
   }
-  string label = m_Theme.Text(row.m_sLabel);
+  string plain = m_Theme.RowLabel(row.m_sKey);
+  if (plain.IsEmpty()) plain = row.m_sLabel;
+  string letter = "";
+  if (m_Theme.m_bLettered) m_RowLetters.Find(row.m_sKey, letter);
+  string label = m_Theme.Text(letter + plain);
   if (row.m_bChanged) label = m_Theme.m_sChanged + label;
   if (!m_Theme.m_sCursor.IsEmpty() && row.m_sKey == m_sFocus) label = m_Theme.m_sCursor + label;
   spin.SetLabel(label);
@@ -939,7 +1144,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
      if (!spin) continue;
      LayoutSlot.SetSizeMode(spin, LayoutSizeMode.Fill);
      AlignableSlot.SetPadding(spin, 0, 0, 8, 0);
-     SpinLook(spin);
+     SpinLook(spin, m_Theme);
      m_FooterPreset = SCR_SpinBoxComponent.Cast(spin.FindHandler(SCR_SpinBoxComponent));
      if (m_FooterPreset)
      {
@@ -1000,11 +1205,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   m_bFilling = false;
  }
 
- protected static string FooterText(string key)
+ protected string FooterText(string key)
  {
   if (key == "footerload") return "Load preset";
   if (key == "footerreset") return "Reset tab";
-  if (key == "footerstart") return "Start match";
+  if (key == "footerstart") return m_Theme.StartLabel();
   return "Build my deck";
  }
 
@@ -1043,7 +1248,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   }
   if (m_wSubtitle)
   {
-   if (m_bAllowed) m_wSubtitle.SetText("Pick a tab, change a row with its arrows (or left and right), then press Start match. A dot marks a change from this server's default.");
+   if (m_bAllowed) m_wSubtitle.SetText("Pick a tab, change a row with its arrows (or left and right), then press " + m_Theme.StartLabel() + ". A dot marks a change from this server's default.");
    else m_wSubtitle.SetText("Waiting for the host or an admin to set up the match and press Start. You can look; only they can change it.");
   }
   if (m_wStatus)
