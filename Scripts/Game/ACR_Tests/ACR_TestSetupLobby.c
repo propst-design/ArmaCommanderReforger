@@ -50,6 +50,23 @@ class ACR_TestSetupLobby
   return false;
  }
 
+ protected static void DumpTree(Widget w, int depth, string tag)
+ {
+  if (!w || depth > 8) return;
+  string pad = "";
+  for (int d = 0; d < depth; d++) pad += ". ";
+  string extra = "";
+  TextWidget text = TextWidget.Cast(w);
+  if (text) extra = " text='" + text.GetText() + "'";
+  PrintFormat("[ACR] WTREE %1 %2%3 <%4> visible %5%6", tag, pad, w.GetName(), w.Type().ToString(), w.IsVisible(), extra);
+  Widget child = w.GetChildren();
+  while (child)
+  {
+   DumpTree(child, depth + 1, tag);
+   child = child.GetSibling();
+  }
+ }
+
  static void Run(int second)
  {
   if (second != 6) return;
@@ -218,6 +235,10 @@ class ACR_TestSetupLobby
    {
     Widget spin = workspace.CreateWidgets(SPIN, root.FindAnyWidget("Rows"));
     spinOk = spin && spin.FindHandler(SCR_SpinBoxComponent) != null;
+    // The widget library's trees in the log (names and types), for the skins' styling.
+    if (spin) DumpTree(spin, 0, "spin");
+    Widget libButton = workspace.CreateWidgets("{75C912A1C89BE6C2}UI/layouts/WidgetLibrary/Buttons/WLib_ButtonText.layout", root.FindAnyWidget("Rows"));
+    if (libButton) DumpTree(libButton, 0, "button");
     // The CRT skin's heading font layout builds too.
     Widget mono = workspace.CreateWidgets(ACR_SetupTheme.HEADING_MONO, root.FindAnyWidget("TitleHolder"));
     spinOk = spinOk && TextWidget.Cast(mono) != null;
