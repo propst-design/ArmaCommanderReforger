@@ -1,6 +1,6 @@
 # Human entry point. Backend operations never publish anything.
 [CmdletBinding()]
-param([string]$WorkbenchPath, [string]$InstalledAddons = 'E:\ArmaReforgerMods\addons', [switch]$NoMenu, [string]$Publish)
+param([string]$WorkbenchPath, [string]$InstalledAddons = 'E:\ArmaReforgerMods\addons', [switch]$NoMenu, [string]$Publish, [string]$PreviewImage, [string]$Screenshots)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $backend = Join-Path $PSScriptRoot 'release_console.py'
@@ -43,7 +43,9 @@ function Start-ChangelogRelay([string]$Mod) {
 }
 function Open-CheckedProject {
  # -Confirmed: Jacob asked an agent to publish this update (Publish-AddOn.ps1, or -Publish for ACA/BBB/AiO; 19 Nov).
- param([string]$Mod, [switch]$PublishUpdate, [switch]$Confirmed)
+ # -PreviewImage / -Screenshots (Jacob, 20 Nov; opt-in): an update also replaces the page's preview image
+ # (jpg/png) or adds the screenshots in a folder (jpg/png/bmp). Left out, the page's pictures stay as they are.
+ param([string]$Mod, [switch]$PublishUpdate, [switch]$Confirmed, [string]$PreviewImage, [string]$Screenshots)
  if (Get-Process '*Workbench*' -ErrorAction SilentlyContinue) { throw 'Close Workbench first. This ensures the selected release opens as the active project.' }
  $project = Invoke-Guard @('check', $Mod, '--installed-root', $InstalledAddons)
  $notes = (Invoke-Guard @('notes', $Mod)) | ConvertFrom-Json
@@ -85,6 +87,18 @@ function Open-CheckedProject {
  }
  Write-Host "WORKSHOP UPDATE: $Mod $($notes.installedVersion) -> $($notes.version)" -ForegroundColor Cyan
  Get-Content -LiteralPath $notes.changelogFile -Encoding UTF8 | Out-Host
+ if ($PreviewImage) {
+  if (!(Test-Path -LiteralPath $PreviewImage -PathType Leaf) -or $PreviewImage -notmatch '\.(png|jpe?g)$') { throw "Preview image not found or not a png/jpg: $PreviewImage" }
+  $PreviewImage = (Resolve-Path -LiteralPath $PreviewImage).Path
+  Write-Host "Preview image: $PreviewImage"
+ }
+ if ($Screenshots) {
+  if (!(Test-Path -LiteralPath $Screenshots -PathType Container)) { throw "Screenshots folder not found: $Screenshots" }
+  $Screenshots = (Resolve-Path -LiteralPath $Screenshots).Path
+  $shots = @(Get-ChildItem -LiteralPath $Screenshots -File | Where-Object { $_.Extension -match '^\.(png|jpe?g|bmp)$' })
+  if ($shots.Count -eq 0) { throw "No jpg, png or bmp in $Screenshots" }
+  Write-Host "Screenshots: $($shots.Count) from $Screenshots"
+ }
  Write-Host 'This uploads an update using the existing Workshop item and your Workbench login.'
  $confirmation = 'PUBLISH ' + $Mod + ' ' + $notes.version
  if (!$Confirmed -and (Read-Host "Type $confirmation to upload, or press Enter to cancel") -cne $confirmation) {
@@ -95,6 +109,8 @@ function Open-CheckedProject {
  $fresh = (Invoke-Guard @('publish-info', $Mod, '--installed-root', $InstalledAddons)) | ConvertFrom-Json
  if ($fresh.project -ne $project -or $fresh.version -ne $notes.version -or $fresh.changelogFile -ne $notes.changelogFile) { throw 'The selected release changed during review. Start again.' }
  $launchArgs += ' -wbmodule=ResourceManager -publishAddon -publishAddonVersion ' + $notes.version + ' -publishAddonChangeNoteFile "' + $notes.changelogFile + '"'
+ if ($PreviewImage) { $launchArgs += ' -publishAddonPreviewImage "' + $PreviewImage + '"' }
+ if ($Screenshots) { $launchArgs += ' -publishAddonScreenshots "' + $Screenshots + '"' }
  $started = Get-Date
  Write-Host 'Publishing checked update with its changelog file...'
  $process = Start-Process -FilePath $script:WorkbenchPath -WorkingDirectory (Split-Path $script:WorkbenchPath -Parent) -ArgumentList $launchArgs -WindowStyle Hidden -Wait -PassThru
@@ -122,7 +138,7 @@ function Read-MapMod {
 # Agent publish (Jacob, 19 Nov: the typed rule, "I want it gone"): when Jacob asks an agent to publish,
 # -Publish <ACA|BBB|AIO|MAP-...|PACK-...> uploads the checked update with its changelog and no typed
 # confirmation. Every other check still runs. BBB goes before ACA.
-if ($Publish) { Open-CheckedProject -Mod $Publish.ToUpperInvariant() -PublishUpdate -Confirmed; return }
+if ($Publish) { Open-CheckedProject -Mod $Publish.ToUpperInvariant() -PublishUpdate -Confirmed -PreviewImage $PreviewImage -Screenshots $Screenshots; return }
 if ($NoMenu) { return }
 while ($true) {
  Write-Host ''
