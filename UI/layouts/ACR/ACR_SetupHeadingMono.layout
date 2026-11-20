@@ -1,0 +1,13 @@
+TextWidgetClass {
+ Name "ACR_SetupHeadingMono"
+ Slot LayoutSlot "{AC23092600F70001}" {
+  Padding 0 0 0 4
+ }
+ Color 1 1 1 1
+ Text ""
+ "Font Size" 30
+ "Min Font Size" 12
+ FontProperties FontProperties "{AC23092600F70002}" {
+  Font "{0E041C5B1F27DCEA}ui/fonts/robotomono_msdf_28.fnt"
+ }
+}

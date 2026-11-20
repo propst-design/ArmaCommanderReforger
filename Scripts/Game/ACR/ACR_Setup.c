@@ -327,33 +327,50 @@ class ACR_Setup
   return string.Format("%1\t%2\t%3\t%4\t%5\n", key, text, LobbyTab(key), Parent(key), flags);
  }
 
- // The lobby's tabs, in the host's order: what the match is first, then who fights, the world they
- // fight in, money and supply, building, what is still being tried, and saved setups.
+ // The lobby's tabs (Jacob 19 Nov): ordered like the five paragraphs of an operations order, each
+ // led by its plain name with the paragraph number as a small prefix, then the annexes. The lobby
+ // opens on Match (paragraph 2, LOBBY_FIRST): the sides, who commands them, how the match opens.
  static const int LOBBY_TABS = 7;
+ static const int LOBBY_FIRST = 1;
  static const int LOBBY_PRESETS = 6;
  static string LobbyTabName(int tab)
  {
-  if (tab == 1) return "Forces & AI";
-  if (tab == 2) return "World";
-  if (tab == 3) return "Economy & Logistics";
-  if (tab == 4) return "Engineering";
+  if (tab == 0) return "Battlefield and world";
+  if (tab == 2) return "Forces and AI";
+  if (tab == 3) return "Economy and logistics";
+  if (tab == 4) return "Command";
   if (tab == 5) return "Experimental";
   if (tab == LOBBY_PRESETS) return "Presets";
   return "Match";
+ }
+
+ // The paragraph number shown before a tab's name: 1-5, then annexes A and B.
+ static string LobbyTabPrefix(int tab)
+ {
+  if (tab == 5) return "A.";
+  if (tab == LOBBY_PRESETS) return "B.";
+  return string.Format("%1.", tab + 1);
  }
 
  static int LobbyTab(string key)
  {
   if (key.StartsWith("about")) return LobbyTab(key.Substring(5, key.Length() - 5));
   if (key.StartsWith("preset")) return LOBBY_PRESETS;
-  if (key == "west" || key == "east" || key == "layout" || key == "seed" || key == "map" || key == "undo" || key == "quickstart" || key == "threat" || key == "ai" || key == "startrp") return 0;
-  if (key == "aicommander" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "unitcap" || key == "capscale" || key == "aibuild" || key == "holdguns" || key == "shared" || key == "declutter" || key == "intro") return 1;
-  if (key == "pockets" || key == "guerrillas" || key == "fiaallegiance" || key == "fialeaning" || key == "fiahidden" || key == "zombies" || key == "zombiemode" || key == "outbreak") return 2;
+  // 1. Battlefield and world: where, how hard, and who else is out there.
+  if (key == "layout" || key == "seed" || key == "map" || key == "undo" || key == "threat") return 0;
+  if (key == "pockets" || key == "guerrillas" || key == "fiaallegiance" || key == "fialeaning" || key == "fiahidden" || key == "zombies" || key == "zombiemode" || key == "outbreak") return 0;
+  // 2. Match: the sides, their commanders, how it opens.
+  if (key == "west" || key == "east" || key == "ai" || key == "quickstart" || key == "startrp") return 1;
+  // 3. Forces and AI: the AI commanders and their squads, minefields and fortifying.
+  if (key == "aicommander" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "unitcap" || key == "capscale" || key == "aibuild" || key == "holdguns") return 2;
+  if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "baseworks") return 2;
+  // 4. Economy and logistics.
   if (key == "pricing" || key == "income" || key == "companywest" || key == "companyeast" || key == "decks" || key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return 3;
   if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "servicecost" || key == "rpservice" || key == "fobrelay" || key == "depotcapacity") return 3;
-  if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "baseworks") return 4;
+  // 5. Command: how players share and see command.
+  if (key == "shared" || key == "declutter" || key == "intro") return 4;
   if (Experimental(key)) return 5;
-  return 0;
+  return LOBBY_FIRST;
  }
 
  // The row a row belongs under ("" = a top-level row).
@@ -1308,6 +1325,7 @@ class ACR_SetupClient
   if (s_Lobby) s_Lobby.Close();
   s_Lobby = null;
   s_bLobbyFailed = false;
+  ACR_SetupTheme.Reset();
  }
 }
 

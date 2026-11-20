@@ -34,17 +34,35 @@ FrameWidgetClass {
     OffsetBottom 0
    }
    {
-    TextWidgetClass "{AC23092600F6000D}" {
-     Name "Title"
-     Slot LayoutSlot "{AC23092600F6000E}" {
+    TextWidgetClass "{AC23092600F60101}" {
+     Name "Decor"
+     Slot LayoutSlot "{AC23092600F60102}" {
       Padding 0 0 0 4
      }
+     "Is Visible" 0
      Color 1 1 1 1
-     Text "AC: Actual - match setup"
-     "Font Size" 32
+     Text ""
+     "Font Size" 16
      "Min Font Size" 12
-     FontProperties FontProperties "{AC23092600F6000F}" {
-      Bold 1
+    }
+    VerticalLayoutWidgetClass "{AC23092600F60103}" {
+     Name "TitleHolder"
+     Slot LayoutSlot "{AC23092600F60104}" {
+     }
+     {
+     TextWidgetClass "{AC23092600F6000D}" {
+      Name "Title"
+      Slot LayoutSlot "{AC23092600F6000E}" {
+       Padding 0 0 0 4
+      }
+      Color 1 1 1 1
+      Text "AC: Actual - match setup"
+      "Font Size" 32
+      "Min Font Size" 12
+      FontProperties FontProperties "{AC23092600F6000F}" {
+       Bold 1
+      }
+     }
      }
     }
     TextWidgetClass "{AC23092600F60010}" {
@@ -79,17 +97,24 @@ FrameWidgetClass {
         FillWeight 0.46
        }
        {
-        TextWidgetClass "{AC23092600F60018}" {
-         Name "TabTitle"
-         Slot LayoutSlot "{AC23092600F60019}" {
-          Padding 4 0 0 8
+        VerticalLayoutWidgetClass "{AC23092600F60105}" {
+         Name "TabTitleHolder"
+         Slot LayoutSlot "{AC23092600F60106}" {
          }
-         Color 1 1 1 1
-         Text ""
-         "Font Size" 24
-         "Min Font Size" 12
-         FontProperties FontProperties "{AC23092600F6001A}" {
-          Bold 1
+         {
+         TextWidgetClass "{AC23092600F60018}" {
+          Name "TabTitle"
+          Slot LayoutSlot "{AC23092600F60019}" {
+           Padding 4 0 0 8
+          }
+          Color 1 1 1 1
+          Text ""
+          "Font Size" 24
+          "Min Font Size" 12
+          FontProperties FontProperties "{AC23092600F6001A}" {
+           Bold 1
+          }
+         }
          }
         }
         ScrollLayoutWidgetClass "{AC23092600F6001B}" {

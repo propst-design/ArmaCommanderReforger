@@ -7,7 +7,7 @@
 // is also built where the server has a workspace). What it can't see: how the screen looks.
 class ACR_TestSetupLobby
 {
- static const int CHECKS = 15;
+ static const int CHECKS = 16;
  protected static const ResourceName LAYOUT = "{AC230926A00100F6}UI/layouts/ACR/ACR_SetupLobby.layout";
  protected static const ResourceName SPIN = "{C9DF0E6590F6C388}UI/layouts/WidgetLibrary/SpinBox/WLib_SpinBox.layout";
 
@@ -73,15 +73,16 @@ class ACR_TestSetupLobby
 
   // 2. The agreed tabs, read from the lines themselves.
   string wrong;
-  array<string> match = {"west", "east", "layout", "quickstart", "threat", "ai", "startrp"};
-  foreach (string key : match) if (Field(key, 2) != "0") wrong += key + " ";
-  if (Field("aicommander", 2) != "1" || Field("doctrinewest", 2) != "1" || Field("unitcap", 2) != "1") wrong += "forces ";
-  if (Field("guerrillas", 2) != "2" || Field("pockets", 2) != "2") wrong += "world ";
+  array<string> match = {"west", "east", "quickstart", "ai", "startrp"};
+  foreach (string key : match) if (Field(key, 2) != "1") wrong += key + " ";
+  if (Field("layout", 2) != "0" || Field("threat", 2) != "0" || Field("guerrillas", 2) != "0" || Field("pockets", 2) != "0") wrong += "battlefield ";
+  if (Field("aicommander", 2) != "2" || Field("doctrinewest", 2) != "2" || Field("unitcap", 2) != "2" || Field("mines", 2) != "2" || Field("fortify", 2) != "2") wrong += "forces ";
   if (Field("decks", 2) != "3" || Field("deployment", 2) != "3" || Field("pricing", 2) != "3") wrong += "economy ";
-  if (Field("mines", 2) != "4" || Field("fortify", 2) != "4") wrong += "engineering ";
+  if (Field("shared", 2) != "4" || Field("declutter", 2) != "4" || Field("intro", 2) != "4") wrong += "command ";
   if (Field("supplyruns", 2) != "5") wrong += "experimental ";
+  if (ACR_Setup.LOBBY_FIRST != 1 || ACR_Setup.LobbyTabName(ACR_Setup.LOBBY_FIRST) != "Match") wrong += "first ";
   if (ACR_SetupLobbyModel.Kind("presetrow:Default", "Default (built-in)") != "preset" || ACR_Setup.LobbyTab("presetrow:Default") != ACR_Setup.LOBBY_PRESETS) wrong += "presets ";
-  ACR_TestRegress.Check("lobby: rows sit on the agreed tabs (Match first)", wrong.IsEmpty(), wrong);
+  ACR_TestRegress.Check("lobby: rows sit on the agreed tabs (opens on Match)", wrong.IsEmpty(), wrong);
 
   // 3. No tab is empty, and only the Match rows land on Match (an unsorted row would fall there).
   array<ref ACR_SetupLobbyRow> parsed = {};
@@ -93,9 +94,9 @@ class ACR_TestSetupLobby
    ACR_SetupLobbyModel.Shown(parsed, tab, shown);
    if (shown.IsEmpty()) empty += ACR_Setup.LobbyTabName(tab) + " ";
   }
-  array<string> matchKeys = {"west", "east", "layout", "seed", "map", "undo", "quickstart", "threat", "ai", "startrp"};
+  array<string> matchKeys = {"west", "east", "quickstart", "ai", "startrp"};
   array<string> allKeys = ACR_Setup.RowKeys();
-  foreach (string rowKey : allKeys) if (ACR_Setup.LobbyTab(rowKey) == 0 && !matchKeys.Contains(rowKey)) stray += rowKey + " ";
+  foreach (string rowKey : allKeys) if (ACR_Setup.LobbyTab(rowKey) == ACR_Setup.LOBBY_FIRST && !matchKeys.Contains(rowKey)) stray += rowKey + " ";
   ACR_TestRegress.Check("lobby: every tab has rows and no row falls onto Match unsorted", empty.IsEmpty() && stray.IsEmpty(), "empty: " + empty + "| stray: " + stray);
 
   // 4. Dependent rows name the row they sit under.
@@ -107,7 +108,7 @@ class ACR_TestSetupLobby
   ACR_Setup.Act(0, "threat");
   bool marked = Flag("threat", "c") && ACR_Setup.Current("threat") == "high";
   ACR_SetupLobbyModel.Parse(ACR_Setup.Rows(), parsed);
-  bool tabMarked = ACR_SetupLobbyModel.ChangedOn(parsed, 0) > 0;
+  bool tabMarked = ACR_SetupLobbyModel.ChangedOn(parsed, ACR_Setup.LobbyTab("threat")) > 0;
   string back = ACR_Setup.Act(0, "prev:threat");
   bool cleared = !Flag("threat", "c") && ACR_Setup.Current("threat") == "normal";
   ACR_TestRegress.Check("lobby: a change marks the row and its tab, going back clears it", cleanAtStart && marked && tabMarked && cleared, string.Format("clean %1, marked %2, tab %3, back '%4' cleared %5", cleanAtStart, marked, tabMarked, back, cleared));
@@ -122,18 +123,18 @@ class ACR_TestSetupLobby
   // 7. Minefield orders off: its two rows are flagged hidden and the model leaves them out.
   ACR_Options.ClearSet();
   ACR_Setup.SetValue("mines", "0");
-  bool hiddenOff = Flag("minesai", "h") && Flag("minesreal", "h") && !ShownOn(4, "minesai") && ShownOn(4, "mines");
+  bool hiddenOff = Flag("minesai", "h") && Flag("minesreal", "h") && !ShownOn(2, "minesai") && ShownOn(2, "mines");
   ACR_Setup.SetValue("mines", "1");
-  bool shownOn = !Flag("minesai", "h") && ShownOn(4, "minesai") && ShownOn(4, "minesreal");
+  bool shownOn = !Flag("minesai", "h") && ShownOn(2, "minesai") && ShownOn(2, "minesreal");
   ACR_TestRegress.Check("lobby: rows under a switched-off parent hide, and come back with it", hiddenOff && shownOn, string.Format("off hidden %1, on shown %2", hiddenOff, shownOn));
 
   // 8. The FIA rows matter with either kind of FIA: hidden only with pockets and guerrillas both off.
   ACR_Setup.SetValue("guerrillas", "off");
-  bool pocketsKeep = ShownOn(2, "fiaallegiance");
+  bool pocketsKeep = ShownOn(0, "fiaallegiance");
   ACR_Setup.SetValue("pockets", "off");
-  bool bothOff = !ShownOn(2, "fiaallegiance") && !ShownOn(2, "fiahidden") && ShownOn(2, "guerrillas");
+  bool bothOff = !ShownOn(0, "fiaallegiance") && !ShownOn(0, "fiahidden") && ShownOn(0, "guerrillas");
   ACR_Setup.SetValue("guerrillas", "few");
-  bool back2 = ShownOn(2, "fialeaning");
+  bool back2 = ShownOn(0, "fialeaning");
   ACR_TestRegress.Check("lobby: FIA rows hide only with pockets and guerrillas both off", pocketsKeep && bothOff && back2, string.Format("pockets keep %1, both off %2, back %3", pocketsKeep, bothOff, back2));
 
   // 9. The seed: typed, nonsense refused, never marked changed.
@@ -144,20 +145,21 @@ class ACR_TestSetupLobby
   bool seedOk = ACR_Setup.Current("seed") == "4321" && typed.Contains("4321") && nonsense.Contains("whole number") && !Flag("seed", "c") && Field("seed", 3) == "layout";
   ACR_TestRegress.Check("lobby: the seed can be typed, nonsense is refused", seedOk, typed + " | " + nonsense);
 
-  // 10. Reset tab: Match's screen choices go, another tab's stay.
+  // 10. Reset tab: Match's screen choices go, the other tabs' stay.
   ACR_Options.ClearSet();
   ACR_Setup.Act(0, "threat");
   ACR_Setup.Act(0, "startrp");
+  ACR_Setup.Act(0, "ai");
   ACR_Setup.Act(0, "mines");
-  string reset = ACR_Setup.Act(0, "resettab:0");
+  string reset = ACR_Setup.Act(0, "resettab:1");
   ACR_SetupLobbyModel.Parse(ACR_Setup.Rows(), parsed);
-  bool resetOk = ACR_Options.Source("acrThreat") != "screen" && ACR_Options.Source("acrStartRP") != "screen" && ACR_Options.Source("acrMines") == "screen" && ACR_SetupLobbyModel.ChangedOn(parsed, 0) == 0 && ACR_SetupLobbyModel.ChangedOn(parsed, 4) > 0;
+  bool resetOk = ACR_Options.Source("acrStartRP") != "screen" && ACR_Options.Source("acrAI") != "screen" && ACR_Options.Source("acrThreat") == "screen" && ACR_Options.Source("acrMines") == "screen" && ACR_SetupLobbyModel.ChangedOn(parsed, 1) == 0 && ACR_SetupLobbyModel.ChangedOn(parsed, 0) > 0 && ACR_SetupLobbyModel.ChangedOn(parsed, 2) > 0;
   ACR_TestRegress.Check("lobby: Reset tab drops only that tab's choices", resetOk, reset);
   ACR_Options.ClearSet();
 
   // 11. The new requests are host-only like the old ones.
   string strangerPrev = ACR_Setup.Handle(9999, "prev:threat");
-  string strangerReset = ACR_Setup.Handle(9999, "resettab:0");
+  string strangerReset = ACR_Setup.Handle(9999, "resettab:1");
   string strangerSeed = ACR_Setup.Handle(9999, "seedset:5");
   ACR_TestRegress.Check("lobby: a stranger can't step, reset or type a seed", strangerPrev.Contains("Only the host") && strangerReset.Contains("Only the host") && strangerSeed.Contains("Only the host") && ACR_Setup.Current("threat") == "normal", strangerPrev);
 
@@ -208,17 +210,38 @@ class ACR_TestSetupLobby
   {
    Widget root = workspace.CreateWidgets(LAYOUT);
    string missing;
-   array<string> names = {"Tabs", "Rows", "RowsScroll", "MapDots", "FooterLeft", "ButtonsRight", "Title", "Subtitle", "TabTitle", "Summary", "Help", "Status"};
+   array<string> names = {"Tabs", "Rows", "RowsScroll", "MapDots", "MapBack", "Backdrop", "FooterLeft", "ButtonsRight", "Title", "TitleHolder", "Decor", "Subtitle", "TabTitle", "TabTitleHolder", "Summary", "Help", "Status"};
    foreach (string name : names) if (!root || !root.FindAnyWidget(name)) missing += name + " ";
    bool spinOk = false;
    if (root && root.FindAnyWidget("Rows"))
    {
     Widget spin = workspace.CreateWidgets(SPIN, root.FindAnyWidget("Rows"));
     spinOk = spin && spin.FindHandler(SCR_SpinBoxComponent) != null;
+    // The CRT skin's heading font layout builds too.
+    Widget mono = workspace.CreateWidgets(ACR_SetupTheme.HEADING_MONO, root.FindAnyWidget("TitleHolder"));
+    spinOk = spinOk && TextWidget.Cast(mono) != null;
    }
    if (root) root.RemoveFromHierarchy();
    ACR_TestRegress.Check("lobby: the layout builds its named parts", loaded && root && missing.IsEmpty() && spinOk, string.Format("loaded %1, root %2, missing: %3, spin %4", loaded, root != null, missing, spinOk));
   }
+  // 16. The theme table: three skins, every colour set, plain words kept (upper case only in the CRT),
+  // vanilla on a server without an era pack, tab names led by the paragraph number.
+  string themeWrong;
+  array<string> skins = {"vanilla", "crt", "tablet"};
+  foreach (string skinName : skins)
+  {
+   ACR_SetupTheme theme = ACR_SetupTheme.Named(skinName);
+   if (!theme || theme.m_sName != skinName) { themeWrong += skinName + ":name "; continue; }
+   if (!theme.m_Backdrop || !theme.m_Panel || !theme.m_Heading || !theme.m_Decor || !theme.m_Subtitle || !theme.m_Text || !theme.m_TextDim || !theme.m_Help || !theme.m_Status || !theme.m_Changed) themeWrong += skinName + ":text ";
+   if (!theme.m_Button || !theme.m_ButtonHover || !theme.m_ButtonPress || !theme.m_ButtonSelected || !theme.m_ButtonBorder) themeWrong += skinName + ":buttons ";
+   if (!theme.m_West || !theme.m_East || !theme.m_Neutral || !theme.m_Other || !theme.m_WestPanel || !theme.m_EastPanel) themeWrong += skinName + ":sides ";
+   if (theme.m_sChanged.IsEmpty()) themeWrong += skinName + ":mark ";
+   if (!theme.m_sHeadingLayout.IsEmpty() && !Resource.Load(theme.m_sHeadingLayout).IsValid()) themeWrong += skinName + ":font ";
+  }
+  if (ACR_SetupTheme.Crt().Text("Starting RP") != "STARTING RP" || ACR_SetupTheme.Vanilla().Text("Starting RP") != "Starting RP") themeWrong += "case ";
+  if (ACR_SetupTheme.Chosen() != "vanilla") themeWrong += "chosen:" + ACR_SetupTheme.Chosen() + " ";
+  if (ACR_Setup.LobbyTabPrefix(0) != "1." || ACR_Setup.LobbyTabPrefix(1) != "2." || ACR_Setup.LobbyTabPrefix(5) != "A." || ACR_Setup.LobbyTabPrefix(6) != "B.") themeWrong += "prefix ";
+  ACR_TestRegress.Check("lobby: three skins with every colour set, vanilla by default, plain tab names", themeWrong.IsEmpty(), themeWrong);
   ACR_TestRegress.Complete("setuplobby", CHECKS);
  }
 }

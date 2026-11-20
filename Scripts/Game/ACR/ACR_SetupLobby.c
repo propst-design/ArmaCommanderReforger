@@ -10,6 +10,8 @@
 // is still a request the server checks (ACR_Setup.Handle), so presets, -acr options and the
 // srv:setup tests see no difference. The widgets are the game's own widget library (spin box, edit
 // box, text button), so mouse, keyboard and gamepad focus work as in the game's settings menus.
+// Every colour, heading font and text style comes from the theme in use (ACR_SetupTheme: vanilla
+// command blue, the Cold War pack's green terminal, the modern stack's tablet); none is picked here.
 
 // One row as the lobby reads it. Also used by the server-side test (ACR_TestSetup.RunLobby).
 class ACR_SetupLobbyRow
@@ -183,8 +185,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  protected static const float INDENT = 36;
  protected static const string REPORT = "Found a bug? Please report it: discord.gg/WK8xGSztB (issues channel; no GitHub account needed).";
 
+ protected ref ACR_SetupTheme m_Theme;
  protected Widget m_wTabs;
  protected Widget m_wRows;
+ protected TextWidget m_wPageTitle;
+ protected TextWidget m_wDecor;
  protected Widget m_wMapDots;
  protected Widget m_wFooter;
  protected TextWidget m_wSubtitle;
@@ -235,6 +240,10 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   m_wSummary = TextWidget.Cast(root.FindAnyWidget("Summary"));
   m_wHelp = TextWidget.Cast(root.FindAnyWidget("Help"));
   m_wStatus = TextWidget.Cast(root.FindAnyWidget("Status"));
+  m_wPageTitle = TextWidget.Cast(root.FindAnyWidget("Title"));
+  m_wDecor = TextWidget.Cast(root.FindAnyWidget("Decor"));
+  m_iTab = ACR_Setup.LOBBY_FIRST;
+  ApplyTheme(root);
   // Shoulder buttons (Q / E) page through the tabs, as in the game's own tabbed menus.
   InputManager input = GetGame().GetInputManager();
   input.AddActionListener("MenuTabLeft", EActionTrigger.DOWN, OnTabLeft);
@@ -253,6 +262,54 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   }
  }
 
+ // The skin: colours of the page's own widgets, the heading font (a heading layout replaces the
+ // layout's title and tab heading), the decoration line.
+ protected void ApplyTheme(Widget root)
+ {
+  m_Theme = ACR_SetupTheme.Current();
+  Widget backdrop = root.FindAnyWidget("Backdrop");
+  if (backdrop) backdrop.SetColor(m_Theme.m_Backdrop);
+  Widget mapBack = root.FindAnyWidget("MapBack");
+  if (mapBack) mapBack.SetColor(m_Theme.m_Panel);
+  if (!m_Theme.m_sHeadingLayout.IsEmpty())
+  {
+   m_wPageTitle = Heading(root.FindAnyWidget("TitleHolder"), m_wPageTitle);
+   m_wTabTitle = Heading(root.FindAnyWidget("TabTitleHolder"), m_wTabTitle);
+  }
+  Colour(m_wPageTitle, m_Theme.m_Heading);
+  Colour(m_wTabTitle, m_Theme.m_Heading);
+  Colour(m_wSubtitle, m_Theme.m_Subtitle);
+  Colour(m_wSummary, m_Theme.m_Heading);
+  Colour(m_wHelp, m_Theme.m_Help);
+  Colour(m_wStatus, m_Theme.m_Status);
+  if (m_wPageTitle) m_wPageTitle.SetText(m_Theme.Text("AC: Actual - match setup"));
+  if (m_wDecor)
+  {
+   m_wDecor.SetVisible(!m_Theme.m_sDecor.IsEmpty());
+   m_wDecor.SetText(m_Theme.m_sDecor);
+   m_wDecor.SetColor(m_Theme.m_Decor);
+  }
+ }
+
+ // A heading in the skin's heading font, in place of the layout's own (hidden).
+ protected TextWidget Heading(Widget holder, TextWidget old)
+ {
+  if (!holder) return old;
+  TextWidget heading = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets(m_Theme.m_sHeadingLayout, holder));
+  if (!heading) return old;
+  if (old)
+  {
+   heading.SetText(old.GetText());
+   old.SetVisible(false);
+  }
+  return heading;
+ }
+
+ protected static void Colour(Widget w, Color color)
+ {
+  if (w) w.SetColor(color);
+ }
+
  // The layout found its parts (false: the lobby can't draw, ACR_SetupClient falls back to classic).
  bool Ready()
  {
@@ -268,6 +325,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  void Fill(string rows, string info, bool allowed)
  {
   if (!Ready()) return;
+  if (!m_Theme) m_Theme = ACR_SetupTheme.Current();
   bool allowedChanged = allowed != m_bAllowed || !m_bBuilt;
   m_bAllowed = allowed;
   m_sInfo = info;
@@ -279,7 +337,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   FillFooter(allowedChanged);
   FillSide();
   SCR_InputButtonComponent start = FindButton(BUTTON_CONFIRM);
-  if (start) start.SetVisible(m_bAllowed, false);
+  if (start)
+  {
+   start.SetVisible(m_bAllowed, false);
+   start.SetLabel(m_Theme.Text("Start"));
+  }
   if (!m_bBuilt)
   {
    m_bBuilt = true;
@@ -296,17 +358,23 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   {
    for (int tab = 0; tab < ACR_Setup.LOBBY_TABS; tab++)
    {
-    SCR_ButtonTextComponent button = AddButton(m_wTabs, "tab:" + tab.ToString(), ACR_Setup.LobbyTabName(tab), 0, m_aFixedHandlers);
+    SCR_ButtonTextComponent button = AddButton(m_wTabs, "tab:" + tab.ToString(), TabText(tab), 0, m_aFixedHandlers);
     if (button) m_TabButtons.Set(tab, button);
    }
   }
   foreach (int index, SCR_ButtonTextComponent tabButton : m_TabButtons)
   {
-   string name = ACR_Setup.LobbyTabName(index);
-   if (index != ACR_Setup.LOBBY_PRESETS && ACR_SetupLobbyModel.ChangedOn(m_aRows, index) > 0) name += "  •";
-   tabButton.SetText(name);
+   string name = TabText(index);
+   if (index != ACR_Setup.LOBBY_PRESETS && ACR_SetupLobbyModel.ChangedOn(m_aRows, index) > 0) name += "  " + m_Theme.m_sChanged;
+   tabButton.SetText(m_Theme.Text(name));
    Paint(tabButton, index == m_iTab);
   }
+ }
+
+ // "2.  Match": the paragraph number as a prefix, then the plain name.
+ protected static string TabText(int tab)
+ {
+  return ACR_Setup.LobbyTabPrefix(tab) + "  " + ACR_Setup.LobbyTabName(tab);
  }
 
  void ShowTab(int tab)
@@ -333,6 +401,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   ACR_SetupLobbyModel.Shown(m_aRows, m_iTab, shown);
   foreach (ACR_SetupLobbyRow row : shown) shape += "|" + row.m_sKey + ":" + row.m_sKind;
   if (m_iTab == ACR_Setup.LOBBY_PRESETS) shape += "|" + m_sPresetSelected;
+  if (m_iTab == ACR_Setup.LOBBY_FIRST) shape += "|" + SideText(true) + "|" + SideText(false);
   return shape;
  }
 
@@ -351,13 +420,14 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   array<SCR_ButtonBaseComponent> gone = {};
   foreach (SCR_ButtonBaseComponent button, string key : m_Buttons) if (!key.StartsWith("tab:") && !key.StartsWith("footer")) gone.Insert(button);
   foreach (SCR_ButtonBaseComponent old : gone) m_Buttons.Remove(old);
-  if (m_wTabTitle) m_wTabTitle.SetText(ACR_Setup.LobbyTabName(m_iTab));
+  if (m_wTabTitle) m_wTabTitle.SetText(m_Theme.Text(TabText(m_iTab)));
   if (m_iTab == ACR_Setup.LOBBY_PRESETS)
   {
    BuildPresets();
    Refocus();
    return;
   }
+  if (m_iTab == ACR_Setup.LOBBY_FIRST) BuildSides();
   array<ACR_SetupLobbyRow> shown = {};
   ACR_SetupLobbyModel.Shown(m_aRows, m_iTab, shown);
   foreach (ACR_SetupLobbyRow row : shown)
@@ -375,7 +445,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    else if (row.m_sKind == "about")
    {
     TextWidget about = AddText(m_wRows, row.m_sText, indent + 8);
-    if (about) about.SetColor(Color.FromRGBA(170, 190, 215, 255));
+    if (about) about.SetColor(m_Theme.m_TextDim);
    }
   }
   if (shown.IsEmpty()) AddText(m_wRows, "Nothing to set here with this setup.", 8);
@@ -396,7 +466,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   {
    ACR_SetupLobbyRow action = ACR_SetupLobbyModel.Find(m_aRows, buttonKey);
    SCR_ButtonTextComponent textButton = SCR_ButtonTextComponent.Cast(button);
-   if (action && textButton && action.m_sKind == "action") textButton.SetText(action.m_sText);
+   if (action && textButton && action.m_sKind == "action") textButton.SetText(m_Theme.Text(action.m_sText));
   }
   if (m_sFocus != "") Describe(m_sFocus);
  }
@@ -433,21 +503,23 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  protected void SetSpin(SCR_SpinBoxComponent spin, ACR_SetupLobbyRow row)
  {
   m_bFilling = true;
-  if (spin.GetNumItems() != 2 || spin.GetItemName(0) != row.m_sValue)
+  string value = m_Theme.Text(row.m_sValue);
+  if (spin.GetNumItems() != 2 || spin.GetItemName(0) != value)
   {
    spin.ClearAll();
-   spin.AddItem(row.m_sValue);
-   spin.AddItem(row.m_sValue);
+   spin.AddItem(value);
+   spin.AddItem(value);
    spin.SetCurrentItem(0, false, false, false);
   }
-  string label = row.m_sLabel;
-  if (row.m_bChanged) label = "• " + label;
+  string label = m_Theme.Text(row.m_sLabel);
+  if (row.m_bChanged) label = m_Theme.m_sChanged + label;
+  if (!m_Theme.m_sCursor.IsEmpty() && row.m_sKey == m_sFocus) label = m_Theme.m_sCursor + label;
   spin.SetLabel(label);
   TextWidget labelWidget = spin.GetLabel();
   if (labelWidget)
   {
-   if (row.m_bChanged) labelWidget.SetColor(Color.FromRGBA(255, 178, 80, 255));
-   else labelWidget.SetColor(Color.FromRGBA(255, 255, 255, 255));
+   if (row.m_bChanged) labelWidget.SetColor(m_Theme.m_Changed);
+   else labelWidget.SetColor(m_Theme.m_Text);
   }
   m_bFilling = false;
  }
@@ -465,7 +537,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    m_SeedBox = SCR_EditBoxComponent.Cast(edit.FindHandler(SCR_EditBoxComponent));
    if (m_SeedBox)
    {
-    m_SeedBox.SetLabel(row.m_sLabel);
+    m_SeedBox.SetLabel(m_Theme.Text(row.m_sLabel));
     m_SeedBox.SetPlaceholderText("random");
     m_SeedBox.m_OnWriteModeLeave.Insert(OnSeedTyped);
     m_SeedBox.SetEnabled(m_bAllowed, false);
@@ -608,6 +680,17 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    foreach (SCR_ButtonBaseComponent old : gone) m_Buttons.Remove(old);
    m_FooterPreset = null;
    m_sFooterSig = "";
+   // The skin's keys line (real bindings only); the buttons beside it say the same in plain words.
+   if (!m_Theme.m_sKeys.IsEmpty())
+   {
+    TextWidget keys = AddText(m_wFooter, m_Theme.m_sKeys, 0);
+    if (keys)
+    {
+     keys.SetColor(m_Theme.m_Decor);
+     AlignableSlot.SetVerticalAlign(keys, LayoutVerticalAlign.Center);
+     AlignableSlot.SetPadding(keys, 0, 0, 16, 0);
+    }
+   }
    if (m_bAllowed)
    {
     Widget spin = GetGame().GetWorkspace().CreateWidgets(LAYOUT_SPIN, m_wFooter);
@@ -618,7 +701,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
      m_FooterPreset = SCR_SpinBoxComponent.Cast(spin.FindHandler(SCR_SpinBoxComponent));
      if (m_FooterPreset)
      {
-      m_FooterPreset.SetLabel("Preset");
+      m_FooterPreset.SetLabel(m_Theme.Text("Preset"));
       m_FooterPreset.SetCycleMode(true);
       m_FooterPreset.m_OnChanged.Insert(OnFooterPreset);
       Widget hints = spin.FindAnyWidget("HintBar");
@@ -698,7 +781,14 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  void Describe(string key)
  {
   if (key.StartsWith("tab:") || key.StartsWith("footer") || key.StartsWith("preset")) { DescribeOther(key); return; }
+  string before = m_sFocus;
   m_sFocus = key;
+  // The skin's cursor follows the focus.
+  if (!m_Theme.m_sCursor.IsEmpty() && before != key)
+  {
+   Relabel(before);
+   Relabel(key);
+  }
   if (!m_wHelp) return;
   string help = ACR_Setup.Help(key);
   ACR_SetupLobbyRow row = ACR_SetupLobbyModel.Find(m_aRows, key);
@@ -710,6 +800,13 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (about) help += "\n\n" + about.m_sText;
   if (row && row.m_bChanged) help += "\n(changed from this server's default)";
   m_wHelp.SetText(help);
+ }
+
+ protected void Relabel(string key)
+ {
+  SCR_SpinBoxComponent spin = m_Spins.Get(key);
+  ACR_SetupLobbyRow row = ACR_SetupLobbyModel.Find(m_aRows, key);
+  if (spin && row) SetSpin(spin, row);
  }
 
  protected void DescribeOther(string key)
@@ -732,11 +829,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
 
  protected static string TabAbout(int tab)
  {
-  if (tab == 0) return "the sides, the battlefield, threat, AI commanders and starting RP.";
-  if (tab == 1) return "the AI commanders, their doctrines and squad caps, and how command works.";
-  if (tab == 2) return "who else is out there: FIA resistance and guerrillas, zombies.";
+  if (tab == 0) return "where the match is fought, how hard the enemy pushes, and who else is out there: FIA and zombies.";
+  if (tab == 1) return "the two sides, which ones an AI commands, how the match opens and the starting RP.";
+  if (tab == 2) return "the AI commanders, their doctrines and squad caps, minefields and fortifying.";
   if (tab == 3) return "money, companies and decks, deployment, FOB services and supply.";
-  if (tab == 4) return "minefields and fortifying.";
+  if (tab == 4) return "how players share command, the command map and the mission intro.";
   if (tab == 5) return "features that ship switched off until they have been played.";
   return "save the whole setup under a name, load it, share it.";
  }
@@ -763,6 +860,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    TextWidget note = AddText(m_wMapDots, empty, 0);
    if (note)
    {
+    note.SetColor(m_Theme.m_TextDim);
     FrameSlot.SetAnchorMin(note, 0.5, 0.5);
     FrameSlot.SetAnchorMax(note, 0.5, 0.5);
     FrameSlot.SetAlignment(note, 0.5, 0.5);
@@ -783,13 +881,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    string owner = data.m_BaseOwners[i];
    string detail = "";
    if (i < data.m_BaseDetails.Count()) detail = data.m_BaseDetails[i];
+   // Hidden sites smaller; the colours are the side panels' (the quick start split shows as owners).
    float size = 10;
    if (detail.StartsWith("HQ")) size = 18;
-   Color color = Color.FromRGBA(170, 170, 170, 255);
-   if (owner == west && !west.IsEmpty()) color = Color.FromRGBA(80, 140, 255, 255);
-   else if (owner == east && !east.IsEmpty()) color = Color.FromRGBA(240, 80, 70, 255);
-   else if (!owner.IsEmpty()) color = Color.FromRGBA(90, 190, 90, 255);
-   if (detail.Contains("Hidden")) color.SetA(0.45);
+   else if (detail.Contains("Hidden")) size = 6;
+   Color color = m_Theme.Owner(owner, west, east);
    Widget dot = GetGame().GetWorkspace().CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, color, 0, m_wMapDots);
    if (!dot) continue;
    FrameSlot.SetAnchorMin(dot, x, y);
@@ -801,7 +897,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    TextWidget label = AddText(m_wMapDots, data.m_BaseNames[i], 0);
    if (!label) continue;
    label.SetExactFontSize(13);
-   label.SetColor(Color.FromRGBA(220, 225, 230, 220));
+   label.SetColor(m_Theme.m_TextDim);
    FrameSlot.SetAnchorMin(label, x, y);
    FrameSlot.SetAnchorMax(label, x, y);
    FrameSlot.SetAlignment(label, 0, 0.5);
@@ -827,6 +923,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (!widget) return null;
   if (parent != m_wMapDots) AlignableSlot.SetPadding(widget, indent, 4, 4, 4);
   widget.SetText(text);
+  widget.SetColor(m_Theme.m_Text);
   return widget;
  }
 
@@ -838,10 +935,10 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (fill) LayoutSlot.SetSizeMode(widget, LayoutSizeMode.Fill);
   SCR_ButtonTextComponent button = SCR_ButtonTextComponent.FindButtonTextComponent(widget);
   if (!button) return null;
-  button.SetText(text);
+  button.SetText(m_Theme.Text(text));
   Paint(button, false);
   Widget border = widget.FindAnyWidget("Border");
-  if (border) border.SetColor(new Color(0.45, 0.72, 1.0, 1.0));
+  if (border) border.SetColor(m_Theme.m_ButtonBorder);
   button.m_OnClicked.Insert(OnButton);
   m_Buttons.Set(button, key);
   Watch(widget, key, keep);
@@ -849,13 +946,107 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   return button;
  }
 
- // The command panel's blue (the vanilla hover is white behind white text); the open tab brighter.
+ // The skin's button colours (the vanilla hover is white behind white text); the open tab stands out.
  protected void Paint(SCR_ButtonBaseComponent button, bool selected)
  {
-  Color normal = new Color(0.16, 0.42, 0.80, 0.40);
-  if (selected) normal = new Color(0.26, 0.56, 0.96, 0.85);
-  button.SetBackgroundColors(normal, new Color(0.26, 0.56, 0.96, 0.70), new Color(0.30, 0.62, 1.0, 0.95), new Color(0.36, 0.68, 1.0, 1.0), new Color(0.30, 0.62, 1.0, 0.95));
+  Color normal = m_Theme.m_Button;
+  if (selected) normal = m_Theme.m_ButtonSelected;
+  button.SetBackgroundColors(normal, m_Theme.m_ButtonHover, m_Theme.m_ButtonPress, m_Theme.m_ButtonPress, m_Theme.m_ButtonPress);
   if (button.m_wBackground) button.m_wBackground.SetColor(normal);
+ }
+
+ // ---------------------------------------------------------------- Match: the two sides
+ // The two chosen factions facing each other, Blue left and Red right in the side colours, each
+ // with whether an AI commands it and its doctrine and company.
+ protected void BuildSides()
+ {
+  Widget line = GetGame().GetWorkspace().CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_wRows);
+  AlignableSlot.SetPadding(line, 4, 0, 4, 10);
+  SidePanel(line, true);
+  TextWidget vs = AddText(line, m_Theme.Text("vs"), 0);
+  if (vs)
+  {
+   vs.SetColor(m_Theme.m_Heading);
+   AlignableSlot.SetVerticalAlign(vs, LayoutVerticalAlign.Center);
+   AlignableSlot.SetPadding(vs, 10, 0, 10, 0);
+  }
+  SidePanel(line, false);
+ }
+
+ protected void SidePanel(Widget parent, bool west)
+ {
+  Widget panel = GetGame().GetWorkspace().CreateWidget(WidgetType.OverlayWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, parent);
+  LayoutSlot.SetSizeMode(panel, LayoutSizeMode.Fill);
+  Color fill = m_Theme.m_EastPanel;
+  Color edge = m_Theme.m_East;
+  if (west)
+  {
+   fill = m_Theme.m_WestPanel;
+   edge = m_Theme.m_West;
+  }
+  Widget back = GetGame().GetWorkspace().CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, fill, 0, panel);
+  AlignableSlot.SetHorizontalAlign(back, LayoutHorizontalAlign.Stretch);
+  AlignableSlot.SetVerticalAlign(back, LayoutVerticalAlign.Stretch);
+  ImageWidget stripe = ImageWidget.Cast(GetGame().GetWorkspace().CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.NOFOCUS, edge, 0, panel));
+  if (stripe)
+  {
+   AlignableSlot.SetVerticalAlign(stripe, LayoutVerticalAlign.Stretch);
+   AlignableSlot.SetHorizontalAlign(stripe, LayoutHorizontalAlign.Left);
+   stripe.SetSize(6, 6);
+  }
+  Widget column = GetGame().GetWorkspace().CreateWidget(WidgetType.VerticalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, panel);
+  AlignableSlot.SetPadding(column, 16, 8, 8, 8);
+  AlignableSlot.SetHorizontalAlign(column, LayoutHorizontalAlign.Stretch);
+  array<string> lines = {};
+  SideText(west).Split("\n", lines, false);
+  foreach (int i, string text : lines)
+  {
+   TextWidget widget = AddText(column, text, 0);
+   if (!widget) continue;
+   AlignableSlot.SetPadding(widget, 0, 1, 0, 1);
+   if (i == 0)
+   {
+    widget.SetColor(edge);
+    widget.SetExactFontSize(22);
+   }
+  }
+ }
+
+ // "United States\nBlue side\nAI commander: on\nDoctrine: ...\nCompany: ..." from the rows.
+ protected string SideText(bool west)
+ {
+  string side = "east";
+  string colour = "Red side";
+  if (west)
+  {
+   side = "west";
+   colour = "Blue side";
+  }
+  ACR_SetupLobbyRow name = ACR_SetupLobbyModel.Find(m_aRows, side);
+  string faction = "?";
+  if (name) faction = name.m_sValue;
+  string text = m_Theme.Text(faction) + "\n" + m_Theme.Text(colour);
+  text += "\n" + m_Theme.Text("AI commander: " + AICommands(faction));
+  ACR_SetupLobbyRow doctrine = ACR_SetupLobbyModel.Find(m_aRows, "doctrine" + side);
+  if (doctrine) text += "\n" + m_Theme.Text("Doctrine: " + doctrine.m_sValue);
+  ACR_SetupLobbyRow company = ACR_SetupLobbyModel.Find(m_aRows, "company" + side);
+  if (company) text += "\n" + m_Theme.Text("Company: " + company.m_sValue);
+  return text;
+ }
+
+ // The AI commanders row read for one side: "on", "off" or "scenario's choice".
+ protected string AICommands(string faction)
+ {
+  ACR_SetupLobbyRow ai = ACR_SetupLobbyModel.Find(m_aRows, "ai");
+  if (!ai) return "scenario's choice";
+  if (ai.m_sValue == "both") return "on";
+  if (ai.m_sValue == "none") return "off";
+  if (ai.m_sValue.EndsWith(" only"))
+  {
+   if (ai.m_sValue == faction + " only") return "on";
+   return "off";
+  }
+  return ai.m_sValue;
  }
 
  protected void OnButton(SCR_ButtonBaseComponent button)
