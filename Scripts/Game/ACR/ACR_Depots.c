@@ -36,6 +36,9 @@ class ACR_Depot : Managed
  float m_fNudgedAt;             // where its first technical was parked: home for every trip
  float m_fEmptySince;        // the technical out stood empty since (its crew got out to fight, or can't drive it)
  float m_fRestUntil;         // a raid that never got there: no new one before this
+ int m_iRetargets;           // new targets this raid took after one it never got going to
+ ref array<vector> m_aBadTargets = {}; // targets no technical drives to (ACR_Depots.Drivable) ...
+ ref array<float> m_aBadUntil = {};    // ... skipped until this time
 }
 
 class ACR_Depots
@@ -63,7 +66,18 @@ class ACR_Depots
  static const float PARK_NEAR = 200;      // a stolen vehicle this close to its yard is parked where it stands (vanilla AI won't drive so short a way)
  static const float EMPTY_MS = 30000;
  static const float NUDGE_MS = 20000;
- static const int NUDGES = 3;
+ static const int NUDGES = 3;      // a stolen vehicle's drive home: re-orders before its crew stands down
+ static const int RAID_NUDGES = 1; // a raid: one re-order, then another target (RETARGETS)
+ static const int RETARGETS = 2;
+ // Raid targets a wheeled vehicle can drive to (Jacob, 21 Nov: srv:guerrillas' technical sat in its
+ // yard, re-ordered three times at a target off the roads it could reach): a road point within
+ // TARGET_ROAD_M of the target, with a road route from the yard of at most ROUTE_MAX_M. A target that
+ // fails, or that a technical never got going to, is skipped within BAD_NEAR for BAD_MS.
+ static const float TARGET_ROAD_M = 150;
+ static const float ROUTE_MAX_M = 2500;
+ static const float BAD_NEAR = 150;
+ static const float BAD_MS = 600000;
+ static bool s_bNoRaidsForTest;    // srv:guerrillas: the depot raids only when the test launches it
  static const float REST_MS = 600000;     // after a raid that never reached its target (no route there)
  static const float WALK_MAX_MS = 600000; // on foot this long without getting there: they join it anyway, out of contact
  static float s_fStrikeMsForTest;         // tests shorten the strike (0: STRIKE_MS)
@@ -86,6 +100,7 @@ class ACR_Depots
   s_Brdm = "";
   s_iSeconds = 0;
   s_fStrikeMsForTest = 0;
+  s_bNoRaidsForTest = false;
  }
 
  // Technicals FIA keeps at most, parked or out.
@@ -412,6 +427,7 @@ class ACR_Depots
  // cell fighting in reach.
  static bool FindTarget(ACR_Manager manager, ACR_Depot depot, out vector target)
  {
+  if (s_bNoRaidsForTest) return false;
   vector home = HomeOf(depot);
   foreach (ACR_Squad squad : manager.m_Squads)
   {
@@ -420,17 +436,60 @@ class ACR_Depots
    if (!vehicle || vector.DistanceXZ(vehicle.GetOrigin(), home) > REACH) continue;
    Physics physics = vehicle.GetPhysics();
    if (!physics || physics.GetVelocity().Length() < ACR_Guerrillas.MOVING || ACR_Minefields.RoadClearance(vehicle.GetOrigin()) > 8) continue;
-   target = vehicle.GetOrigin();
-   return true;
+   if (Drivable(depot, vehicle.GetOrigin(), target)) return true;
   }
   foreach (ACR_DefenderPost post : ACR_Defenders.s_Posts)
   {
    if (!post.m_Cell || post.m_Cell.m_bHideout || !post.m_Cell.m_bSprung || post.m_Cell.m_bWithdrawing) continue;
    if (vector.DistanceXZ(post.m_Cell.m_vKillZone, home) > REACH) continue;
-   target = post.m_Cell.m_vKillZone;
-   return true;
+   if (Drivable(depot, post.m_Cell.m_vKillZone, target)) return true;
   }
   return false;
+ }
+
+ // Where a technical from this depot drives to strike at 'at': the nearest road point, if the road
+ // network joins it to the yard within ROUTE_MAX_M. False (and 'at' set aside for BAD_MS): no drive.
+ static bool Drivable(ACR_Depot depot, vector at, out vector target)
+ {
+  float now = GetGame().GetWorld().GetWorldTime();
+  for (int i = depot.m_aBadTargets.Count() - 1; i >= 0; i--)
+  {
+   if (now >= depot.m_aBadUntil[i])
+   {
+    depot.m_aBadTargets.Remove(i);
+    depot.m_aBadUntil.Remove(i);
+    continue;
+   }
+   if (vector.DistanceXZ(at, depot.m_aBadTargets[i]) <= BAD_NEAR) return false;
+  }
+  vector road;
+  if (!BBB_Terrain.RoadPointNear(at, TARGET_ROAD_M, road))
+  {
+   SetAside(depot, at, "no road near it");
+   return false;
+  }
+  array<vector> legs = {};
+  int nodes, millis;
+  if (!BBB_Roads.Route(Yard(depot), road, legs, nodes, millis))
+  {
+   SetAside(depot, at, "no road route from the yard");
+   return false;
+  }
+  float length = BBB_Roads.s_fLastLength;
+  if (length > ROUTE_MAX_M)
+  {
+   SetAside(depot, at, string.Format("%1 m by road", (int)length));
+   return false;
+  }
+  target = road;
+  return true;
+ }
+
+ static void SetAside(ACR_Depot depot, vector at, string why)
+ {
+  depot.m_aBadTargets.Insert(at);
+  depot.m_aBadUntil.Insert(GetGame().GetWorld().GetWorldTime() + BAD_MS);
+  PrintFormat("[ACR] DEPOTS %1: no raid at %2 (%3)", NameOf(depot), ACR_Manager.Grid(at), why);
  }
 
  // One technical parked in the yard out with a crew of two, driving at the target.
@@ -454,11 +513,24 @@ class ACR_Depots
   depot.m_fArrivedAt = 0;
   depot.m_fEmptySince = 0;
   depot.m_iNudges = 0;
+  depot.m_iRetargets = 0;
   depot.m_fNudgedAt = depot.m_fStateAt;
   ACR_Guerrillas.SetCombatMode(crew, EAIGroupCombatMode.FIRE_AT_WILL);
   ACR_Guerrillas.Order(crew, ACR_Squad.WP_MOVE, target, 30, false);
   PrintFormat("[ACR] DEPOTS %1: a technical drives out for %2 (%3 m)", NameOf(depot), ACR_Manager.Grid(target), (int)vector.DistanceXZ(vehicle.GetOrigin(), target));
   return true;
+ }
+
+ // The target it never got going to is set aside; the next one FindTarget finds, if any.
+ protected static bool Retarget(ACR_Manager manager, ACR_Depot depot, out vector next)
+ {
+  depot.m_aBadTargets.Insert(depot.m_vTarget);
+  depot.m_aBadUntil.Insert(GetGame().GetWorld().GetWorldTime() + BAD_MS);
+  bool test = s_bNoRaidsForTest;
+  s_bNoRaidsForTest = false;
+  bool found = FindTarget(manager, depot, next);
+  s_bNoRaidsForTest = test;
+  return found;
  }
 
  protected static bool Occupied(IEntity vehicle)
@@ -559,7 +631,21 @@ class ACR_Depots
   if (s_fStrikeMsForTest > 0) strike = s_fStrikeMsForTest;
   if (depot.m_iState == OUT)
   {
-   if (depot.m_iNudges < NUDGES && depot.m_fArrivedAt <= 0 && now - depot.m_fNudgedAt >= NUDGE_MS && vector.DistanceXZ(depot.m_Out.GetOrigin(), Yard(depot)) < 20)
+   int nudges = NUDGES;
+   if (!depot.m_bTheft) nudges = RAID_NUDGES;
+   bool inYard = depot.m_fArrivedAt <= 0 && now - depot.m_fNudgedAt >= NUDGE_MS && vector.DistanceXZ(depot.m_Out.GetOrigin(), Yard(depot)) < 20;
+   vector next;
+   if (inYard && depot.m_iNudges >= nudges && !depot.m_bTheft && depot.m_iRetargets < RETARGETS && Retarget(manager, depot, next))
+   {
+    depot.m_iRetargets++;
+    depot.m_iNudges = 0;
+    depot.m_fNudgedAt = now;
+    depot.m_fStateAt = now;
+    depot.m_vTarget = next;
+    ACR_Guerrillas.Order(depot.m_Crew, ACR_Squad.WP_MOVE, next, 30, false);
+    PrintFormat("[ACR] DEPOTS %1: the technical never got going, it tries %2 instead (%3 m)", NameOf(depot), ACR_Manager.Grid(next), (int)vector.DistanceXZ(depot.m_Out.GetOrigin(), next));
+   }
+   else if (inYard && depot.m_iNudges < nudges)
    {
     depot.m_iNudges++;
     depot.m_fNudgedAt = now;
@@ -568,7 +654,7 @@ class ACR_Depots
    }
    // Still in the yard after every re-order: no route there. Stand down now (not after
    // TRIP_MAX_MS), and EndRaid rests the depot so it doesn't relaunch at the same target.
-   else if (depot.m_iNudges >= NUDGES && depot.m_fArrivedAt <= 0 && now - depot.m_fNudgedAt >= NUDGE_MS && vector.DistanceXZ(depot.m_Out.GetOrigin(), Yard(depot)) < 20)
+   else if (inYard)
    {
     PrintFormat("[ACR] DEPOTS %1: the technical never got going, its crew stands down", NameOf(depot));
     EndRaid(manager, depot);
