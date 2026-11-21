@@ -7,7 +7,7 @@
 // is also built where the server has a workspace). What it can't see: how the screen looks.
 class ACR_TestSetupLobby
 {
- static const int CHECKS = 22;
+ static const int CHECKS = 23;
  protected static const ResourceName LAYOUT = "{AC230926A00100F6}UI/layouts/ACR/ACR_SetupLobby.layout";
  protected static const ResourceName SPIN = "{C9DF0E6590F6C388}UI/layouts/WidgetLibrary/SpinBox/WLib_SpinBox.layout";
 
@@ -193,8 +193,8 @@ class ACR_TestSetupLobby
    string tip = ACR_SetupLobbyModel.Tooltip(parsed, row.m_sKey);
    if (tip.Length() > longest.Length()) longest = tip;
   }
-  float charWidth, lineHeight;
-  ACR_SetupLobby.MonoMetrics(14, charWidth, lineHeight);
+  float charWidth, lineHeight, linePitch;
+  ACR_SetupLobby.MonoMetrics(14, charWidth, lineHeight, linePitch);
   int perLine = ACR_SetupLobbyModel.TipChars(420 - 18, charWidth);
   int lines;
   string wrapped = ACR_SetupLobbyModel.Wrap(longest, perLine, lines);
@@ -205,7 +205,7 @@ class ACR_TestSetupLobby
   ACR_SetupLobby.MonoFont(tipText, 14);
   tipText.SetText(wrapped);
   tipText.GetTextSize(tw, th);
-  float boxHigh = lines * lineHeight + 2;
+  float boxHigh = lineHeight + (lines - 1) * linePitch + 2;
   if (tw <= 0 || tw > 420 - 18 + 1 || th > boxHigh + 1) wrong += string.Format("tip:box text %1x%2 box %3x%4 lines %5 scale %6 ", tw, th, 420 - 18, boxHigh, lines, ACR_SetupLobby.MonoScale());
   // The tooltip shows and hides on the right events (the state the screen uses).
   ACR_SetupLobbyTipState state = new ACR_SetupLobbyTipState();
@@ -227,6 +227,62 @@ class ACR_TestSetupLobby
   if (!shown || !leftEmpty || !swapped || !clean || !keyboard || state.Shown() != "") wrong += string.Format("tip:state %1%2%3%4%5 ", shown, leftEmpty, swapped, clean, keyboard);
   root.RemoveFromHierarchy();
   ACR_TestRegress.Check("lobby: labels fit their rows and buttons; the tooltip's text fits its box", wrong.IsEmpty(), wrong);
+ }
+
+ // 23 (20 Nov): every tooltip's text, as the screen wraps it, fits its box as the server measures it:
+ // every tab, row and footer button, in the box widths a tooltip gets (the rail's and the full one),
+ // as written and in capitals, with room to spare so the text widget never wraps a line again.
+ protected static void TipsFit()
+ {
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  if (!ws)
+  {
+   ACR_TestRegress.Skip("lobby: every tooltip's text fits its box", "no workspace on this server");
+   return;
+  }
+  array<ref ACR_SetupLobbyRow> parsed = {};
+  ACR_SetupLobbyModel.Parse(ACR_Setup.Rows(), parsed);
+  array<string> keys = {};
+  for (int t = 0; t < ACR_Setup.LOBBY_TABS; t++) keys.Insert("tab:" + t.ToString());
+  foreach (ACR_SetupLobbyRow row : parsed) if (row.m_sKind == "value" || row.m_sKind == "seed" || row.m_sKind == "action") keys.Insert(row.m_sKey);
+  array<string> footer = {};
+  ACR_SetupLobbyModel.FooterKeys(true, footer);
+  keys.InsertAll(footer);
+  keys.Insert("footerdecks");
+  keys.Insert("presetsave");
+  TextWidget probe = TextWidget.Cast(ws.CreateWidgets(ACR_SetupTheme.HEADING_MONO));
+  ACR_SetupLobby.MonoFont(probe, ACR_SetupLobby.TIP_FONT);
+  array<float> widths = {ACR_SetupLobby.TIP_WIDTH, 220};
+  string over;
+  int checked = 0;
+  float worst = 0;
+  foreach (string key : keys)
+  {
+   string text = ACR_SetupLobbyModel.Tooltip(parsed, key);
+   for (int caps = 0; caps < 2; caps++)
+   {
+    if (caps == 1) text.ToUpper();
+    foreach (float boxWide : widths)
+    {
+     string wrapped;
+     int lines;
+     float boxHigh = ACR_SetupLobby.TipBox(text, boxWide, wrapped, lines);
+     probe.SetText(wrapped);
+     float tw, th;
+     probe.GetTextSize(tw, th);
+     tw = ws.DPIUnscale(tw);
+     th = ws.DPIUnscale(th);
+     float roomW = boxWide - 2 * ACR_SetupLobby.TIP_PAD;
+     float roomH = boxHigh - 2 * ACR_SetupLobby.TIP_PAD - 2;
+     checked++;
+     worst = Math.Max(worst, th / Math.Max(roomH, 1));
+     // 5 % to spare across: a screen whose scale differs a little must not wrap a line again.
+     if (tw * 1.05 > roomW || th > roomH + 0.5) over += string.Format("%1%2@%3 (%4x%5 in %6x%7, %8 lines) ", key, caps, boxWide, tw, th, roomW, roomH, lines);
+    }
+   }
+  }
+  probe.RemoveFromHierarchy();
+  ACR_TestRegress.Check("lobby: every tooltip's text fits its box", over.IsEmpty() && checked > 100, string.Format("%1 checked, worst height %2; over: %3", checked, worst, over));
  }
 
  static void Run(int second)
@@ -486,6 +542,7 @@ class ACR_TestSetupLobby
   ACR_TestRegress.Check("lobby: the loaded preset is named apart from the picker's choice", presetWords, loadedLine + " | " + noneLine);
   Tooltips(parsed);
   TextFits();
+  TipsFit();
   ACR_TestRegress.Complete("setuplobby", CHECKS);
  }
 }
