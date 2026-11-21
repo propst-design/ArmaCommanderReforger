@@ -17,6 +17,7 @@ ACR_MissionHeader {
  m_sAcrFIAAllegiance ""
  m_sAcrFIALeaning ""
  m_sAcrFIASpoils ""
+ m_sAcrFIAGrievance ""
  m_sAcrFactions ""
  m_sAcrPlayers ""
  m_sAcrThreat ""

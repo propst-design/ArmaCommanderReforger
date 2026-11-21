@@ -46,6 +46,7 @@ class ACR_GuerrillaCell : Managed
  float m_fReadyAt;       // after a fight: back in action from then, elsewhere
  int m_iMoves;
  float m_fPool;          // hideout: recruits to spend (ACR_FIAGrowth)
+ float m_fGrievance;     // hideout: harm to civilians and towns near it, recruiting (ACR_FIAGrievance)
  int m_iArms;            // hideout: weapons its cells' spoils teams brought in (ACR_FIASpoils)
  ref array<ResourceName> m_aLootedArms = {}; // hideout: rifles and machine guns looted (ACR_FIASpoils.Arm: its recruits carry them)
 }
@@ -154,6 +155,7 @@ class ACR_Guerrillas
   ACR_Depots.Reset();
   ACR_FIASpoils.Reset();
   ACR_FIAPrisoners.Reset();
+  ACR_FIAGrievance.Reset();
   int size = ACR_Skirmish.SizeOption();
   if (ACR_Skirmish.s_Active) size = ACR_Skirmish.s_Active.m_eSize;
   if (size == ACR_ESkirmishSize.FLASHPOINT) return;
@@ -188,6 +190,7 @@ class ACR_Guerrillas
   PrintFormat("[ACR] GUERRILLAS %1 hideouts of %2 wanted (%3 ms)", sites.Count(), wanted, System.GetTickCount() - hideoutsStarted);
   ACR_Depots.Apply();
   ACR_FIASpoils.Apply();
+  ACR_FIAGrievance.Apply();
  }
 
  // ---------------------------------------------------------------- hideouts

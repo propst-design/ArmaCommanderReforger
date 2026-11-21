@@ -128,6 +128,8 @@ modded class ACR_TestHooks
   if (System.IsCLIParam("acrHideoutsTest")) ACR_TestHideouts.Run(seconds);
   // -acrFIASpoilsTest: FIA loot, stolen vehicles and prisoners (ACR_TestFIASpoils, insurgency part 4).
   if (System.IsCLIParam("acrFIASpoilsTest")) ACR_TestFIASpoils.Run(seconds);
+  // -acrFIAGrievanceTest: harm to civilians and towns grows FIA (ACR_TestFIAGrievance).
+  if (System.IsCLIParam("acrFIAGrievanceTest")) ACR_TestFIAGrievance.Run(seconds);
   // -acrZombiesTest: zombie nests with Project Outbreak, or nothing without it (ACR_TestOutbreak, #107).
   if (System.IsCLIParam("acrZombiesTest")) ACR_TestOutbreak.Run(seconds);
   // -acrTvZTest: one side against the zombies (ACR_TestTvZ, #107).
@@ -181,7 +183,7 @@ modded class ACR_TestHooks
  override string Guerrillas()
  {
   if (System.IsCLIParam("acrQuickStartFIATest") || System.IsCLIParam("acrWorksAISoakTest")) return "many";
-  if (System.IsCLIParam("acrGuerrillasTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrFIALeaningTest") || System.IsCLIParam("acrHideoutsTest") || System.IsCLIParam("acrFIASpoilsTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrForecastSoakTest") || System.IsCLIParam("acrAllocSoakTest") || System.IsCLIParam("acrAllocControlSoakTest") || System.IsCLIParam("acrLongSoakTest") || System.IsCLIParam("acrAllocControlLongSoakTest") || System.IsCLIParam("acrClassicSoakTest") || System.IsCLIParam("acrClassicLongSoakTest")) return "few";
+  if (System.IsCLIParam("acrGuerrillasTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrFIALeaningTest") || System.IsCLIParam("acrHideoutsTest") || System.IsCLIParam("acrFIASpoilsTest") || System.IsCLIParam("acrFIAGrievanceTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrForecastSoakTest") || System.IsCLIParam("acrAllocSoakTest") || System.IsCLIParam("acrAllocControlSoakTest") || System.IsCLIParam("acrLongSoakTest") || System.IsCLIParam("acrAllocControlLongSoakTest") || System.IsCLIParam("acrClassicSoakTest") || System.IsCLIParam("acrClassicLongSoakTest")) return "few";
   return "";
  }
 
@@ -207,7 +209,7 @@ modded class ACR_TestHooks
  // Tests keep their worlds as authored; the pocket test and the balance soaks get pockets.
  override string Pockets()
  {
-  if (System.IsCLIParam("acrPocketsTest") || System.IsCLIParam("acrQuickStartTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrFIALeaningTest") || System.IsCLIParam("acrHideoutsTest") || System.IsCLIParam("acrFIASpoilsTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrForecastSoakTest") || System.IsCLIParam("acrAllocSoakTest") || System.IsCLIParam("acrAllocControlSoakTest") || System.IsCLIParam("acrLongSoakTest") || System.IsCLIParam("acrAllocControlLongSoakTest") || System.IsCLIParam("acrClassicSoakTest") || System.IsCLIParam("acrClassicLongSoakTest")) return "few";
+  if (System.IsCLIParam("acrPocketsTest") || System.IsCLIParam("acrQuickStartTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrFIALeaningTest") || System.IsCLIParam("acrHideoutsTest") || System.IsCLIParam("acrFIASpoilsTest") || System.IsCLIParam("acrFIAGrievanceTest") || System.IsCLIParam("acrEveronSoakTest") || System.IsCLIParam("acrForecastSoakTest") || System.IsCLIParam("acrAllocSoakTest") || System.IsCLIParam("acrAllocControlSoakTest") || System.IsCLIParam("acrLongSoakTest") || System.IsCLIParam("acrAllocControlLongSoakTest") || System.IsCLIParam("acrClassicSoakTest") || System.IsCLIParam("acrClassicLongSoakTest")) return "few";
   if (System.IsCLIParam("acrSetupTest") || System.IsCLIParam("acrSetupUiTest") || System.IsCLIParam("acrSetupGenTest") || System.IsCLIParam("acrSetupMapTest")) return "off";
   return "";
  }

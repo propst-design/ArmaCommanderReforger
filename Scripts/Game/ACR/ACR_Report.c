@@ -165,17 +165,22 @@ modded class SCR_VehicleDamageManagerComponent
  }
 }
 
-// A building destroyed counts against the side that did it (ACR_Insurgency, leaning by conduct).
+// A building destroyed counts against the side that did it (ACR_Insurgency, leaning by conduct) and
+// grows FIA near it (ACR_FIAGrievance).
 modded class SCR_DestructibleBuildingComponent
 {
  protected override void OnDamageStateChanged(EDamageState newState, EDamageState previousDamageState, bool isJIP)
  {
   bool wasDestroyed = m_bDestroyed;
   super.OnDamageStateChanged(newState, previousDamageState, isJIP);
-  if (newState != EDamageState.DESTROYED || wasDestroyed || isJIP || IsProxy() || !ACR_Insurgency.Leaning()) return;
+  if (newState != EDamageState.DESTROYED || wasDestroyed || isJIP || IsProxy()) return;
+  if (!ACR_Insurgency.Leaning() && !ACR_FIAGrievance.On()) return;
   Instigator instigator = GetInstigator();
   IEntity by;
   if (instigator) by = instigator.GetInstigatorEntity();
-  ACR_Insurgency.OnBuildingDown(GetOwner().GetOrigin(), ACR_Intel.FactionKeyOf(by));
+  string side = ACR_Intel.FactionKeyOf(by);
+  ACR_Insurgency.OnBuildingDown(GetOwner().GetOrigin(), side);
+  // FIA recruits on it too (ACR_FIAGrievance), with leaning on or off.
+  ACR_FIAGrievance.OnBuildingDown(GetOwner().GetOrigin(), side);
  }
 }

@@ -10,6 +10,8 @@
 //    technical for a depot (part 3, ACR_Depots.Recruit); spread (SPREAD_COST): an
 //    empty neutral base within SPREAD_REACH becomes a new FIA pocket, hidden until found.
 //  - Caps from the FIA size option (-acrGuerrillas few|many): pool, cells, spreads.
+//  - Grievance (ACR_FIAGrievance): a side's harm to civilians and towns near a hideout adds to its
+//    fill, capped and fading, and still fills (halved) with a held base within STOP_REACH.
 //  - Losses shrink it: a wiped cell has to be paid for again, a taken pocket stays taken (spreads
 //    count for the match, not how many stand), a cleared hideout's pool is gone with it.
 // A wiped cell is not a kill counter: clearing hideouts and holding land is what stops FIA growing.
@@ -96,22 +98,27 @@ class ACR_FIAGrowth
    cell.m_fPool = Math.Min(PoolCap(), cell.m_fPool + FillRate(hideout) * minutes);
    Spend(hideout);
   }
+  ACR_FIAGrievance.Fade(minutes);
  }
 
- // Recruits a minute for this hideout (0: held land too close).
+ // Recruits a minute for this hideout (held land too close: only what grievance brings, halved).
  static float FillRate(ACR_DefenderPost hideout)
  {
   bool slow;
+  bool stopped;
   foreach (ACR_Base base : ACR_Base.s_All)
   {
    if (!HeldAgainstFIA(base)) continue;
    float d = vector.DistanceXZ(base.GetOrigin(), hideout.m_vPos);
-   if (d < STOP_REACH) return 0;
+   if (d < STOP_REACH) stopped = true;
    if (d < SLOW_REACH) slow = true;
   }
+  // Harm to civilians and towns near it (ACR_FIAGrievance): recruits even under occupation.
+  float grievance = ACR_FIAGrievance.Fill(hideout, stopped);
+  if (stopped) return grievance;
   // Prisoners held are propaganda (ACR_FIAPrisoners): a little faster, where it recruits at all.
-  if (slow) return FILL_PER_MIN * SLOW_FACTOR + ACR_FIAPrisoners.HeldFill(hideout);
-  return FILL_PER_MIN + ACR_FIAPrisoners.HeldFill(hideout);
+  if (slow) return FILL_PER_MIN * SLOW_FACTOR + ACR_FIAPrisoners.HeldFill(hideout) + grievance;
+  return FILL_PER_MIN + ACR_FIAPrisoners.HeldFill(hideout) + grievance;
  }
 
  // A base (or FOB) a main side holds that FIA doesn't spare.

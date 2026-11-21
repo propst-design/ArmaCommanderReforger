@@ -352,6 +352,14 @@ class ACR_Insurgency
   Change(by, -cost, "buildings destroyed", true);
  }
 
+ // A strike support landed in a town (ACR_FIAGrievance.StrikeLanded): as a building destroyed.
+ static void OnTownStruck(vector pos, string by)
+ {
+  if (!s_bLeaning || !SideOf(by)) return;
+  PrintFormat("[ACR] INSURGENCY %1 struck a town at %2 (-%3)", by, ACR_Manager.Grid(pos), BUILDING);
+  Change(by, -BUILDING, "towns shelled", true);
+ }
+
  // ---------------------------------------------------------------- hideouts
 
  // The main sides with a living man (a squad's or a player) within range of pos; onFoot: only men

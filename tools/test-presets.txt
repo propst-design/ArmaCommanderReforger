@@ -230,6 +230,7 @@ insurgency|-acrInsurgencyTest 1|230|Worlds/ACR_Everon.ent
 fialeaning|-acrFIALeaningTest 1|100|Worlds/ACR_Everon.ent
 hideouts|-acrHideoutsTest 1|200|Worlds/ACR_Everon.ent
 fiaspoils|-acrFIASpoilsTest 1|300|Worlds/ACR_Everon.ent
+fiagrievance|-acrFIAGrievanceTest 1|120|Worlds/ACR_Everon.ent
 zombies|-acrZombiesTest 1|200|Worlds/ACR_Everon.ent
 tvz|-acrTvZTest 1|150|Worlds/ACR_Everon.ent
 containment|-acrContainmentTest 1|240|Worlds/ACR_Everon.ent
