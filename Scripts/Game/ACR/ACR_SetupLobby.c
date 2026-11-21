@@ -232,7 +232,7 @@ class ACR_SetupLobbyModel
  static int TipChars(float width, float charWidth)
  {
   if (charWidth <= 0) return 12;
-  return Math.Max(12, Math.Floor(width / (charWidth * 1.03)));
+  return Math.Max(12, Math.Floor(width / (charWidth * 1.08)));
  }
 
  // Text broken at spaces into lines of at most perLine characters (a longer word is cut).
@@ -403,11 +403,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  protected static const ResourceName LAYOUT_TEXT = "{B537936D5B7E2BA1}UI/layouts/WidgetLibrary/TextWidgets/Text_BodySmall.layout";
  protected static const ResourceName LAYOUT_EDIT = "{0022F0B45ADBC5AC}UI/layouts/WidgetLibrary/EditBox/WLib_EditBox.layout";
  protected static const float INDENT = 36;
- protected static const float TIP_WIDTH = 420;
+ static const float TIP_WIDTH = 420;
  static const float ARROW_SIZE = 28;
  static const float DEVICE_MAP = 340;
- protected static const float TIP_PAD = 9;
- protected static const int TIP_FONT = 14;
+ static const float TIP_PAD = 9;
+ static const int TIP_FONT = 14;
  protected static const string REPORT = "Found a bug? Please report it: discord.gg/WK8xGSztB (issues channel; no GitHub account needed).";
 
  protected ref ACR_SetupTheme m_Theme;
@@ -427,6 +427,12 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  protected Widget m_wTip;
  protected TextWidget m_wTipText;
  protected ref ACR_SetupLobbyTipState m_TipState = new ACR_SetupLobbyTipState();
+ protected float m_fTipAnchorTop;
+ protected float m_fTipAnchorBottom;
+ protected float m_fTipLeft;
+ protected bool m_bTipAbove;
+ protected float m_fTipWide;
+ protected float m_fTipHigh;
  protected Widget m_wTipShown;
  protected ref map<string, string> m_RowLetters = new map<string, string>();
  // The terminal's monospace copies of the library controls' own texts (their font can't be set
@@ -1000,6 +1006,17 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (m_wTip) m_wTip.SetVisible(false);
  }
 
+ // A tooltip's wrapped text and its box's height for a box width (the screen and srv:setuplobby).
+ static float TipBox(string text, float boxWide, out string wrapped, out int lines)
+ {
+  float charWidth, lineHeight, linePitch;
+  MonoMetrics(TIP_FONT, charWidth, lineHeight, linePitch);
+  int perLine = ACR_SetupLobbyModel.TipChars(boxWide - 2 * TIP_PAD, charWidth);
+  lines = 1;
+  wrapped = ACR_SetupLobbyModel.Wrap(text, perLine, lines);
+  return lineHeight + (lines - 1) * linePitch + 2 * TIP_PAD + 4;
+ }
+
  protected void ShowTip(string key, Widget w)
  {
   string text = ACR_SetupLobbyModel.Tooltip(m_aRows, key);
@@ -1042,23 +1059,51 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
     top = ws.DPIUnscale(lastY + lastH) + 12;
    }
   }
-  float charWidth, lineHeight;
-  MonoMetrics(TIP_FONT, charWidth, lineHeight);
-  int perLine = ACR_SetupLobbyModel.TipChars(boxWide - 2 * TIP_PAD, charWidth);
-  int lines = 1;
-  string wrapped = ACR_SetupLobbyModel.Wrap(text, perLine, lines);
+  string wrapped;
+  int lines;
+  float boxHigh = TipBox(text, boxWide, wrapped, lines);
   m_wTipText.SetText(wrapped);
-  float boxHigh = lines * lineHeight + 2 * TIP_PAD + 2;
   float measuredW, measuredH;
   m_wTipText.GetTextSize(measuredW, measuredH);
   if (measuredH > 0) boxHigh = Math.Max(boxHigh, ws.DPIUnscale(measuredH) + 2 * TIP_PAD + 2);
-  if (above) top = y - boxHigh - 6;
-  left = Math.Max(4, Math.Min(left, screenWide - boxWide - 4));
-  if (top + boxHigh > screenHigh - 4) top = y - boxHigh - 6;
-  top = Math.Max(4, top);
+  m_fTipAnchorTop = y;
+  m_fTipAnchorBottom = y + high;
+  m_fTipLeft = left;
+  m_bTipAbove = above;
+  PlaceTip(boxWide, boxHigh);
+  m_wTip.SetVisible(true);
+  // Once laid out, the box takes the text's real size (20 Nov: some still ran out of their box).
+  GetGame().GetCallqueue().Remove(RefitTip);
+  GetGame().GetCallqueue().CallLater(RefitTip, 1, false);
+ }
+
+ // The box on the screen: under its control, or above it when there's no room below (or for a
+ // footer button), and moved left when there's no room on the right.
+ protected void PlaceTip(float boxWide, float boxHigh)
+ {
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  float screenWide = ws.DPIUnscale(ws.GetWidth());
+  float screenHigh = ws.DPIUnscale(ws.GetHeight());
+  float top = m_fTipAnchorBottom + 6;
+  if (m_bTipAbove || top + boxHigh > screenHigh - 4) top = m_fTipAnchorTop - boxHigh - 6;
+  top = Math.Max(4, Math.Min(top, screenHigh - boxHigh - 4));
+  float left = Math.Max(4, Math.Min(m_fTipLeft, screenWide - boxWide - 4));
   FrameSlot.SetPos(m_wTip, left, top);
   FrameSlot.SetSize(m_wTip, boxWide, boxHigh);
-  m_wTip.SetVisible(true);
+  m_fTipWide = boxWide;
+  m_fTipHigh = boxHigh;
+ }
+
+ protected void RefitTip()
+ {
+  if (!m_wTip || !m_wTipText || !m_wTip.IsVisible()) return;
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  float tw, th;
+  m_wTipText.GetTextSize(tw, th);
+  if (tw <= 0 || th <= 0) return;
+  float needWide = Math.Max(m_fTipWide, ws.DPIUnscale(tw) + 2 * TIP_PAD + 4);
+  float needHigh = Math.Max(m_fTipHigh, ws.DPIUnscale(th) + 2 * TIP_PAD + 4);
+  if (needWide > m_fTipWide + 0.5 || needHigh > m_fTipHigh + 0.5) PlaceTip(needWide, needHigh);
  }
 
  // A button's words, and the terminal's monospace copy over them.
@@ -1747,20 +1792,26 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
 
  // A monospace character's width and a line's height at a look size, in layout units (the tooltip
  // wraps and sizes itself from these).
- static void MonoMetrics(int visual, out float charWidth, out float lineHeight)
+ static void MonoMetrics(int visual, out float charWidth, out float lineHeight, out float linePitch)
  {
   charWidth = visual * 0.62;
   lineHeight = visual * 1.6;
+  linePitch = lineHeight;
   WorkspaceWidget ws = GetGame().GetWorkspace();
   if (!ws) return;
   TextWidget probe = TextWidget.Cast(ws.CreateWidgets(ACR_SetupTheme.HEADING_MONO));
   if (!probe) return;
   MonoFont(probe, visual);
-  float w, h;
+  float w, h, w3, h3;
   probe.SetText("MMMMMMMMMM");
   probe.GetTextSize(w, h);
+  // Each further line's step, from three lines (a paragraph's lines can stand further apart than
+  // one line is tall).
+  probe.SetText("Mg\nMg\nMg");
+  probe.GetTextSize(w3, h3);
   if (w > 0) charWidth = ws.DPIUnscale(w) / 10;
   if (h > 0) lineHeight = ws.DPIUnscale(h);
+  if (h3 > h) linePitch = Math.Max(lineHeight, ws.DPIUnscale(h3 - h) / 2);
   probe.RemoveFromHierarchy();
  }
 
