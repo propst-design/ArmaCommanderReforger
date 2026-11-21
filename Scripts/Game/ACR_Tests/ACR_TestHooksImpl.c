@@ -14,11 +14,20 @@ modded class ACR_TestHooks
  }
 
  // The 2IC is on by default (19 Nov): on the range it would take on the squads every test scripts, so it
- // stays off there unless the test sets -acr2IC itself (the twoic tests).
+ // stays off there unless the test sets -acr2IC itself (the twoic tests). The FIA scenario tests switch
+ // the AI commander off to script their squads (bait, sweepers, spoils fixtures): with the 2IC on, it
+ // adopted them and sent them to grab bases, so no free squad was left to sweep (srv:insurgency,
+ // srv:hideouts, srv:fiaspoils failing since 7a7657a). Off there too.
  override string OptionFallback(string option, string fallback)
  {
-  if (m_Harness && option == "acr2IC") return "0";
+  if (option == "acr2IC" && (m_Harness || ScriptsSquadsWithoutCommander())) return "0";
   return fallback;
+ }
+
+ // Scenario tests that turn the AI commander off and order their own squads.
+ protected static bool ScriptsSquadsWithoutCommander()
+ {
+  return System.IsCLIParam("acrGuerrillasTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrFIALeaningTest") || System.IsCLIParam("acrHideoutsTest") || System.IsCLIParam("acrFIASpoilsTest") || System.IsCLIParam("acrFIAGrievanceTest");
  }
 
  override void RangeStarted(ACR_TestRange range)
