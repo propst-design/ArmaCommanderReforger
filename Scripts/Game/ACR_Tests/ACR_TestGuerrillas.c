@@ -21,6 +21,9 @@ class ACR_TestGuerrillas
  protected static IEntity s_Gun;
  protected static ref ACR_Depot s_Depot;
  protected static vector s_vDepotTarget;
+ static int s_iHomeAt;              // second the drive-home check ran (0: not yet)
+ static const int HOME_WAIT_S = 75;
+ static const string PIN_TARGET = "4735 0 10695";
  protected static int s_iJoinBefore;
  protected static bool s_bWalked;
  protected static IEntity s_Lost;
@@ -66,14 +69,22 @@ class ACR_TestGuerrillas
   if (!s_Depot) return;
   if (second == 83) CrewMounts(manager);
   if (second == 145) Struck(manager);
-  if (second == 205) Home(manager);
-  if (second == 206) ACR_Depots.Launch(s_Depot, s_vDepotTarget);
-  if (second == 209) LoseIt(manager);
-  if (second == 210) DropIt();
-  if (second >= 210 && second < 224 && s_Depot.m_iState == ACR_Depots.WALK) s_bWalked = true;
-  if (second == 217) Walking(manager);
-  if (second == 224) Joined(manager);
-  if (second == 226) StrayPruned(manager);
+  // Home: as soon as it is back and stood down, or HOME_WAIT_S after the strike check (a 250 m drive
+  // takes ~60 s). The rest follows from when that check ran.
+  if (s_iHomeAt == 0 && second > 145 && (HomeAlready() || second >= 145 + HOME_WAIT_S))
+  {
+   Home(manager);
+   s_iHomeAt = second;
+  }
+  if (s_iHomeAt == 0) return;
+  int after = second - s_iHomeAt;
+  if (after == 1) ACR_Depots.Launch(s_Depot, s_vDepotTarget);
+  if (after == 4) LoseIt(manager);
+  if (after == 5) DropIt();
+  if (after >= 5 && after < 19 && s_Depot.m_iState == ACR_Depots.WALK) s_bWalked = true;
+  if (after == 12) Walking(manager);
+  if (after == 19) Joined(manager);
+  if (after == 21) StrayPruned(manager);
  }
 
  protected static void Placement(ACR_Manager manager)
@@ -303,11 +314,23 @@ class ACR_TestGuerrillas
   }
   // Along the road from the yard, so the technical can drive there (a road picked by direction
   // alone can be one vanilla AI finds no route to: its crew gets out).
+  // The depot raids only when the test launches it: a raid of its own after the drive home was
+  // still out at the home check (srv:guerrillas 20 Nov, a87f3c2: a target 1181 m away).
+  ACR_Depots.s_bNoRaidsForTest = true;
   vector yard = ACR_Depots.Yard(s_Depot);
+  // Pinned: the road east of Saint-Philippe's yard (grid 473-1069), which the technical drove to and
+  // back from (srv:guerrillas 21 Nov). The road west (450-1053) is joined to the yard on the road
+  // network but the game's driver never set off for it, twice. Elsewhere: walk the road as before.
+  vector pinned;
+  vector pin = ACR_Manager.Ground(PIN_TARGET.ToVector());
+  if (vector.DistanceXZ(pin, yard) < 400 && ACR_Depots.Drivable(s_Depot, pin, pinned)) s_vDepotTarget = pinned;
   vector start, startDir;
   float width;
-  if (ACR_Minefields.Snap(yard, 100, start, startDir, width))
+  if (s_vDepotTarget == vector.Zero && ACR_Minefields.Snap(yard, 100, start, startDir, width))
   {
+   // The same way first on every run (Snap's direction has either sign: the runs drew different
+   // targets, one the technical never got going to), and only a point the depot itself would drive to.
+   if (startDir[2] < 0) startDir = startDir * -1;
    for (int side = 0; side < 2 && s_vDepotTarget == vector.Zero; side++)
    {
     vector at = start;
@@ -322,7 +345,9 @@ class ACR_TestGuerrillas
      dir = nextDir;
      if (vector.DistanceXZ(at, yard) >= 250)
      {
-      s_vDepotTarget = at;
+      vector drivable;
+      if (ACR_Depots.Drivable(s_Depot, at, drivable)) s_vDepotTarget = drivable;
+      PrintFormat("[ACR] GUERRILLAS depot target, side %1: %2 drivable %3", side, ACR_Manager.Grid(at), s_vDepotTarget != vector.Zero);
       break;
      }
     }
@@ -335,6 +360,7 @@ class ACR_TestGuerrillas
    s_Depot = null;
    return;
   }
+  PrintFormat("[ACR] GUERRILLAS depot target %1 (pinned %2)", ACR_Manager.Grid(s_vDepotTarget), s_vDepotTarget == pinned);
   ACR_Depots.s_fStrikeMsForTest = 5000;
   ACR_Depots.Launch(s_Depot, s_vDepotTarget);
  }
@@ -358,6 +384,12 @@ class ACR_TestGuerrillas
   float d = -1;
   if (s_Depot.m_Out) d = vector.DistanceXZ(s_Depot.m_Out.GetOrigin(), s_vDepotTarget);
   Check("guerrillas: the technical drives to its target and strikes", s_Depot.m_fArrivedAt > 0, string.Format("state %1, %2 m from the target", s_Depot.m_iState, (int)d));
+ }
+
+ protected static bool HomeAlready()
+ {
+  if (!s_Depot || s_Depot.m_iState != ACR_Depots.IDLE || s_Depot.m_Crew || s_Depot.m_aVehicles.IsEmpty() || !s_Depot.m_aVehicles[0]) return false;
+  return vector.DistanceXZ(s_Depot.m_aVehicles[0].GetOrigin(), ACR_Depots.Yard(s_Depot)) <= ACR_Depots.HOME + 20;
  }
 
  protected static void Home(ACR_Manager manager)
@@ -418,6 +450,7 @@ class ACR_TestGuerrillas
   if (s_Depot.m_WalkTo) to = s_Depot.m_WalkTo.m_sName;
   Check("guerrillas: a crew that loses its technical walks to the nearest cell and joins it", s_bWalked && joined && (!s_Depot.m_WalkTo || after > s_iJoinBefore), string.Format("walked %1, to %2, reserve %3 -> %4, state %5", s_bWalked, to, s_iJoinBefore, after, s_Depot.m_iState));
   ACR_Depots.s_fStrikeMsForTest = 0;
+  ACR_Depots.s_bNoRaidsForTest = false;
  }
 
  // Review 0.5.13 #5: a technical left out at the road (its crew killed there, or players parked
