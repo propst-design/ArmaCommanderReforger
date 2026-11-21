@@ -238,6 +238,9 @@ class ACR_TestHideouts
    ACR_TestRegress.Skip("hideouts: a held base slows or stops recruiting", "no hideout left");
    return;
   }
+  // The land's own rule: grievance (ACR_FIAGrievance, srv:fiagrievance) left out for the check.
+  float grievance = hideout.m_Cell.m_fGrievance;
+  hideout.m_Cell.m_fGrievance = 0;
   float before = ACR_FIAGrowth.FillRate(hideout);
   ACR_Base nearest;
   float d = 100000;
@@ -252,11 +255,13 @@ class ACR_TestHideouts
   if (!nearest)
   {
    ACR_TestRegress.Skip("hideouts: a held base slows or stops recruiting", "no open base");
+   hideout.m_Cell.m_fGrievance = grievance;
    return;
   }
   nearest.m_sOwner = ACR_FactionSelection.West();
   float during = ACR_FIAGrowth.FillRate(hideout);
   nearest.m_sOwner = "";
+  hideout.m_Cell.m_fGrievance = grievance;
   float expected = before;
   if (d < ACR_FIAGrowth.SLOW_REACH) expected = Math.Min(before, ACR_FIAGrowth.FILL_PER_MIN * ACR_FIAGrowth.SLOW_FACTOR);
   if (d < ACR_FIAGrowth.STOP_REACH) expected = 0;

@@ -85,6 +85,7 @@ class ACR_CivilianSocket : Managed
   if (side.IsEmpty() && killer) side = ACR_Vehicles.FactionOf(killer.GetRootParent());
   if (side.IsEmpty() || !manager.IntelFor(side)) return;
   ACR_Insurgency.OnCivilianKilled(side);
+  ACR_FIAGrievance.OnCivilianKilled(victim.GetOrigin(), side);
   string key = side + "|" + PlaceName(victim.GetOrigin());
   m_Pending.Set(key, m_Pending.Get(key) + 1);
   if (m_bFlushQueued) return;

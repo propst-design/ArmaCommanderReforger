@@ -2636,7 +2636,11 @@ class ACR_Supports : Managed
   // Only once it is really on its way: a bomb run or helicopter that could not start is refunded
   // above and must not have broken the truce.
   if (entry.m_eType != ACR_ESupportType.MORTAR_SMOKE && entry.m_eType != ACR_ESupportType.ILLUMINATION)
+  {
    ACR_Truce.StrikeCalled(m_Manager, factionKey, target, entry.m_sName);
+   // A strike on a town grows FIA near it (ACR_FIAGrievance), counted when it lands.
+   ACR_FIAGrievance.OnStrikeCalled(factionKey, target, entry.m_eType, delay);
+  }
   AddZone(factionKey, target, ZoneRadius(entry.m_eType), entry.m_sName, delay, ZoneDuration(entry.m_eType));
   // Long waits are only announced roughly (to the nearest 15 s).
   string eta = string.Format("%1 s", delay);
@@ -2780,6 +2784,7 @@ class ACR_Supports : Managed
   float now = GetGame().GetWorld().GetWorldTime();
   entry.m_fReadyAt = now + entry.m_iCooldown * 1000;
   PrintFormat("[ACR] SUPPORT %1 %2 at %3 by %4 (ETA %5 s)", factionKey, entry.m_sName, target, team, eta);
+  if (entry.m_eType != ACR_ESupportType.MORTAR_SMOKE && entry.m_eType != ACR_ESupportType.ILLUMINATION) ACR_FIAGrievance.OnStrikeCalled(factionKey, target, entry.m_eType, eta);
   AddZone(factionKey, target, ZoneRadius(entry.m_eType), entry.m_sName, eta, ZoneDuration(entry.m_eType));
   string message = string.Format("%1 on %2: %3 firing, first rounds in about %4 s.", entry.m_sName, ACR_Manager.Grid(target), team, eta);
   if (!byAI) m_Manager.NotifyFaction(factionKey, message);

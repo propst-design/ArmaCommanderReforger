@@ -40,6 +40,7 @@ class ACR_StaticInit
   ACR_Depots.ACR_InitStatics();
   ACR_FIASpoils.ACR_InitStatics();
   ACR_FIAPrisoners.ACR_InitStatics();
+  ACR_FIAGrievance.ACR_InitStatics();
   ACR_FireMissions.ACR_InitStatics();
   ACR_FobBuild.ACR_InitStatics();
   ACR_FobSiting.ACR_InitStatics();
