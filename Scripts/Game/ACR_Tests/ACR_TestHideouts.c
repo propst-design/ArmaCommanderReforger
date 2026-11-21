@@ -98,6 +98,10 @@ class ACR_TestHideouts
    detail += string.Format("%1: %2 buildings in the group, %3 round it, %4 m from a starting base, base %5, %6 m from a cell; ", post.m_sName, group, around.Count(), (int)fromStart, inBase, (int)fromCell);
   }
   ACR_TestRegress.Check("hideouts: in a small isolated group of buildings, away from bases and cells", good == hideouts.Count(), detail);
+  // The site scorer's building count (ACR_SiteScore.Buildings: FOB, roadblock and mine siting's "town")
+  // sees the hideout's own houses: it used to look only for "/Buildings/" prefab paths and found none.
+  int seen = ACR_SiteScore.Buildings(s_Hideout.m_vPos, ACR_Guerrillas.HIDEOUT_CLUSTER + 20);
+  ACR_TestRegress.Check("hideouts: the site scorer counts the houses round a hideout", seen >= ACR_Guerrillas.HIDEOUT_MIN_BUILDINGS, string.Format("%1 buildings within %2 m", seen, ACR_Guerrillas.HIDEOUT_CLUSTER + 20));
  }
 
  // Every cell short of men: those within reach of a hideout get one back, the rest none.
@@ -436,7 +440,7 @@ class ACR_TestHideouts
   {
    ACR_TestRegress.Skip("hideouts: a guarded FOB is never picked", "no second FOB");
    ACR_TestRegress.Skip("hideouts: a raid at a guarded FOB plants nothing", "no second FOB");
-   ACR_TestRegress.Complete("hideouts", 18);
+   ACR_TestRegress.Complete("hideouts", 19);
    return;
   }
   ACR_Base fob;
@@ -453,7 +457,7 @@ class ACR_TestHideouts
   ACR_Raid.s_fStageForTest = 0;
   if (!s_Raid2) return;
   ACR_TestRegress.Check("hideouts: a raid at a guarded FOB plants nothing", !s_Fob2.m_bHqLost && s_Raid2.m_eState != ACR_ERaidState.PLANTED && !s_Raid2.m_Charge, string.Format("state %1, HQ lost %2", s_Raid2.m_eState, s_Fob2.m_bHqLost));
-  ACR_TestRegress.Complete("hideouts", 18);
+  ACR_TestRegress.Complete("hideouts", 19);
  }
 
  // Far from the hideout and the bases, so the team touches nothing else in the run.

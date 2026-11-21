@@ -451,11 +451,20 @@ class ACR_SiteScore
   return s_iBuildings;
  }
 
+ // The map's houses: vanilla keeps them under Prefabs/Structures/Houses as SCR_DestructibleBuildingEntity
+ // (as ACR_Generator counts them, a57e495); no vanilla prefab path has "/Buildings/", so that test alone
+ // found no town anywhere (FOB, roadblock and mine siting never saw one). Mod paths still count.
  protected static bool CountBuilding(IEntity e)
  {
-  if (!e || e.GetParent() || !e.GetPrefabData()) return true;
+  if (!e || e.GetParent()) return true;
+  if (SCR_DestructibleBuildingEntity.Cast(e))
+  {
+   s_iBuildings++;
+   return true;
+  }
+  if (!e.GetPrefabData()) return true;
   string name = e.GetPrefabData().GetPrefabName();
-  if (name.Contains("/Buildings/") && !name.Contains("/Walls/") && !name.Contains("/Fences/")) s_iBuildings++;
+  if ((name.Contains("/Buildings/") || name.Contains("/Houses/")) && !name.Contains("/Walls/") && !name.Contains("/Fences/")) s_iBuildings++;
   return true;
  }
 }
