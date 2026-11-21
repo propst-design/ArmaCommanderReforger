@@ -23,6 +23,7 @@ class ACR_TestGuerrillas
  protected static vector s_vDepotTarget;
  static int s_iHomeAt;              // second the drive-home check ran (0: not yet)
  static const int HOME_WAIT_S = 75;
+ static const string PIN_TARGET = "4735 0 10695";
  protected static int s_iJoinBefore;
  protected static bool s_bWalked;
  protected static IEntity s_Lost;
@@ -317,9 +318,15 @@ class ACR_TestGuerrillas
   // still out at the home check (srv:guerrillas 20 Nov, a87f3c2: a target 1181 m away).
   ACR_Depots.s_bNoRaidsForTest = true;
   vector yard = ACR_Depots.Yard(s_Depot);
+  // Pinned: the road east of Saint-Philippe's yard (grid 473-1069), which the technical drove to and
+  // back from (srv:guerrillas 21 Nov). The road west (450-1053) is joined to the yard on the road
+  // network but the game's driver never set off for it, twice. Elsewhere: walk the road as before.
+  vector pinned;
+  vector pin = ACR_Manager.Ground(PIN_TARGET.ToVector());
+  if (vector.DistanceXZ(pin, yard) < 400 && ACR_Depots.Drivable(s_Depot, pin, pinned)) s_vDepotTarget = pinned;
   vector start, startDir;
   float width;
-  if (ACR_Minefields.Snap(yard, 100, start, startDir, width))
+  if (s_vDepotTarget == vector.Zero && ACR_Minefields.Snap(yard, 100, start, startDir, width))
   {
    // The same way first on every run (Snap's direction has either sign: the runs drew different
    // targets, one the technical never got going to), and only a point the depot itself would drive to.
@@ -353,6 +360,7 @@ class ACR_TestGuerrillas
    s_Depot = null;
    return;
   }
+  PrintFormat("[ACR] GUERRILLAS depot target %1 (pinned %2)", ACR_Manager.Grid(s_vDepotTarget), s_vDepotTarget == pinned);
   ACR_Depots.s_fStrikeMsForTest = 5000;
   ACR_Depots.Launch(s_Depot, s_vDepotTarget);
  }
