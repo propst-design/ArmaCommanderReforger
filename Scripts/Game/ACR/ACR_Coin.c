@@ -73,6 +73,51 @@ class ACR_Coin
 
  static ACR_Base Stronghold() { return s_Stronghold; }
 
+ // The AI army's posture (#244 ruling 6; -acrCoinPosture auto|airmobile|convoy, row "AI posture"):
+ // Airmobile (the Blue side's default: US factions) keeps few town posts and a bigger reserve that
+ // moves by air lift; Garrison and convoy (the Red side's default: Soviet factions) keeps more posts
+ // and sends an escort with every aid truck. Read by ACR_AICommanderSupport.
+ static const int AIRMOBILE = 0;
+ static const int CONVOY = 1;
+ static string PostureOption()
+ {
+  string value;
+  if (!ACR_Options.Get("acrCoinPosture", value)) value = "";
+  value.ToLower();
+  if (value == "airmobile" || value == "convoy") return value;
+  return "auto";
+ }
+
+ static int Posture(string faction)
+ {
+  string value = PostureOption();
+  if (value == "airmobile") return AIRMOBILE;
+  if (value == "convoy") return CONVOY;
+  // auto: by the side's slot, not the faction's name (the Blue slot holds the US-style factions).
+  if (faction == ACR_FactionSelection.East()) return CONVOY;
+  return AIRMOBILE;
+ }
+
+ static string PostureName(int posture)
+ {
+  if (posture == CONVOY) return "garrison and convoy";
+  return "airmobile";
+ }
+
+ // Towns the AI army keeps a squad in.
+ static int TownPosts(string faction)
+ {
+  if (Posture(faction) == CONVOY) return 4;
+  return 2;
+ }
+
+ // Free squads it never sends on a COIN job: the reaction force.
+ static int ReserveKeep(string faction)
+ {
+  if (Posture(faction) == CONVOY) return 1;
+  return 2;
+ }
+
  // "Insurgency strength" (-acrCoinStrength few|many|heavy, row under Match type, default many):
  // what the FIA rows default to, and (heavy) every growth cap x HEAVY_CAPS (ACR_FIAGrowth).
  static const float HEAVY_CAPS = 1.5;

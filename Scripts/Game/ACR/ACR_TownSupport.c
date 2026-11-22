@@ -304,6 +304,31 @@ class ACR_TownSupport
   intel.AddFeed(now, line, base.GetOrigin());
  }
 
+ // ---------------------------------------------------------------- fire restraint (item 5)
+ // The AI army weighs a town before firing on it (ACR_AICommander.CallSupport): a strike that would
+ // land in a town (ACR_FIAGrievance.InTown) it knows as Loyal, Quiet or Restless is held, since
+ // the harm would turn it; a Hostile town (nothing left to lose), an FIA-held town and open country
+ // are fair game. Smoke, flares, recon flights and air lift do no harm. "" = fire.
+ static string FireRestraint(string faction, ACR_ESupportType type, vector point)
+ {
+  if (!s_bOn || !ACR_Coin.IsArmy(faction) || !HarmfulSupport(type)) return "";
+  if (!ACR_FIAGrievance.InTown(point)) return "";
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!IsTown(base) || base.m_fSupport < 0 || base.m_sOwner == ACR_Pockets.FACTION) continue;
+   if (vector.DistanceXZ(base.GetOrigin(), point) > Math.Max(HARM_REACH, base.m_fRadius)) continue;
+   int tier = KnownTier(base, faction);
+   if (tier == HOSTILE) continue;
+   return string.Format("%1 is %2: a strike there would turn it", base.m_sName, TierName(tier));
+  }
+  return "";
+ }
+
+ static bool HarmfulSupport(ACR_ESupportType type)
+ {
+  return type != ACR_ESupportType.MORTAR_SMOKE && type != ACR_ESupportType.ILLUMINATION && type != ACR_ESupportType.RECON_FLIGHT && type != ACR_ESupportType.AIR_LIFT;
+ }
+
  // ---------------------------------------------------------------- aid deliveries (item 4)
  // The army's supply truck (a construction truck bought with RP: its paid load, ACR_Logistics) told to
  // Unload while stopped in a town the army holds or patrols hands out AID_SUPPLIES of its load: the

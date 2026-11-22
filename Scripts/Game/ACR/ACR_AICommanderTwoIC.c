@@ -47,6 +47,8 @@ modded class ACR_AICommander
   t = ACR_Perf.Lap("ai.attacks", t);
   AssignDefenders();
   ReturnToPosts();
+  // COIN: towns and leads before grabs and attacks take the free squads (ACR_AICommanderSupport).
+  ManageCoinPosts();
   t = ACR_Perf.Lap("ai.defend", t);
   UpdateLane();
   UpdateFrontGap();
@@ -63,6 +65,7 @@ modded class ACR_AICommander
   ManageLogistics();
   ManageDangerRoads();
   ManageEvacs();
+  ManageCoin();
   ManagePallets();
   ManageTruce();
   ManageFobBuild();
@@ -237,6 +240,9 @@ modded class ACR_AICommander
   if (task == ACR_EAITask.RESCUE) return "running an evac";
   if (task == ACR_EAITask.PALLET) return "recovering a supply pallet";
   if (task == ACR_EAITask.SUPPLY_RUN) return "on a supply run";
+  if (task == ACR_EAITask.TOWN_POST) return "holding a town" + at;
+  if (task == ACR_EAITask.SEARCH) return "searching for a hideout";
+  if (task == ACR_EAITask.AID) return "taking aid to a town";
   if (task == ACR_EAITask.ATTACK) return "attacking" + at;
   return "in reserve";
  }

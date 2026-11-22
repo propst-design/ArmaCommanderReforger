@@ -12,7 +12,10 @@ enum ACR_EAITask
  SWEEP,     // clearing a road where FIA ambushed the side (ACR_Insurgency, #89)
  RESCUE,    // driving an evac: to the XP, loading, to a base (ACR_Evac, #107)
  PALLET,    // going for a supply pallet (ACR_Airdrop, #107)
- SUPPLY_RUN // a construction truck crew driving a supply run (ACR_SupplyRuns, #242)
+ SUPPLY_RUN, // a construction truck crew driving a supply run (ACR_SupplyRuns, #242)
+ TOWN_POST,  // COIN: holding a town to win it over (ACR_AICommanderSupport, #244)
+ SEARCH,     // COIN: searching an FIA intel ring for its hideout
+ AID         // COIN: a supply truck taking aid to a town
 }
 
 // Strategic AI for one faction, adapted from the Arma 3 mod's ai_strategic.sqf
@@ -597,7 +600,7 @@ class ACR_AICommander : Managed
   minAllForReserve = (int)Math.Max(3, minAllForReserve + m_Doctrine.m_iReserveSquads);
   array<ACR_Squad> freeNow = {};
   MySquads(freeNow, true);
-  if (mine.Count() >= minAllForReserve && freeNow.Count() >= 2 && Pressure() >= 0.9) reserveBase = ReserveBase();
+  if (freeNow.Count() >= 2 && (KeepsReserve() || (mine.Count() >= minAllForReserve && Pressure() >= 0.9))) reserveBase = ReserveBase();
   int reserveJob = -1;
   if (reserveBase)
   {
@@ -655,6 +658,8 @@ class ACR_AICommander : Managed
     // worth 2 and back 30 s later.
     bool holdJob = job.m_iKind == ACR_EAITask.POSTED && j != reserveJob;
     if (holdJob && squad.m_iAITask == ACR_EAITask.POSTED && squad != m_ReserveSquad && vector.DistanceXZ(squad.m_MoveTarget, where.GetOrigin()) > where.m_fRadius + DEFENSE_DISTANCE) fit = 0;
+    // COIN: the reaction force only reacts (a defence) or stays the reserve; no grabs (KeepsReserve).
+    if (KeepsReserve() && squad == m_ReserveSquad && job.m_iKind != ACR_EAITask.DEFEND && j != reserveJob) fit = 0;
     bool byTruck, byAir;
     vector endsAt = where.GetOrigin();
     if (job.m_bTeam) endsAt = RingPoint(endsAt, pos, AttackRing(where));
@@ -1273,6 +1278,13 @@ class ACR_AICommander : Managed
    }
    squads[j + 1] = current;
   }
+ }
+
+ // COIN (#244 item 5): the army always keeps a reaction force once it has two free squads; the
+ // insurgency gives it few fights, so the pressure rule would let every squad go grabbing.
+ protected bool KeepsReserve()
+ {
+  return ACR_TownSupport.On() && ACR_Coin.IsArmy(m_sFaction);
  }
 
  protected bool CoolingDown(ACR_Base base)
@@ -2072,6 +2084,13 @@ class ACR_AICommander : Managed
   if (ACR_Mortars.IsMortarType(type) && !m_Manager.Mortars().CanFire(m_sFaction, type, point)) return false;
   if (ACR_HeliStation.IsHeliType(type) && ACR_HeliStation.UsesPads(m_sFaction) && (!m_Manager.m_Supports || !m_Manager.m_Supports.Station().ReadyFor(m_sFaction, ACR_HeliStation.NeedsGunship(type), point, ACR_HeliStation.IsAttack(type)))) return false;
   if (type != ACR_ESupportType.RECON_FLIGHT && FriendliesNear(point, ACR_Supports.ZoneRadius(type) + 40)) return false;
+  // COIN (#244 item 5): weigh the town before firing on it (ACR_TownSupport.FireRestraint).
+  string restraint = ACR_TownSupport.FireRestraint(m_sFaction, type, point);
+  if (!restraint.IsEmpty())
+  {
+   Say(string.Format("[ACR] AI %1 holds fire (%2): %3", m_sFaction, why, restraint));
+   return false;
+  }
   string result = m_Manager.m_Supports.Call(m_sFaction, SupportIndex(type), point, true);
   Say(string.Format("[ACR] AI %1 support (%2): %3", m_sFaction, why, result));
   // Call refuses some missions after SupportReady passed (no bomb-run prefab, no helicopter,
@@ -3034,7 +3053,7 @@ class ACR_AICommander : Managed
   if (ACR_Manager.ThreatOption() == 0) minAllForReserve = 6;
   else if (ACR_Manager.ThreatOption() == 2) minAllForReserve = 4;
   minAllForReserve = (int)Math.Max(3, minAllForReserve + m_Doctrine.m_iReserveSquads);
-  if (all.Count() >= minAllForReserve && free.Count() >= 2 && Pressure() >= 0.9)
+  if (free.Count() >= 2 && (KeepsReserve() || (all.Count() >= minAllForReserve && Pressure() >= 0.9)))
   {
    ACR_Base home = ReserveBase();
    // A reserve still on its way there stays the reserve (committed, it isn't in 'free' meanwhile).
@@ -3572,6 +3591,16 @@ class ACR_AICommander : Managed
  protected ACR_Base m_ReserveBase;
  protected ref map<ACR_Squad, ACR_Base> m_KeptBehindLines = new map<ACR_Squad, ACR_Base>(); // KeepsWorksManned: said once per base called
  protected ACR_Squad m_ReserveSquad;
+ // COIN jobs (ACR_AICommanderSupport.c, #244 item 5): fields live here (layer rule).
+ protected ref map<ACR_Squad, ACR_Base> m_TownPosts = new map<ACR_Squad, ACR_Base>();
+ protected ACR_Squad m_Searcher;
+ protected vector m_vSearchAt;
+ protected float m_fSearchSince;
+ protected float m_fSearchQuietSince;
+ protected ref map<string, float> m_SearchedAt = new map<string, float>(); // lead centre (grid) -> last searched
+ protected ACR_Squad m_AidRun;
+ protected ACR_Base m_AidTown;
+ protected float m_fAidSince;
 
  bool ReserveFits(ACR_Base base)
  {

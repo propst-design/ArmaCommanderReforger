@@ -138,6 +138,7 @@ modded class ACR_TestHooks
   if (System.IsCLIParam("acrCoinTest")) ACR_TestCoin.RunCoin(seconds);
   if (System.IsCLIParam("acrSupportTest")) ACR_TestCoin.RunSupport(seconds);
   if (System.IsCLIParam("acrCoinGrowthTest")) ACR_TestCoinGrowth.Run(seconds);
+  if (System.IsCLIParam("acrCoinAITest")) ACR_TestCoinAI.Run(seconds);
   // -acrContainmentTest: ground zero, survivors and rescues (ACR_TestContainment, #107).
   if (System.IsCLIParam("acrContainmentTest")) ACR_TestContainment.Run(seconds);
   if (System.IsCLIParam("acrGenerateTest")) ACR_TestGenerate.Run(seconds);
@@ -200,7 +201,7 @@ modded class ACR_TestHooks
 
  override string MatchType()
  {
-  if (System.IsCLIParam("acrCoinTest") || System.IsCLIParam("acrSupportTest") || System.IsCLIParam("acrCoinGrowthTest")) return "coin";
+  if (System.IsCLIParam("acrCoinTest") || System.IsCLIParam("acrSupportTest") || System.IsCLIParam("acrCoinGrowthTest") || System.IsCLIParam("acrCoinAITest")) return "coin";
   return "";
  }
 
