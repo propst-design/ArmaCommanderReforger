@@ -4,7 +4,8 @@
 // Split out of ACR_AICommander.c (12 Nov 2026). Enforce has no partial classes, so each part is a modded
 // layer of the same class. Layers apply in file-name order and a layer can call only itself, earlier
 // layers and the base, never a later one (base code calling a later layer fails to compile):
-// ACR_AICommander.c < ACR_AICommanderBuild.c < ACR_AICommanderLogistics.c < ACR_AICommanderTwoIC.c.
+// ACR_AICommander.c < ACR_AICommanderBuild.c < ACR_AICommanderLogistics.c < ACR_AICommanderSupport.c (COIN jobs)
+// < ACR_AICommanderTwoIC.c.
 // Fields, constants and anything an earlier part calls stay in ACR_AICommander.c.
 modded class ACR_AICommander
 {
