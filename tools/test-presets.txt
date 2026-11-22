@@ -233,6 +233,8 @@ fiaspoils|-acrFIASpoilsTest 1|300|Worlds/ACR_Everon.ent
 fiagrievance|-acrFIAGrievanceTest 1|120|Worlds/ACR_Everon.ent
 zombies|-acrZombiesTest 1|200|Worlds/ACR_Everon.ent
 tvz|-acrTvZTest 1|150|Worlds/ACR_Everon.ent
+coin|-acrCoinTest 1|120|Worlds/ACR_Everon.ent
+support|-acrSupportTest 1|130|Worlds/ACR_Everon.ent
 containment|-acrContainmentTest 1|240|Worlds/ACR_Everon.ent
 kolguyevsoak|-acrEveronSoakTest 1|1380|Worlds/ACR_Kolguyev.ent
 deploymenu|-acrDeployMenuTest 1|180|Worlds/ACR_Arland.ent

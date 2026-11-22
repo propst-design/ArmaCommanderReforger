@@ -207,6 +207,9 @@ class ACR_MapDeclutter
  {
   if (!keepName) return "";
   string name = ShortName(label);
+  // COIN: the town's support tier as this side knows it (ACR_TownSupport).
+  string tier = ACR_TownSupport.CaptionTier(detail);
+  if (!tier.IsEmpty()) name += " (" + tier + ")";
   if (IsHQ(detail))
   {
    if (side == ACR_EBaseSide.ENEMY) return name + " · enemy HQ";

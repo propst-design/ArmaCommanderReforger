@@ -16,6 +16,8 @@ class ACR_Pockets
  {
   string value = ACR_TestHooks.Get().Pockets();
   if (value == "" && !ACR_Options.Get("acrPockets", value)) value = "";
+  // COIN: there is always an insurgency, "many" unless the host says otherwise (ACR_Coin.FIALevel).
+  if (ACR_Coin.On()) value = ACR_Coin.FIALevel(value);
   if (value == "")
   {
    if (!ACR_Setup.Wanted()) return 0;
@@ -23,15 +25,16 @@ class ACR_Pockets
   }
   value.ToLower();
   if (value == "off" || value == "0") return 0;
+  int count = 7;
+  if (quarter) count = 2;
+  else if (half) count = 3;
   if (value == "many")
   {
-   if (quarter) return 3;
-   if (half) return 6;
-   return 12;
+   count = 12;
+   if (quarter) count = 3;
+   else if (half) count = 6;
   }
-  if (quarter) return 2;
-  if (half) return 3;
-  return 7;
+  return ACR_Coin.Scale(count);
  }
 
  // Garrison by kind of site: villages 4-6, industry 6-8, military 8-10.

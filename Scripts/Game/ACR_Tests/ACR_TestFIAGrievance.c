@@ -86,7 +86,9 @@ class ACR_TestFIAGrievance
    for (int a = 0; a < 16 && !s_bTown; a++)
    {
     vector spot = s_Hideout.m_vPos + Vector(Math.Cos(a * Math.PI / 8) * r, 0, Math.Sin(a * Math.PI / 8) * r);
-    if (!ACR_FIAGrievance.InTown(spot)) continue;
+    // Still a town after the building near the hideout comes down (a spot of exactly TOWN_BUILDINGS
+    // houses next to it stopped being one before the strike landed: coin-srvfiagrievance-b).
+    if (ACR_FIAGrievance.Houses(spot, ACR_FIAGrievance.TOWN_RADIUS) <= ACR_FIAGrievance.TOWN_BUILDINGS) continue;
     s_vTown = spot;
     s_bTown = true;
    }

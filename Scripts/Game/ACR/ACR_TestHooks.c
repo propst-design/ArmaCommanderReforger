@@ -29,6 +29,8 @@ class ACR_TestHooks
  string Zombies() { return ""; }
  // Zombie mode a test asks for (tvtvz / tvz), "" = the host option (ACR_TvZ).
  string ZombieMode() { return ""; }
+ // Match type a test asks for (standard / coin), "" = the host option (ACR_Coin).
+ string MatchType() { return ""; }
  // Outbreak start a test asks for (nests / contain), "" = the host option (ACR_Containment).
  string Outbreak() { return ""; }
  // AI doctrine a test asks for (ACR_AIDoctrine key), "" = the host option or random.

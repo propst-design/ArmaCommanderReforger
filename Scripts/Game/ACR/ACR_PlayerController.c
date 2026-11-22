@@ -2837,6 +2837,9 @@ modded class SCR_PlayerController
   label.Replace(" [2]", "");
   label.Replace(" [3]", "");
   if (detail.Contains("CONTESTED")) symbol = "! " + symbol;
+  // COIN: the town's support tier as this side knows it (ACR_TownSupport).
+  string tier = ACR_TownSupport.CaptionTier(detail);
+  if (!tier.IsEmpty()) label += " (" + tier + ")";
   return symbol + label;
  }
 

@@ -60,6 +60,13 @@ class ACR_Base : GenericEntity
  string m_sAIManagedFor;            // ...by this side
  float m_fZombiesSince;             // TvZ: zombies alone inside this held base since (ACR_TvZ overrun)
  bool m_bPocket;                    // FIA pocket of resistance (ACR_Pockets) until someone captures it
+ // COIN town support (ACR_TownSupport): 0 backs the army .. 100 backs the insurgency; -1 not a town.
+ float m_fSupport = -1;
+ int m_iSupportTier = -1;           // ACR_TownSupport.LOYAL .. HOSTILE
+ int m_iSupportKnown = -1;          // the tier the army last saw (-1: never)
+ string m_sSupportWhy;              // what moved it most lately (the feed line's reason)
+ float m_fSupportCalmUntil;         // harm or a fight here: troops don't win it over until then
+ float m_fInformedAt;               // informants last told the army of FIA near it
  vector m_vDriveOut;                // last vehicle spot found here with a way out (ACR_Requisition.VehicleSpot)
  bool m_bDriveOut;
  int m_iPortState;                 // #242 hubs: 0 not checked, 1 a port (deep water by its ring), 2 not (ACR_SupplyRuns.IsPort)

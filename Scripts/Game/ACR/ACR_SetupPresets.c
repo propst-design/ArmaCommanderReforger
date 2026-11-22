@@ -26,6 +26,7 @@ class ACR_SetupPresets
  static const string AUTO_FILE = "/AutoLoad.txt";
  static const string DEFAULT_NAME = "Default";
  static const string LARGE_NAME = "Large battle";
+ static const string COIN_NAME = "Counter-insurgency";
  static const int NAME_CHARS = 28;
  // A preset was put in use and not yet checked against this world (Check).
  protected static bool s_bPending;
@@ -73,6 +74,20 @@ class ACR_SetupPresets
   preset.m_Values.Set("acrUnitCap", "16");
   preset.m_Values.Set("acrCapScale", "1");
   preset.m_Values.Set("acrStartRP", "400");
+  preset.m_Values.Set("acrPockets", "many");
+  preset.m_Values.Set("acrGuerrillas", "many");
+  presets.Insert(preset);
+  // Counter-insurgency (0.8.0, ACR_Coin): one army on the whole map against many FIA, the army's
+  // own AI commander on (players can take it over), normal threat. The army stays the Blue side
+  // unless the host picks the other one after loading it.
+  preset = new ACR_SetupPreset();
+  preset.m_sName = COIN_NAME;
+  preset.m_bBuiltIn = true;
+  preset.m_Values.Set("acrMatchType", "coin");
+  preset.m_Values.Set("acrLayout", "");
+  preset.m_Values.Set("acrSize", "full");
+  preset.m_Values.Set("acrQuickStart", "off");
+  preset.m_Values.Set("acrThreat", "normal");
   preset.m_Values.Set("acrPockets", "many");
   preset.m_Values.Set("acrGuerrillas", "many");
   presets.Insert(preset);

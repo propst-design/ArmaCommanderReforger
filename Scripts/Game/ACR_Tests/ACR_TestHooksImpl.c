@@ -27,7 +27,7 @@ modded class ACR_TestHooks
  // Scenario tests that turn the AI commander off and order their own squads.
  protected static bool ScriptsSquadsWithoutCommander()
  {
-  return System.IsCLIParam("acrGuerrillasTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrFIALeaningTest") || System.IsCLIParam("acrHideoutsTest") || System.IsCLIParam("acrFIASpoilsTest") || System.IsCLIParam("acrFIAGrievanceTest");
+  return System.IsCLIParam("acrGuerrillasTest") || System.IsCLIParam("acrInsurgencyTest") || System.IsCLIParam("acrFIALeaningTest") || System.IsCLIParam("acrHideoutsTest") || System.IsCLIParam("acrFIASpoilsTest") || System.IsCLIParam("acrFIAGrievanceTest") || System.IsCLIParam("acrSupportTest");
  }
 
  override void RangeStarted(ACR_TestRange range)
@@ -134,6 +134,9 @@ modded class ACR_TestHooks
   if (System.IsCLIParam("acrZombiesTest")) ACR_TestOutbreak.Run(seconds);
   // -acrTvZTest: one side against the zombies (ACR_TestTvZ, #107).
   if (System.IsCLIParam("acrTvZTest")) ACR_TestTvZ.Run(seconds);
+  // -acrCoinTest / -acrSupportTest: counter-insurgency and town support (ACR_TestCoin, #244).
+  if (System.IsCLIParam("acrCoinTest")) ACR_TestCoin.RunCoin(seconds);
+  if (System.IsCLIParam("acrSupportTest")) ACR_TestCoin.RunSupport(seconds);
   // -acrContainmentTest: ground zero, survivors and rescues (ACR_TestContainment, #107).
   if (System.IsCLIParam("acrContainmentTest")) ACR_TestContainment.Run(seconds);
   if (System.IsCLIParam("acrGenerateTest")) ACR_TestGenerate.Run(seconds);
@@ -191,6 +194,12 @@ modded class ACR_TestHooks
  override string Zombies()
  {
   if (System.IsCLIParam("acrZombiesTest")) return "many";
+  return "";
+ }
+
+ override string MatchType()
+ {
+  if (System.IsCLIParam("acrCoinTest") || System.IsCLIParam("acrSupportTest")) return "coin";
   return "";
  }
 

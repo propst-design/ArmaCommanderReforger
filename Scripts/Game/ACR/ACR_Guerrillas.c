@@ -108,6 +108,8 @@ class ACR_Guerrillas
  {
   string value = ACR_TestHooks.Get().Guerrillas();
   if (value == "" && !ACR_Options.Get("acrGuerrillas", value)) value = "";
+  // COIN: there is always an insurgency, "many" unless the host says otherwise (ACR_Coin.FIALevel).
+  if (ACR_Coin.On()) value = ACR_Coin.FIALevel(value);
   if (value == "")
   {
    if (!ACR_Setup.Wanted()) return 0;
@@ -130,7 +132,9 @@ class ACR_Guerrillas
    roads = Math.Ceil(roads * 0.5);
    houses = Math.Ceil(houses * 0.5);
   }
-  return roads;
+  // COIN: more of everything, the army's only enemy (hideouts follow the roads: roads / 2).
+  houses = ACR_Coin.Scale(houses);
+  return ACR_Coin.Scale(roads);
  }
 
  static bool Hidden()
@@ -207,7 +211,10 @@ class ACR_Guerrillas
   if (bases.IsEmpty()) return;
   array<vector> found = {};
   array<float> scores = {};
-  for (int look = 0; look < MAX_HIDEOUT_LOOKS; look++)
+  // Spots looked at grow with the hideouts wanted: 40 in all found 0-2 of 2 on Everon (srv:hideouts
+  // aborted with none) and 1 of 6 in COIN.
+  int looks = MAX_HIDEOUT_LOOKS * Math.Max(2, wanted);
+  for (int look = 0; look < looks; look++)
   {
    float angle = Math.RandomFloat(0, Math.PI2);
    vector spot = bases.GetRandomElement().GetOrigin() + Vector(Math.Cos(angle), 0, Math.Sin(angle)) * Math.RandomFloat(800, 2500);

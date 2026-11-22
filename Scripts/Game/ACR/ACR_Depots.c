@@ -182,10 +182,13 @@ class ACR_Depots
    return;
   }
   int wanted = Cap() / 2;
+  // COIN: the insurgency's stronghold (what was the absent army's HQ) always has a depot.
+  ACR_Base stronghold = ACR_Coin.Stronghold();
+  if (stronghold && stronghold.m_bPocket) MakeDepot(stronghold);
   foreach (ACR_Base base : ACR_Base.s_All)
   {
    if (s_aDepots.Count() >= wanted) break;
-   if (base.m_bPocket && base.m_iValue >= 2) MakeDepot(base);
+   if (base.m_bPocket && base.m_iValue >= 2 && base != stronghold) MakeDepot(base);
   }
   PrintFormat("[ACR] DEPOTS %1 of %2 wanted", s_aDepots.Count(), wanted);
  }

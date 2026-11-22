@@ -289,8 +289,8 @@ class ACR_FactionSelection
   if (!s_bApplied) return;
   string west = s_sWest;
   string east = s_sEast;
-  // TvZ: only the living side is offered (ACR_TvZ).
-  if (ACR_TvZ.On()) { west = ACR_TvZ.Living(); east = west; }
+  // A one-side match (TvZ, COIN): only the living side is offered (ACR_OneSide).
+  if (ACR_OneSide.On()) { west = ACR_OneSide.Living(); east = west; }
   string signature = west + "," + east;
   array<int> ids = {};
   GetGame().GetPlayerManager().GetPlayers(ids);

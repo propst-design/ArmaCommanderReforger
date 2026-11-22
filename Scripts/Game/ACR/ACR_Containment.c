@@ -371,8 +371,8 @@ class ACR_Containment
   array<string> sides = {};
   string west = ACR_FactionSelection.West();
   string east = ACR_FactionSelection.East();
-  if (!west.IsEmpty() && !ACR_TvZ.IsAbsent(west)) sides.Insert(west);
-  if (!east.IsEmpty() && !ACR_TvZ.IsAbsent(east)) sides.Insert(east);
+  if (!west.IsEmpty() && !ACR_OneSide.IsAbsent(west)) sides.Insert(west);
+  if (!east.IsEmpty() && !ACR_OneSide.IsAbsent(east)) sides.Insert(east);
   return sides;
  }
 
@@ -387,7 +387,7 @@ class ACR_Containment
  // The side's command map: a ring per town holding out, and the side's own evac points (ACR_MapFeed).
  static void Zones(string faction, notnull array<vector> positions, notnull array<float> radii, notnull array<string> labels)
  {
-  if (!s_bOn || ACR_TvZ.IsAbsent(faction)) return;
+  if (!s_bOn || ACR_OneSide.IsAbsent(faction)) return;
   foreach (ACR_SurvivorSite site : s_aSites)
   {
    positions.Insert(site.m_vPos);

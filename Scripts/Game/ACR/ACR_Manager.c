@@ -232,6 +232,9 @@ class ACR_Manager : Managed
   ACR_Hud.Clear();
   ACR_Skirmish.Reset();
   ACR_TvZ.Reset();
+  ACR_OneSide.Reset();
+  ACR_Coin.Reset();
+  ACR_TownSupport.Reset();
   ACR_Report.Reset();
   ACR_Setup.Reset();
   ACR_SetupClient.Reset();
@@ -413,8 +416,8 @@ class ACR_Manager : Managed
    if (setAI) settings.m_bAICommander = playable && (ai == "both" || ai == key);
    else if (!playable) settings.m_bAICommander = false;
    if (setCap && unitCap.ToInt() > 0) settings.m_iAIUnitCap = unitCap.ToInt();
-   // TvZ: the absent side doesn't play (ACR_TvZ).
-   if (ACR_TvZ.IsAbsent(settings.m_sFaction)) settings.m_bAICommander = false;
+   // A one-side match (TvZ, COIN): the absent side doesn't play (ACR_OneSide).
+   if (ACR_OneSide.IsAbsent(settings.m_sFaction)) settings.m_bAICommander = false;
   }
   // Threat level (Jacob, 2 Oct): low = a smaller, infantry war; high = all-out war.
   int threat = ThreatOption();
@@ -623,6 +626,7 @@ class ACR_Manager : Managed
   ACR_Fortify.Tick();
   ACR_Guerrillas.Tick();
   ACR_Insurgency.Tick();
+  ACR_TownSupport.Tick();
   ACR_Outbreak.Tick();
   ACR_Containment.Tick();
   ACR_Truce.Tick();

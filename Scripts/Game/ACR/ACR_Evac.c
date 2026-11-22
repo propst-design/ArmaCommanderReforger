@@ -149,7 +149,7 @@ class ACR_Evac
  {
   made = null;
   if (!ACR_Containment.On()) return "evac points are for zombie containment (-acrOutbreak contain)";
-  if (side.IsEmpty() || ACR_TvZ.IsAbsent(side)) return "no side";
+  if (side.IsEmpty() || ACR_OneSide.IsAbsent(side)) return "no side";
   if (CountFor(side) >= MOST_PER_SIDE) return string.Format("%1 evac points already open: bring those people out first", MOST_PER_SIDE);
   // Not where a ride would be paid for on the spot (0.5.13 review #12): an XP inside or beside a
   // base DeliveryBase pays at loaded its civilians straight into a vehicle that was already there.

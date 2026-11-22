@@ -81,19 +81,22 @@ class ACR_FIAGrievance
  // A civilian killed at 'pos' by someone of 'by' (ACR_CivilianSocket.CivilianKilled).
  static void OnCivilianKilled(vector pos, string by)
  {
+  // COIN: the towns near it lean away from whoever did it (ACR_TownSupport), FIA too.
+  ACR_TownSupport.Harm(pos, by, CIVILIAN, "killing of civilians");
   Harm(pos, by, CIVILIAN, "killing of civilians");
  }
 
  // A building destroyed at 'pos' by someone of 'by' (the modded SCR_DestructibleBuildingComponent).
  static void OnBuildingDown(vector pos, string by)
  {
+  ACR_TownSupport.Harm(pos, by, BUILDING, "demolitions");
   Harm(pos, by, BUILDING, "demolitions");
  }
 
  // A strike support called by 'by' on 'target' (ACR_Supports): counted when it lands, if in a town.
  static void OnStrikeCalled(string by, vector target, ACR_ESupportType type, int delaySeconds)
  {
-  if (!s_bOn || !Replication.IsServer()) return;
+  if ((!s_bOn && !ACR_TownSupport.On()) || !Replication.IsServer()) return;
   float points = STRIKE_LIGHT;
   string what = "shelling";
   if (type == ACR_ESupportType.BOMB_RUN) what = "bombing";
@@ -108,6 +111,7 @@ class ACR_FIAGrievance
   if (!InTown(target)) return;
   // Leaning by conduct counts it too: a town shelled is harm as a building destroyed is.
   ACR_Insurgency.OnTownStruck(target, by);
+  ACR_TownSupport.Harm(target, by, points, what);
   Harm(target, by, points, what);
  }
 

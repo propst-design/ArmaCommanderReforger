@@ -290,6 +290,9 @@ class ACR_Setup
    if (key == "seed" && !generated && Current("quickstart") == "off") continue;
    // Only with Project Outbreak loaded (ACR_Outbreak).
    if ((key == "zombies" || key == "zombiemode" || key == "outbreak") && !ACR_Outbreak.Loaded()) continue;
+   // Counter-insurgency (ACR_Coin): the army row only then; FIA is the army's enemy, so the allegiance
+   // and leaning rows go (town support replaces them), and TvZ has no place in it.
+   if (HiddenByMatchType(key)) continue;
    // Opens the map on the host's own screen with the layout drawn on it (client side).
    if (key == "map")
    {
@@ -321,6 +324,16 @@ class ACR_Setup
   // The Presets tab (#143): the server's presets, managed from the host's dialog.
   rows += ACR_SetupPresets.Rows();
   return rows;
+ }
+
+ // Rows the match type leaves out (ACR_Coin): the army row outside COIN, the FIA allegiance and
+ // leaning rows and the zombie mode in it.
+ static bool HiddenByMatchType(string key)
+ {
+  bool coin = Current("matchtype") == "coin";
+  if (key == "coinarmy") return !coin;
+  if (key == "fiaallegiance" || key == "fialeaning" || key == "zombiemode") return coin;
+  return false;
  }
 
  // ---------------------------------------------------------------- setup lobby (0.7.0)
@@ -369,7 +382,7 @@ class ACR_Setup
   if (key == "layout" || key == "seed" || key == "map" || key == "undo" || key == "threat") return 0;
   if (key == "pockets" || key == "guerrillas" || key == "fiaallegiance" || key == "fialeaning" || key == "fiahidden" || key == "zombies" || key == "zombiemode" || key == "outbreak") return 0;
   // 2. Match: the sides, their commanders, how it opens.
-  if (key == "west" || key == "east" || key == "ai" || key == "quickstart" || key == "startrp") return 1;
+  if (key == "west" || key == "east" || key == "matchtype" || key == "coinarmy" || key == "ai" || key == "quickstart" || key == "startrp") return 1;
   // 3. Forces and AI: the AI commanders and their squads, minefields and fortifying.
   if (key == "aicommander" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "unitcap" || key == "capscale" || key == "aibuild" || key == "holdguns") return 2;
   if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "baseworks") return 2;
@@ -390,6 +403,7 @@ class ACR_Setup
   if (key.StartsWith("about")) return key.Substring(5, key.Length() - 5);
   if (key == "seed") return "layout";
   if (key == "undo") return "map";
+  if (key == "coinarmy") return "matchtype";
   if (key == "fiaallegiance" || key == "fialeaning" || key == "fiahidden") return "guerrillas";
   if (key == "zombiemode" || key == "outbreak") return "zombies";
   if (key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return "decks";
@@ -403,6 +417,7 @@ class ACR_Setup
  // stays as it is and still counts, as a preset or a launch option may have set it).
  static bool ParentOn(string key)
  {
+  if (HiddenByMatchType(key)) return false;
   string parent = Parent(key);
   // The FIA rows matter with either kind of FIA on the map: the resistance pockets or the guerrillas.
   if (parent == "guerrillas") return Current("guerrillas") != "off" || Current("pockets") != "off";
@@ -463,7 +478,7 @@ class ACR_Setup
  // it was last, a page away).
  static array<string> RowKeys()
  {
-  array<string> keys = {"west", "east", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "twoic", "unitcap", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "periodjets", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "pullover", "mines", "minesreal", "minesai", "fortify", "fortifyai", "aibuild", "baseworks", "fieldsoffire", "squadtactics", "evadearmour", "supplyruns", "hubs", "saveroutes"};
+  array<string> keys = {"west", "east", "matchtype", "coinarmy", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "twoic", "unitcap", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "periodjets", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "pullover", "mines", "minesreal", "minesai", "fortify", "fortifyai", "aibuild", "baseworks", "fieldsoffire", "squadtactics", "evadearmour", "supplyruns", "hubs", "saveroutes"};
   return keys;
  }
 
@@ -494,6 +509,8 @@ class ACR_Setup
  {
   if (key == "west") return "Blue side";
   if (key == "east") return "Red side";
+  if (key == "matchtype") return "Match type";
+  if (key == "coinarmy") return "Army";
   if (key == "layout") return "Battlefield";
   if (key == "seed") return "Layout seed";
   if (key == "pockets") return "FIA resistance";
@@ -575,6 +592,8 @@ class ACR_Setup
   if (key == "quickstart") return "Off: both sides start from their HQ. Even: the map is split along\na front. Uneven: one side holds two thirds, the other has double RP.";
   if (key == "threat") return "Prices, stock, the soldier limit and the AI squad cap, and how\nmany attacks an AI commander runs at once.";
   if (key == "ai") return "Which sides an AI commander runs.";
+  if (key == "matchtype") return "Two armies, or counter-insurgency: one army against the FIA\ninsurgency, towns leaning to one or the other.";
+  if (key == "coinarmy") return "Which of the two sides is the army; the other sits out and its\nHQ becomes the insurgency's stronghold.";
   if (key == "startrp") return "Requisition points each side starts with.";
   if (key == "aicommander") return "New: lanes, the allocator and the defence forecast.\nClassic: the commander from before 0.6.0.";
   if (key == "doctrinewest" || key == "doctrineeast") return "How this side's AI commander fights: blitz, firepower, fortress,\nraider or balanced. The line under the rows says what it does.";
@@ -659,6 +678,8 @@ class ACR_Setup
    ACR_FactionSelection.Candidates(keys);
    foreach (string candidate : keys) if (candidate != other) values.Insert(candidate);
   }
+  else if (key == "matchtype") values = {"standard", "coin"};
+  else if (key == "coinarmy") values = {"west", "east"};
   else if (key == "pockets") values = {"few", "many", "off"};
   else if (key == "quickstart") values = {"off", "even", "uneven"};
   else if (key == "guerrillas") values = {"few", "many", "off"};
@@ -708,6 +729,8 @@ class ACR_Setup
 
  static string Option(string key)
  {
+  if (key == "matchtype") return "acrMatchType";
+  if (key == "coinarmy") return "acrCoinArmy";
   if (key == "pockets") return "acrPockets";
   if (key == "quickstart") return "acrQuickStart";
   if (key == "guerrillas") return "acrGuerrillas";
@@ -769,6 +792,8 @@ class ACR_Setup
   string value;
   if (key == "west") return ACR_FactionSelection.West();
   if (key == "east") return ACR_FactionSelection.East();
+  // A test's match type counts too (ACR_Coin.MatchOption reads the option behind the row).
+  if (key == "matchtype" && !ACR_Options.s_bDefaults) return ACR_Coin.MatchOption();
   if (key == "layout")
   {
    string size;
@@ -806,6 +831,8 @@ class ACR_Setup
   value.ToLower();
   if (value == "")
   {
+   if (key == "matchtype") return "standard";
+   if (key == "coinarmy") return "west";
    if (key == "pockets") return "few";
    if (key == "quickstart") return "off";
    if (key == "guerrillas") return "few";
@@ -899,6 +926,10 @@ class ACR_Setup
   if (key == "deckwest") return ACR_Decks.RowName(ACR_FactionSelection.West(), value);
   if (key == "deckeast") return ACR_Decks.RowName(ACR_FactionSelection.East(), value);
   if (key == "income") return "x" + value;
+  if (key == "matchtype" && value == "coin") return "counter-insurgency: one army vs the FIA";
+  if (key == "matchtype") return "standard: two armies";
+  if (key == "coinarmy" && value == "east") return "the Red side (" + ACR_FactionSelection.East() + ")";
+  if (key == "coinarmy") return "the Blue side (" + ACR_FactionSelection.West() + ")";
   if (key == "pockets" && value == "few") return "a few pockets (whole/half map)";
   if (key == "pockets" && value == "many") return "many pockets (whole/half map)";
   if (key == "pockets" && value == "off") return "off";
@@ -1519,7 +1550,9 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
   if (key.StartsWith("about")) return Tab(key.Substring(5, key.Length() - 5));
   if (key.StartsWith("preset")) return PRESETS_TAB;
   if (key == "shared" || key == "ai" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "aicommander" || key == "twoic" || key == "unitcap" || key == "holdguns" || key == "declutter" || key == "capscale") return 1;
-  if (key == "pricing" || key == "startrp" || key == "income" || key == "companywest" || key == "companyeast") return 2;
+  // Threat sets prices, stock and caps: it moved here on 21 Nov to make room on Battlefield for the
+  // match type (Battlefield was full at 13 rows).
+  if (key == "pricing" || key == "threat" || key == "startrp" || key == "income" || key == "companywest" || key == "companyeast") return 2;
   if (key == "decks" || key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return 2;
   if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "fobrelay" || key == "depotcapacity" || key == "servicecost" || key == "rpservice" || key == "pullover") return 3;
   if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "aibuild" || key == "baseworks" || key == "fieldsoffire") return 4;

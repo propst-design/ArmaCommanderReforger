@@ -176,10 +176,11 @@ class ACR_BaseSystem : Managed
 
  int GetIncome(string factionKey)
  {
-  int income = m_iBasicIncome;
+  // COIN (ACR_TownSupport): a Hostile town pays its army only part of its value.
+  float income = m_iBasicIncome;
   foreach (ACR_Base base : ACR_Base.s_All)
-   if (base.m_sOwner == factionKey && base.m_bIncome) income += base.m_iValue;
-  return income;
+   if (base.m_sOwner == factionKey && base.m_bIncome) income += base.m_iValue * ACR_TownSupport.IncomeShare(base, factionKey);
+  return Math.Round(income);
  }
 
  static bool s_bNoIncomeForTest;
@@ -282,6 +283,20 @@ class ACR_BaseSystem : Managed
   m_BodyFactions.Insert(key);
   m_BodyFled.Insert(fled);
   m_BodyInWar.Insert(InWar(key));
+ }
+
+ // This tick's living, conscious men of 'faction' within 'radius' of 'center' (CollectBodies: no
+ // prisoners, no support helicopter crews), put in 'into' if given. Town support reads it (ACR_TownSupport).
+ int MenWithin(vector center, float radius, string faction, array<IEntity> into = null)
+ {
+  int men;
+  foreach (int i, IEntity body : m_Bodies)
+  {
+   if (!body || m_BodyFactions[i] != faction || vector.DistanceXZ(body.GetOrigin(), center) > radius) continue;
+   men++;
+   if (into) into.Insert(body);
+  }
+  return men;
  }
 
  // The war's own factions: the two sides and FIA. Only they (and a base's owner) hold, contest,
@@ -1549,6 +1564,8 @@ class ACR_BaseSystem : Managed
   else if (ACR_LogisticsRules.RelayBlocked(base)) text += " | RADIO RELAY REQUIRED: deployment / RP reinforcement offline";
   if (base.m_bIncome) text += string.Format(" | +%1 RP", base.m_iValue);
   else text += " | no income";
+  // COIN: the town's support as this viewer knows it (ACR_TownSupport).
+  text += ACR_TownSupport.Detail(base, viewer);
   if (base.m_bContested) text += " | CONTESTED";
   if (base.m_bHidden) text += " | Hidden";
   if (base.m_sOwner.IsEmpty() && !base.m_sCapturer.IsEmpty())

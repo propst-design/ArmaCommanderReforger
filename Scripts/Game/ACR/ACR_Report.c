@@ -174,7 +174,7 @@ modded class SCR_DestructibleBuildingComponent
   bool wasDestroyed = m_bDestroyed;
   super.OnDamageStateChanged(newState, previousDamageState, isJIP);
   if (newState != EDamageState.DESTROYED || wasDestroyed || isJIP || IsProxy()) return;
-  if (!ACR_Insurgency.Leaning() && !ACR_FIAGrievance.On()) return;
+  if (!ACR_Insurgency.Leaning() && !ACR_FIAGrievance.On() && !ACR_TownSupport.On()) return;
   Instigator instigator = GetInstigator();
   IEntity by;
   if (instigator) by = instigator.GetInstigatorEntity();

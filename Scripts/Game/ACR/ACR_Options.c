@@ -144,7 +144,7 @@ class ACR_Options
  static void Log()
  {
   string line;
-  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIASpoils", "acrFIAGrievance", "acrFIAHidden", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrHoldGuns", "acrMapDeclutter", "acrIntro", "acrIntroMusic", "acrIntroMusicZombies", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAICommander", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC", "acrSupplyRuns", "acrLogisticsHubs", "acrSaveRoutes"};
+  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIASpoils", "acrFIAGrievance", "acrFIAHidden", "acrMatchType", "acrCoinArmy", "acrCoinHostileIncome", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrHoldGuns", "acrMapDeclutter", "acrIntro", "acrIntroMusic", "acrIntroMusicZombies", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAICommander", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC", "acrSupplyRuns", "acrLogisticsHubs", "acrSaveRoutes"};
   foreach (string name : names)
   {
    string value;
@@ -176,6 +176,12 @@ class ACR_MissionHeader : SCR_MissionHeader
  string m_sAcrGuerrillas;
  [Attribute("", UIWidgets.EditBox, "Hidden FIA: 1 = no messages about FIA; pockets are only found by entering them (-acrFIAHidden)")]
  string m_sAcrFIAHidden;
+ [Attribute("", UIWidgets.EditBox, "Match type: standard (default, two armies) or coin (counter-insurgency: one army against the FIA insurgency) (-acrMatchType)")]
+ string m_sAcrMatchType;
+ [Attribute("", UIWidgets.EditBox, "Counter-insurgency: which side is the army, west (default) or east (-acrCoinArmy)")]
+ string m_sAcrCoinArmy;
+ [Attribute("", UIWidgets.EditBox, "Counter-insurgency: share of a Hostile town's income the army still earns, 0 to 1 (default 0.5) (-acrCoinHostileIncome)")]
+ string m_sAcrCoinHostileIncome;
  [Attribute("", UIWidgets.EditBox, "Zombies with Project Outbreak loaded: off (default), few or many nests in open bases and the country (-acrZombies)")]
  string m_sAcrZombies;
  [Attribute("", UIWidgets.EditBox, "Zombie mode with Project Outbreak loaded: tvtvz (default, both sides + zombies) or tvz (the players' side alone against the zombies) (-acrZombieMode)")]
@@ -332,6 +338,9 @@ class ACR_MissionHeader : SCR_MissionHeader
   Text(values, "acrQuickStart", m_sAcrQuickStart);
   Text(values, "acrGuerrillas", m_sAcrGuerrillas);
   Text(values, "acrFIAHidden", m_sAcrFIAHidden);
+  Text(values, "acrMatchType", m_sAcrMatchType);
+  Text(values, "acrCoinArmy", m_sAcrCoinArmy);
+  Text(values, "acrCoinHostileIncome", m_sAcrCoinHostileIncome);
   Text(values, "acrZombies", m_sAcrZombies);
   Text(values, "acrZombieMode", m_sAcrZombieMode);
   Text(values, "acrOutbreak", m_sAcrOutbreak);

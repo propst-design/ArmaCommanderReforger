@@ -77,6 +77,8 @@ class ACR_Insurgency
  protected static string AllyOption()
  {
   string value;
+  // COIN (0.8.0): FIA is the army's enemy; town support replaces allegiance and leaning (ACR_Coin).
+  if (ACR_Coin.On()) return "";
   if (!ACR_Options.Get("acrFIAAllegiance", value)) return "";
   value.ToLower();
   if (value == "west") return ACR_FactionSelection.West();
@@ -225,6 +227,7 @@ class ACR_Insurgency
  protected static bool LeaningOption()
  {
   string value;
+  if (ACR_Coin.On()) return false;
   if (!ACR_Options.Get("acrFIALeaning", value)) return false;
   value.ToLower();
   return value == "1" || value == "on" || value == "true";
