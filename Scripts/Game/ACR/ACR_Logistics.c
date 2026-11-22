@@ -289,6 +289,19 @@ class ACR_Logistics : Managed
   return moved;
  }
 
+ // COIN aid (ACR_TownSupport.Aid): 'supplies' of the truck's paid load handed out in a town. False,
+ // and nothing spent, when the paid load is short of it.
+ bool SpendPaid(IEntity vehicle, float supplies)
+ {
+  float perLoad = SuppliesPerLoad(ServiceOf(vehicle));
+  if (!vehicle || perLoad <= 0 || supplies <= 0 || PaidSupplies(vehicle) < supplies) return false;
+  float loads = supplies / perLoad;
+  float paid = PaidOf(vehicle);
+  if (!Use(vehicle, loads)) return false;
+  if (m_Paid.Contains(vehicle)) m_Paid.Set(vehicle, Math.Max(0, Math.Min(paid - loads, StockOf(vehicle))));
+  return true;
+ }
+
  // Paid loads in the truck now, and the same in game supplies.
  float PaidOf(IEntity vehicle)
  {

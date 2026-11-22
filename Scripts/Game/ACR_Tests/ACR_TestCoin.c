@@ -22,6 +22,8 @@ class ACR_TestCoin
  protected static float s_fEmpty;
  protected static float s_fDemolished;
  protected static ref array<IEntity> s_aFound;
+ protected static ACR_Base s_AidTown;
+ static const ResourceName AID_TRUCK = "{2D74C39A650A3030}Prefabs/Vehicles/Wheeled/M923A1/M923A1_engineer.et";
 
  // ---------------------------------------------------------------- srv:coin
 
@@ -109,6 +111,7 @@ class ACR_TestCoin
   if (second == 14) Struck(manager);
   if (second == 15) Demolish(manager);
   if (second == 17) Demolished(manager);
+  if (second == 19) Aid(manager);
   if (second == 23) Informants(manager);
   if (second == 24) Knowledge(manager);
   if (second == 46) Drifted(manager);
@@ -162,6 +165,14 @@ class ACR_TestCoin
   SCR_AIGroup fia = manager.m_Bases.SpawnGuards(ACR_Pockets.FACTION, away, 1, "COIN test FIA sapper", 5, 2);
   s_Insurgent = FirstMan(fia);
   s_Building = BuildingNear(s_Demolished.GetOrigin(), 120);
+  // The aid truck: the army's supply truck in a town it holds (its HQ).
+  foreach (ACR_Base held : ACR_Base.s_All) if (held.m_sOwner == army && ACR_TownSupport.IsTown(held)) { s_AidTown = held; break; }
+  if (s_AidTown)
+  {
+   vector spot = manager.m_Requisition.VehicleSpot(s_AidTown, 10, 40, 4);
+   if (spot == vector.Zero) spot = ACR_Manager.Ground(s_AidTown.GetOrigin() + Vector(20, 0, 0));
+   manager.SpawnUnit("COIN Aid Truck", "", AID_TRUCK, true, "", spot, ACR_Manager.Ground(spot + Vector(5, 0, 5)));
+  }
   PrintFormat("[ACR] SUPPORT test: garrisoned %1, empty %2, struck %3, demolished %4, loyal %5, unseen %6", s_Garrisoned.m_sName, s_Empty.m_sName, s_Struck.m_sName, s_Demolished.m_sName, s_Loyal.m_sName, s_Unseen.m_sName);
  }
 
@@ -227,6 +238,33 @@ class ACR_TestCoin
   Check("support: a building FIA destroys turns the town towards the army", s_Insurgent && moved <= -ACR_FIAGrievance.BUILDING * ACR_TownSupport.HARM_SCALE + 0.01 && s_Demolished.m_sSupportWhy.Contains("FIA demolitions"), string.Format("%1: %2 (%3), sapper %4", s_Demolished.m_sName, moved, s_Demolished.m_sSupportWhy, s_Insurgent != null));
  }
 
+ // The truck hands out aid once (the town moves a step towards the army), then is refused with the reason.
+ protected static void Aid(ACR_Manager manager)
+ {
+  ACR_Squad crew;
+  foreach (ACR_Squad squad : manager.m_Squads) if (squad.GetName() == "COIN Aid Truck") crew = squad;
+  IEntity truck = ACR_TownSupport.AidTruck(crew);
+  if (!crew || !truck || !s_AidTown)
+  {
+   Check("support: an aid truck moves a town once and is refused the second time with the reason", false, string.Format("crew %1, truck %2, town %3", crew != null, truck != null, s_AidTown != null));
+   return;
+  }
+  manager.m_Logistics.LoadPaid(truck, 500 / ACR_Logistics.SUPPLIES_PER_LOAD_CONSTRUCTION);
+  float paid = manager.m_Logistics.PaidSupplies(truck);
+  float before = s_AidTown.m_fSupport;
+  bool first;
+  string firstSaid = ACR_TownSupport.Aid(crew, first);
+  float moved = s_AidTown.m_fSupport - before;
+  float paidAfter = manager.m_Logistics.PaidSupplies(truck);
+  bool second;
+  string secondSaid = ACR_TownSupport.Aid(crew, second);
+  bool line = HasLine(manager.IntelFor(ACR_Coin.Army()), "Aid delivered to " + s_AidTown.m_sName);
+  Check("support: an aid truck moves a town once and is refused the second time with the reason", first && Math.AbsFloat(moved + ACR_TownSupport.AID_STEP) < 0.01 && paid - paidAfter >= ACR_TownSupport.AID_SUPPLIES - 0.5 && !second && secondSaid.Contains("had aid") && line, string.Format("%1: %2 -> %3; paid %4 -> %5; '%6' / '%7'; line %8", s_AidTown.m_sName, before, s_AidTown.m_fSupport, paid, paidAfter, firstSaid, secondSaid, line));
+  // Somewhere that isn't a town: refused, nothing spent.
+  string thirdSaid = ACR_TownSupport.AidRefusal(null, truck, 2);
+  Check("support: aid outside a town is refused with the reason", thirdSaid.Contains("drive the supply truck into one"), thirdSaid);
+ }
+
  protected static void Informants(ACR_Manager manager)
  {
   ACR_Intel intel = manager.IntelFor(ACR_Coin.Army());
@@ -249,7 +287,7 @@ class ACR_TestCoin
   bool line = HasLine(intel, s_Garrisoned.m_sName + " comes round to Quiet");
   Check("support: troops in a calm town win it over a tier, with a feed line", s_Garrisoned.m_fSupport < s_fGarrisoned - 6 && s_Garrisoned.m_iSupportTier == ACR_TownSupport.QUIET && line, string.Format("%1: %2 -> %3 (%4), line %5", s_Garrisoned.m_sName, s_fGarrisoned, s_Garrisoned.m_fSupport, ACR_TownSupport.TierName(s_Garrisoned.m_iSupportTier), line));
   Check("support: an empty town drifts towards the insurgency", s_Empty.m_fSupport > s_fEmpty + 2, string.Format("%1: %2 -> %3", s_Empty.m_sName, s_fEmpty, s_Empty.m_fSupport));
-  ACR_TestRegress.Complete("support", 7);
+  ACR_TestRegress.Complete("support", 9);
  }
 
  // ---------------------------------------------------------------- helpers

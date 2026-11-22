@@ -68,6 +68,7 @@ class ACR_Base : GenericEntity
  float m_fSupportCalmUntil;         // harm or a fight here: troops don't win it over until then
  float m_fInformedAt;               // informants last told the army of FIA near it
  float m_fHarmLineAt;               // the army last read what harm here cost
+ float m_fAidAt;                    // the last aid delivery here (0: none)
  vector m_vDriveOut;                // last vehicle spot found here with a way out (ACR_Requisition.VehicleSpot)
  bool m_bDriveOut;
  int m_iPortState;                 // #242 hubs: 0 not checked, 1 a port (deep water by its ring), 2 not (ACR_SupplyRuns.IsPort)

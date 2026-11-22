@@ -53,6 +53,7 @@ class ACR_TownSupport
  static float s_fRateScaleForTest = 1;     // tests speed time up
  static int s_iChanges;                    // tests: tier changes
  static int s_iHarm;                       // tests: harm events that moved a town
+ static int s_iAid;                        // tests: aid deliveries
 
  static void Reset()
  {
@@ -61,6 +62,7 @@ class ACR_TownSupport
   s_fRateScaleForTest = 1;
   s_iChanges = 0;
   s_iHarm = 0;
+  s_iAid = 0;
  }
 
  static bool On() { return s_bOn; }
@@ -93,6 +95,8 @@ class ACR_TownSupport
    base.m_sSupportWhy = "";
    base.m_fSupportCalmUntil = 0;
    base.m_fInformedAt = -INFORM_GAP_MS;
+   base.m_fAidAt = 0;
+   base.m_fHarmLineAt = 0;
    towns++;
   }
   PrintFormat("[ACR] SUPPORT %1 towns lean between %2 and the insurgency", towns, army);
@@ -298,6 +302,90 @@ class ACR_TownSupport
   string line = string.Format("%1 %2 %3 (%4)", base.m_sName, turn, TierName(tier), base.m_sSupportWhy);
   if (tier == HOSTILE && base.m_sOwner == army) line += string.Format(": income x%1", ACR_Coin.HostileIncome());
   intel.AddFeed(now, line, base.GetOrigin());
+ }
+
+ // ---------------------------------------------------------------- aid deliveries (item 4)
+ // The army's supply truck (a construction truck bought with RP: its paid load, ACR_Logistics) told to
+ // Unload while stopped in a town the army holds or patrols hands out AID_SUPPLIES of its load: the
+ // town moves AID_STEP towards the army. One delivery per town per AID_GAP_MS; every refusal says
+ // why and spends nothing. Players give it with the panel's Unload order (ACR_Requests), the AI
+ // commander the same way (item 5).
+ static const float AID_SUPPLIES = 250;     // a quarter of a full truck: four towns a load
+ static const float AID_STEP = 10;          // support points: a step (a tier is 25)
+ static const float AID_GAP_MS = 1200000;   // 20 min a town
+ static const float AID_MAX_SPEED = 2;      // m/s: stopped
+
+ // The squad's supply truck (null: none).
+ static IEntity AidTruck(ACR_Squad squad)
+ {
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!squad || !manager || !manager.m_Logistics) return null;
+  array<IEntity> vehicles = {};
+  squad.GetVehicles(vehicles);
+  foreach (IEntity vehicle : vehicles)
+   if (vehicle && (ACR_Logistics.ServiceOf(vehicle) & ACR_EService.CONSTRUCTION) != 0) return vehicle;
+  return null;
+ }
+
+ // The town the point is in (null: none).
+ static ACR_Base TownAt(vector at)
+ {
+  foreach (ACR_Base base : ACR_Base.s_All)
+   if (IsTown(base) && base.m_fSupport >= 0 && vector.DistanceXZ(base.GetOrigin(), at) <= Math.Max(base.m_fRadius, RADIUS_MIN)) return base;
+  return null;
+ }
+
+ // Why the army's truck can't hand out aid in this town now ("" = it can). Shared by players and the AI.
+ static string AidRefusal(ACR_Base town, IEntity truck, int crew)
+ {
+  if (!town) return "aid goes to a town: drive the supply truck into one first";
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  string army = ACR_Coin.Army();
+  float radius = Math.Max(town.m_fRadius, RADIUS_MIN);
+  if (manager.m_Bases.MenWithin(town.GetOrigin(), radius, ACR_Pockets.FACTION) > 0) return string.Format("FIA are in %1: clear them out first", town.m_sName);
+  if (town.m_sOwner != army && manager.m_Bases.MenWithin(town.GetOrigin(), radius, army) < crew + PRESENCE_MIN) return string.Format("%1 isn't ours: hold it or have soldiers there to hand out aid", town.m_sName);
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (town.m_fAidAt > 0 && now - town.m_fAidAt < AID_GAP_MS)
+  {
+   int ago = Math.Floor((now - town.m_fAidAt) / 60000);
+   int next = Math.Ceil((AID_GAP_MS - (now - town.m_fAidAt)) / 60000);
+   return string.Format("%1 had aid %2 min ago: the next in %3 min", town.m_sName, ago, next);
+  }
+  Physics physics = truck.GetPhysics();
+  if (physics && physics.GetVelocity().Length() > AID_MAX_SPEED) return "stop the truck first";
+  if (manager.m_Logistics.PaidSupplies(truck) < AID_SUPPLIES) return string.Format("the truck needs %1 paid supplies for aid (it has %2)", AID_SUPPLIES, Math.Floor(manager.m_Logistics.PaidSupplies(truck)));
+  return "";
+ }
+
+ // An Unload order for 'squad' (ACR_Requests). "" when this isn't an aid matter (not COIN, not the
+ // army, no supply truck): the plain Unload goes ahead. Else what happened; 'accepted' if delivered.
+ static string Aid(ACR_Squad squad, out bool accepted)
+ {
+  accepted = false;
+  if (!s_bOn || !squad || !squad.GetFaction() || !ACR_Coin.IsArmy(squad.GetFaction().GetFactionKey())) return "";
+  IEntity truck = AidTruck(squad);
+  if (!truck) return "";
+  ACR_Base town = TownAt(truck.GetOrigin());
+  array<AIAgent> crew = {};
+  squad.GetAgents(crew);
+  string why = AidRefusal(town, truck, crew.Count());
+  if (!why.IsEmpty())
+  {
+   PrintFormat("[ACR] SUPPORT aid refused %1: %2", squad.GetName(), why);
+   return squad.GetName() + ": no aid: " + why;
+  }
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager.m_Logistics.SpendPaid(truck, AID_SUPPLIES)) return squad.GetName() + ": no aid: the truck's load couldn't be handed out";
+  float now = GetGame().GetWorld().GetWorldTime();
+  town.m_fAidAt = now;
+  float before = town.m_fSupport;
+  Move(town, -AID_STEP, "aid delivered", now);
+  s_iAid++;
+  accepted = true;
+  PrintFormat("[ACR] SUPPORT aid %1 in %2: %3 -> %4", squad.GetName(), town.m_sName, Math.Round(before), Math.Round(town.m_fSupport));
+  ACR_Intel intel = manager.IntelFor(ACR_Coin.Army());
+  if (intel) intel.AddFeed(now, string.Format("Aid delivered to %1 (%2 now)", town.m_sName, TierName(town.m_iSupportTier)), town.GetOrigin());
+  return string.Format("%1: aid handed out in %2 (%3 supplies)", squad.GetName(), town.m_sName, AID_SUPPLIES);
  }
 
  // ---------------------------------------------------------------- harm (ACR_FIAGrievance's events)

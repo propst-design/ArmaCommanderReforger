@@ -445,6 +445,18 @@ class ACR_Requests : Managed
    }
    case ACR_ERequest.ORDER_UNLOAD:
    {
+    // COIN: the army's supply truck unloading in a town hands out aid (ACR_TownSupport.Aid);
+    // passengers aboard still get out.
+    bool aided;
+    string aid = ACR_TownSupport.Aid(squad, aided);
+    if (!aid.IsEmpty())
+    {
+     bool passengers;
+     Unload(squad, passengers);
+     outcome.m_bAccepted = aided;
+     outcome.m_sMessage = aid;
+     return outcome;
+    }
     bool accepted;
     string unloaded = Unload(squad, accepted);
     outcome.m_bAccepted = accepted;
