@@ -73,11 +73,30 @@ class ACR_Coin
 
  static ACR_Base Stronghold() { return s_Stronghold; }
 
- // A FIA row's level in COIN: "many" when unset, "few" for "off".
+ // "Insurgency strength" (-acrCoinStrength few|many|heavy, row under Match type, default many):
+ // what the FIA rows default to, and (heavy) every growth cap x HEAVY_CAPS (ACR_FIAGrowth).
+ static const float HEAVY_CAPS = 1.5;
+ static string StrengthOption()
+ {
+  string value;
+  if (!ACR_Options.Get("acrCoinStrength", value)) value = "";
+  value.ToLower();
+  if (value == "few" || value == "heavy") return value;
+  return "many";
+ }
+
+ static float CapScale()
+ {
+  if (On() && StrengthOption() == "heavy") return HEAVY_CAPS;
+  return 1;
+ }
+
+ // A FIA row's level in COIN: the strength's when unset ("few" or "many"), "few" for "off".
  static string FIALevel(string value)
  {
   string lower = value;
   lower.ToLower();
+  if (lower == "" && StrengthOption() == "few") return "few";
   if (lower == "") return "many";
   if (lower == "off" || lower == "0") return "few";
   return lower;

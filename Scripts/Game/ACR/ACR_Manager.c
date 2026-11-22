@@ -235,6 +235,7 @@ class ACR_Manager : Managed
   ACR_OneSide.Reset();
   ACR_Coin.Reset();
   ACR_TownSupport.Reset();
+  ACR_Province.Reset();
   ACR_Report.Reset();
   ACR_Setup.Reset();
   ACR_SetupClient.Reset();

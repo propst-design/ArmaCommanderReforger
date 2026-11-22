@@ -63,6 +63,14 @@ class ACR_FIAGrievance
  {
   Reset();
   s_bOn = OptionOn();
+  // COIN: the same harm moves town support instead, and the towns recruit (ACR_TownSupport.Harm,
+  // Recruits): one counter for it, not two.
+  if (ACR_Coin.On())
+  {
+   s_bOn = false;
+   Print("[ACR] GRIEVANCE folded into town support (counter-insurgency)");
+   return;
+  }
   PrintFormat("[ACR] GRIEVANCE %1 (-acrFIAGrievance)", s_bOn);
  }
 

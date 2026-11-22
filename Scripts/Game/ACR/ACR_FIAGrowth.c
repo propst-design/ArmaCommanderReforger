@@ -57,10 +57,11 @@ class ACR_FIAGrowth
  static bool Many() { return s_bMany; }
  static int Spreads() { return s_iSpreads; }
 
+ // COIN's "Insurgency strength" heavy raises every cap (ACR_Coin.CapScale).
  static int PoolCap()
  {
-  if (s_bMany) return 14;
-  return 8;
+  if (s_bMany) return Math.Round(14 * ACR_Coin.CapScale());
+  return Math.Round(8 * ACR_Coin.CapScale());
  }
 
  // Cells (not hideouts, not saboteurs) FIA keeps at most: the start's and a few more.
@@ -68,14 +69,18 @@ class ACR_FIAGrowth
  {
   int extra = 1;
   if (s_bMany) extra = 3;
-  return ACR_Guerrillas.WantedCells() + extra;
+  return Math.Round((ACR_Guerrillas.WantedCells() + extra) * ACR_Coin.CapScale());
  }
 
  // Pockets FIA can spread into in a match (Jacob's open question 3: on with "few", +2).
  static int SpreadCap()
  {
-  if (s_bMany) return 4;
-  return 2;
+  int cap = 2;
+  if (s_bMany) cap = 4;
+  cap = Math.Round(cap * ACR_Coin.CapScale());
+  // COIN: an Uprising spreads further, as visible pockets (ACR_Province).
+  if (ACR_Province.Level() == ACR_Province.UPRISING) cap += ACR_Province.UPRISING_SPREADS;
+  return cap;
  }
 
  // Every second (ACR_Guerrillas.Tick).
@@ -104,6 +109,9 @@ class ACR_FIAGrowth
  // Recruits a minute for this hideout (held land too close: only what grievance brings, halved).
  static float FillRate(ACR_DefenderPost hideout)
  {
+  // COIN: the towns around it recruit, by how far they back the insurgency (ACR_TownSupport). Held
+  // land, prisoners and harm already move those towns, so they aren't counted twice here.
+  if (ACR_TownSupport.On()) return ACR_TownSupport.Recruits(hideout);
   bool slow;
   bool stopped;
   foreach (ACR_Base base : ACR_Base.s_All)
@@ -256,6 +264,16 @@ class ACR_FIAGrowth
   if (!base) return false;
   int garrison = ACR_Pockets.GarrisonFor(base);
   ACR_Pockets.Add(base, garrison);
+  // COIN: the insurgency at its strongest holds ground openly: the army sees the new pocket.
+  string army = ACR_Coin.Army();
+  if (!army.IsEmpty())
+  {
+   if (!base.m_aDetectedBy.Contains(army)) base.m_aDetectedBy.Insert(army);
+   ACR_Manager manager = ACR_Manager.GetInstance();
+   ACR_Intel intel;
+   if (manager) intel = manager.IntelFor(army);
+   if (intel) intel.AddFeed(GetGame().GetWorld().GetWorldTime(), string.Format("FIA takes %1 openly", base.m_sName), base.GetOrigin());
+  }
   home.m_fPool -= SPREAD_COST;
   s_iSpreads++;
   PrintFormat("[ACR] GUERRILLAS %1 spreads: %2 is an FIA pocket now (%3 men, %4 of %5 spreads, pool %6)", hideout.m_sName, base.m_sName, garrison, s_iSpreads, SpreadCap(), home.m_fPool);

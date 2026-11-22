@@ -40,9 +40,11 @@ class ACR_TownSupport
  static const float HARM_SCALE = 4;        // support points per grievance point (a building 2, a civilian 4, a barrage 6)
  static const float HARM_REACH = 400;      // m from the town's middle
  static const float CALM_MS = 300000;      // after harm or a fight: troops win nobody over for 5 min
- static const float START_HELD = 40;
- static const float START_OPEN = 55;
- static const float START_POCKET = 70;
+ // Starts (+-5): open towns just under the middle (mostly Quiet), so a match opens Simmering and the
+ // army's absence pushes it up; at 55 most towns began Restless and the province opened at Uprising.
+ static const float START_HELD = 35;
+ static const float START_OPEN = 45;
+ static const float START_POCKET = 65;
  static const float START_STRONGHOLD = 85;
  static const float INFORM_REACH = 500;
  static const float INFORM_GAP_MS = 300000;  // an informants' feed line per town at most this often
@@ -72,6 +74,7 @@ class ACR_TownSupport
  static void Apply()
  {
   Reset();
+  ACR_Province.Reset();
   if (!ACR_Coin.On()) return;
   s_bOn = true;
   string army = ACR_Coin.Army();
@@ -213,6 +216,41 @@ class ACR_TownSupport
    if (delta != 0) Move(base, delta, why, now);
    if (base.m_iSupportTier == LOYAL && insurgents > 0) Inform(manager, base, army, now);
   }
+  ACR_Province.Tick(now);
+ }
+
+ // ---------------------------------------------------------------- recruits (item 3)
+
+ // Recruits a minute for a hideout (ACR_FIAGrowth.FillRate in COIN): the towns within
+ // ACR_Guerrillas.SUPPLY_REACH, each by its tier (RecruitWeight) and nearness (full within
+ // RECRUIT_NEAR, none at the reach), times ACR_FIAGrowth.FILL_PER_MIN, at most RECRUIT_MAX of that.
+ // A hideout among Hostile towns fills fastest; among Loyal ones it gets nobody.
+ static const float RECRUIT_NEAR = 1000;
+ static const float RECRUIT_MAX = 2;
+ static float Recruits(ACR_DefenderPost hideout)
+ {
+  if (!hideout) return 0;
+  float reach = ACR_Guerrillas.SUPPLY_REACH;
+  float sum = 0;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!IsTown(base) || base.m_iSupportTier < 0) continue;
+   float d = vector.DistanceXZ(base.GetOrigin(), hideout.m_vPos);
+   if (d >= reach) continue;
+   float near = 1;
+   if (d > RECRUIT_NEAR) near = 1 - (d - RECRUIT_NEAR) / (reach - RECRUIT_NEAR);
+   sum += RecruitWeight(base.m_iSupportTier) * near;
+  }
+  return ACR_FIAGrowth.FILL_PER_MIN * Math.Min(RECRUIT_MAX, sum);
+ }
+
+ // "No recruits / a trickle / recruits / most recruits" (#244's table).
+ static float RecruitWeight(int tier)
+ {
+  if (tier == QUIET) return 0.1;
+  if (tier == RESTLESS) return 0.5;
+  if (tier == HOSTILE) return 1;
+  return 0;
  }
 
  protected static bool PrisonersNear(vector middle, notnull array<ACR_DefenderPost> hideouts)
@@ -282,8 +320,25 @@ class ACR_TownSupport
    base.m_fSupportCalmUntil = now + CALM_MS;
    PrintFormat("[ACR] SUPPORT %1 %2 by %3 at %4: %5", base.m_sName, what, by, ACR_Manager.Grid(pos), shift);
    Move(base, shift, why, now);
+   HarmLine(base, fia, what, now);
    moved = true;
   }
   if (moved) s_iHarm++;
+ }
+
+ // The feed says what harm cost (#244: "the feed says what it cost"), once a HARM_LINE_GAP_MS a town.
+ // This is the line FIA grievance gave outside COIN ("FIA recruits after our shelling near X").
+ static const float HARM_LINE_GAP_MS = 300000;
+ protected static void HarmLine(ACR_Base base, bool fia, string what, float now)
+ {
+  if (now - base.m_fHarmLineAt < HARM_LINE_GAP_MS && base.m_fHarmLineAt > 0) return;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager) return;
+  ACR_Intel intel = manager.IntelFor(ACR_Coin.Army());
+  if (!intel) return;
+  base.m_fHarmLineAt = now;
+  string line = string.Format("Our %1 in %2 turns people against us", what, base.m_sName);
+  if (fia) line = string.Format("FIA %1 in %2 turns people against FIA", what, base.m_sName);
+  intel.AddFeed(now, line, base.GetOrigin());
  }
 }

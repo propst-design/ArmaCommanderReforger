@@ -245,6 +245,7 @@ ACA|srv:fiaspoils|nightly|260   # new 19 Nov (insurgency part 4)
 ACA|srv:fiagrievance|nightly|100   # new 21 Nov (FIA grievance recruiting)
 ACA|srv:coin|nightly|100   # new 21 Nov (0.8.0 counter-insurgency match type)
 ACA|srv:support|nightly|100   # new 21 Nov (0.8.0 town support)
+ACA|srv:coingrowth|nightly|100   # new 21 Nov (0.8.0 insurgency tied to support)
 ACA|srv:kolguyevsoak|skip|1380   # measurement/screenshots or soak: no pass/fail meaning, run by hand
 ACA|srv:deploymenu|skip|180   # needs a player (game client)
 ACA|srv:mappolygon|weekly|60   # not run in the last 14 days; server capability not yet seen

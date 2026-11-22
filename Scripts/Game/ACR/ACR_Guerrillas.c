@@ -238,6 +238,27 @@ class ACR_Guerrillas
   }
  }
 
+ // A hideout site among buildings 300-2000 m from 'center' (COIN's floor, ACR_Province): the same
+ // rules as FindHideouts, the best of MAX_HIDEOUT_LOOKS spots.
+ static bool HideoutNear(vector center, out vector site)
+ {
+  float bestScore = -1;
+  for (int look = 0; look < MAX_HIDEOUT_LOOKS; look++)
+  {
+   float angle = Math.RandomFloat(0, Math.PI2);
+   vector spot = center + Vector(Math.Cos(angle), 0, Math.Sin(angle)) * Math.RandomFloat(300, 2000);
+   if (!Usable(spot, s_fHouseClear)) continue;
+   vector middle;
+   int members;
+   if (!BuildingGroup(spot, middle, members) || !Usable(middle, s_fHouseClear) || Crowded(middle, null)) continue;
+   float score = members + Math.Min(3, ACR_Minefields.RoadClearance(middle) / 50);
+   if (score <= bestScore) continue;
+   bestScore = score;
+   site = middle;
+  }
+  return bestScore >= 0;
+ }
+
  // The biggest group of buildings round 'spot', if it is one: HIDEOUT_MIN_BUILDINGS+ within
  // HIDEOUT_CLUSTER of one of them, no more than HIDEOUT_MAX_AROUND within HIDEOUT_ISOLATION.
  protected static bool BuildingGroup(vector spot, out vector middle, out int members)
