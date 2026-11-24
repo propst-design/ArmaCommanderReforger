@@ -1000,6 +1000,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   AlignableSlot.SetVerticalAlign(m_wTipText, LayoutVerticalAlign.Stretch);
   AlignableSlot.SetPadding(m_wTipText, TIP_PAD, TIP_PAD, TIP_PAD, TIP_PAD);
   MonoFont(m_wTipText, TIP_FONT);
+  m_wTipText.SetTextWrapping(false);
   m_wTipText.SetColor(m_Theme.m_Help);
  }
 
@@ -1090,7 +1091,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   m_wTipText.SetText(wrapped);
   float measuredW, measuredH;
   m_wTipText.GetTextSize(measuredW, measuredH);
-  if (measuredH > 0) boxHigh = Math.Max(boxHigh, ws.DPIUnscale(measuredH) + 2 * TIP_PAD + 2);
+  if (measuredW > 0) boxWide = Math.Max(boxWide, ws.DPIUnscale(measuredW) + 2 * TIP_PAD + 4);
+  if (measuredH > 0) boxHigh = Math.Max(boxHigh, ws.DPIUnscale(measuredH) + 2 * TIP_PAD + 4);
   m_fTipAnchorTop = anchorTop;
   m_fTipAnchorBottom = anchorBottom;
   m_fTipLeft = left;

@@ -599,7 +599,7 @@ class ACR_Setup
   if (key == "companywest" || key == "companyeast") return "The kind of company this side fields. The line under the rows\nsays what it brings.";
   if (key == "decks") return "Each side buys from a deck of cards instead of the whole list.\nThe deck rows appear under this one.";
   if (key == "deckeditor") return "Opens the deck builder on your screen. Hand a deck in to use it.";
-  if (key == "deckpoints") return "How many points a deck may cost. By threat: 100 low, 150 normal,\n250 high.";
+  if (key == "deckpoints") return "How many points a deck may cost. By threat: 125 low, 200 normal,\n300 high.";
   if (key == "deckwest" || key == "deckeast") return "The deck this side buys from.";
   if (key == "deployment") return "Where new units may be deployed: military bases, HQs and FOBs,\nonly HQs and FOBs, or every deployment point.";
   if (key == "reinforcement") return "Where infantry replacements walk in from.";

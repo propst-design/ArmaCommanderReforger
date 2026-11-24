@@ -40,9 +40,9 @@ class ACR_DeckRules
  // (srv:deck logs each: US 293, USSR 343, FIA 189), so #106's placeholder 50/100/200 would have cut
  // them in half; the standard deck (today's list) is never trimmed, and these leave a built deck
  // room for most of what it would want while still making it choose.
- static const int BUDGET_LOW = 100;
- static const int BUDGET_NORMAL = 150;
- static const int BUDGET_HIGH = 250;
+ static const int BUDGET_LOW = 125;
+ static const int BUDGET_NORMAL = 200;
+ static const int BUDGET_HIGH = 300;
  static const int MAX_CARDS = 60;      // the buy menu holds 100 (ACR_EPanelAction), supports included
  static const int MAX_CUSTOM = 12;     // custom cards per deck
  static const int CUSTOM_MIN_MEN = 2;
