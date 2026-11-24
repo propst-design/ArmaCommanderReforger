@@ -365,6 +365,7 @@ class ACR_DeckEditor
   m_Status = ACR_TwoICStyle.Text(footer, "", ACR_TwoICStyle.Accent(), 17);
   m_Applied = ACR_TwoICStyle.Text(footer, "", ACR_TwoICStyle.Grey(), 16);
   ACR_PanelMover.Add("deck", m_Root, 0.5, 0.5, 0, 10);
+  ACR_PanelMover.Body("deck", m_Root);
   ACR_PanelMover.TitleBar("deck", m_Root, 76, 70);
 
   m_iSide = 0;

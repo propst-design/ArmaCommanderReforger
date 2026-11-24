@@ -89,7 +89,7 @@ class ACR_SquadsList : Managed
   AlignableSlot.SetVerticalAlign(m_List, LayoutVerticalAlign.Top);
   m_Body.SetVisible(!Folded());
   ACR_PanelMover.Add(ACR_UiPrefs.SQUADS, m_Root, 0, 0, ACR_UiPrefs.FEED_HOME_X, ACR_UiPrefs.FEED_HOME_Y);
-  ACR_PanelMover.Grip(ACR_UiPrefs.SQUADS, m_Root);
+  ACR_PanelMover.Body(ACR_UiPrefs.SQUADS, m_Root);
   ACR_PanelMover.TitleBar(ACR_UiPrefs.SQUADS, m_Root, 36, FOLD_WIDTH + 8);
  }
 
