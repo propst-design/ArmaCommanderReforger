@@ -505,6 +505,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    input.RemoveActionListener("MenuTabRight", EActionTrigger.DOWN, OnTabRight);
    m_bListening = false;
   }
+  if (GetGame() && GetGame().GetCallqueue()) GetGame().GetCallqueue().Remove(RefitTip);
+  super.OnMenuClose();
  }
 
  // The skin: colours of the page's own widgets, the heading font (a heading layout replaces the
@@ -742,11 +744,17 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   FillTabs();
   BuildRows(RowsShape());
   FillFooter(false);
+  m_Help.Focus("");
   FillSide();
  }
 
- protected void OnTabLeft() { ShowTab(m_iTab - 1); }
- protected void OnTabRight() { ShowTab(m_iTab + 1); }
+ protected bool Typing()
+ {
+  return (m_PresetName && m_PresetName.IsInWriteMode()) || (m_SeedBox && m_SeedBox.IsInWriteMode());
+ }
+
+ protected void OnTabLeft() { if (!Typing()) ShowTab(m_iTab - 1); }
+ protected void OnTabRight() { if (!Typing()) ShowTab(m_iTab + 1); }
 
  // ---------------------------------------------------------------- the centre column
  // Which rows the tab shows and of what kind: the column is rebuilt only when this changes, so a
@@ -1001,6 +1009,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
 
  protected void HideTip()
  {
+  if (GetGame() && GetGame().GetCallqueue()) GetGame().GetCallqueue().Remove(RefitTip);
   m_TipState.Clear();
   m_wTipShown = null;
   if (m_wTip) m_wTip.SetVisible(false);
@@ -1041,6 +1050,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   float boxWide = TIP_WIDTH;
   float left = x;
   float top = y + high + 6;
+  float anchorTop = y;
+  float anchorBottom = y + high;
   bool above = key.StartsWith("footer");
   if (key.StartsWith("tab:") && m_wTabs)
   {
@@ -1058,6 +1069,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
     last.GetRootWidget().GetScreenSize(lastW, lastH);
     top = ws.DPIUnscale(lastY + lastH) + 12;
    }
+   anchorTop = ws.DPIUnscale(railY);
+   anchorBottom = top - 6;
   }
   string wrapped;
   int lines;
@@ -1066,8 +1079,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   float measuredW, measuredH;
   m_wTipText.GetTextSize(measuredW, measuredH);
   if (measuredH > 0) boxHigh = Math.Max(boxHigh, ws.DPIUnscale(measuredH) + 2 * TIP_PAD + 2);
-  m_fTipAnchorTop = y;
-  m_fTipAnchorBottom = y + high;
+  m_fTipAnchorTop = anchorTop;
+  m_fTipAnchorBottom = anchorBottom;
   m_fTipLeft = left;
   m_bTipAbove = above;
   PlaceTip(boxWide, boxHigh);
@@ -1351,7 +1364,17 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    return true;
   }
   if (key == "presetsave") { ACR_SetupClient.Request("preset:save:" + PresetTyped()); return true; }
-  if (key == "presetimport") { ACR_SetupClient.Request("preset:import:" + System.ImportFromClipboard()); return true; }
+  if (key == "presetimport")
+  {
+   string clip = System.ImportFromClipboard();
+   if (clip.Length() > ACR_SetupPresets.MAX_IMPORT_CHARS)
+   {
+    SCR_HintManagerComponent.ShowCustomHint("The clipboard text is too long to be a setup preset.", "AC: Actual", 5, true);
+    return true;
+   }
+   ACR_SetupClient.Request("preset:import:" + clip);
+   return true;
+  }
   if (!key.StartsWith("preset") || m_sPresetSelected.IsEmpty()) return key.StartsWith("preset");
   if (key == "presetload") ACR_SetupClient.Request("preset:load:" + m_sPresetSelected);
   else if (key == "presetdelete") ACR_SetupClient.Request("preset:delete:" + m_sPresetSelected);
@@ -1573,8 +1596,17 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   int count = 0;
   if (data) count = data.m_BasePositions.Count();
   string sig = string.Format("%1|%2|%3|%4", count, west, east, m_bAllowed);
-  if (data && count > 0) sig += "|" + data.m_BaseNames[0] + data.m_BasePositions[0].ToString() + data.m_BaseNames[count - 1] + data.m_BaseOwners[count - 1] + data.m_BaseOwners[0];
-  if (data && count > 0 && data.m_BaseDetails.Count() == count) sig += "|" + data.m_BaseDetails[0] + data.m_BaseDetails[count - 1];
+  if (data)
+  {
+   for (int s = 0; s < count; s++)
+   {
+    vector basePos = data.m_BasePositions[s];
+    sig += string.Format("|%1,%2", Math.Round(basePos[0]), Math.Round(basePos[2]));
+    if (s < data.m_BaseNames.Count()) sig += ":" + data.m_BaseNames[s];
+    if (s < data.m_BaseOwners.Count()) sig += ":" + data.m_BaseOwners[s];
+    if (s < data.m_BaseDetails.Count()) sig += ":" + data.m_BaseDetails[s];
+   }
+  }
   if (sig == m_sMapSig) return;
   m_sMapSig = sig;
   while (m_wMapDots.GetChildren()) m_wMapDots.GetChildren().RemoveFromHierarchy();
@@ -1942,7 +1974,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  // Start (Space, or Y on a pad: not Enter/A, which press the focused row): the server ends the phase.
  override protected void OnConfirm()
  {
-  if (m_bAllowed) ACR_SetupClient.Request("start");
+  if (m_bAllowed && !Typing()) ACR_SetupClient.Request("start");
  }
 
  override protected void OnCancel()

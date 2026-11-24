@@ -27,6 +27,7 @@ class ACR_SetupPresets
  static const string DEFAULT_NAME = "Default";
  static const string LARGE_NAME = "Large battle";
  static const int NAME_CHARS = 28;
+ static const int MAX_IMPORT_CHARS = 8192;
  // A preset was put in use and not yet checked against this world (Check).
  protected static bool s_bPending;
  // What the last load said (shown on the setup screen and logged).
@@ -477,11 +478,18 @@ class ACR_SetupPresets
   lowerFrom.ToLower();
   if (lowerTo != lowerFrom && (Find(to) || FileIO.FileExists(Dir() + "/" + FileName(to) + ".json"))) return "There is already a preset called " + to;
   string was = preset.m_sName;
-  bool wasAuto = AutoName() == was;
+  string autoLower = AutoName();
+  autoLower.ToLower();
+  bool wasAuto = !autoLower.IsEmpty() && autoLower == lowerFrom;
   preset.m_sName = to;
   if (!WriteFile(preset)) return "Couldn't write " + FileName(to) + ".json";
   if (wasAuto) SetAutoName(to);
-  if (ACR_Options.PresetName() == was) ACR_Options.UsePreset(to, preset.m_Values);
+  if (ACR_Options.PresetName() == was)
+  {
+   ACR_Options.UsePreset(to, preset.m_Values);
+   s_bPending = true;
+   CheckPending();
+  }
   return string.Format("Renamed %1 to %2", was, to);
  }
 
@@ -495,7 +503,11 @@ class ACR_SetupPresets
   }
   s_sDeleteArmed = "";
   FileIO.DeleteFile(preset.m_sFile);
-  if (AutoName() == preset.m_sName) SetAutoName("");
+  string lower = preset.m_sName;
+  lower.ToLower();
+  string autoLower = AutoName();
+  autoLower.ToLower();
+  if (!autoLower.IsEmpty() && autoLower == lower) SetAutoName("");
   // The choices it gave stay on the screen until something else changes them.
   return "Deleted " + preset.m_sName;
  }
@@ -527,6 +539,7 @@ class ACR_SetupPresets
 
  protected static string Import(string text)
  {
+  if (text.Length() > MAX_IMPORT_CHARS) return "The clipboard text is too long to be a setup preset";
   ACR_SetupPreset preset = Parse(text);
   if (!preset) return "The clipboard holds no setup preset (it starts with {\"name\": ..., \"values\": {...}})";
   string name = CleanName(preset.m_sName);
@@ -544,11 +557,17 @@ class ACR_SetupPresets
   FileIO.MakeDirectory("$profile:ACA");
   FileIO.MakeDirectory(Dir());
   string file = Dir() + "/" + FileName(preset.m_sName) + ".json";
-  if (!preset.m_sFile.IsEmpty() && preset.m_sFile != file) FileIO.DeleteFile(preset.m_sFile);
-  preset.m_sFile = file;
+  string oldFile = preset.m_sFile;
   array<string> lines = {};
   JsonLines(preset, lines);
-  return SCR_FileIOHelper.WriteFileContent(file, lines);
+  if (!SCR_FileIOHelper.WriteFileContent(file, lines)) return false;
+  string oldLower = oldFile;
+  oldLower.ToLower();
+  string fileLower = file;
+  fileLower.ToLower();
+  if (!oldFile.IsEmpty() && oldLower != fileLower) FileIO.DeleteFile(oldFile);
+  preset.m_sFile = file;
+  return true;
  }
 
  static void JsonLines(notnull ACR_SetupPreset preset, notnull array<string> lines)

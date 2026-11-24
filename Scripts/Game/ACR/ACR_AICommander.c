@@ -6368,9 +6368,10 @@ class ACR_AICommander : Managed
   if (ACR_Manager.ThreatOption() == 2) maxTransports = 5;
   maxTransports += m_Doctrine.m_iTransports;
   // A small party (a team, a squad's remnant) found no ride: a jeep, right-sized and cheap.
+  bool urgent = UrgentTroops(combatLine, cap);
   bool lightShort = m_Manager.m_Rides && m_Manager.m_Rides.ShortOfLightRide(m_sFaction);
-  if (lightShort && BuyLightRide(data, spawn, UrgentTroops(combatLine, cap))) return;
-  if (m_Manager.m_Rides && (lightShort || m_Manager.m_Rides.ShortOfTruck(m_sFaction)) && m_Manager.m_Rides.CountTransports(m_sFaction) < maxTransports)
+  if (lightShort && BuyLightRide(data, spawn, urgent)) return;
+  if (m_Manager.m_Rides && ((lightShort && !urgent) || m_Manager.m_Rides.ShortOfTruck(m_sFaction)) && m_Manager.m_Rides.CountTransports(m_sFaction) < maxTransports)
   {
    // The cheapest truck; a rich side (#28) takes an armed one (an APC) when it has one.
    bool armedRide = FireFactor() > 1;
@@ -6398,7 +6399,6 @@ class ACR_AICommander : Managed
   // Keep a fire-support budget unless troops are needed more.
   int keep = 0;
   bool highThreat = ACR_Manager.ThreatOption() == 2;
-  bool urgent = UrgentTroops(combatLine, cap);
   if (highThreat)
   {
    // High intensity should field its fire support even while the infantry pool

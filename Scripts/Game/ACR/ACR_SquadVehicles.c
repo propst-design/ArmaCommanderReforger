@@ -309,21 +309,8 @@ modded class ACR_Squad
    return;
   }
   m_iUnsticks++;
-  // Never reverse into a vehicle right behind: plan again from here instead.
-  ACR_Squad behind = VehicleNear(vehicle, false, QUEUE_BEHIND);
-  if (behind)
-  {
-   PrintFormat("[ACR] DRIVE %1: stuck, a vehicle right behind, planning again instead of backing up (try %2; %3, %4 m) at %5", m_Name, m_iUnsticks, behind.GetName(), (int)vector.DistanceXZ(vehicle.GetOrigin(), ACR_Transport.CrewedVehicle(behind).GetOrigin()), DriveSpot(vehicle));
-   m_StallPos = vehicle.GetOrigin();
-   m_fStallSince = now;
-   if (!m_sOrderPrefab.IsEmpty())
-   {
-    int kind = m_OrderKind;
-    IssueWaypoint(m_sOrderPrefab, m_MoveTarget, m_fOrderRadius);
-    m_OrderKind = kind;
-   }
-   return;
-  }
+  // BBB_Unstick probes rear clearance and turns out forward (PHASE_TURN) when blocked behind,
+  // or ends Hopeless when boxed in: no need to pre-empt it when another vehicle is behind.
   BeginUnstick(vehicle, driver);
  }
 
@@ -544,16 +531,33 @@ modded class ACR_Squad
   PrintFormat("[ACR] DRIVE %1: stuck, backing up (try %2) at %3", m_Name, m_iUnsticks, DriveSpot(vehicle));
  }
 
+ void CancelUnstick()
+ {
+  if (m_UnstickListener) BBB_Unstick.Cancel(m_UnstickListener);
+  m_bUnsticking = false;
+ }
+
  // Backing out is over (BBB_Unstick has given the driver his AI back).
  void EndUnstick()
  {
   m_bUnsticking = false;
+  int outcome = BBB_Unstick.OUTCOME_NONE;
   if (m_StallVehicle)
   {
    m_StallPos = m_StallVehicle.GetOrigin();
    ACR_Transport.SanitizeVehicleHorn(m_StallVehicle, true);
+   outcome = BBB_Unstick.LastOutcome(m_StallVehicle);
   }
-  m_fStallSince = GetGame().GetWorld().GetWorldTime();
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (BBB_Unstick.Hopeless(outcome))
+  {
+   m_iUnsticks = UNSTICK_TRIES;
+   // Escalate on the next DriveWatch tick instead of waiting another full stall cycle.
+   m_fStallSince = now - Math.Max(s_fStallSeconds, STALL_SECONDS_FIGHTING) * 1000;
+   PrintFormat("[ACR] DRIVE %1: unstick hopeless (%2), escalating at %3", m_Name, BBB_Unstick.OutcomeName(outcome), DriveSpot(m_StallVehicle));
+   return;
+  }
+  m_fStallSince = now;
   // A fresh order only if the waypoint is gone: re-issuing makes the driver stop and plan again. Not
   // after a newer order (Halt while it backed out kept m_sOrderPrefab: the truck drove off to the old
   // destination labelled "Holding"), nor for a squad a player steers (review, 12 Nov).

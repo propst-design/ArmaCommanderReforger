@@ -1725,7 +1725,17 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
    return true;
   }
   if (key == "presetsave") { ACR_SetupClient.Request("preset:save:" + PresetTyped()); return true; }
-  if (key == "presetimport") { ACR_SetupClient.Request("preset:import:" + System.ImportFromClipboard()); return true; }
+  if (key == "presetimport")
+  {
+   string clip = System.ImportFromClipboard();
+   if (clip.Length() > ACR_SetupPresets.MAX_IMPORT_CHARS)
+   {
+    SCR_HintManagerComponent.ShowCustomHint("The clipboard text is too long to be a setup preset.", "AC: Actual", 5, true);
+    return true;
+   }
+   ACR_SetupClient.Request("preset:import:" + clip);
+   return true;
+  }
   if (!key.StartsWith("preset") || m_sPresetSelected.IsEmpty()) return key.StartsWith("preset");
   if (key == "presetload") ACR_SetupClient.Request("preset:load:" + m_sPresetSelected);
   else if (key == "presetdelete") ACR_SetupClient.Request("preset:delete:" + m_sPresetSelected);
@@ -1814,6 +1824,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
  // "Start": the server ends the phase and closes the dialog everywhere.
  override protected void OnConfirm()
  {
+  if (m_PresetName && m_PresetName.IsInWriteMode()) return;
   ACR_SetupClient.Request("start");
  }
 

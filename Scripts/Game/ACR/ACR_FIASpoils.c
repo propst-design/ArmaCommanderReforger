@@ -166,7 +166,8 @@ class ACR_FIASpoils
   s_fArms = 0;
   s_iRejoined = 0;
   s_iArmed = 0;
-  foreach (ACR_LootSwap pending : s_aSwaps) if (pending) GetGame().GetCallqueue().Remove(pending.Confirm);
+  if (GetGame() && GetGame().GetCallqueue())
+   foreach (ACR_LootSwap pending : s_aSwaps) if (pending) GetGame().GetCallqueue().Remove(pending.Confirm);
   s_aSwaps.Clear();
   s_bOn = false;
   s_bLookForTest = false;
@@ -261,7 +262,10 @@ class ACR_FIASpoils
   }
   array<ChimeraCharacter> men = {};
   Awake(group, men);
-  return men.Count() > TEAM && NextSpoil(anchor, anchor, null) != null;
+  if (men.Count() <= TEAM) return false;
+  int dismounted;
+  foreach (ChimeraCharacter man : men) if (!man.IsInVehicle()) dismounted++;
+  return dismounted >= TEAM && NextSpoil(anchor, anchor, null) != null;
  }
 
  // Living men of a cell's spoils team out (still the cell's: ACR_Guerrillas.Tick).
@@ -612,7 +616,11 @@ class ACR_FIASpoils
    to = "its group";
   }
   else if (post && !post.m_bGone) post.m_iReserve += manager.m_Bases.PackUpGuards(team.m_Group);
-  else if (team.m_Base && team.m_Base.m_bPocket && team.m_Base.m_sOwner == ACR_Pockets.FACTION) back = manager.m_Bases.TakeIntoReserve(team.m_Base, team.m_Group, ACR_Pockets.FACTION, team.m_sName + " spoils team");
+  else if (team.m_Base && team.m_Base.m_bPocket && team.m_Base.m_sOwner == ACR_Pockets.FACTION)
+  {
+   if (team.m_Base.m_GarrisonGroup) to = "its garrison";
+   back = manager.m_Bases.TakeIntoReserve(team.m_Base, team.m_Group, ACR_Pockets.FACTION, team.m_sName + " spoils team");
+  }
   else
   {
    back = manager.m_Bases.PackUpGuards(team.m_Group);
