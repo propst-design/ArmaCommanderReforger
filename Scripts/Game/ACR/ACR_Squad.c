@@ -4196,6 +4196,8 @@ class ACR_Squad : Managed
   array<ResourceName> missing = {};
   GetMissing(missing);
   if (!missing.IsEmpty()) text += string.Format(" | %1 missing", missing.Count());
+  string vet = ACR_Veterancy.Tag(this);
+  if (!vet.IsEmpty()) text += " | " + vet;
   return text;
  }
 
@@ -4255,6 +4257,7 @@ class ACR_Squad : Managed
     if (magazines < baseline * ACR_AmmoRuns.DRY_SHARE) dry++;
    }
   }
+  ACR_Veterancy.NoteStrength(this, alive);
   m_iDryPct = 0;
   if (armed > 0) m_iDryPct = (int)(100 * dry / (float)armed);
   int slots = Math.Max(full, alive);

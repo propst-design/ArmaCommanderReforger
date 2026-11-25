@@ -730,12 +730,16 @@ modded class ACR_Squad
   // Skill and reaction (faster target identification: less standing and staring at a player
   // while deciding whether he's an enemy): the mode's, or his side's or unit's (ACR_AISkill).
   ACR_Manager manager = ACR_Manager.GetInstance();
+  int vetSteps = ACR_Veterancy.SkillSteps(this);
+  float vetReaction = ACR_Veterancy.ReactionScale(this);
   foreach (AIAgent agent : agents)
   {
    IEntity body = agent.GetControlledEntity();
    if (!body || !manager) continue;
    SCR_AICombatComponent combat = SCR_AICombatComponent.Cast(body.FindComponent(SCR_AICombatComponent));
-   ACR_AISkill.Apply(combat, m_Group, skill, manager.m_fAIPerception);
+   float reaction = manager.m_fAIPerception;
+   if (!ACR_AISkill.IsPinned(body)) reaction *= vetReaction;
+   ACR_AISkill.Apply(combat, m_Group, skill, reaction, "", vetSteps);
   }
   // A player leads (or drives) this squad: they give the orders, e.g. with the command wheel.
   // Re-issuing our last map order would wipe theirs. A player rifleman doesn't: the squad's order

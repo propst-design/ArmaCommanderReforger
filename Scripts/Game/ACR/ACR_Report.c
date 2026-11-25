@@ -32,7 +32,7 @@ class ACR_Report
   s_Sides = new map<string, ref ACR_SideStats>();
  }
 
- static void Reset() { s_Sides.Clear(); ACR_RadioAudio.Reset(); }
+ static void Reset() { s_Sides.Clear(); ACR_RadioAudio.Reset(); ACR_Veterancy.Reset(); }
 
  static ACR_SideStats Of(string key)
  {
@@ -82,7 +82,7 @@ class ACR_Report
   IEntity killer;
   if (instigator) killer = instigator.GetInstigatorEntity();
   string by = ACR_Intel.FactionKeyOf(killer);
-  if (!by.IsEmpty() && by != side) { ACR_SideStats won = Of(by); if (won) won.m_iKills++; }
+  if (!by.IsEmpty() && by != side) { ACR_SideStats won = Of(by); if (won) won.m_iKills++; ACR_Veterancy.OnKill(killer, false); }
  }
 
  static void OnVehicleDown(IEntity vehicle, Instigator instigator, string side)
@@ -97,7 +97,7 @@ class ACR_Report
   if (instigator) killer = instigator.GetInstigatorEntity();
   string by = ACR_Intel.FactionKeyOf(killer);
   // An empty vehicle has no side: a wreck, a civilian car or one's own abandoned truck isn't a kill.
-  if (!by.IsEmpty() && !side.IsEmpty() && by != side) { ACR_SideStats won = Of(by); if (won) won.m_iVehicleKills++; }
+  if (!by.IsEmpty() && !side.IsEmpty() && by != side) { ACR_SideStats won = Of(by); if (won) won.m_iVehicleKills++; ACR_Veterancy.OnKill(killer, true); }
   string name = "vehicle";
   if (vehicle)
   {
@@ -112,7 +112,7 @@ class ACR_Report
  {
   ACR_Insurgency.OnCapture(by, from);
   ACR_SideStats won = Of(by);
-  if (won) { won.m_iBasesWon++; Event(by, "took " + base); ACR_RadioAudio.NotifyFaction(by, ACR_ERadioCue.BASE_CAPTURED); }
+  if (won) { won.m_iBasesWon++; Event(by, "took " + base); ACR_RadioAudio.NotifyFaction(by, ACR_ERadioCue.BASE_CAPTURED); ACR_Veterancy.OnBaseCaptured(base, by); }
   ACR_SideStats lost = Of(from);
   if (lost) { lost.m_iBasesLost++; Event(from, "lost " + base); ACR_RadioAudio.NotifyFaction(from, ACR_ERadioCue.BASE_LOST); }
  }

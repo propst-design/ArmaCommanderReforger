@@ -94,6 +94,7 @@ class ACR_StaticInit
   ACR_UALoadout.ACR_InitStatics();
   ACR_UiPrefs.ACR_InitStatics();
   ACR_Vehicles.ACR_InitStatics();
+  ACR_Veterancy.ACR_InitStatics();
   ACR_Wings.ACR_InitStatics();
   SCR_HintUIComponent.ACR_InitStatics();
   ACR_TestHooks.Get().InitStatics();

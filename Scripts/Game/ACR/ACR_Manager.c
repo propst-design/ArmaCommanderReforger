@@ -605,6 +605,7 @@ class ACR_Manager : Managed
   EnsureCommanders();
   m_Bases.Tick(this);
   ACR_RadioAudio.Tick();
+  ACR_Veterancy.Prune();
   ACR_Garrison.Sweep();
   ACR_OrganEasterEgg.Tick();
   t = ACR_Perf.Lap("bases", t);

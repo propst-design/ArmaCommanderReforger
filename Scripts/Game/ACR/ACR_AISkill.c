@@ -83,7 +83,7 @@ class ACR_AISkill
 
  // Every second from ACR_Squad.Tactics, with the mode's skill and reaction; once at spawn for
  // base garrisons, whose group takes its faction from its men (factionKey names it then).
- static void Apply(SCR_AICombatComponent combat, SCR_AIGroup group, int skill, float reaction, string factionKey = "")
+ static void Apply(SCR_AICombatComponent combat, SCR_AIGroup group, int skill, float reaction, string factionKey = "", int extraSteps = 0)
  {
   if (!combat) return;
   if (!combat.m_bACRSkillResolved) Resolve(combat, group, factionKey);
@@ -91,6 +91,7 @@ class ACR_AISkill
   if (combat.m_iACRSkill > 0) skill = combat.m_iACRSkill;
   skill = Level(skill);
   if (combat.m_bACRStronger) skill = StepUp(skill);
+  if (extraSteps > 0 && !combat.m_bACRSkillPinned) skill = StepUp(skill);
   reaction *= combat.m_fACRReactionScale;
   if (combat.GetAISkill() != skill) combat.SetAISkill(skill);
   if (combat.GetPerceptionFactor() != reaction) combat.SetPerceptionFactor(reaction);
