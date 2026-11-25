@@ -99,7 +99,12 @@ class ACR_Report
   // An empty vehicle has no side: a wreck, a civilian car or one's own abandoned truck isn't a kill.
   if (!by.IsEmpty() && !side.IsEmpty() && by != side) { ACR_SideStats won = Of(by); if (won) won.m_iVehicleKills++; }
   string name = "vehicle";
-  if (vehicle && vehicle.GetPrefabData()) name = FilePath.StripExtension(FilePath.StripPath(vehicle.GetPrefabData().GetPrefabName()));
+  if (vehicle)
+  {
+   name = ACR_Vehicles.NameOf(vehicle);
+   if (name.StartsWith("#")) name = WidgetManager.Translate(name);
+   if (name.IsEmpty()) name = "vehicle";
+  }
   if (!side.IsEmpty()) Event(side, "lost a " + name);
  }
 
