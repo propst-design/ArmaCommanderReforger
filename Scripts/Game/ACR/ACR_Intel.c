@@ -207,6 +207,13 @@ class ACR_Intel : Managed
  // Enemy mortars this side heard firing, and where it thinks they stand (ACR_CounterBattery).
  ref array<ref ACR_CBFix> m_CBFixes = {};
 
+ // True when 'otherKey' is hostile to this side: skips empty, own side, allied FIA / truce
+ // partners (ACR_Insurgency.Friendly) and friendly factions such as CIV (FriendlyTo).
+ protected bool IsHostileKey(string otherKey)
+ {
+  return !otherKey.IsEmpty() && !ACR_Insurgency.Friendly(otherKey, m_sFaction) && !FriendlyTo(m_sFaction, otherKey);
+ }
+
  // Called every second by the manager.
  void Tick()
  {
@@ -214,7 +221,6 @@ class ACR_Intel : Managed
   m_DoctrineIntel.Tick();
   float now = GetGame().GetWorld().GetWorldTime();
   // 1. Our AI squads' own perception.
-  bool identified = ACR_DefenceForecast.On();
   foreach (ACR_Squad squad : m_Manager.m_Squads)
   {
    if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction || !squad.m_Group) continue;
@@ -228,26 +234,19 @@ class ACR_Intel : Managed
     if (!control || !control.GetAIAgent()) continue;
     SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(control.GetAIAgent().FindComponent(SCR_AIUtilityComponent));
     if (!utility || !utility.m_PerceptionComponent) continue;
-    // Identified enemies too: a target moves from DETECTED to ENEMY once it is made out, and intel read only the
-    // first list, so a squad watching an enemy walk in gave one sighting and then none (forecastdefend, 4 Nov:
-    // the contact aged to 81 s while the screen had him at 300 m). As ACR_Ambush reads them.
-    // Only with the defence forecast on (on by default from 0.6.0, #232; off with the classic commander):
-    // it changes threat counts, fire missions, the feed and the map for everyone.
+    // Identified enemies too: a target moves from DETECTED to ENEMY once it is made out, so
+    // reading only DETECTED let a squad watching an enemy walk in age out while fighting.
     array<BaseTarget> targets = {};
-    if (identified)
-    {
-     utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
-     array<BaseTarget> detected = {};
-     utility.m_PerceptionComponent.GetTargetsList(detected, ETargetCategory.DETECTED);
-     targets.InsertAll(detected);
-    }
-    else utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.DETECTED);
+    utility.m_PerceptionComponent.GetTargetsList(targets, ETargetCategory.ENEMY);
+    array<BaseTarget> detected = {};
+    utility.m_PerceptionComponent.GetTargetsList(detected, ETargetCategory.DETECTED);
+    targets.InsertAll(detected);
     foreach (BaseTarget target : targets)
     {
      if (!target || !RecentDetection(target.GetTimeSinceDetected())) continue;
      IEntity seen = target.GetTargetEntity();
      string key = FactionKeyOf(seen);
-     if (!key.IsEmpty() && !ACR_Insurgency.Friendly(key, m_sFaction) && !FriendlyTo(m_sFaction, key)) NoteAt(seen, now - target.GetTimeSinceDetected() * 1000, squad.GetName(), target.GetLastDetectedPosition());
+     if (IsHostileKey(key) && !ACR_Disguise.IsDisguised(seen)) NoteAt(seen, now - target.GetTimeSinceDetected() * 1000, squad.GetName(), target.GetLastDetectedPosition());
     }
    }
   }
@@ -260,7 +259,7 @@ class ACR_Intel : Managed
    string sentries = base.m_sName + " sentries";
    foreach (ACR_Squad intruders : m_Manager.m_Squads)
    {
-    if (!intruders.GetFaction() || intruders.GetFaction().GetFactionKey() == m_sFaction) continue;
+    if (!intruders.GetFaction() || !IsHostileKey(intruders.GetFaction().GetFactionKey())) continue;
     array<AIAgent> agents = {};
     intruders.GetAgents(agents);
     foreach (AIAgent agent : agents)
@@ -273,7 +272,7 @@ class ACR_Intel : Managed
    {
     IEntity player = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
     string playerSide = FactionKeyOf(player);
-    if (player && !playerSide.IsEmpty() && playerSide != m_sFaction && InsideBaseProximityReport(vector.DistanceXZ(player.GetOrigin(), base.GetOrigin()), base.m_fRadius)) Note(player, now, sentries);
+    if (player && IsHostileKey(playerSide) && !ACR_Disguise.IsDisguised(player) && InsideBaseProximityReport(vector.DistanceXZ(player.GetOrigin(), base.GetOrigin()), base.m_fRadius)) Note(player, now, sentries);
    }
   }
   // Debug menu: every enemy soldier counts as seen.
@@ -454,7 +453,7 @@ class ACR_Intel : Managed
   array<IEntity> enemies = {};
   foreach (ACR_Squad squad : m_Manager.m_Squads)
   {
-   if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() == m_sFaction) continue;
+   if (!squad.GetFaction() || !IsHostileKey(squad.GetFaction().GetFactionKey())) continue;
    array<AIAgent> agents = {};
    squad.GetAgents(agents);
    foreach (AIAgent agent : agents)
@@ -464,7 +463,7 @@ class ACR_Intel : Managed
   {
    IEntity other = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
    string otherSide = FactionKeyOf(other);
-   if (other && !otherSide.IsEmpty() && !ACR_Insurgency.Friendly(otherSide, m_sFaction) && !enemies.Contains(other)) enemies.Insert(other);
+   if (other && IsHostileKey(otherSide) && !ACR_Disguise.IsDisguised(other) && !enemies.Contains(other)) enemies.Insert(other);
   }
   foreach (IEntity enemy : enemies)
   {
