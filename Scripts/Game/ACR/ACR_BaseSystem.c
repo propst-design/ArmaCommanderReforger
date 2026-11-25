@@ -275,6 +275,8 @@ class ACR_BaseSystem : Managed
   // so ACA builds against BBB pins with or without surrender.
   PerceivableComponent perceivable = PerceivableComponent.Cast(character.FindComponent(PerceivableComponent));
   if (perceivable && perceivable.IsDisarmed()) return;
+  // Disguised insurgent players (#97 item 10) never hold, contest or capture a base.
+  if (ACR_Disguise.IsDisguised(character)) return;
   // Stationed support helicopter crews are not capture troops.
   ACR_Base fled;
   AIControlComponent control = AIControlComponent.Cast(character.FindComponent(AIControlComponent));

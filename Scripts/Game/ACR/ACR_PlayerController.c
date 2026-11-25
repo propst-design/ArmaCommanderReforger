@@ -1982,6 +1982,7 @@ modded class SCR_PlayerController
     if (m_ACR_SelectedGroup.IsValid()) Rpc(ACR_DisperseServer, m_ACR_SelectedGroup);
     return;
    case ACR_EPanelAction.DRAW_IED_KIT: Rpc(ACR_DrawIedKitServer); return;
+   case ACR_EPanelAction.TOGGLE_DISGUISE: Rpc(ACR_ToggleDisguiseServer); return;
    case ACR_EPanelAction.TOGGLE_NETWORK:
     m_ACR_NetworkOpen = !m_ACR_NetworkOpen;
     if (m_ACR_NetworkOpen) m_ACR_RequisitionOpen = false;
@@ -2940,6 +2941,27 @@ modded class SCR_PlayerController
   string refusal;
   if (ACR_HideoutHomes.GiveIedKit(GetControlledEntity(), faction.GetFactionKey(), refusal))
    Rpc(ACR_FeedbackOwner, "IED kit drawn (-5 RP)");
+  else
+   Rpc(ACR_FeedbackOwner, refusal);
+ }
+
+ // Insurgent player: go plain clothes / drop disguise (#97 item 10).
+ [RplRpc(RplChannel.Reliable, RplRcver.Server)]
+ protected void ACR_ToggleDisguiseServer()
+ {
+  if (ACR_TooSoon("disguise", 500)) return;
+  IEntity body = GetControlledEntity();
+  if (ACR_Disguise.IsDisguised(body))
+  {
+   ACR_Disguise.Drop(body);
+   Rpc(ACR_FeedbackOwner, "Disguise dropped");
+   return;
+  }
+  Faction faction = SCR_FactionManager.SGetPlayerFaction(GetPlayerId());
+  if (!faction) { Rpc(ACR_FeedbackOwner, "No faction"); return; }
+  string refusal;
+  if (ACR_Disguise.GoPlain(body, faction.GetFactionKey(), GetPlayerId(), refusal))
+   Rpc(ACR_FeedbackOwner, "In plain clothes");
   else
    Rpc(ACR_FeedbackOwner, refusal);
  }

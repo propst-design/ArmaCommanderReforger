@@ -241,6 +241,7 @@ fiaside|-acrFiaSideTest 1|120|Worlds/ACR_Everon.ent
 fiahome|-acrFiaHomeTest 1|120|Worlds/ACR_Everon.ent
 fianetwork|-acrFiaNetworkTest 1|120|Worlds/ACR_Everon.ent
 fiamuster|-acrFiaMusterTest 1|120|Worlds/ACR_Everon.ent
+disguise|-acrDisguiseTest 1|120|Worlds/ACR_Everon.ent
 containment|-acrContainmentTest 1|240|Worlds/ACR_Everon.ent
 kolguyevsoak|-acrEveronSoakTest 1|1380|Worlds/ACR_Kolguyev.ent
 deploymenu|-acrDeployMenuTest 1|180|Worlds/ACR_Arland.ent

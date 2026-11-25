@@ -237,6 +237,7 @@ class ACR_Manager : Managed
   ACR_InsurgentSide.Reset();
   ACR_HideoutHomes.Reset();
   ACR_Muster.Reset();
+  ACR_Disguise.Reset();
   ACR_TownSupport.Reset();
   ACR_Province.Reset();
   ACR_Report.Reset();
@@ -635,6 +636,7 @@ class ACR_Manager : Managed
   ACR_FIAIntel.Tick();
   ACR_HideoutHomes.TickSetups(this);
   ACR_Muster.Tick(this);
+  ACR_Disguise.Tick(this);
   ACR_Insurgency.Tick();
   ACR_TownSupport.Tick();
   ACR_Outbreak.Tick();

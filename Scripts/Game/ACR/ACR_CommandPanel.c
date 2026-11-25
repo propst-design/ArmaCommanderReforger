@@ -63,7 +63,8 @@ enum ACR_EPanelAction
  GO_TO_GROUND,            // insurgent hideout: go to ground (#97 item 7)
  TOGGLE_MUSTER,           // insurgent requisition: muster on map toggle (#97 item 9)
  DISPERSE,                // insurgent band: disperse (#97 item 9)
- DRAW_IED_KIT             // insurgent hideout: draw hand-fired IED kit (#97 item 9)
+ DRAW_IED_KIT,            // insurgent hideout: draw hand-fired IED kit (#97 item 9)
+ TOGGLE_DISGUISE          // insurgent player: go plain / drop disguise (#97 item 10)
 }
 
 enum ACR_ECursorMode
@@ -277,6 +278,7 @@ class ACR_CommandPanel : Managed
   m_NetworkButtons.Insert(AddButton(m_NetworkSection, "Technical raid (15 RP)", ACR_EPanelAction.NET_TECH_RAID));
   m_MusterToggleButton = AddButton(m_NetworkSection, "Muster on map: off", ACR_EPanelAction.TOGGLE_MUSTER);
   m_MusterToggleWidget = m_LastButtonWidget;
+  AddButton(m_NetworkSection, "Go plain / Drop disguise", ACR_EPanelAction.TOGGLE_DISGUISE);
 
   // What isn't needed to run the fight folds away under one button.
   m_MoreButton = AddButton(m_Content, "", ACR_EPanelAction.MORE_FOLD);
