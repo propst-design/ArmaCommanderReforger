@@ -295,7 +295,9 @@ class ACR_Guerrillas
  static ACR_DefenderPost AddHideout(vector site)
  {
   int men = Math.RandomIntInclusive(6, 8);
-  ACR_DefenderPost post = ACR_Defenders.Add(ACR_Pockets.FACTION, site, string.Format("FIA hideout %1", ACR_Manager.Grid(site)), HIDEOUT_AREA);
+  string faction = ACR_Pockets.FACTION;
+  if (ACR_InsurgentSide.On()) faction = ACR_InsurgentSide.Key();
+  ACR_DefenderPost post = ACR_Defenders.Add(faction, site, string.Format("FIA hideout %1", ACR_Manager.Grid(site)), HIDEOUT_AREA);
   post.m_iReserve = men;
   ACR_GuerrillaCell cell = new ACR_GuerrillaCell();
   cell.m_bHouse = true;
@@ -304,8 +306,28 @@ class ACR_Guerrillas
   cell.m_vKillZone = site;
   post.m_Cell = cell;
   post.m_fSpawnRange = HOUSE_RANGE;
+  ACR_HideoutHomes.DressHideout(post);
   PrintFormat("[ACR] GUERRILLAS %1: %2 men", post.m_sName, men);
   return post;
+ }
+
+ // Player/band hideout siting check (#97 item 7): same building-group and isolation rule as
+ // FindHideouts, clear of bases, other hideouts, water, and enemy troops within ARMY_CLEAR.
+ static bool CanSiteHideout(vector spot, out vector middle, out string refusal, string enemyFaction = "")
+ {
+  refusal = "";
+  if (BBB_Terrain.IsWaterAt(spot)) { refusal = "cannot place a hideout in water"; return false; }
+  int members;
+  if (!BuildingGroup(spot, middle, members)) { refusal = "needs an isolated cluster of 3+ buildings away from villages"; return false; }
+  if (!Usable(middle, 0)) { refusal = "too close to a base"; return false; }
+  if (Crowded(middle, null)) { refusal = "too close to another hideout or cell"; return false; }
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!enemyFaction.IsEmpty() && manager && manager.m_Bases && manager.m_Bases.MenWithin(middle, ACR_HideoutHomes.ARMY_CLEAR, enemyFaction) > 0)
+  {
+   refusal = "enemy troops are too close";
+   return false;
+  }
+  return true;
  }
 
  // Hideouts standing (the cells' homes).

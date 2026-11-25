@@ -235,6 +235,7 @@ class ACR_Manager : Managed
   ACR_OneSide.Reset();
   ACR_Coin.Reset();
   ACR_InsurgentSide.Reset();
+  ACR_HideoutHomes.Reset();
   ACR_TownSupport.Reset();
   ACR_Province.Reset();
   ACR_Report.Reset();
@@ -630,6 +631,8 @@ class ACR_Manager : Managed
   ACR_Minefields.Tick();
   ACR_Fortify.Tick();
   ACR_Guerrillas.Tick();
+  ACR_FIAIntel.Tick();
+  ACR_HideoutHomes.TickSetups(this);
   ACR_Insurgency.Tick();
   ACR_TownSupport.Tick();
   ACR_Outbreak.Tick();

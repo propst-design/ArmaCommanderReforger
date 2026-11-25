@@ -205,7 +205,19 @@ class ACR_Requisition : Managed
   string key = faction.GetFactionKey();
   int before = m_Manager.m_Bases.GetRP(key);
   ACR_Base spawnBase = FindSpawnBase(key, baseLabel);
-  string result = PurchaseAt(key, entryIndex, spawnBase, spot, hasSpot);
+  string result;
+  if (!spawnBase && ACR_InsurgentSide.IsInsurgent(key))
+  {
+   ACR_DefenderPost hideout = ACR_HideoutHomes.FindByLabel(baseLabel);
+   result = PurchaseAtHideout(key, entryIndex, hideout, spot, hasSpot);
+   if (m_Manager.m_Bases.GetRP(key) < before && hideout)
+   {
+    string hUnit = m_Manager.m_Bases.GetFaction(key).m_aRequisitions[entryIndex].m_sName;
+    m_Manager.LogSpend(pc, key, before, "requisitioned " + hUnit + " at " + hideout.m_sName);
+   }
+   return result;
+  }
+  result = PurchaseAt(key, entryIndex, spawnBase, spot, hasSpot);
   if (m_Manager.m_Bases.GetRP(key) < before && spawnBase)
   {
    string unit = m_Manager.m_Bases.GetFaction(key).m_aRequisitions[entryIndex].m_sName;
@@ -357,6 +369,57 @@ class ACR_Requisition : Managed
   }
   PrintFormat("[ACR] PURCHASE %1 at %2 for %3 RP (%4 left, next %5 RP)", name, base.m_sName, paid, entry.m_iRemaining, entry.m_iCost);
   return string.Format("%1 deploying at %2", name, base.m_sName);
+ }
+
+ // Insurgent purchase at a hideout home (#97 item 7): same RP/stock/pricing/cap rules as PurchaseAt.
+ string PurchaseAtHideout(string key, int entryIndex, ACR_DefenderPost hideout, vector spot = "0 0 0", bool hasSpot = false)
+ {
+  ACR_FactionData data = m_Manager.m_Bases.GetFaction(key);
+  if (entryIndex < 0 || entryIndex >= data.m_aRequisitions.Count()) return "Unknown unit";
+  ACR_RequisitionEntry entry = data.m_aRequisitions[entryIndex];
+  if (entry.m_iRemaining <= 0) return entry.m_sName + ": none left";
+  if (!hideout || hideout.m_bGone) return "Deploy at one of your own hideouts";
+  if (ACR_HideoutHomes.Contested(hideout)) return hideout.m_sName + " is under attack";
+  if (OverSoldierCap(key)) return string.Format("Too many soldiers in the field (limit %1)", ACR_InsurgentSide.SoldierCap(key, m_Manager.m_iSoldierCap));
+  if (!m_Manager.m_Bases.Spend(key, entry.m_iCost)) return string.Format("Not enough RP (%1 needed)", entry.m_iCost);
+  ACR_PendingPurchase purchase = new ACR_PendingPurchase();
+  purchase.m_sFaction = key;
+  purchase.m_Entry = entry;
+  purchase.m_iPaid = entry.m_iCost;
+  entry.m_iRemaining--;
+  entry.m_iBought++;
+  entry.m_iNamed++;
+  ACR_Pricing.Reprice(entry);
+  string name = string.Format("%1 %2", entry.m_sName, entry.m_iNamed);
+  purchase.m_sName = name;
+  int paid = purchase.m_iPaid;
+  vector center = hideout.m_vPos;
+  if (hasSpot) center = ACR_Manager.Ground(spot);
+  vector groupPos = center;
+  vector freeG;
+  if (ACR_BaseSystem.ClearGround(freeG, center, 15, 1.5)) groupPos = freeG;
+  vector vehiclePos = groupPos;
+  if (!entry.m_sVehicle.IsEmpty())
+  {
+   vector freeV;
+   if (ACR_BaseSystem.ClearGround(freeV, center + Vector(8, 0, 8), 25, 4)) vehiclePos = freeV;
+  }
+  ResourceName group = ACR_FactionCatalog.ResolvePrefab(key, entry.m_sGroup, EEntityCatalogType.GROUP);
+  ResourceName vehicle = ACR_FactionCatalog.ResolvePrefab(key, entry.m_sVehicle, EEntityCatalogType.VEHICLE);
+  ResourceName passengers = ACR_FactionCatalog.ResolvePrefab(key, entry.m_sPassengers, EEntityCatalogType.GROUP);
+  bool spawned = SpawnParts(purchase, group, vehicle, entry.m_bCrewed, passengers, vehiclePos, groupPos);
+  if (!spawned)
+  {
+   Refund(purchase, "could not deploy");
+   return string.Format("%1 could not be deployed at %2; %3 RP refunded", name, hideout.m_sName, paid);
+  }
+  if (purchase.NeedsWatch())
+  {
+   purchase.m_fDeadline = GetGame().GetWorld().GetWorldTime() + s_fPendingTimeoutMs;
+   m_aPending.Insert(purchase);
+  }
+  PrintFormat("[ACR] PURCHASE %1 at hideout %2 for %3 RP (%4 left, next %5 RP)", name, hideout.m_sName, paid, entry.m_iRemaining, entry.m_iCost);
+  return string.Format("%1 deploying at %2", name, hideout.m_sName);
  }
 
  // ---------------------------------------------------------------- purchase transactions
@@ -748,8 +811,10 @@ class ACR_Requisition : Managed
   }
   ACR_Base base = depot;
   if (!base) base = NearestSpawnBase(key, near);
-  if (!base) return "No friendly base can send reinforcements";
-  if (newTube && !ACR_LogisticsRules.CanDeploy(base)) return "A replacement mortar needs a military base, HQ or FOB";
+  ACR_DefenderPost hideoutHome;
+  if (!base && ACR_InsurgentSide.IsInsurgent(key)) hideoutHome = ACR_HideoutHomes.NearestHome(near);
+  if (!base && !hideoutHome) return "No friendly base can send reinforcements";
+  if (newTube && (!base || !ACR_LogisticsRules.CanDeploy(base))) return "A replacement mortar needs a military base, HQ or FOB";
   // The soldier limit counts reinforcements too (soft threshold, as for buying).
   if (OverSoldierCap(key)) return string.Format("Too many soldiers in the field (limit %1)", ACR_InsurgentSide.SoldierCap(key, m_Manager.m_iSoldierCap));
   int extras = vehicleCost;
@@ -759,10 +824,21 @@ class ACR_Requisition : Managed
   if (m_Manager.m_Bases.GetRP(key) < most) return string.Format("Not enough RP (%1 needed)", most);
   // Paid per soldier who actually joined (Jacob, 5 Oct; R01 review): spawn first, then
   // charge. Vehicle service and a new mortar are charged on their own.
+  string homeName = "";
+  if (base) homeName = base.m_sName;
+  else if (hideoutHome) homeName = hideoutHome.m_sName;
   int delivered;
   foreach (ResourceName prefab : missing)
   {
-   IEntity soldier = SpawnForPurchase(prefab, ACR_BaseSystem.OpenSpot(SpawnPoint(base, 4, 12, 0.8)));
+   vector spawnAt;
+   if (base) spawnAt = SpawnPoint(base, 4, 12, 0.8);
+   else
+   {
+    vector freeH;
+    if (ACR_BaseSystem.ClearGround(freeH, hideoutHome.m_vPos, 15, 0.8)) spawnAt = freeH;
+    else spawnAt = ACR_Manager.Ground(hideoutHome.m_vPos);
+   }
+   IEntity soldier = SpawnForPurchase(prefab, ACR_BaseSystem.OpenSpot(spawnAt));
    if (!soldier) continue;
    if (!squad.m_Group.AddAIEntityToGroup(soldier)) { SCR_EntityHelper.DeleteEntityAndChildren(soldier); continue; }
    delivered++;
@@ -775,9 +851,9 @@ class ACR_Requisition : Managed
   int resupplied;
   if (depot) resupplied = RestockAmmo(squad, depot);
   if (depot && ServiceVehicles(serviced) > 0) resupplied++;
-  PrintFormat("[ACR] REINFORCE %1 +%2 of %3 from %4 for %5 RP, %6 restocked", squad.GetName(), delivered, missing.Count(), base.m_sName, cost, resupplied);
-  string result = string.Format("%1: %2 reinforcements from %3", squad.GetName(), delivered, base.m_sName);
-  if (failed > 0) result = string.Format("%1: %2 of %3 reinforcements from %4 (%5 couldn't be sent, not charged)", squad.GetName(), delivered, missing.Count(), base.m_sName, failed);
+  PrintFormat("[ACR] REINFORCE %1 +%2 of %3 from %4 for %5 RP, %6 restocked", squad.GetName(), delivered, missing.Count(), homeName, cost, resupplied);
+  string result = string.Format("%1: %2 reinforcements from %3", squad.GetName(), delivered, homeName);
+  if (failed > 0) result = string.Format("%1: %2 of %3 reinforcements from %4 (%5 couldn't be sent, not charged)", squad.GetName(), delivered, missing.Count(), homeName, failed);
   if (newTube)
   {
    m_Manager.Mortars().Rearmed(mortar);

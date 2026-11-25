@@ -31,7 +31,7 @@ class ACR_SpawnPoints
  // One of ours (not a world-placed home point): readers that find HQs by spawn point skip these.
  static bool IsBasePoint(SCR_SpawnPoint point)
  {
-  return point && s_Bases.Contains(point);
+  return point && (s_Bases.Contains(point) || ACR_HideoutHomes.IsHideoutPoint(point));
  }
 
  static void Reset()
@@ -143,6 +143,7 @@ class ACR_SpawnPoints
    want.Set(last, true);
   }
   foreach (SCR_SpawnPoint spot, bool on : want) if (spot) spot.SetSpawnPointEnabled_S(on);
+  ACR_HideoutHomes.TickSpawnPoints(manager);
   LockDeployed();
  }
 

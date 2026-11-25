@@ -140,6 +140,7 @@ modded class ACR_TestHooks
   if (System.IsCLIParam("acrCoinGrowthTest")) ACR_TestCoinGrowth.Run(seconds);
   if (System.IsCLIParam("acrCoinAITest")) ACR_TestCoinAI.Run(seconds);
   if (System.IsCLIParam("acrFiaSideTest")) ACR_TestFiaSide.Run(seconds);
+  if (System.IsCLIParam("acrFiaHomeTest")) ACR_TestFiaHome.Run(seconds);
   // -acrContainmentTest: ground zero, survivors and rescues (ACR_TestContainment, #107).
   if (System.IsCLIParam("acrContainmentTest")) ACR_TestContainment.Run(seconds);
   if (System.IsCLIParam("acrGenerateTest")) ACR_TestGenerate.Run(seconds);
@@ -202,13 +203,13 @@ modded class ACR_TestHooks
 
  override string MatchType()
  {
-  if (System.IsCLIParam("acrCoinTest") || System.IsCLIParam("acrSupportTest") || System.IsCLIParam("acrCoinGrowthTest") || System.IsCLIParam("acrCoinAITest") || System.IsCLIParam("acrFiaSideTest")) return "coin";
+  if (System.IsCLIParam("acrCoinTest") || System.IsCLIParam("acrSupportTest") || System.IsCLIParam("acrCoinGrowthTest") || System.IsCLIParam("acrCoinAITest") || System.IsCLIParam("acrFiaSideTest") || System.IsCLIParam("acrFiaHomeTest")) return "coin";
   return "";
  }
 
  override string CoinInsurgency()
  {
-  if (System.IsCLIParam("acrFiaSideTest")) return "players";
+  if (System.IsCLIParam("acrFiaSideTest") || System.IsCLIParam("acrFiaHomeTest")) return "players";
   return "";
  }
 

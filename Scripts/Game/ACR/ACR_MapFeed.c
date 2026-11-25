@@ -625,6 +625,7 @@ class ACR_MapFeed
    sig += base.GetLabel() + "|" + owner + "|" + detail + "|" + flag.ToString() + "|" + slotSig + ";";
    bytes += 12 + base.GetLabel().Length() + owner.Length() + detail.Length() + 4 * (8 + ACR_FobSlots.UPGRADE_COUNT);
   }
+  ACR_HideoutHomes.AppendBases(manager, frame, sig, bytes);
   frame.m_sBasesSig = sig;
   frame.m_Bytes.Set("bases", bytes + 28);
  }

@@ -531,12 +531,19 @@ class ACR_Requests : Managed
     return outcome.Accept(name + ": silent");
    case ACR_ERequest.ORDER_ESTABLISH_FOB:
    {
+    string fobFaction = "";
+    if (squad.GetFaction()) fobFaction = squad.GetFaction().GetFactionKey();
+    if (ACR_InsurgentSide.IsInsurgent(fobFaction))
+    {
+     string setupWhy;
+     if (!ACR_HideoutHomes.OrderSetup(squad, point, setupWhy)) return outcome.Refuse(name + ": " + setupWhy);
+     PrintFormat("[ACR] SETUP HIDEOUT player=%1 squad=%2 target=%3", pc.GetPlayerId(), name, point);
+     return outcome.Accept(name + ": setting up hideout");
+    }
     string canWhy;
     if (!ACR_FobBuild.CanOrder(squad, canWhy)) return outcome.Refuse(name + ": " + canWhy);
     vector validSite;
     string siteWhy;
-    string fobFaction = "";
-    if (squad.GetFaction()) fobFaction = squad.GetFaction().GetFactionKey();
     if (!ACR_FobBuild.ValidateSite(point, validSite, siteWhy, fobFaction)) return outcome.Refuse(name + ": " + siteWhy);
     if (squad.EstablishFob(validSite))
     {

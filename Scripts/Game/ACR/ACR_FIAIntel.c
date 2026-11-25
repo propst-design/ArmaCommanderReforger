@@ -12,6 +12,7 @@ class ACR_FIALead : Managed
  vector m_vCentre;
  float m_fRadius;
  int m_iLeads;
+ float m_fUpdatedAt; // world time ms of the last lead or widen (staleness, #97 item 7)
 }
 
 class ACR_FIAIntel
@@ -21,6 +22,7 @@ class ACR_FIAIntel
  static const float RADIUS_LAST = 400;
  static const float OFFSET_SHARE = 0.6;    // the middle is off the hideout by up to this share of the radius
  static const float WITNESS_REACH = 500;   // sides with men this close to a wiped cell get the lead
+ static const float STALE_S = 900;         // quiet seconds before a lead widens one step (15 min)
  static ref array<ref ACR_FIALead> s_aLeads;
 
  // Called by ACR_StaticInit at game start (static initializer budget: HANDBOOK Pitfalls).
@@ -76,9 +78,8 @@ class ACR_FIAIntel
    s_aLeads.Insert(lead);
   }
   lead.m_iLeads++;
-  lead.m_fRadius = RADIUS_FIRST;
-  if (lead.m_iLeads == 2) lead.m_fRadius = RADIUS_NEXT;
-  if (lead.m_iLeads >= 3) lead.m_fRadius = RADIUS_LAST;
+  lead.m_fUpdatedAt = GetGame().GetWorld().GetWorldTime();
+  lead.m_fRadius = RadiusFor(lead.m_iLeads);
   float angle = Math.RandomFloat(0, Math.PI2);
   float off = Math.RandomFloat(0.2, OFFSET_SHARE) * lead.m_fRadius;
   lead.m_vCentre = hideout.m_vPos + Vector(Math.Cos(angle) * off, 0, Math.Sin(angle) * off);
@@ -113,5 +114,65 @@ class ACR_FIAIntel
  {
   foreach (ACR_FIALead lead : s_aLeads) if (lead.m_sSide == side && lead.m_Hideout == hideout) return lead;
   return null;
+ }
+
+ static float RadiusFor(int leads)
+ {
+  if (leads >= 3) return RADIUS_LAST;
+  if (leads == 2) return RADIUS_NEXT;
+  return RADIUS_FIRST;
+ }
+
+ // Insurgent commander's heat readout for a hideout (#97 item 7): cold / warm / hot / found.
+ static string Heat(ACR_DefenderPost hideout, string enemySide)
+ {
+  if (!hideout || !hideout.m_Cell || enemySide.IsEmpty()) return "cold";
+  if (hideout.m_Cell.m_aKnownBy.Contains(enemySide)) return "found";
+  ACR_FIALead lead = LeadOf(enemySide, hideout);
+  if (!lead || lead.m_iLeads <= 0) return "cold";
+  if (lead.m_iLeads >= 3) return "hot";
+  return "warm";
+ }
+
+ // Server tick: quiet leads widen one step every STALE_S and eventually fade out.
+ static void Tick()
+ {
+  if (!Replication.IsServer() || !s_aLeads || s_aLeads.IsEmpty()) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  float staleMs = STALE_S * 1000;
+  for (int i = s_aLeads.Count() - 1; i >= 0; i--)
+  {
+   ACR_FIALead lead = s_aLeads[i];
+   if (!lead || !lead.m_Hideout || lead.m_Hideout.m_bGone) { s_aLeads.RemoveOrdered(i); continue; }
+   if (now - lead.m_fUpdatedAt < staleMs) continue;
+   lead.m_iLeads--;
+   if (lead.m_iLeads <= 0)
+   {
+    s_aLeads.RemoveOrdered(i);
+    continue;
+   }
+   lead.m_fRadius = RadiusFor(lead.m_iLeads);
+   lead.m_fUpdatedAt = now;
+   float angle = Math.RandomFloat(0, Math.PI2);
+   float off = Math.RandomFloat(0.2, OFFSET_SHARE) * lead.m_fRadius;
+   lead.m_vCentre = lead.m_Hideout.m_vPos + Vector(Math.Cos(angle) * off, 0, Math.Sin(angle) * off);
+  }
+ }
+
+ // Called when a hideout goes to ground: clears army leads on it silently.
+ static void GoStale(ACR_DefenderPost hideout)
+ {
+  if (!hideout || !s_aLeads) return;
+  for (int i = s_aLeads.Count() - 1; i >= 0; i--)
+   if (s_aLeads[i].m_Hideout == hideout) s_aLeads.RemoveOrdered(i);
+ }
+
+ // Tests: fast-forward lead age by 'seconds' and run Tick().
+ static void AgeForTest(float seconds)
+ {
+  if (!s_aLeads) return;
+  float deltaMs = seconds * 1000;
+  foreach (ACR_FIALead lead : s_aLeads) if (lead) lead.m_fUpdatedAt -= deltaMs;
+  Tick();
  }
 }
