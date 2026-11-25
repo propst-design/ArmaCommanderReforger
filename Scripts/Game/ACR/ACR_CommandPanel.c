@@ -53,7 +53,14 @@ enum ACR_EPanelAction
  DEBUG_ACTION = 60,       // + ACR_EDebug (below 100)
  REQUISITION_ENTRY = 100, // + entry index (below 200)
  SUPPORT_ENTRY = 200,     // + entry index
- FOB_UPGRADE = 300        // + slot index (below 350)
+ FOB_UPGRADE = 300,       // + slot index (below 350)
+ TOGGLE_NETWORK = 360,    // insurgent network panel (#97 item 8)
+ NET_CELL,
+ NET_IED,
+ NET_SABOTAGE,
+ NET_TECH_RAID,
+ SETUP_HIDEOUT,           // insurgent band: set up hideout (#97 item 7)
+ GO_TO_GROUND             // insurgent hideout: go to ground (#97 item 7)
 }
 
 enum ACR_ECursorMode
@@ -75,7 +82,8 @@ enum ACR_ECursorMode
  BARRICADE,
  FORTIFY,
  QRF,
- EVAC
+ EVAC,
+ SETUP_HIDEOUT
 }
 
 // Arma Commander side panel on the fullscreen map. Built from script out of the
@@ -151,6 +159,14 @@ class ACR_CommandPanel : Managed
  protected SCR_ButtonTextComponent m_RideButton;
  protected SCR_ButtonTextComponent m_EstablishFobButton;
  protected Widget m_EstablishFobWidget;
+ protected SCR_ButtonTextComponent m_SetupHideoutButton;
+ protected Widget m_SetupHideoutWidget;
+ protected SCR_ButtonTextComponent m_GoToGroundButton;
+ protected Widget m_GoToGroundWidget;
+ protected SCR_ButtonTextComponent m_NetworkButton;
+ protected Widget m_NetworkWidget;
+ protected Widget m_NetworkSection;
+ protected ref array<SCR_ButtonTextComponent> m_NetworkButtons = {};
  protected ref array<SCR_ButtonTextComponent> m_RoadblockButtons = {}; // by ACR_ERoadblockType
  protected SCR_ButtonTextComponent m_QrfButton;
  protected SCR_ButtonTextComponent m_EvacButton;
@@ -241,6 +257,16 @@ class ACR_CommandPanel : Managed
   Widget supportScroll = ws.CreateWidget(WidgetType.ScrollLayoutWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.CLIPCHILDREN, Color.FromInt(Color.WHITE), 0, supportBox);
   m_SupportSection = ws.CreateWidget(WidgetType.VerticalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, supportScroll);
 
+  // Insurgent network panel (#97 item 8): shown for the insurgent side where armies have Supports.
+  m_NetworkButton = AddButton(m_Content, "Network", ACR_EPanelAction.TOGGLE_NETWORK);
+  m_NetworkWidget = m_LastButtonWidget;
+  if (m_NetworkWidget) m_NetworkWidget.SetVisible(false);
+  m_NetworkSection = ws.CreateWidget(WidgetType.VerticalLayoutWidgetTypeID, 0, Color.FromInt(Color.WHITE), 0, m_Content);
+  m_NetworkButtons.Insert(AddButton(m_NetworkSection, "Place cell (12 RP)", ACR_EPanelAction.NET_CELL));
+  m_NetworkButtons.Insert(AddButton(m_NetworkSection, "Place IED team (10 RP)", ACR_EPanelAction.NET_IED));
+  m_NetworkButtons.Insert(AddButton(m_NetworkSection, "Sabotage raid (15 RP)", ACR_EPanelAction.NET_SABOTAGE));
+  m_NetworkButtons.Insert(AddButton(m_NetworkSection, "Technical raid (15 RP)", ACR_EPanelAction.NET_TECH_RAID));
+
   // What isn't needed to run the fight folds away under one button.
   m_MoreButton = AddButton(m_Content, "", ACR_EPanelAction.MORE_FOLD);
   m_MoreSection = ws.CreateWidget(WidgetType.VerticalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_Content);
@@ -264,6 +290,9 @@ class ACR_CommandPanel : Managed
   m_GroupName = AddText(m_GroupSection, LAYOUT_HEADING, "");
   m_GroupDetail = AddText(m_GroupSection, LAYOUT_TEXT, "");
   m_FobSection = ws.CreateWidget(WidgetType.VerticalLayoutWidgetTypeID, 0, Color.FromInt(Color.WHITE), 0, m_GroupSection);
+  m_GoToGroundButton = AddButton(m_GroupSection, "Go to ground (+15 RP)", ACR_EPanelAction.GO_TO_GROUND);
+  m_GoToGroundWidget = m_LastButtonWidget;
+  if (m_GoToGroundWidget) m_GoToGroundWidget.SetVisible(false);
   m_FobSupplyButton = AddButton(m_FobSection, "Order 500 supplies - 20 RP / 60 s", ACR_EPanelAction.FOB_SUPPLY);
   m_FobBuildButton = AddButton(m_FobSection, "Build at FOB (stand inside its circle)", ACR_EPanelAction.FOB_BUILD);
   m_FobAIButton = AddButton(m_FobSection, "AI manages this FOB: off", ACR_EPanelAction.FOB_AI);
@@ -325,6 +354,9 @@ class ACR_CommandPanel : Managed
   m_EstablishFobButton = AddButton(m_BuildSection, "Establish FOB", ACR_EPanelAction.ESTABLISH_FOB);
   m_EstablishFobWidget = m_LastButtonWidget;
   if (m_EstablishFobWidget) m_EstablishFobWidget.SetVisible(false);
+  m_SetupHideoutButton = AddButton(m_BuildSection, "Set up hideout (25 RP)", ACR_EPanelAction.SETUP_HIDEOUT);
+  m_SetupHideoutWidget = m_LastButtonWidget;
+  if (m_SetupHideoutWidget) m_SetupHideoutWidget.SetVisible(false);
   // Roadblocks: the three checkpoint sizes in a row, a barricade under them.
   m_RoadblockWidget = ws.CreateWidget(WidgetType.VerticalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_BuildSection);
   m_RoadblockSizes = ws.CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_RoadblockWidget);
@@ -1030,6 +1062,11 @@ class ACR_CommandPanel : Managed
    if (cursorMode == ACR_ECursorMode.ESTABLISH_FOB) m_EstablishFobButton.SetText("[Establish FOB]");
    else m_EstablishFobButton.SetText("Establish FOB");
   }
+  if (m_SetupHideoutButton)
+  {
+   if (cursorMode == ACR_ECursorMode.SETUP_HIDEOUT) m_SetupHideoutButton.SetText("[Set up hideout (25 RP)]");
+   else m_SetupHideoutButton.SetText("Set up hideout (25 RP)");
+  }
   if (m_QrfButton)
   {
    if (cursorMode == ACR_ECursorMode.QRF) m_QrfButton.SetText("[QRF]");
@@ -1192,10 +1229,43 @@ class ACR_CommandPanel : Managed
   if (m_Economy) m_Economy.SetText(text);
  }
 
+ void SetHideout(bool visible, bool canGoToGround)
+ {
+  if (m_GoToGroundWidget) m_GoToGroundWidget.SetVisible(visible);
+  if (m_GoToGroundButton) m_GoToGroundButton.SetEnabled(canGoToGround, false);
+ }
+
+ void SetSetupHideout(bool visible)
+ {
+  if (m_SetupHideoutWidget) m_SetupHideoutWidget.SetVisible(visible);
+ }
+
+ void SetNetwork(bool visible, bool open, int rp, int pending)
+ {
+  if (m_NetworkWidget) m_NetworkWidget.SetVisible(visible);
+  if (m_NetworkButton)
+  {
+   if (open) m_NetworkButton.SetText("Hide network");
+   else m_NetworkButton.SetText("Network");
+  }
+  if (m_NetworkSection) m_NetworkSection.SetVisible(visible && open);
+  if (!visible || !open) return;
+  foreach (int i, SCR_ButtonTextComponent btn : m_NetworkButtons)
+  {
+   if (!btn) continue;
+   int cost = ACR_InsurgentNetwork.CostOf(i);
+   string label = string.Format("%1 (%2 RP)", ACR_InsurgentNetwork.NameOf(i), cost);
+   if (pending == i) label = "[" + label + "]";
+   btn.SetText(label);
+   btn.SetEnabled(rp >= cost, false);
+  }
+ }
+
  // A selected base: info only, no squad buttons.
  void SetBase(string name, string detail)
  {
   if (m_FobSection) m_FobSection.SetVisible(false);
+  if (m_GoToGroundWidget) m_GoToGroundWidget.SetVisible(false);
   if (!m_GroupSection) return;
   m_GroupSection.SetVisible(true);
   m_GroupName.SetText(name);
@@ -1204,6 +1274,7 @@ class ACR_CommandPanel : Managed
   if (m_GunnerWidget) m_GunnerWidget.SetVisible(false);
   if (m_SquadAIWidget) m_SquadAIWidget.SetVisible(false);
   if (m_EstablishFobWidget) m_EstablishFobWidget.SetVisible(false);
+  if (m_SetupHideoutWidget) m_SetupHideoutWidget.SetVisible(false);
   if (m_RoadblockWidget) m_RoadblockWidget.SetVisible(false);
   if (m_MinesWidget) m_MinesWidget.SetVisible(false);
   if (m_FortifyWidget) m_FortifyWidget.SetVisible(false);

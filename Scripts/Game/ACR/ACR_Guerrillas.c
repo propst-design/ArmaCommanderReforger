@@ -311,16 +311,39 @@ class ACR_Guerrillas
   return post;
  }
 
- // Player/band hideout siting check (#97 item 7): same building-group and isolation rule as
- // FindHideouts, clear of bases, other hideouts, water, and enemy troops within ARMY_CLEAR.
+ // Player/band hideout siting check (#97 item 7, relaxed for multi-map viability):
+ // allows 1+ garrisonable building within 60 m and <= 14 within 250 m (keeps hamlets and lone
+ // farmhouses usable on Arland, Kolguyev, Kunar, West Zagoria, Chernarus), clear of bases,
+ // water, enemy troops within ARMY_CLEAR, and spaced 1000 m from other standing hideouts only
+ // (road/house cells never block hideout placement).
+ static const float PLAYER_HIDEOUT_ISOLATION = 250;
+ static const int PLAYER_HIDEOUT_MAX_AROUND = 14;
+ static const float PLAYER_HIDEOUT_SPACING = 1000;
  static bool CanSiteHideout(vector spot, out vector middle, out string refusal, string enemyFaction = "")
  {
   refusal = "";
   if (BBB_Terrain.IsWaterAt(spot)) { refusal = "cannot place a hideout in water"; return false; }
-  int members;
-  if (!BuildingGroup(spot, middle, members)) { refusal = "needs an isolated cluster of 3+ buildings away from villages"; return false; }
+  array<IEntity> near = {};
+  ACR_Garrison.BuildingsWithin(spot, HIDEOUT_CLUSTER, near);
+  if (near.IsEmpty()) { refusal = "needs at least one building here"; return false; }
+  array<IEntity> around = {};
+  ACR_Garrison.BuildingsWithin(near[0].GetOrigin(), PLAYER_HIDEOUT_ISOLATION, around);
+  if (around.Count() > PLAYER_HIDEOUT_MAX_AROUND) { refusal = "too dense (inside a village or town)"; return false; }
+  vector sum;
+  foreach (IEntity b : near) sum = sum + b.GetOrigin();
+  middle = sum * (1.0 / near.Count());
+  if (BBB_Terrain.IsWaterAt(middle)) { refusal = "cannot place a hideout in water"; return false; }
   if (!Usable(middle, 0)) { refusal = "too close to a base"; return false; }
-  if (Crowded(middle, null)) { refusal = "too close to another hideout or cell"; return false; }
+  array<ACR_DefenderPost> hideouts = {};
+  Hideouts(hideouts);
+  foreach (ACR_DefenderPost other : hideouts)
+  {
+   if (vector.DistanceXZ(other.m_vPos, middle) < PLAYER_HIDEOUT_SPACING)
+   {
+    refusal = "too close to another hideout";
+    return false;
+   }
+  }
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!enemyFaction.IsEmpty() && manager && manager.m_Bases && manager.m_Bases.MenWithin(middle, ACR_HideoutHomes.ARMY_CLEAR, enemyFaction) > 0)
   {
@@ -348,6 +371,7 @@ class ACR_Guerrillas
    labels.Insert("FIA hideout");
   }
   ACR_FIAIntel.Zones(faction, positions, radii, labels);
+  ACR_InsurgentNetwork.Zones(faction, positions, radii, labels);
  }
 
  // 'side' learns where the hideout is (ACR_Insurgency: found by a fight, or FIA's friend).
@@ -599,7 +623,7 @@ class ACR_Guerrillas
  }
 
  // Another cell within SPACING of 'at'.
- protected static bool Crowded(vector at, ACR_DefenderPost except)
+ static bool Crowded(vector at, ACR_DefenderPost except)
  {
   foreach (ACR_DefenderPost other : ACR_Defenders.s_Posts)
    if (other != except && other.m_Cell && !other.m_bGone && vector.DistanceXZ(other.m_Cell.m_vKillZone, at) < SPACING) return true;
@@ -611,10 +635,17 @@ class ACR_Guerrillas
  {
   vector site;
   if (!PickSite(house, site)) return false;
+  return AddCellAt(house, site, ACR_Pockets.FACTION) != null;
+ }
+
+ // Place a road ambush or house cell at 'site' for 'owner' (shared by AddCell and ACR_InsurgentNetwork).
+ static ACR_DefenderPost AddCellAt(bool house, vector site, string owner = "")
+ {
+  if (owner.IsEmpty()) owner = ACR_Pockets.FACTION;
   int men = Math.RandomIntInclusive(4, 6);
   string kind = "ambush";
   if (house) { men = Math.RandomIntInclusive(3, 5); kind = "house"; }
-  ACR_DefenderPost post = ACR_Defenders.Add(ACR_Pockets.FACTION, site, string.Format("FIA %1 %2", kind, ACR_Manager.Grid(site)), 25);
+  ACR_DefenderPost post = ACR_Defenders.Add(owner, site, string.Format("FIA %1 %2", kind, ACR_Manager.Grid(site)), 25);
   post.m_iReserve = men;
   ACR_GuerrillaCell cell = new ACR_GuerrillaCell();
   cell.m_bHouse = house;
@@ -624,7 +655,7 @@ class ACR_Guerrillas
   post.m_fSpawnRange = HOUSE_RANGE;
   if (!house) SetRoad(post, site);
   PrintFormat("[ACR] GUERRILLAS %1: %2 men", post.m_sName, men);
-  return true;
+  return post;
  }
 
  // A site from the survey, the most travelled roads likelier, SPACING from every other cell. A
@@ -683,7 +714,7 @@ class ACR_Guerrillas
 
  // The road at 'at' and where to lie in wait beside it (HideSite); false with nowhere to hide.
  // any: only whether there is one (the first that will do, not the best: site checks).
- protected static bool RoadSite(vector at, out vector road, out vector dir, out float width, out vector hide, bool any = false)
+ static bool RoadSite(vector at, out vector road, out vector dir, out float width, out vector hide, bool any = false)
  {
   width = 6;
   road = at;

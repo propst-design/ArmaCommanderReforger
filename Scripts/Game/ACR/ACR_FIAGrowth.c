@@ -141,6 +141,9 @@ class ACR_FIAGrowth
  {
   ACR_GuerrillaCell cell = hideout.m_Cell;
   if (TopUp(hideout) > 0) return;
+  // Commanded insurgency (#97 item 8): hideouts still top up local garrisons/cells, while the
+  // insurgent commander chooses where to place new cells, IEDs, raids and technicals.
+  if (ACR_InsurgentSide.On()) return;
   if (RaiseCell(hideout)) return;
   // Short of cells with too few recruits for one: save up (a cell comes before saboteurs).
   if (Cells() < CellCap() && cell.m_fPool < CELL_COST) return;

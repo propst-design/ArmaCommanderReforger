@@ -1753,11 +1753,22 @@ modded class SCR_PlayerController
   m_ACR_Panel.SetRoster(ACR_RosterText());
   if (!m_ACR_IsCommander) m_ACR_PendingEntry = -1;
   if (!m_ACR_IsCommander) m_ACR_PendingSupport = -1;
+  if (!m_ACR_IsCommander) m_ACR_PendingNetwork = -1;
+  string myFactionKey = "";
+  Faction localFaction = SCR_FactionManager.SGetLocalPlayerFaction();
+  if (localFaction) myFactionKey = localFaction.GetFactionKey();
+  bool insurgentViewer = ACR_InsurgentSide.IsInsurgentColor(myFactionKey) && m_ACR_SupNames.IsEmpty();
   m_ACR_Panel.SetRequisitions(m_ACR_IsCommander, m_ACR_RequisitionOpen, m_ACR_ReqNames, m_ACR_ReqCosts, m_ACR_ReqRemaining, m_ACR_RP, m_ACR_PendingEntry);
   array<int> cooldowns = {};
   ACR_Cooldowns(cooldowns);
   m_ACR_Panel.SetSupports(m_ACR_IsCommander, m_ACR_SupportOpen, m_ACR_SupNames, m_ACR_SupCosts, cooldowns, m_ACR_RP, m_ACR_PendingSupport);
+  m_ACR_Panel.SetNetwork(m_ACR_IsCommander && insurgentViewer, m_ACR_NetworkOpen, m_ACR_RP, m_ACR_PendingNetwork);
   m_ACR_Panel.SetReport(m_ACR_ReportOpen, m_ACR_ReportText);
+  if (m_ACR_PendingNetwork >= 0)
+  {
+   m_ACR_Panel.SetBase(ACR_InsurgentNetwork.NameOf(m_ACR_PendingNetwork), ACR_InsurgentNetwork.HintOf(m_ACR_PendingNetwork));
+   return;
+  }
   if (m_ACR_HasSupportTarget && m_ACR_SupportOpen)
   {
    m_ACR_Panel.SetBase("Support for " + m_ACR_SupportTargetFor, "Pick a support above: it fires on the ping. Click Supports to cancel.");
@@ -1788,6 +1799,8 @@ modded class SCR_PlayerController
    if (baseIndex >= 0)
    {
     m_ACR_Panel.SetBase(m_ACR_Data.m_BaseNames[baseIndex], ACR_CommandPanel.FobDetail(m_ACR_Data.m_BaseDetails[baseIndex]));
+    bool isHideout = m_ACR_Data.m_BaseDetails[baseIndex].StartsWith("Hideout |");
+    m_ACR_Panel.SetHideout(isHideout && m_ACR_IsCommander, isHideout && m_ACR_IsCommander && (m_ACR_Data.m_BaseContested[baseIndex] & 1) == 0);
     int stride = 3 + ACR_FobSlots.UPGRADE_COUNT;
     int supplyOffset = baseIndex * stride;
     if (m_ACR_Data.m_BaseSupply.Count() >= supplyOffset + stride)
@@ -1834,6 +1847,10 @@ modded class SCR_PlayerController
   bool canEstablishFob = friendly && (modeAndFlags & 32) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
   if (!canEstablishFob && m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB)
    m_ACR_CursorMode = ACR_ECursorMode.MOVE;
+  bool canSetupHideout = friendly && insurgentViewer && m_ACR_Data.m_Selected.Count() <= 1;
+  if (!canSetupHideout && m_ACR_CursorMode == ACR_ECursorMode.SETUP_HIDEOUT)
+   m_ACR_CursorMode = ACR_ECursorMode.MOVE;
+  m_ACR_Panel.SetSetupHideout(canSetupHideout);
   bool canRoadblock = friendly && (modeAndFlags & 64) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
   int roadblock = ACR_CommandPanel.RoadblockOfMode(m_ACR_CursorMode);
   if (!canRoadblock && roadblock >= 0)
@@ -1862,6 +1879,7 @@ modded class SCR_PlayerController
   else if (m_ACR_CursorMode == ACR_ECursorMode.LZ) hint = "Right-click the landing zone: they jump out when their ride sets down there";
   else if (m_ACR_CursorMode == ACR_ECursorMode.RIDE) hint = "Right-click the destination: a free truck nearby picks them up and drops them there";
   else if (m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB) hint = "Right-click a clear site: establish forward base (click Establish FOB again to cancel)";
+  else if (m_ACR_CursorMode == ACR_ECursorMode.SETUP_HIDEOUT) hint = "Right-click a building outside towns and bases: set up hideout, 25 RP (click again to cancel)";
   else if (roadblock >= 0) hint = ACR_Roadblocks.Hint(roadblock, roadblockFaction);
   else if (m_ACR_CursorMode == ACR_ECursorMode.FORTIFY) hint = ACR_Fortify.Hint();
   else if (m_ACR_CursorMode == ACR_ECursorMode.EVAC) hint = "Right-click within 600 m of a town holding out (Civilians ring): its people walk to that evac point, they go there; park a vehicle on it to load them, then drive them to a base (click Evac point again to cancel)";
@@ -1953,6 +1971,30 @@ modded class SCR_PlayerController
    case ACR_EPanelAction.ESTABLISH_FOB:
     if (m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB) m_ACR_CursorMode = ACR_ECursorMode.MOVE;
     else m_ACR_CursorMode = ACR_ECursorMode.ESTABLISH_FOB;
+    return;
+   case ACR_EPanelAction.SETUP_HIDEOUT: ACR_ToggleCursor(ACR_ECursorMode.SETUP_HIDEOUT); return;
+   case ACR_EPanelAction.GO_TO_GROUND: Rpc(ACR_GoToGroundServer, m_ACR_SelectedBase); return;
+   case ACR_EPanelAction.TOGGLE_NETWORK:
+    m_ACR_NetworkOpen = !m_ACR_NetworkOpen;
+    if (m_ACR_NetworkOpen) m_ACR_RequisitionOpen = false;
+    m_ACR_PendingEntry = -1;
+    if (!m_ACR_NetworkOpen) m_ACR_PendingNetwork = -1;
+    return;
+   case ACR_EPanelAction.NET_CELL:
+    if (m_ACR_PendingNetwork == ACR_InsurgentNetwork.NET_CELL) m_ACR_PendingNetwork = -1;
+    else m_ACR_PendingNetwork = ACR_InsurgentNetwork.NET_CELL;
+    return;
+   case ACR_EPanelAction.NET_IED:
+    if (m_ACR_PendingNetwork == ACR_InsurgentNetwork.NET_IED) m_ACR_PendingNetwork = -1;
+    else m_ACR_PendingNetwork = ACR_InsurgentNetwork.NET_IED;
+    return;
+   case ACR_EPanelAction.NET_SABOTAGE:
+    if (m_ACR_PendingNetwork == ACR_InsurgentNetwork.NET_SABOTAGE) m_ACR_PendingNetwork = -1;
+    else m_ACR_PendingNetwork = ACR_InsurgentNetwork.NET_SABOTAGE;
+    return;
+   case ACR_EPanelAction.NET_TECH_RAID:
+    if (m_ACR_PendingNetwork == ACR_InsurgentNetwork.NET_TECH_RAID) m_ACR_PendingNetwork = -1;
+    else m_ACR_PendingNetwork = ACR_InsurgentNetwork.NET_TECH_RAID;
     return;
    case ACR_EPanelAction.ROADBLOCK: ACR_ToggleCursor(ACR_ECursorMode.ROADBLOCK); return;
    case ACR_EPanelAction.ROADBLOCK_S: ACR_ToggleCursor(ACR_ECursorMode.ROADBLOCK_S); return;
@@ -2179,6 +2221,16 @@ modded class SCR_PlayerController
    m_ACR_PendingEntry = -1;
    return true;
   }
+  if (m_ACR_PendingNetwork >= 0)
+  {
+   SCR_MapEntity netMap = SCR_MapEntity.GetMapInstance();
+   if (!netMap) return false;
+   float nx, nz;
+   netMap.GetMapCursorWorldPosition(nx, nz);
+   Rpc(ACR_NetworkOrderServer, m_ACR_PendingNetwork, Vector(nx, 0, nz));
+   m_ACR_PendingNetwork = -1;
+   return true;
+  }
   if (!m_ACR_SelectedGroup.IsValid()) return false;
   int index = m_ACR_Data.m_GroupIds.Find(m_ACR_SelectedGroup);
   if (index < 0 || index >= m_ACR_Data.m_Commandable.Count() || m_ACR_Data.m_Commandable[index] != 1) return false;
@@ -2207,7 +2259,7 @@ modded class SCR_PlayerController
   if (m_ACR_CursorMode == ACR_ECursorMode.GET_IN) command = ACR_ERequest.ORDER_GET_IN;
   if (m_ACR_CursorMode == ACR_ECursorMode.LZ) command = ACR_ERequest.ORDER_SET_LZ;
   if (m_ACR_CursorMode == ACR_ECursorMode.RIDE) command = ACR_ERequest.ORDER_RIDE;
-  if (m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB) command = ACR_ERequest.ORDER_ESTABLISH_FOB;
+  if (m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB || m_ACR_CursorMode == ACR_ECursorMode.SETUP_HIDEOUT) command = ACR_ERequest.ORDER_ESTABLISH_FOB;
   if (m_ACR_CursorMode == ACR_ECursorMode.ROADBLOCK) command = ACR_ERequest.ORDER_ROADBLOCK;
   if (m_ACR_CursorMode == ACR_ECursorMode.QRF) command = ACR_ERequest.ORDER_QRF;
   if (m_ACR_CursorMode == ACR_ECursorMode.EVAC) command = ACR_ERequest.ORDER_EVAC;
@@ -2769,6 +2821,8 @@ modded class SCR_PlayerController
  }
 
  protected string m_ACR_SelectedBase;
+ protected bool m_ACR_NetworkOpen;
+ protected int m_ACR_PendingNetwork = -1;
 
  void ACR_SendBases(array<vector> positions, array<string> names, array<string> owners, array<string> details, array<float> radii, array<int> contested, array<int> supplies)
  {
@@ -2801,6 +2855,38 @@ modded class SCR_PlayerController
  {
   if (ACR_TooSoon("fobai", 500)) return;
   Rpc(ACR_FeedbackOwner, ACR_FobAI.Toggle(this, label));
+ }
+
+ // Insurgent panel: order a hideout to go to ground (#97 item 7).
+ [RplRpc(RplChannel.Reliable, RplRcver.Server)]
+ protected void ACR_GoToGroundServer(string label)
+ {
+  if (ACR_TooSoon("gotoground", 500)) return;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager || !manager.IsCommander(GetPlayerId())) { Rpc(ACR_FeedbackOwner, "Only the commander can do that"); return; }
+  Faction faction = SCR_FactionManager.SGetPlayerFaction(GetPlayerId());
+  if (!faction) { Rpc(ACR_FeedbackOwner, "No faction"); return; }
+  string refusal;
+  if (ACR_HideoutHomes.GoToGround(faction.GetFactionKey(), label, refusal))
+   Rpc(ACR_FeedbackOwner, label + " went to ground (+15 RP)");
+  else
+   Rpc(ACR_FeedbackOwner, refusal);
+ }
+
+ // Insurgent panel: place a network piece (cell, IED, sabotage raid, technical raid, #97 item 8).
+ [RplRpc(RplChannel.Reliable, RplRcver.Server)]
+ protected void ACR_NetworkOrderServer(int kind, vector point)
+ {
+  if (ACR_TooSoon("network", 500)) return;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager || !manager.IsCommander(GetPlayerId())) { Rpc(ACR_FeedbackOwner, "Only the commander can do that"); return; }
+  Faction faction = SCR_FactionManager.SGetPlayerFaction(GetPlayerId());
+  if (!faction) { Rpc(ACR_FeedbackOwner, "No faction"); return; }
+  string refusal;
+  if (ACR_InsurgentNetwork.Order(faction.GetFactionKey(), kind, point, refusal))
+   Rpc(ACR_FeedbackOwner, ACR_InsurgentNetwork.NameOf(kind) + " ordered");
+  else
+   Rpc(ACR_FeedbackOwner, refusal);
  }
 
  void ACR_SelectBase(string label)
