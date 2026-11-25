@@ -229,36 +229,108 @@ class ACR_ReconRun : ACR_SupportRun
 }
 
 // A transmission one side picked up from another: a ring that holds the transmitter.
+// Repeated intercepts of the same transmitter tighten the ring (SIGINT triangulation).
 class ACR_Intercept : Managed
 {
  vector m_vCentre;
+ float m_fRadius;
  float m_fHeard;
- string m_sKey; // who transmitted (internal: the same transmitter refreshes its ring)
+ bool m_bToldTight;
+ string m_sKey; // who transmitted (internal: the same transmitter refreshes & tightens its ring)
 }
 
 class ACR_RadioIntercept
 {
  static float INTERCEPT_CHANCE = 0.35;
+ static const float RELAY_INTERCEPT_CHANCE = 0.40;
+ static const float HEAVY_SUPPORT_CHANCE = 0.55;
  static const float INTERCEPT_RADIUS = 400;
+ static const float INTERCEPT_MIN_RADIUS = 160;
+ static const float INTERCEPT_TIGHT = 220;    // below this: "SIGINT fix" feed line + label
+ static const float TIGHTEN_FACTOR = 0.80;    // repeated fix of the same transmitter narrows the ring
  static const float INTERCEPT_MS = 180000;
- static const float REFRESH_MS = 60000;      // the same transmitter again within this: the ring moves, no new line
+ static const float REFRESH_MS = 60000;       // mobile transmitter refreshed within this
+ static const float RELAY_REFRESH_MS = 240000; // stationary FOB relay refreshed within this so 90 s ticks tighten it
+ static const float RELAY_TICK_MS = 90000;
  static const int MAX_RINGS = 6;
  static int s_iHeard; // tests
+ protected static float s_fNextRelayAt = -1;
+
+ static void Reset()
+ {
+  s_fNextRelayAt = -1;
+ }
 
  // A side transmitted from 'from' (key: who). Each hostile side may hear it.
- static void Transmitted(string side, vector from, string key)
+ static void Transmitted(string side, vector from, string key, float chanceOverride = -1)
  {
   if (side.IsEmpty() || from == vector.Zero) return;
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager) return;
+  float chance = INTERCEPT_CHANCE;
+  if (chanceOverride >= 0) chance = chanceOverride;
   foreach (ACR_FactionSettings settings : ACR_FactionSettings.s_All)
   {
    string listener = settings.m_sFaction;
    if (listener.IsEmpty() || listener == side || ACR_Insurgency.Friendly(listener, side)) continue;
-   if (Math.RandomFloat01() > INTERCEPT_CHANCE) continue;
+   if (Math.RandomFloat01() > chance) continue;
    ACR_Intel intel = manager.IntelFor(listener);
    if (intel) Heard(intel, from, side + ":" + key);
   }
+ }
+
+ // Periodic SIGINT emissions from active FOB Radio Relays (called from ACR_Manager.Tick).
+ static void TickRelays(ACR_Manager manager)
+ {
+  if (!Replication.IsServer() || !manager || !manager.m_Structures) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  if (s_fNextRelayAt < 0) { s_fNextRelayAt = now + RELAY_TICK_MS; return; }
+  if (now < s_fNextRelayAt) return;
+  s_fNextRelayAt = now + RELAY_TICK_MS;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || !base.m_bBuilt || base.m_bRetired || base.m_bHqLost || base.m_sOwner.IsEmpty()) continue;
+   if (!manager.m_Structures.HasRelay(base)) continue;
+   Transmitted(base.m_sOwner, base.GetOrigin(), "relay:" + base.m_sName, RELAY_INTERCEPT_CHANCE);
+  }
+ }
+
+ // High-power command transmission when calling heavy artillery or air support: emanates from the
+ // calling player (unless in a Silent squad) or the side's nearest FOB with an active Radio Relay.
+ static void OnHeavySupport(string factionKey, vector target, int callerPlayerId)
+ {
+  if (!Replication.IsServer() || factionKey.IsEmpty()) return;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager) return;
+  vector txPos = vector.Zero;
+  string txKey = "support:" + factionKey;
+  if (callerPlayerId > 0)
+  {
+   IEntity caller = GetGame().GetPlayerManager().GetPlayerControlledEntity(callerPlayerId);
+   if (caller && ACR_Respawn.IsAlive(caller))
+   {
+    ACR_Squad squad = manager.FindSquadBySoldier(caller);
+    if (!squad || squad.m_Mode != ACR_EMoveMode.SILENT) txPos = caller.GetOrigin();
+   }
+  }
+  if (txPos == vector.Zero && manager.m_Structures)
+  {
+   float bestDist = float.MAX;
+   ACR_Base nearest;
+   foreach (ACR_Base base : ACR_Base.s_All)
+   {
+    if (!base || !base.m_bBuilt || base.m_bRetired || base.m_bHqLost || base.m_sOwner != factionKey) continue;
+    if (!manager.m_Structures.HasRelay(base)) continue;
+    float d = vector.DistanceXZ(base.GetOrigin(), target);
+    if (d < bestDist) { bestDist = d; nearest = base; }
+   }
+   if (nearest)
+   {
+    txPos = nearest.GetOrigin();
+    txKey = "relay:" + nearest.m_sName;
+   }
+  }
+  if (txPos != vector.Zero) Transmitted(factionKey, txPos, txKey, HEAVY_SUPPORT_CHANCE);
  }
 
  // The ring: centred off the transmitter (between a quarter and two thirds of the radius) so
@@ -266,20 +338,35 @@ class ACR_RadioIntercept
  static void Heard(ACR_Intel intel, vector from, string key)
  {
   float now = GetGame().GetWorld().GetWorldTime();
+  float refreshWindow = REFRESH_MS;
+  if (key.Contains(":relay:")) refreshWindow = RELAY_REFRESH_MS;
+  s_iHeard++;
+  foreach (ACR_Intercept known : intel.m_Intercepts)
+  {
+   if (known.m_sKey != key || now - known.m_fHeard > refreshWindow) continue;
+   float nextRadius = Math.Max(INTERCEPT_MIN_RADIUS, known.m_fRadius * TIGHTEN_FACTOR);
+   float nextAngle = Math.RandomFloat(0, Math.PI2);
+   float nextOffset = nextRadius * Math.RandomFloat(0.25, 0.66);
+   vector nextCentre = from + Vector(Math.Cos(nextAngle) * nextOffset, 0, Math.Sin(nextAngle) * nextOffset);
+   nextCentre[1] = GetGame().GetWorld().GetSurfaceY(nextCentre[0], nextCentre[2]);
+   known.m_fRadius = nextRadius;
+   known.m_vCentre = nextCentre;
+   known.m_fHeard = now;
+   if (!known.m_bToldTight && nextRadius <= INTERCEPT_TIGHT)
+   {
+    known.m_bToldTight = true;
+    intel.AddFeed(now, string.Format("SIGINT fix: heavy enemy radio traffic %1 (within %2 m)", intel.Place(nextCentre), Math.Round(nextRadius)), nextCentre);
+    ACR_RadioAudio.NotifyFaction(intel.m_sFaction, ACR_ERadioCue.INTERCEPT);
+   }
+   return;
+  }
   float angle = Math.RandomFloat(0, Math.PI2);
   float offset = INTERCEPT_RADIUS * Math.RandomFloat(0.25, 0.66);
   vector centre = from + Vector(Math.Cos(angle) * offset, 0, Math.Sin(angle) * offset);
   centre[1] = GetGame().GetWorld().GetSurfaceY(centre[0], centre[2]);
-  s_iHeard++;
-  foreach (ACR_Intercept known : intel.m_Intercepts)
-  {
-   if (known.m_sKey != key || now - known.m_fHeard > REFRESH_MS) continue;
-   known.m_vCentre = centre;
-   known.m_fHeard = now;
-   return;
-  }
   ACR_Intercept ring = new ACR_Intercept();
   ring.m_vCentre = centre;
+  ring.m_fRadius = INTERCEPT_RADIUS;
   ring.m_fHeard = now;
   ring.m_sKey = key;
   intel.m_Intercepts.Insert(ring);
@@ -304,8 +391,11 @@ class ACR_RadioIntercept
   foreach (ACR_Intercept ring : intel.m_Intercepts)
   {
    positions.Insert(ring.m_vCentre);
-   radii.Insert(INTERCEPT_RADIUS);
-   labels.Insert("~Radio intercept");
+   float radius = ring.m_fRadius;
+   if (radius <= 0) radius = INTERCEPT_RADIUS;
+   radii.Insert(radius);
+   if (ring.m_bToldTight) labels.Insert("~SIGINT fix");
+   else labels.Insert("~Radio intercept");
   }
  }
 }

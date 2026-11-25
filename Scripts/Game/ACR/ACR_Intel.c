@@ -1093,6 +1093,8 @@ class ACR_Intel : Managed
   foreach (ACR_Squad squad : m_Manager.m_Squads)
   {
    if (!squad || squad.GetName() != spotter || !squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction) continue;
+   // Silent mode enforces radio discipline: no interceptable transmission signature.
+   if (squad.m_Mode == ACR_EMoveMode.SILENT) return vector.Zero;
    if (squad.GetAnchor()) return squad.GetAnchor().GetOrigin();
    return vector.Zero;
   }

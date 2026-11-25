@@ -2551,6 +2551,7 @@ class ACR_Supports : Managed
   {
    case ACR_ESupportType.ROCKET_STRIKE:
    {
+    ACR_RadioIntercept.OnHeavySupport(factionKey, target, callerPlayerId);
     ACR_RocketStrikeRun strike = new ACR_RocketStrikeRun();
     strike.m_Target = target;
     strike.m_Dir = dir;
@@ -2564,6 +2565,7 @@ class ACR_Supports : Managed
    {
     // Three salvos of six over a wide area, each round a falling shell (its own incoming
     // whistle on every machine) that lands with a heavy blast.
+    ACR_RadioIntercept.OnHeavySupport(factionKey, target, callerPlayerId);
     ResourceName shell = BatteryShellFor(factionKey);
     int warnMs = (delay - BATTERY_FALL_SECONDS) * 1000;
     if (warnMs < 0) warnMs = 0;
@@ -2590,6 +2592,7 @@ class ACR_Supports : Managed
      entry.m_fReadyAt = now;
      return "Bomb-run prefab could not be spawned";
     }
+    ACR_RadioIntercept.OnHeavySupport(factionKey, target, callerPlayerId);
     break;
    case ACR_ESupportType.HELI_GUN_RUN:
    case ACR_ESupportType.HELI_LOITER:

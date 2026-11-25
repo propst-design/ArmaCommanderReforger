@@ -190,6 +190,7 @@ class ACR_FireMissions : Managed
   foreach (ACR_Squad observer : m_Manager.m_Squads)
   {
    if (!observer.GetFaction() || observer.GetFaction().GetFactionKey() != key || observer.HasPlayer()) continue;
+   if (observer.m_Mode == ACR_EMoveMode.SILENT) continue;
    if (!observer.m_bFireAtWill && !ai) continue;
    if (!IsObserver(observer) || !observer.GetAnchor()) continue;
    vector eye = observer.GetAnchor().GetOrigin();
