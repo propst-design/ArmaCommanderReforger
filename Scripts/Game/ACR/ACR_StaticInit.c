@@ -78,6 +78,7 @@ class ACR_StaticInit
   ACR_HideoutHomes.ACR_InitStatics();
   ACR_Muster.ACR_InitStatics();
   ACR_Disguise.ACR_InitStatics();
+  ACR_GuerrillaAI.ACR_InitStatics();
   ACR_SquadAI.ACR_InitStatics();
   ACR_SquadMarksmen.ACR_InitStatics();
   ACR_StartingUnit.ACR_InitStatics();

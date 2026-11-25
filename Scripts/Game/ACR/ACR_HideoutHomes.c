@@ -352,6 +352,14 @@ class ACR_HideoutHomes
 		}
 	}
 
+	static bool IsSettingUp(ACR_Squad squad)
+	{
+		if (!squad || !s_Setups) return false;
+		foreach (ACR_HideoutSetup s : s_Setups)
+			if (s && s.m_Squad == squad) return true;
+		return false;
+	}
+
 	// Called every second from ACR_Manager.Tick.
 	static void TickSetups(ACR_Manager manager)
 	{
