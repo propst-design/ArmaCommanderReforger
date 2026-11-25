@@ -1,25 +1,24 @@
 """Engine sound for ACA's blockout jets (Prefabs/Vehicles/Aircraft), synthesised: no recordings, so nothing to license.
 
-The jets are only ever heard from the ground, 300 m to 6 km away, so the loops are made to sound like that, not
-like an engine at arm's length (Jacob, 4 Nov: the first try was a dinky rocket motor with a dreadful crackle, too
-loud, as if right by his head, with no sense of distance):
- - a deep roar: -3 dB/octave (-6 in the far layer) with a hump at 110-180 Hz, nothing under ~35 Hz (that would
-   be a sub hum on most speakers), and the highs taken off by the air (a steep low-pass);
- - the rolling 'phasing' of a jet passing overhead: its sound bounces off the ground and the echo's delay keeps
-   changing, which sweeps notches through the roar (a comb filter with a slowly swept delay);
- - slow swells from turbulence; for the A-10 a faint TF34 whistle through the roar; no crackle.
-Two layers per jet, crossfaded by distance in the sound project: NEAR (heard within ~2.5 km, low-passed at around
-1-2 kHz) and FAR (a dull rumble, low-passed near 400 Hz, carrying to 6 km). Every layer is periodic over the loop
-(noise built in the frequency domain, modulation and sweep on whole cycles, delays wrapped round), so the loop
-repeats without a click.
+The jets are only ever heard from the ground, 300 m to 6 km away, so the loops and rendered pass-bys are built
+around real outdoor jet acoustics:
+ - Turbojets (RF-4C, Su-17M4R, Su-25): deep mixing roar, aerodynamic approach rush (plus subtle J79/R-95 intake
+   character), and a continuous tearing aft exhaust cone (broadband turbulent shear + high-skewness shock-crackle
+   + continuous low-end pressure billow, no discrete popping/flutter);
+ - High-bypass turbofan (A-10A TF34-GE-100): leaner lows, unmistakable detuned twin-engine 28-blade fan whistle
+   (~2.72 kHz BPF + partials), hollow upper fan-duct moan, and airy cold-stream bypass whoosh;
+ - Realistic outdoor ground bounce: low-passed (~850-900 Hz) at modest depth so overhead phasing rolls naturally
+   without metallic high-frequency flanging;
+ - Rendered 24 s pass-bys (Near 250 m, Mid 600 m) with retarded-time Doppler (Catmull-Rom cubic interpolation)
+   and true retarded-distance ISO-9613-style air absorption.
+Every loop layer is periodic over 12 s (frequency-domain noise, whole-cycle modulation, wrapped delays), so loops
+repeat without a click.
 
 Run with any Python that has numpy (Blender's has):
   "<Blender>/5.2/python/bin/python.exe" tools/audio/synth_jets.py <addon root>
-Writes Sounds/Vehicles/Aircraft/Samples/ACR_<jet>_Engine_{Near,Far}_LP.wav (48 kHz mono 16-bit), the sound project
-templates and the audio job for tools/Build-AircraftAssets.ps1, which registers the samples and writes
-Sounds/Vehicles/Aircraft/ACR_<jet>_Engine.acp (events SOUND_ACR_JET_LP and SOUND_ACR_JET_FAR_LP) once the samples
-have resource names. Previews: .local-aircraft/audio/ACR_<jet>_flyby.wav, a pass 400 m overhead with both layers
-at their distance levels (not used by the game: for listening before Workbench).
+Writes Sounds/Vehicles/Aircraft/Samples/ACR_<jet>_Engine_{Near,Far,Scream}_LP.wav and ACR_<jet>_Flyby_{Near,Mid}.wav,
+the sound project templates, and the audio job for tools/Build-AircraftAssets.ps1. Previews land in
+.local-aircraft/audio/ (not used by the game: for listening before Workbench).
 """
 import os, shutil, sys, wave
 import numpy as np
@@ -37,34 +36,75 @@ for d in (SAMPLES, TMPL, PREVIEW):
     os.makedirs(d, exist_ok=True)
 posix = lambda q: q.replace("\\", "/")
 
-# Distance curves (gain 0-1 by metres) and bank volumes (dB). The flyover starts the sound at 5.8 km (silent here)
-# and keeps the jet until the listener is 6 km away (ACR_LocalFlyover.SOUND_START_M / SOUND_KEEP_M).
-# spatial: 1 = a point source; the near roar a little less (a loud jet fills the sky).
-# rate: what each loop is saved at, enough for what it holds (Jacob, 5 Nov: trim the mod's size): the far rumble
-# is low-passed under 420 Hz, the near roar under 1.8 kHz (its whine to ~3.2 kHz), the scream under ~7 kHz.
-NEAR = dict(curve=[(0, 1, False), (300, 1, True), (2500, 0, False)], volume=-17, spatial=0.75, rate=16000)
+# Distance curves (gain 0-1 by metres), bank volumes (dB), and output sample rates.
+# Matches commit ed0b5d4: Near loops at 48 kHz and pass-bys at 32 kHz for full close-in treble; Far stays trimmed.
+NEAR = dict(curve=[(0, 1, False), (300, 1, True), (2500, 0, False)], volume=-17, spatial=0.75, rate=48000)
 FAR = dict(curve=[(300, 0, False), (1200, 1, True), (6000, 0, False)], volume=-15, spatial=1, rate=11025)
-# The turbojets' scream, close in only: the hot, tearing high roar of an afterburnerless turbojet going over (Jacob,
-# 4 Nov: the non-turbofan jets need a better scream overhead). High frequencies die off in air fast, so it is gone by
-# 1.2 km (the flyover starts it inside that: ACR_LocalFlyover.SCREAM_START_M).
 SCREAM = dict(curve=[(0, 1, False), (250, 1, True), (1200, 0, False)], volume=-19, spatial=0.85, rate=24000)
 SCREAM_VARIANTS = 2  # within 900 m the pass-by takes over, so this layer only plays for passes 0.9-1.2 km off
-# The pass-by carries its own distance in the render: flat out to 3 km. Its loudest moment sits at -9 dBFS, about
-# 7 dB over the old near loop at full, with the approach far quieter than that: the dynamics are the point.
 FLYBY = dict(curve=[(0, 1, False), (3000, 1, False), (3500, 0, False)], volume=-17, spatial=0.6, oneshot=True)
 
+FLYBY_RATE = 32000
+FLYBY_SECONDS = 24.0
+FLYBY_PEAK_S = 12.0
+FLYBY_DISTANCES = {"Near": 250.0, "Mid": 600.0}  # ACR_LocalFlyover picks Near under 420 m
+SOUND_SPEED = 343.0
+
 JETS = {
-    # hump: the roar's low hump (Hz); cut: the NEAR / FAR low-pass (Hz); whine: [(Hz, level)] in the NEAR layer;
-    # scream: the turbojets' close-in roar, body centre (Hz) and tearing bursts a second; slap: its thumping
-    # undertone, pitch (Hz) and thumps a second; the A-10's turbofans have neither
-    "A10A": dict(speed=180, hump=180, cut=(1800, 420), whine=[(2240, 0.10), (1150, 0.04)],
-                 howl=dict(f0=138, formants=[(560, 3.5), (1150, 5.0)], level=0.55), seed=1),
-    "Su25": dict(speed=180, hump=140, cut=(1300, 380), whine=[(2950, 0.02)], scream=(480, 28), slap=(85, 12), seed=2),
-    "RF4C": dict(speed=220, hump=110, cut=(1100, 340), whine=[], scream=(300, 34), slap=(58, 9), seed=3),  # J79: the lowest, harshest
-    "Su17M4R": dict(speed=220, hump=125, cut=(1200, 360), whine=[], scream=(380, 25), slap=(70, 11), seed=4),
+    "A10A": dict(
+        turbofan=True,
+        speed=175.0,
+        hump=195.0,
+        cut=(3200.0, 420.0),
+        bpf=2720.0,
+        whistle_gain=1.20,
+        moan_gain=0.80,
+        whoosh_gain=1.05,
+        core_gain=0.60,
+        seed=302,
+    ),
+    "Su25": dict(
+        turbofan=False,
+        speed=185.0,
+        hump=135.0,
+        cut=(1500.0, 380.0),
+        whine=[(2620.0, 0.16, 20.0)],
+        howl=dict(f0=155.0, formants=[(620.0, 2.0), (1250.0, 2.4)], level=0.18, cut=2600.0, detunes=(0.994, 1.006)),
+        fan_gain=0.65,
+        rush_gain=0.45,
+        tear=dict(tear_centre=340.0, crackle=0.35, sub_hz=76.0, sub_level=0.92),
+        tear_gain=1.15,
+        seed=102,
+    ),
+    "RF4C": dict(
+        turbofan=False,
+        speed=220.0,
+        hump=105.0,
+        cut=(1400.0, 340.0),
+        whine=[(1750.0, 0.14, 14.0)],
+        howl=dict(f0=195.0, formants=[(780.0, 3.2), (1580.0, 3.8)], level=0.26, cut=3200.0, detunes=(0.990, 1.010)),
+        fan_gain=0.85,
+        rush_gain=0.50,
+        tear=dict(tear_centre=380.0, crackle=0.72, sub_hz=58.0, sub_level=0.95),
+        tear_gain=1.45,
+        seed=103,
+    ),
+    "Su17M4R": dict(
+        turbofan=False,
+        speed=220.0,
+        hump=120.0,
+        cut=(1500.0, 360.0),
+        whine=[],
+        howl=None,
+        fan_gain=0.0,
+        rush_gain=0.58,
+        tear=dict(tear_centre=460.0, crackle=0.82, sub_hz=68.0, sub_level=0.85),
+        tear_gain=1.40,
+        seed=104,
+    ),
 }
 
-freqs = np.fft.rfftfreq(N, 1 / RATE)
+freqs = np.fft.rfftfreq(N, 1.0 / RATE)
 t = np.arange(N) / RATE
 
 
@@ -74,178 +114,283 @@ def periodic(hz):
 
 
 def lowpass_mag(f, cut, order=4):
-    return 1 / np.sqrt(1 + (f / cut) ** (2 * order))
+    return 1.0 / np.sqrt(1.0 + (f / cut) ** (2 * order))
 
 
-def roar(rng, hump, cut, slope):
-    """Noise falling `slope` (0.5: -3 dB/oct, 1: -6) with a +8 dB hump at `hump` Hz, high-passed at 35 Hz,
-    low-passed at `cut`."""
-    f = np.maximum(freqs, 1.0)
-    highpass = 1 / np.sqrt(1 + (35 / f) ** 4)
-    mag = f ** -slope * (1 + 1.5 * np.exp(-0.5 * (np.log2(f / hump) / 0.9) ** 2)) * highpass * lowpass_mag(f, cut)
+def highpass_mag(f, cut, order=4):
+    return 1.0 / np.sqrt(1.0 + (cut / np.maximum(f, 1e-3)) ** (2 * order))
+
+
+def lowpass_signal(x, sr, cut, order=2):
+    ff = np.fft.rfftfreq(len(x), 1.0 / sr)
+    spec = np.fft.rfft(x) * lowpass_mag(ff, cut, order)
+    return np.fft.irfft(spec, len(x))
+
+
+def colored_noise(rng, mag):
     x = np.fft.irfft(mag * np.exp(2j * np.pi * rng.random(len(freqs))), N)
-    return x / np.sqrt(np.mean(x ** 2))
+    rms = np.sqrt(np.mean(x ** 2))
+    return x / max(rms, 1e-12)
 
 
-def whine(rng, tones, cut):
-    x = np.zeros(N)
-    drift = np.sin(2 * np.pi * periodic(0.17) * t) + 0.5 * np.sin(2 * np.pi * periodic(0.41) * t + 1.3)
-    for hz, level in tones:
-        f0 = periodic(hz)
-        phase = 2 * np.pi * f0 * (t + 0.003 * np.cumsum(drift) / RATE)  # the drift has zero mean: phase closes
-        x += level * np.sqrt(2) * np.sin(phase + rng.uniform(0, 2 * np.pi))
-    if not tones:
-        return x
-    spec = np.fft.rfft(x) * lowpass_mag(np.maximum(freqs, 1.0), cut * 1.8, 2)  # a whistle carries a bit further
-    return np.fft.irfft(spec, N)
+def smooth_turb(rng, f_lo, f_hi, order=2):
+    """Smooth, continuous, periodic turbulence modulation (no discrete pulsing)."""
+    f = np.maximum(freqs, 1e-3)
+    mag = highpass_mag(f, f_lo, order) * lowpass_mag(f, f_hi, order) * (f ** -0.5)
+    mag[0] = 0.0
+    x = np.fft.irfft(mag * np.exp(2j * np.pi * rng.random(len(freqs))), N)
+    return x / max(np.std(x), 1e-12)
 
 
-def howl(rng, cfg, cut):
-    """The TF34's throaty "waaaaahhh" under its whine (Jacob, 4 Nov): a buzzy fan tone at `f0` with all its
-    harmonics, voiced through two vowel resonances (`formants`: Hz, Q) like an open "ah", its pitch wavering
-    slowly (+-1.5 %, zero-mean so the loop closes) with a little jitter, and some breath: noise through the same
-    resonances. RMS `level` against the roar's 1."""
+def roar_layer(rng, hump, cut, slope=0.55):
+    """Deep jet mixing roar with slow organic turbulence swells."""
+    f = np.maximum(freqs, 1.0)
+    hp = highpass_mag(f, 32.0, 2)
+    hump_boost = 1.0 + 1.8 * np.exp(-0.5 * (np.log2(f / hump) / 0.85) ** 2)
+    mag = (f ** -slope) * hump_boost * hp * lowpass_mag(f, cut, 3)
+    x = colored_noise(rng, mag)
+    env = np.clip(1.0 + 0.22 * smooth_turb(rng, 0.15, 1.8, 2), 0.55, 1.55)
+    x *= env
+    return x / max(np.sqrt(np.mean(x ** 2)), 1e-12)
+
+
+def twin_fan_whine(rng, tones, twin_detune=0.012):
+    """Aerodynamic, breathy twin-engine fan/compressor whine: narrowband turbulent noise + softly modulated
+    detuned twin harmonics."""
+    f = np.maximum(freqs, 1.0)
+    out = np.zeros(N)
+    for hz, level, q_noise in tones:
+        for det in (1.0 - twin_detune * 0.5, 1.0 + twin_detune * 0.5):
+            fc = periodic(hz * det)
+            wander = 0.008 * smooth_turb(rng, 0.08, 0.7, 2) + 0.0025 * smooth_turb(rng, 1.5, 12.0, 2)
+            wander -= np.mean(wander)
+            phase = 2.0 * np.pi * fc * (t + np.cumsum(wander) / RATE)
+            amp = np.clip(1.0 + 0.28 * smooth_turb(rng, 0.3, 4.5, 2), 0.3, 1.8)
+            tone = amp * np.sin(phase + rng.uniform(0, 2 * np.pi))
+            nb_mag = 1.0 / np.sqrt(1.0 + (q_noise * (f / fc - fc / f)) ** 2)
+            breath = colored_noise(rng, nb_mag) * amp
+            tone_mix = 0.58 if q_noise >= 25.0 else 0.44
+            out += level * (tone_mix * tone + (1.0 - tone_mix) * breath)
+    return out
+
+
+def breathy_howl(rng, cfg):
+    """Natural twin-engine intake/duct howl for turbojets (RF-4C J79, Su-25 R-95)."""
     f = np.maximum(freqs, 1.0)
 
-    def vowel(fr):
+    def formant_env(fr):
         g = np.zeros_like(fr)
         for fc, q in cfg["formants"]:
-            g += 1 / np.sqrt(1 + (q * (fr / fc - fc / fr)) ** 2)
+            g += 1.0 / np.sqrt(1.0 + (q * (fr / fc - fc / fr)) ** 2)
         return g
-    f0 = periodic(cfg["f0"])
-    drift = np.sin(2 * np.pi * periodic(0.11) * t + 0.3) + 0.6 * np.sin(2 * np.pi * periodic(0.29) * t + 2.1)
-    jitter = np.fft.irfft(lowpass_mag(f, 18, 2) * (f > 2) * np.exp(2j * np.pi * rng.random(len(freqs))), N)
-    jitter /= np.max(np.abs(jitter))
-    wobble = 0.015 * drift / np.max(np.abs(drift)) + 0.004 * jitter
-    phase = 2 * np.pi * f0 * (t + np.cumsum(wobble) / RATE)
-    voiced = np.zeros(N)
-    for k in range(1, int(3000 / f0)):
-        voiced += vowel(np.array([k * f0]))[0] / k ** 0.3 * np.sin(k * phase + rng.uniform(0, 2 * np.pi))
-    voiced /= np.sqrt(np.mean(voiced ** 2))
-    breath = np.fft.irfft(vowel(f) * np.exp(2j * np.pi * rng.random(len(freqs))), N)
-    breath /= np.sqrt(np.mean(breath ** 2))
-    x = voiced + 0.5 * breath
-    x = np.fft.irfft(np.fft.rfft(x) * lowpass_mag(f, cut * 1.5, 2), N)
-    return cfg["level"] * x / np.sqrt(np.mean(x ** 2))
+
+    out = np.zeros(N)
+    detunes = cfg.get("detunes", (0.993, 1.007))
+    for det in detunes:
+        f0 = periodic(cfg["f0"] * det)
+        wobble = 0.010 * smooth_turb(rng, 0.1, 0.8, 2) + 0.003 * smooth_turb(rng, 1.5, 14.0, 2)
+        wobble -= np.mean(wobble)
+        phase = 2.0 * np.pi * f0 * (t + np.cumsum(wobble) / RATE)
+        voiced = np.zeros(N)
+        max_k = min(22, int(3500 / f0))
+        for k in range(1, max_k + 1):
+            w = formant_env(np.array([k * f0]))[0] / (k ** 0.55)
+            voiced += w * np.sin(k * phase + rng.uniform(0, 2 * np.pi))
+        voiced /= max(np.sqrt(np.mean(voiced ** 2)), 1e-12)
+        breath = colored_noise(rng, formant_env(f) * highpass_mag(f, 120.0, 2))
+        turb = np.clip(1.0 + 0.22 * smooth_turb(rng, 0.25, 3.0, 2), 0.5, 1.6)
+        out += (0.35 * voiced + 0.65 * breath) * turb
+    out = np.fft.irfft(np.fft.rfft(out) * lowpass_mag(f, cfg.get("cut", 3200.0), 2), N)
+    return cfg["level"] * out / max(np.sqrt(np.mean(out ** 2)), 1e-12)
 
 
-def ground_phasing(x, depth=0.65):
-    """Direct sound plus its ground echo, the echo's delay swept 1.5-9 ms and back once a loop: moving notches."""
-    tau = 0.00525 + 0.00375 * np.sin(2 * np.pi * t / SECONDS + 0.7)
+def tf34_whistle(rng, base_bpf=2720.0, twin_detune=0.0085):
+    """Twin TF34-GE-100 28-blade high-bypass fan whistle: crisp, slightly hollow twin-detuned blade-passing
+    tone + sub-harmonic + faint upper partials with gentle atmospheric shimmer."""
+    f = np.maximum(freqs, 1.0)
+    out = np.zeros(N)
+    partials = [
+        (base_bpf, 1.00, 42.0, 0.72),
+        (base_bpf * 0.5, 0.36, 26.0, 0.55),
+        (base_bpf * 1.5, 0.16, 36.0, 0.50),
+        (base_bpf * 2.0, 0.14, 48.0, 0.60),
+    ]
+    for hz, level, q_nb, tone_ratio in partials:
+        for det in (1.0 - twin_detune * 0.5, 1.0 + twin_detune * 0.5):
+            fc = periodic(hz * det)
+            wander = 0.0035 * smooth_turb(rng, 0.08, 0.6, 2) + 0.0012 * smooth_turb(rng, 1.5, 10.0, 2)
+            wander -= np.mean(wander)
+            phase = 2.0 * np.pi * fc * (t + np.cumsum(wander) / RATE)
+            amp = np.clip(1.0 + 0.22 * smooth_turb(rng, 0.35, 4.0, 2), 0.45, 1.65)
+            tone = amp * np.sin(phase + rng.uniform(0, 2 * np.pi))
+            nb_mag = 1.0 / np.sqrt(1.0 + (q_nb * (f / fc - fc / f)) ** 2)
+            breath = colored_noise(rng, nb_mag) * amp
+            out += level * (tone_ratio * tone + (1.0 - tone_ratio) * breath)
+    return out / max(np.sqrt(np.mean(out ** 2)), 1e-12)
+
+
+def tf34_duct_moan(rng, twin_detune=0.010):
+    """Hollow upper fan-duct moan of the A-10's TF34 nacelles (720 Hz & 1480 Hz formants, no low foghorn)."""
+    f = np.maximum(freqs, 1.0)
+
+    def duct_env(fr):
+        return (
+            1.0 / np.sqrt(1.0 + (3.2 * (fr / 720.0 - 720.0 / fr)) ** 2)
+            + 0.75 / np.sqrt(1.0 + (3.8 * (fr / 1480.0 - 1480.0 / fr)) ** 2)
+        )
+
+    out = np.zeros(N)
+    for det in (1.0 - twin_detune * 0.5, 1.0 + twin_detune * 0.5):
+        f0 = periodic(112.0 * det)
+        wander = 0.005 * smooth_turb(rng, 0.1, 0.7, 2) + 0.0015 * smooth_turb(rng, 1.5, 10.0, 2)
+        wander -= np.mean(wander)
+        phase = 2.0 * np.pi * f0 * (t + np.cumsum(wander) / RATE)
+        buzz = np.zeros(N)
+        for k in range(4, 24):
+            w = duct_env(np.array([k * f0]))[0] / (k ** 0.35)
+            buzz += w * np.sin(k * phase + rng.uniform(0, 2 * np.pi))
+        buzz /= max(np.sqrt(np.mean(buzz ** 2)), 1e-12)
+        air = colored_noise(rng, duct_env(f) * highpass_mag(f, 350.0, 2))
+        turb = np.clip(1.0 + 0.22 * smooth_turb(rng, 0.3, 3.2, 2), 0.5, 1.6)
+        out += (0.42 * buzz + 0.58 * air) * turb
+    return out / max(np.sqrt(np.mean(out ** 2)), 1e-12)
+
+
+def bypass_whoosh(rng):
+    """High-bypass turbofan cold-stream rush: airy, hollow mid-band whoosh (220-3800 Hz)."""
+    f = np.maximum(freqs, 1.0)
+    mag = highpass_mag(f, 160.0, 2) * lowpass_mag(f, 4200.0, 3) * (f ** -0.45)
+    mag *= 1.0 + 0.7 * np.exp(-0.5 * (np.log2(f / 620.0) / 0.75) ** 2)
+    x = colored_noise(rng, mag)
+    x *= np.clip(1.0 + 0.20 * smooth_turb(rng, 0.25, 2.5, 2), 0.55, 1.55)
+    return x / max(np.sqrt(np.mean(x ** 2)), 1e-12)
+
+
+def light_core_rumble(rng):
+    """Modest warm core exhaust for the A-10's high-bypass turbofans."""
+    f = np.maximum(freqs, 1.0)
+    mag = highpass_mag(f, 55.0, 2) * lowpass_mag(f, 950.0, 3) * (f ** -0.55)
+    mag *= 1.0 + 1.1 * np.exp(-0.5 * (np.log2(f / 195.0) / 0.85) ** 2)
+    x = colored_noise(rng, mag)
+    x *= np.clip(1.0 + 0.22 * smooth_turb(rng, 0.2, 2.0, 2), 0.55, 1.55)
+    return x / max(np.sqrt(np.mean(x ** 2)), 1e-12)
+
+
+def airframe_rush(rng):
+    """Smooth aerodynamic rush heard ahead of a fast-mover as it slices through air."""
+    f = np.maximum(freqs, 1.0)
+    mag = highpass_mag(f, 180.0, 2) * lowpass_mag(f, 4500.0, 2) * (f ** -0.4)
+    x = colored_noise(rng, mag)
+    x *= np.clip(1.0 + 0.18 * smooth_turb(rng, 0.3, 3.0, 2), 0.6, 1.5)
+    return x / max(np.sqrt(np.mean(x ** 2)), 1e-12)
+
+
+def turbojet_tear(rng, cfg, variant=0):
+    """Continuous tearing/ripping jet exhaust + true high-skewness jet crackle + continuous sub-pressure billow.
+    Replaces discrete Poisson Hann bursts & 10 Hz sine thumps so close-in turbojets tear cleanly without
+    gunfire/helicopter stuttering."""
+    f = np.maximum(freqs, 1.0)
+    centre = cfg["tear_centre"] * (1.0, 0.91, 1.09, 0.96)[variant % 4]
+    crackle_amt = cfg["crackle"]
+    sub_hz = cfg["sub_hz"] * (1.0, 0.94, 1.06, 0.97)[variant % 4]
+
+    hp = highpass_mag(f, 80.0, 3)
+    shear_mag = (np.minimum(f / centre, 1.0) ** 0.8) * (np.maximum(f / centre, 1.0) ** -0.45) * hp * lowpass_mag(f, 6500.0, 3)
+    shear = colored_noise(rng, shear_mag)
+    surge = np.clip(1.0 + 0.30 * smooth_turb(rng, 0.6, 5.5, 2), 0.45, 1.75)
+    shear *= surge
+
+    if crackle_amt > 0:
+        cr_mag = highpass_mag(f, 320.0, 2) * lowpass_mag(f, 5200.0, 2) * (f ** -0.2)
+        cr_raw = colored_noise(rng, cr_mag)
+        cr_mod = np.clip(0.85 + 0.45 * smooth_turb(rng, 2.0, 14.0, 2), 0.15, 2.0)
+        c = cr_raw * cr_mod
+        c_pos = np.maximum(c, 0.0)
+        c_neg = np.maximum(-c, 0.0)
+        c_skew = (c_pos ** 1.35) * 1.35 - (c_neg ** 0.82) * 0.75
+        c_skew -= np.mean(c_skew)
+        c_skew = np.fft.irfft(np.fft.rfft(c_skew) * highpass_mag(f, 180.0, 2) * lowpass_mag(f, 6500.0, 3), N)
+        c_skew /= max(np.sqrt(np.mean(c_skew ** 2)), 1e-12)
+    else:
+        c_skew = np.zeros(N)
+
+    sub_mag = np.exp(-0.5 * (np.log2(f / sub_hz) / 0.85) ** 2) * highpass_mag(f, 30.0, 3) * lowpass_mag(f, 260.0, 3)
+    sub = colored_noise(rng, sub_mag)
+    sub *= np.clip(1.0 + 0.38 * smooth_turb(rng, 0.5, 4.0, 2), 0.35, 1.85)
+    sub /= max(np.sqrt(np.mean(sub ** 2)), 1e-12)
+
+    x = 0.65 * shear + crackle_amt * c_skew + cfg["sub_level"] * sub
+    x /= max(np.sqrt(np.mean(x ** 2)), 1e-12)
+    x *= 0.45
+    x = np.where(x > 0, np.tanh(1.5 * x) / 1.5, np.tanh(0.95 * x) / 0.95)
+    x -= np.mean(x)
+    return x / max(np.sqrt(np.mean(x ** 2)), 1e-12)
+
+
+def ground_phasing(x, depth=0.30, cut=900.0):
+    """Soft outdoor ground echo, low-passed to model terrain absorption and swept once per loop."""
+    tau = 0.00525 + 0.00375 * np.sin(2.0 * np.pi * t / SECONDS + 0.7)
     pos = (np.arange(N) - tau * RATE) % N
     i0 = np.floor(pos).astype(int)
     frac = pos - i0
-    echo = x[i0] * (1 - frac) + x[(i0 + 1) % N] * frac
+    echo = x[i0] * (1.0 - frac) + x[(i0 + 1) % N] * frac
+    echo = lowpass_signal(echo, RATE, cut, 2)
     return x + depth * echo
 
 
-def layer(spec, cut, with_whine):
-    rng = np.random.default_rng(spec["seed"] * 10 + (1 if with_whine else 2))
-    x = roar(rng, spec["hump"], cut, 0.5 if with_whine else 1.0)
-    if with_whine:
-        x += whine(rng, spec["whine"], cut)
+def layer(spec, cut, is_near):
+    rng = np.random.default_rng(spec["seed"] * 10 + (1 if is_near else 2))
+    if not is_near:
+        x = roar_layer(rng, spec["hump"], cut, slope=1.0)
+        x = ground_phasing(x, depth=0.25, cut=450.0)
+    elif spec.get("turbofan"):
+        x = (
+            0.55 * light_core_rumble(rng)
+            + 0.75 * bypass_whoosh(rng)
+            + 0.48 * tf34_whistle(rng, base_bpf=spec["bpf"])
+            + 0.35 * tf34_duct_moan(rng)
+        )
+        x = ground_phasing(x, depth=0.28, cut=900.0)
+    else:
+        x = roar_layer(rng, spec["hump"], cut, slope=0.55)
+        if spec["whine"]:
+            x += 0.35 * twin_fan_whine(rng, spec["whine"])
         if spec.get("howl"):
-            x += howl(rng, spec["howl"], cut)
-    x = ground_phasing(x)
-    swell = 1 + 0.18 * np.sin(2 * np.pi * periodic(0.13) * t + 0.4) + 0.08 * np.sin(2 * np.pi * periodic(0.31) * t + 2.0)
+            x += 0.45 * breathy_howl(rng, spec["howl"])
+        x = ground_phasing(x, depth=0.30, cut=850.0)
+
+    swell = 1.0 + 0.14 * np.sin(2.0 * np.pi * periodic(0.13) * t + 0.4) + 0.06 * np.sin(2.0 * np.pi * periodic(0.31) * t + 2.0)
     x *= swell
     for _ in range(4):  # -16 dBFS RMS; peaks rounded off softly
-        x *= 10 ** (-16 / 20) / np.sqrt(np.mean(x ** 2))
-        x = 0.97 * np.tanh(x / 0.97)
+        x *= 10.0 ** (-16.0 / 20.0) / max(np.sqrt(np.mean(x ** 2)), 1e-12)
+        x = 0.96 * np.tanh(x / 0.96)
     return x
 
 
 def scream(spec, variant):
-    """Turbojet roar torn out of the nozzle, close in. Jet mixing noise peaks near Strouhal 0.2 (0.2 U/D: low
-    hundreds of Hz for a J79, AL-21 or R-95 nozzle), so the energy is a broad body round `centre` (rising below it,
-    -3 dB/oct above, high-passed at 120 Hz) with only a little hiss over 2 kHz: the first try sat at 2-2.6 kHz and
-    sounded like "a compressed air nozzle instead of air violently tearing out the back of a jet nozzle" (Jacob,
-    4 Nov). The tearing is irregular: random bursts (Poisson, `rate` a second, 20-80 ms, random depth) that swell
-    the body and carry a brighter ripping band of their own; no periodic flutter (it rattled: "rickety") and no
-    impulses (the crackle was disliked). An asymmetric soft clip skews the wave so it rips rather than hisses.
-    Each variant has its own noise, centre and burst rate, and the bank picks one at random each pass ("a
-    predictable cadence and tone each time"). Periodic like the other loops."""
-    centre, rate = spec["scream"]
-    centre *= (1.0, 0.88, 1.12, 0.95)[variant]
-    rate *= (1.0, 1.35, 0.75, 1.15)[variant]
+    """Close-in turbojet exhaust loop (0.9-1.2 km passes where the pass-by one-shot does not fire)."""
     rng = np.random.default_rng(spec["seed"] * 100 + 50 + variant)
-    f = np.maximum(freqs, 1.0)
-
-    def noise(mag):
-        x = np.fft.irfft(mag * np.exp(2j * np.pi * rng.random(len(freqs))), N)
-        return x / np.sqrt(np.mean(x ** 2))
-    highpass = 1 / np.sqrt(1 + (120 / f) ** 8)
-    body_mag = (np.minimum(f / centre, 1.0) ** 1.0) * (np.maximum(f / centre, 1.0) ** -0.5) * highpass
-    body_mag *= lowpass_mag(f, 5500, 3)
-    body_mag += 0.08 * highpass / np.sqrt(1 + (2500 / f) ** 4) * lowpass_mag(f, 7000, 3)  # a little hiss
-    body = noise(body_mag)
-    rip = noise(np.exp(-0.5 * (np.log2(f / (centre * 2.5)) / 1.2) ** 2) * highpass)  # brighter, broad
-    # bursts: Hann windows at Poisson times, wrapped round the loop
-    env = np.zeros(N)
-    count = rng.poisson(rate * SECONDS)
-    for start in rng.random(count) * N:
-        length = int(rng.uniform(0.02, 0.08) * RATE)
-        w = np.hanning(length) * rng.uniform(0.3, 1.0)
-        idx = (int(start) + np.arange(length)) % N
-        env[idx] += w
-    env = np.minimum(env, 1.6)
-    x = body * (0.55 + 0.45 * env) + 0.7 * rip * env
-    x /= np.sqrt(np.mean(x ** 2))
-    x += 1.2 * slap(spec, variant, rng)
-    x = ground_phasing(x, 0.3)
-    x *= 1 + 0.15 * np.sin(2 * np.pi * periodic(0.19 + 0.04 * variant) * t + variant)
-    # asymmetric soft clip: the positive half driven harder than the negative
-    x *= 10 ** (-12 / 20) / np.sqrt(np.mean(x ** 2))
-    x = np.where(x > 0, np.tanh(1.8 * x) / 1.8, np.tanh(0.9 * x) / 0.9)
-    x -= np.mean(x)
-    x *= 10 ** (-16 / 20) / np.sqrt(np.mean(x ** 2))
-    return 0.97 * np.tanh(x / 0.97)
+    x = turbojet_tear(rng, spec["tear"], variant=variant)
+    x = ground_phasing(x, depth=0.24, cut=850.0)
+    x *= 1.0 + 0.12 * np.sin(2.0 * np.pi * periodic(0.19 + 0.04 * variant) * t + variant)
+    x *= 10.0 ** (-16.0 / 20.0) / max(np.sqrt(np.mean(x ** 2)), 1e-12)
+    return 0.96 * np.tanh(x / 0.96)
 
 
-def slap(spec, variant, rng):
-    """The thrust's slap under the tear (Jacob, 4 Nov: "the SLAP of the thrust... the deeper, almost percussive
-    rumble"): irregular low pressure thumps (Poisson, `rate` a second; each a 1.5-cycle swing at `hz`, a 6-12 ms
-    raised-cosine attack, so no click, and a 30-90 ms decay, random depth) over a rumble bed of band-limited noise
-    that swells with them. High-passed at 30 Hz so the one-sided thumps leave no offset. RMS 1."""
-    hz, rate = spec["slap"]
-    hz *= (1.0, 0.92, 1.08, 0.96)[variant]
-    rate *= (1.0, 1.2, 0.85, 1.1)[variant]
-    f = np.maximum(freqs, 1.0)
-    thumps = np.zeros(N)
-    env = np.zeros(N)
-    for start in rng.random(rng.poisson(rate * SECONDS)) * N:
-        f0 = hz * rng.uniform(0.85, 1.15)
-        attack, decay = rng.uniform(0.006, 0.012), rng.uniform(0.03, 0.09)
-        n = int((attack + 5 * decay) * RATE)
-        tt = np.arange(n) / RATE
-        shape = np.where(tt < attack, 0.5 - 0.5 * np.cos(np.pi * tt / attack), np.exp(-(tt - attack) / decay))
-        depth = rng.uniform(0.35, 1.0)
-        idx = (int(start) + np.arange(n)) % N
-        thumps[idx] += depth * shape * np.sin(2 * np.pi * f0 * tt)
-        env[idx] += depth * shape
-    bed_mag = np.exp(-0.5 * (np.log2(f / hz) / 0.9) ** 2)
-    bed = np.fft.irfft(bed_mag * np.exp(2j * np.pi * rng.random(len(freqs))), N)
-    bed /= np.sqrt(np.mean(bed ** 2))
-    thumps /= np.sqrt(np.mean(thumps ** 2))
-    x = thumps + 0.45 * bed * (0.5 + np.minimum(env, 1.5))
-    x = np.fft.irfft(np.fft.rfft(x) / np.sqrt(1 + (30 / f) ** 8) * lowpass_mag(f, 400, 3), N)
-    return x / np.sqrt(np.mean(x ** 2))
-
-
-# ---------- the pass-by: one rendered fly-past per jet and distance ----------
-# A loop at a distance-set volume can't give a jet's two signatures: the pitch falling as it passes (Doppler: the
-# A-10's whine sliding down, Jacob, 4 Nov, "missing its signature noise") and the roar slamming in from behind
-# just after it has gone over ("that Michael Bay oomph"). So each jet gets a 24 s pass-by rendered through the
-# real geometry: the sound at the listener is the source as emitted at the retarded time (Doppler), spread 1/r,
-# dulled by air (high frequencies lost with distance), plus its ground echo (a comb sweeping as the angle
-# changes), with each part radiating its own way: the fan tones forward and aft, the jet's tear and slap in a
-# lobe behind the nozzle. ACR_LocalFlyover starts it so its closest moment (FLYBY_PEAK_S in) lands as the jet
-# passes, and lets the close-range loops go under it.
-FLYBY_RATE = 24000
-FLYBY_SECONDS = 24.0
-FLYBY_PEAK_S = 12.0
-FLYBY_DISTANCES = {"Near": 250.0, "Mid": 600.0}  # ACR_LocalFlyover picks Near under 420 m
-SOUND_SPEED = 343.0
+def cubic_interp(src, idx):
+    """Catmull-Rom cubic interpolation for cleaner Doppler resampling."""
+    n = len(src)
+    i1 = np.clip(np.floor(idx).astype(int), 1, n - 3)
+    u = idx - i1
+    p0 = src[i1 - 1]
+    p1 = src[i1]
+    p2 = src[i1 + 1]
+    p3 = src[i1 + 2]
+    return p1 + 0.5 * u * (
+        (p2 - p0)
+        + u * ((2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3)
+               + u * (3.0 * (p1 - p2) + p3 - p0))
+    )
 
 
 def lobe(theta, centre, width):
@@ -253,89 +398,138 @@ def lobe(theta, centre, width):
 
 
 def flyby(spec, D, seed):
+    """24 s pass-by rendered through retarded-time geometry, terrain-filtered ground bounce,
+    and true retarded-distance air absorption."""
     v = spec["speed"]
     rng = np.random.default_rng(seed)
-    loops = 6  # 72 s of source (the loops are periodic, so they tile): the approach heard in 12 s left the jet
-    # over ~35 s (sound from a closing source arrives compressed)
-    tile = lambda x: np.tile(x, loops)
-    f = np.maximum(freqs, 1.0)
-    roar_src = roar(rng, spec["hump"], 6000, 0.5)
-    parts = [(tile(roar_src), "roar")]
-    if spec["whine"] or spec.get("howl"):
-        tone = whine(rng, spec["whine"], 6000) * 4.5  # the A-10's signature: the fan whine, up front
-        if spec.get("howl"):
-            tone = tone + howl(rng, spec["howl"], 4000)
-        parts.append((tile(tone), "fan"))
-    if spec.get("scream"):
-        parts.append((tile(scream(spec, int(rng.integers(4)))), "jet"))
-    src_len = N * loops
+    loops = 6
+    is_tf = spec.get("turbofan", False)
+    prep_cut = 10500.0 if is_tf else 9500.0
+    prep = lambda x: np.tile(lowpass_signal(x, RATE, prep_cut, 4), loops)
+
+    if is_tf:
+        parts = [
+            (prep(tf34_whistle(rng, base_bpf=spec["bpf"])), "whistle"),
+            (prep(tf34_duct_moan(rng)), "moan"),
+            (prep(bypass_whoosh(rng)), "whoosh"),
+            (prep(light_core_rumble(rng)), "core"),
+        ]
+    else:
+        parts = [
+            (prep(roar_layer(rng, spec["hump"], 5500.0, 0.55)), "roar"),
+            (prep(airframe_rush(rng)), "rush"),
+            (prep(turbojet_tear(rng, spec["tear"], variant=int(rng.integers(4)))), "tear"),
+        ]
+        if spec["whine"] or spec.get("howl"):
+            fan = np.zeros(N)
+            if spec["whine"]:
+                fan += twin_fan_whine(rng, spec["whine"])
+            if spec.get("howl"):
+                fan += breathy_howl(rng, spec["howl"])
+            fan /= max(np.sqrt(np.mean(fan ** 2)), 1e-12)
+            parts.append((prep(fan), "fan"))
+
     n_out = int(FLYBY_SECONDS * FLYBY_RATE)
     tau = np.arange(n_out) / FLYBY_RATE
-    hp, hl = D, 1.7  # the jet D m over the listener's ground, the listener's ear 1.7 m up
-    out = np.zeros(n_out)
-    for path, refl in (("direct", 1.0), ("ground", 0.55)):
+    hp, hl = D, 1.7
+    direct_out = np.zeros(n_out)
+    ground_out = np.zeros(n_out)
+    r_direct_out = np.zeros(n_out)
+
+    for path in ("direct", "ground"):
         dz = hp - hl if path == "direct" else hp + hl
-        # emission times on a fine grid -> reception times; invert for each output sample
-        te = np.linspace(-40, 40, 400001)
+        te = np.linspace(-45.0, 45.0, 450001)
         r = np.sqrt((v * te) ** 2 + dz ** 2)
         tr = te + r / SOUND_SPEED
-        tr0 = (hp - hl) / SOUND_SPEED  # the direct sound's closest moment
+        tr0 = (hp - hl) / SOUND_SPEED
         want = tau - FLYBY_PEAK_S + tr0
         te_out = np.interp(want, tr, te)
         r_out = np.sqrt((v * te_out) ** 2 + dz ** 2)
-        cos_t = np.clip(-v * te_out / r_out, -1, 1)  # angle off the nose to the listener
+        if path == "direct":
+            r_direct_out = r_out
+        cos_t = np.clip(-v * te_out / r_out, -1.0, 1.0)
         theta = np.degrees(np.arccos(cos_t))
-        idx = (te_out + 50) * RATE  # source time 0 (overhead) sits 50 s into the source
-        i0 = np.clip(np.floor(idx).astype(int), 0, src_len - 2)
-        frac = idx - i0
-        gain = refl * D / r_out / (1 - 0.3 * v / SOUND_SPEED * cos_t)
+
+        idx = (te_out + 50.0) * RATE
+        conv = 0.22 if is_tf else 0.25
+        gain = (D / r_out) / (1.0 - conv * (v / SOUND_SPEED) * cos_t)
+
+        acc = np.zeros(n_out)
         for src, kind in parts:
-            sig = src[i0] * (1 - frac) + src[i0 + 1] * frac
-            if kind == "roar":
-                d = 0.55 + 0.45 * lobe(theta, 130, 40)
+            sig = cubic_interp(src, idx)
+            if kind == "whistle":
+                d = spec["whistle_gain"] * (0.28 + 1.15 * lobe(theta, 48.0, 34.0) + 0.72 * lobe(theta, 128.0, 32.0))
+            elif kind == "moan":
+                d = spec["moan_gain"] * (0.20 + 0.90 * lobe(theta, 60.0, 36.0) + 0.65 * lobe(theta, 122.0, 32.0))
+            elif kind == "whoosh":
+                d = spec["whoosh_gain"] * (0.25 + 0.65 * lobe(theta, 95.0, 40.0) + 0.90 * lobe(theta, 132.0, 32.0))
+            elif kind == "core":
+                d = spec["core_gain"] * (0.25 + 0.95 * lobe(theta, 136.0, 36.0))
+            elif kind == "roar":
+                d = 0.40 + 0.75 * lobe(theta, 132.0, 38.0)
+            elif kind == "rush":
+                d = spec["rush_gain"] * (0.25 + 0.85 * lobe(theta, 65.0, 38.0))
             elif kind == "fan":
-                d = 0.3 + 0.9 * lobe(theta, 45, 30) + 0.6 * lobe(theta, 125, 30)
-            else:
-                d = 0.12 + 1.3 * lobe(theta, 140, 28)
-            out += sig * d * gain
-    # air absorption by the distance of each moment (dB/m rising steeply with frequency), frame by frame
+                d = spec["fan_gain"] * (0.15 + 0.95 * lobe(theta, 42.0, 28.0) + 0.35 * lobe(theta, 125.0, 26.0))
+            else:  # tear
+                d = spec["tear_gain"] * (0.06 + 1.45 * lobe(theta, 138.0, 24.0))
+            acc += sig * d * gain
+
+        if path == "direct":
+            direct_out = acc
+        else:
+            ground_out = acc
+
+    ground_cut = 900.0 if is_tf else 850.0
+    ground_refl = 0.28 if is_tf else 0.32
+    out = direct_out + ground_refl * lowpass_signal(ground_out, FLYBY_RATE, ground_cut, 2)
+
+    # Air absorption using true retarded emission distance r_direct_out
     frame, hop = 2048, 512
     win = np.hanning(frame)
-    ff = np.fft.rfftfreq(frame, 1 / FLYBY_RATE)
-    alpha = 0.0045 * (np.maximum(ff, 1) / 1000) ** 1.25  # dB per metre: ~0.025 at 4 kHz, ~0.06 at 8 kHz (ISO 9613-ish)
+    ff = np.fft.rfftfreq(frame, 1.0 / FLYBY_RATE)
+    if is_tf:
+        alpha = 0.0032 * (np.maximum(ff, 1.0) / 1000.0) ** 1.30
+    else:
+        alpha = 0.0042 * (np.maximum(ff, 1.0) / 1000.0) ** 1.35
     padded = np.concatenate([np.zeros(frame), out, np.zeros(frame)])
-    dist = np.concatenate([np.full(frame, 3000.0), np.sqrt((spec["speed"] * (tau - FLYBY_PEAK_S)) ** 2 + D ** 2),
-                           np.full(frame, 3000.0)])
+    dist = np.concatenate([
+        np.full(frame, r_direct_out[0]),
+        r_direct_out,
+        np.full(frame, r_direct_out[-1]),
+    ])
     res = np.zeros_like(padded)
     norm = np.zeros_like(padded)
     for start in range(0, len(padded) - frame, hop):
         seg = padded[start:start + frame] * win
         rr = dist[start + frame // 2]
-        spec_ = np.fft.rfft(seg) * 10 ** (-alpha * rr / 20)
+        spec_ = np.fft.rfft(seg) * 10.0 ** (-alpha * rr / 20.0)
         res[start:start + frame] += np.fft.irfft(spec_, frame) * win
         norm[start:start + frame] += win ** 2
     out = res[frame:frame + n_out] / np.maximum(norm[frame:frame + n_out], 1e-6)
-    # loudest 100 ms at -9 dBFS RMS, peaks rounded off
+
+    # Loudest 100 ms at -9 dBFS RMS, peaks rounded off softly
     k = FLYBY_RATE // 10
     short = np.sqrt(np.convolve(out ** 2, np.ones(k) / k, "same"))
-    out *= 10 ** (-9 / 20) / short.max()
-    out = 0.97 * np.tanh(out / 0.97)
-    # fade the ends so starting and finishing make no click
+    out *= 10.0 ** (-9.0 / 20.0) / max(short.max(), 1e-12)
+    out = 0.96 * np.tanh(out / 0.96)
     ramp = int(0.5 * FLYBY_RATE)
-    out[:ramp] *= np.linspace(0, 1, ramp)
-    out[-ramp:] *= np.linspace(1, 0, ramp)
+    out[:ramp] *= np.linspace(0.0, 1.0, ramp)
+    out[-ramp:] *= np.linspace(1.0, 0.0, ramp)
     return out
 
 
 def resample_loop(x, rate):
     """A periodic loop at RATE to `rate`, by its spectrum: band-limited, and it still closes seamlessly."""
+    if rate == RATE:
+        return x
     n = int(round(len(x) * rate / RATE))
     spec = np.fft.rfft(x)[:n // 2 + 1]
     return np.fft.irfft(spec, n) * n / len(x)
 
 
 def write_wav(path, x, rate=RATE):
-    pcm = np.clip(np.round(x * 32767), -32768, 32767).astype("<i2")
+    pcm = np.clip(np.round(x * 32767.0), -32768, 32767).astype("<i2")
     with wave.open(path, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -347,7 +541,7 @@ def curve_gain(curve, d):
     """The sound project's curve as the game plays it: linear segments, Reciprocal ones as 1/distance."""
     for (x0, y0, recip), (x1, y1, _) in zip(curve, curve[1:]):
         if x0 <= d <= x1:
-            if recip and y1 == 0:  # 1/d from x0, reaching 0 at x1
+            if recip and y1 == 0:
                 return y0 * max(0.0, (x0 / d - x0 / x1) / (1 - x0 / x1))
             return y0 + (y1 - y0) * (d - x0) / (x1 - x0)
     return curve[-1][1] if d > curve[-1][0] else curve[0][1]
@@ -363,7 +557,7 @@ def flyby_preview(layers, path, closest=400, speed=200):
         x = np.tile(loop, int(np.ceil(n / N)))[:n]
         gain = np.array([curve_gain(cfg["curve"], d) for d in dist[::480]])
         out += x * np.repeat(gain, 480)[:n] * 10 ** (cfg["volume"] / 20)
-    out *= 10 ** (14 / 20)  # roughly where the game's mix puts it; listen at a normal volume
+    out *= 10 ** (14 / 20)
     write_wav(path, out)
 
 
@@ -534,7 +728,7 @@ def acp(layers):
     parts = {k: "" for k in ("sounds", "shaders", "amps", "banks", "spatials", "auxes")}
     sound_links = aux_links = ""
     for k, (event, label, wav, cfg) in enumerate(layers):
-        base = k * 0x1C00  # the second layer's counters start past the first's
+        base = k * 0x1C00
         ids = dict(bank=0x0404 + base, shader=0x0812 + base, sound=0x0C09 + base, amp=0x1413 + base,
                    spatial=0x181C + base, aux=0x1C1D + base)
         y = k * 400
@@ -564,7 +758,8 @@ for name, spec in JETS.items():
     near = layer(spec, spec["cut"][0], True)
     far = layer(spec, spec["cut"][1], False)
     loops = [("Near", near, NEAR), ("Far", far, FAR)]
-    if spec.get("scream"):
+    has_scream = not spec.get("turbofan", False)
+    if has_scream:
         loops += [("Scream" + ("_%d" % v if v else ""), scream(spec, v), SCREAM) for v in range(SCREAM_VARIANTS)]
     wavs = []
     for tag, loop, cfg in loops:
@@ -574,12 +769,12 @@ for name, spec in JETS.items():
         job.append("WAV %s" % posix(wav))
     preview = loops[:3]
     flyby_preview([(x, cfg) for _, x, cfg in preview], os.path.join(PREVIEW, "ACR_%s_flyby.wav" % name))
-    for v in range(SCREAM_VARIANTS if spec.get("scream") else 1):
+    for v in range(SCREAM_VARIANTS if has_scream else 1):
         pick = loops[:2] + loops[2 + v:3 + v]
         flyby_preview([(x, cfg) for _, x, cfg in pick],
                       os.path.join(PREVIEW, "ACR_%s_overhead%s.wav" % (name, "_%d" % v if v else "")), closest=300)
     events = [("SOUND_ACR_JET_LP", "Near", [wavs[0]], NEAR), ("SOUND_ACR_JET_FAR_LP", "Far", [wavs[1]], FAR)]
-    if spec.get("scream"):
+    if has_scream:
         events.append(("SOUND_ACR_JET_SCREAM_LP", "Scream", wavs[2:], SCREAM))
     for k, (tag, D) in enumerate(FLYBY_DISTANCES.items()):
         wav = os.path.join(SAMPLES, "ACR_%s_Flyby_%s.wav" % (name, tag))

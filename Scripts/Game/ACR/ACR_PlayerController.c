@@ -507,6 +507,11 @@ modded class SCR_PlayerController
  protected void ACR_SetupServer(string key)
  {
   if (ACR_TooSoon("setup", 150)) return;
+  if (key.Length() > ACR_SetupPresets.MAX_IMPORT_CHARS + 64)
+  {
+   Rpc(ACR_FeedbackOwner, "The setup request is too long.");
+   return;
+  }
   string result = ACR_Setup.Handle(GetPlayerId(), key);
   PrintFormat("[ACR] SETUP player %1: %2", GetPlayerId(), result);
   Rpc(ACR_FeedbackOwner, result);
@@ -1068,6 +1073,13 @@ modded class SCR_PlayerController
    }
    m_ACR_SetupMapOpen = false;
    return;
+  }
+  SCR_MapCursorModule cursorModule = SCR_MapCursorModule.Cast(mapEntity.GetMapModule(SCR_MapCursorModule));
+  if (cursorModule)
+  {
+   float wheel = 1;
+   if (ACR_PointerOverOwnUI()) wheel = 0;
+   cursorModule.SetWheelZoomMultiplier(wheel);
   }
   SCR_MapMarkerManagerComponent manager = SCR_MapMarkerManagerComponent.GetInstance();
   if (!manager) return;

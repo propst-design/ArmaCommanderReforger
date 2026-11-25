@@ -71,7 +71,7 @@ function Get-MissingPackMods([string]$addonsDir, [string]$pack) {
   foreach ($dir in $addonsDir.Split(',')) {
     if (!$dir -or !(Test-Path -LiteralPath $dir)) { continue }
     foreach ($addon in Get-ChildItem -LiteralPath $dir -Directory -ErrorAction SilentlyContinue) {
-      $m = [regex]::Match($addon.Name, '_([0-9A-Fa-f]{16})$')
+      $m = [regex]::Match($addon.Name, '(?:^|_)([0-9A-Fa-f]{16})$')
       if ($m.Success) { $have[$m.Groups[1].Value.ToUpper()] = 1; continue }
       $gproj = Join-Path $addon.FullName 'addon.gproj'
       if (!(Test-Path -LiteralPath $gproj)) { continue }

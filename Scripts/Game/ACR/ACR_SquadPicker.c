@@ -76,6 +76,12 @@ class ACR_SquadPicker : Managed
   s_bOpen = true;
   WorkspaceWidget ws = GetGame().GetWorkspace();
   Widget column = ACR_TwoICStyle.PanelBox(parent, WIDTH - 16, 8, 8, m_Root, ACR_TwoICStyle.Rgb(16, 19, 23, 0.97));
+  Widget catchCursor = ws.CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.BLEND | WidgetFlags.STRETCH, Color.FromRGBA(0, 0, 0, 3), -1, m_Root);
+  if (catchCursor)
+  {
+   AlignableSlot.SetHorizontalAlign(catchCursor, LayoutHorizontalAlign.Stretch);
+   AlignableSlot.SetVerticalAlign(catchCursor, LayoutVerticalAlign.Stretch);
+  }
   FrameSlot.SetAnchorMin(m_Root, 0, 0);
   FrameSlot.SetAnchorMax(m_Root, 0, 0);
   FrameSlot.SetSizeToContent(m_Root, true);

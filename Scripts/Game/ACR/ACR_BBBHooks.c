@@ -330,12 +330,25 @@ class ACR_BBBHooks : BBB_Hooks
    why = "falling back";
    return BBB_EIntent.WITHDRAW;
   }
+  if (squad.IsMounted() || ACR_Transport.CrewedVehicle(squad)) { why = "mounted"; return BBB_EIntent.TRANSIT; }
+  // A squad holding a fortified position stays leashed behind its line (#93), even when
+  // bag-holding, in a host-owned mode, or with tactics off (BBB_OrderLeash reads radius > 0).
+  if (FortLeash(squad, centre, radius))
+  {
+   if (HostMode(squad)) { why = "fort mode " + typename.EnumToString(ACR_EMoveMode, squad.m_Mode); return BBB_EIntent.TRANSIT; }
+   if (squad.m_CombatFlank.Active()) { why = "fort ACA flank"; return BBB_EIntent.TRANSIT; }
+   if (ACR_BagHold.HasPlaces(squad.m_Group)) { why = "fort bag hold"; return BBB_EIntent.TRANSIT; }
+   if (squad.m_sOrderPrefab == ACR_Squad.WP_GARRISON || ACR_Garrison.HasPosts(squad.m_Group)) { why = "fort garrison"; return BBB_EIntent.TRANSIT; }
+   if (!SquadTacticsOn()) { why = "fort hold"; return BBB_EIntent.TRANSIT; }
+   why = "fort hold";
+   return BBB_EIntent.HOLD;
+  }
   // A FAST march that met the enemy is re-issued at combat level (m_bForced cleared, "fighting its
   // way forward") but keeps its FAST label: that squad is fighting. Only a quiet move stays ours
   // (and, with squad tactics off, any non-combat mode, as before).
   if (HostMode(squad)) { why = "mode " + typename.EnumToString(ACR_EMoveMode, squad.m_Mode); return BBB_EIntent.TRANSIT; }
   if (squad.m_CombatFlank.Active()) { why = "ACA flank"; return BBB_EIntent.TRANSIT; }
-  if (squad.IsMounted() || ACR_Transport.CrewedVehicle(squad)) { why = "mounted"; return BBB_EIntent.TRANSIT; }
+  if (ACR_BagHold.HasPlaces(squad.m_Group)) { why = "bag hold"; return BBB_EIntent.TRANSIT; }
   ACR_EOrderState state = squad.OrderState();
   why = typename.EnumToString(ACR_EOrderState, state) + " task " + squad.m_iAITask;
   if (state == ACR_EOrderState.MOVE || state == ACR_EOrderState.ASSAULT || state == ACR_EOrderState.HUNT)
@@ -343,6 +356,7 @@ class ACR_BBBHooks : BBB_Hooks
    if (!AttackerLeash(squad, centre, radius)) radius = 0;
    return BBB_EIntent.PUSH;
   }
+  if (squad.m_sOrderPrefab == ACR_Squad.WP_GARRISON || ACR_Garrison.HasPosts(squad.m_Group)) { why = "garrison"; return BBB_EIntent.TRANSIT; }
   if (DefenderLeash(squad, centre, radius)) return BBB_EIntent.HOLD;
   radius = 0;
   if (!SquadTacticsOn()) return BBB_EIntent.TRANSIT;

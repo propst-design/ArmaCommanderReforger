@@ -1188,6 +1188,27 @@ class ACR_BaseSystem : Managed
   return gone;
  }
 
+ // Up to 'most' living soldiers of 'from' move into 'to' (never a player-controlled soldier).
+ // Returns how many moved.
+ protected int TransferSome(SCR_AIGroup from, SCR_AIGroup to, int most)
+ {
+  if (!from || !to || from == to || most <= 0) return 0;
+  int moved;
+  array<AIAgent> agents = {};
+  from.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   if (moved >= most) break;
+   if (!agent) continue;
+   ChimeraCharacter soldier = ChimeraCharacter.Cast(agent.GetControlledEntity());
+   if (!soldier || soldier.GetCharacterController().IsDead() || ACR_Squad.FindController(soldier)) continue;
+   from.RemoveAgent(agent);
+   to.AddAgent(agent);
+   moved++;
+  }
+  return moved;
+ }
+
  // Room left in a base's reserve: its set garrison size less the men already in it.
  protected int ReserveRoom(ACR_Base base)
  {
@@ -1199,7 +1220,34 @@ class ACR_BaseSystem : Managed
  // the base, tracked as a fall-back (TickFallBacks), and go in as room frees. Returns men taken in.
  int TakeIntoReserve(ACR_Base base, SCR_AIGroup group, string faction, string name)
  {
-  if (!base || !group) return 0;
+  if (!base || !group || group == base.m_GarrisonGroup) return 0;
+  // When the base's garrison is currently deployed, UpdateGarrison overwrites m_iGarrisonLeft from
+  // CountAlive(m_GarrisonGroup) each tick: transfer living agents into the deployed group instead of
+  // deleting them into a counter that gets clobbered.
+  if (base.m_GarrisonGroup)
+  {
+   base.m_iGarrisonLeft = CountAlive(base.m_GarrisonGroup);
+   int moved = TransferSome(group, base.m_GarrisonGroup, ReserveRoom(base));
+   base.m_iGarrisonLeft = CountAlive(base.m_GarrisonGroup);
+   int left = CountAlive(group);
+   if (left <= 0)
+   {
+    PackUpGuards(group);
+    return moved;
+   }
+   ACR_FallBack heldGarrison = new ACR_FallBack();
+   heldGarrison.m_Group = group;
+   heldGarrison.m_sFaction = faction;
+   heldGarrison.m_sName = name;
+   heldGarrison.m_From = base;
+   heldGarrison.m_Dest = base;
+   heldGarrison.m_bStays = true;
+   group.SetCustomName(name + " (holding " + base.m_sName + ")", 0);
+   m_FallBacks.Insert(heldGarrison);
+   ACR_Guerrillas.Order(group, ACR_Squad.WP_DEFEND, base.GetOrigin(), base.m_fRadius, false);
+   PrintFormat("[ACR] FALLBACK %1: %2 joined the full garrison at %3, %4 hold it as a group", name, moved, base.m_sName, left);
+   return moved;
+  }
   int alive = CountAlive(group);
   if (alive <= ReserveRoom(base))
   {

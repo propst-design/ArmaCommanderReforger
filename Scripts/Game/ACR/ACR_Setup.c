@@ -622,7 +622,7 @@ class ACR_Setup
   if (key == "companywest" || key == "companyeast") return "The kind of company this side fields. The line under the rows\nsays what it brings.";
   if (key == "decks") return "Each side buys from a deck of cards instead of the whole list.\nThe deck rows appear under this one.";
   if (key == "deckeditor") return "Opens the deck builder on your screen. Hand a deck in to use it.";
-  if (key == "deckpoints") return "How many points a deck may cost. By threat: 100 low, 150 normal,\n250 high.";
+  if (key == "deckpoints") return "How many points a deck may cost. By threat: 125 low, 200 normal,\n300 high.";
   if (key == "deckwest" || key == "deckeast") return "The deck this side buys from.";
   if (key == "deployment") return "Where new units may be deployed: military bases, HQs and FOBs,\nonly HQs and FOBs, or every deployment point.";
   if (key == "reinforcement") return "Where infantry replacements walk in from.";
@@ -882,13 +882,13 @@ class ACR_Setup
  {
   if (value == "")
   {
-   if (key == "deployment") return "military bases / HQs / FOBs (scenario default)";
-   if (key == "reinforcement") return "settlements + deployment bases (scenario default)";
-   if (key == "fobservices") return "supplies (scenario default)";
-   if (key == "fobrelay") return "on (scenario default)";
-   if (key == "depotcapacity") return "+2000 supplies (scenario default)";
-   if (key == "servicecost") return "10 supplies (scenario default)";
-   if (key == "rpservice") return "3 RP per serviced soldier (scenario default)";
+   if (key == "deployment") return "bases / HQs / FOBs (default)";
+   if (key == "reinforcement") return "towns + bases (default)";
+   if (key == "fobservices") return "supplies (default)";
+   if (key == "fobrelay") return "on (default)";
+   if (key == "depotcapacity") return "+2000 supplies (default)";
+   if (key == "servicecost") return "10 supplies (default)";
+   if (key == "rpservice") return "3 RP / soldier (default)";
    if (key == "seed") return "random (click to roll one)";
    if (key == "pricing" || key == "ai") return "scenario's choice";
    if (key == "doctrinewest") return ACR_AIDoctrine.FollowsRow(ACR_FactionSelection.West());
@@ -929,8 +929,8 @@ class ACR_Setup
    return doctrine.m_sName;
   }
   if (key == "companywest" || key == "companyeast") return ACR_DoctrineKits.CompanyName(value);
-  if (key == "decks" && value == "0") return "off (the whole list, as before)";
-  if (key == "decks") return "on (each side buys from its deck)";
+  if (key == "decks" && value == "0") return "off (full list)";
+  if (key == "decks") return "on (from decks)";
   if (key == "deckpoints" && value == "0") return "unlimited";
   if (key == "deckpoints") return value;
   if (key == "deckwest") return ACR_Decks.RowName(ACR_FactionSelection.West(), value);
@@ -946,35 +946,35 @@ class ACR_Setup
   if (key == "coinstrength") return "many FIA";
   if (key == "coinarmy" && value == "east") return "the Red side (" + ACR_FactionSelection.East() + ")";
   if (key == "coinarmy") return "the Blue side (" + ACR_FactionSelection.West() + ")";
-  if (key == "pockets" && value == "few") return "a few pockets (whole/half map)";
-  if (key == "pockets" && value == "many") return "many pockets (whole/half map)";
+  if (key == "pockets" && value == "few") return "a few pockets";
+  if (key == "pockets" && value == "many") return "many pockets";
   if (key == "pockets" && value == "off") return "off";
-  if (key == "quickstart" && value == "even") return "the map split along a front, roadblocks up";
-  if (key == "quickstart" && value == "uneven") return "one side holds 2/3, the other has double RP";
-  if (key == "quickstart") return "off (both sides start from their HQ)";
-  if (key == "guerrillas" && value == "few") return "a few cells (whole/half map)";
-  if (key == "guerrillas" && value == "many") return "many cells (whole/half map)";
+  if (key == "quickstart" && value == "even") return "even (split front)";
+  if (key == "quickstart" && value == "uneven") return "uneven (2/3 vs 2x RP)";
+  if (key == "quickstart") return "off (from HQ)";
+  if (key == "guerrillas" && value == "few") return "a few cells";
+  if (key == "guerrillas" && value == "many") return "many cells";
   if (key == "guerrillas" && value == "off") return "off";
-  if (key == "fiahidden" && value == "1") return "on: no FIA messages, pockets found by entering";
+  if (key == "fiahidden" && value == "1") return "on (no messages)";
   if (key == "fiahidden" && value == "0") return "off";
   if (key == "fiaallegiance" && value == "hostile") return "nobody: hostile to both";
   if (key == "fiaallegiance" && value == "west") return "the Blue side";
   if (key == "fiaallegiance" && value == "east") return "the Red side";
-  if (key == "fialeaning" && value == "1") return "on: FIA treats sides by their conduct";
-  if (key == "fialeaning" && value == "0") return "off: as FIA sides with";
-  if (key == "zombies" && value == "few") return "a few nests (open bases, country)";
-  if (key == "zombies" && value == "many") return "many nests (open bases, country)";
+  if (key == "fialeaning" && value == "1") return "on (by conduct)";
+  if (key == "fialeaning" && value == "0") return "off (fixed side)";
+  if (key == "zombies" && value == "few") return "a few nests";
+  if (key == "zombies" && value == "many") return "many nests";
   if (key == "zombies" && value == "off") return "off";
   if (key == "zombiemode" && value == "tvtvz") return "both sides + zombies";
-  if (key == "zombiemode" && value == "tvz") return "one side vs zombies (the other side sits out)";
+  if (key == "zombiemode" && value == "tvz") return "one side vs zombies";
   if (key == "outbreak" && value == "nests") return "nests across the map";
-  if (key == "outbreak" && value == "contain") return "one ground zero that spreads; rescue survivors";
-  if (key == "deployment" && value == "military") return "military bases / HQs / FOBs";
+  if (key == "outbreak" && value == "contain") return "ground zero (spreads)";
+  if (key == "deployment" && value == "military") return "bases / HQs / FOBs";
   if (key == "deployment" && value == "hq") return "HQs / FOBs only";
-  if (key == "deployment" && value == "all") return "all deployment-enabled points";
-  if (key == "reinforcement" && value == "settlements") return "settlements + deployment bases";
-  if (key == "reinforcement" && value == "deployment") return "deployment bases only";
-  if (key == "reinforcement" && value == "all") return "all reinforcement-enabled points";
+  if (key == "deployment" && value == "all") return "all deploy points";
+  if (key == "reinforcement" && value == "settlements") return "towns + bases";
+  if (key == "reinforcement" && value == "deployment") return "deploy bases only";
+  if (key == "reinforcement" && value == "all") return "all reinf. points";
   if (key == "aibuild" && value == "0") return "off";
   if (key == "aibuild") return value + "% of income";
   if (key == "holdguns" && value == "0") return "off (vanilla)";
@@ -983,11 +983,11 @@ class ACR_Setup
   if (key == "capscale") return "off";
   if (key == "declutter" && value == "0") return "off (the classic map)";
   if (key == "declutter") return "on";
-  if (key == "aicommander" && value == "classic") return "classic (before 0.6.0)";
-  if (key == "aicommander") return "new (lanes, allocator, forecast)";
-  if (key == "evadearmour" && value == "1") return "on (needs BBB's setting too)";
-  if (key == "twoic" && value == "1") return "2IC: runs the squads nobody leads";
-  if (key == "twoic" && value == "2") return "I'm the 2IC: the AI commands";
+  if (key == "aicommander" && value == "classic") return "classic (pre-0.6)";
+  if (key == "aicommander") return "new (allocator)";
+  if (key == "evadearmour" && value == "1") return "on (needs BBB on)";
+  if (key == "twoic" && value == "1") return "2IC (runs free squads)";
+  if (key == "twoic" && value == "2") return "I'm 2IC (AI commands)";
   if (Experimental(key) || key == "twoic" || key == "periodjets" || key == "pullover" || key == "fieldsoffire")
   {
    if (value == "0") return "off";
@@ -1002,8 +1002,8 @@ class ACR_Setup
   }
   if (key == "doctrineadapt")
   {
-   if (value == "0" || value == "off" || value == "false") return "off: each keeps its first doctrine";
-   return "on: a losing commander changes doctrine";
+   if (value == "0" || value == "off" || value == "false") return "off (fixed)";
+   return "on (adapts)";
   }
   return value;
  }
@@ -1776,7 +1776,17 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
    return true;
   }
   if (key == "presetsave") { ACR_SetupClient.Request("preset:save:" + PresetTyped()); return true; }
-  if (key == "presetimport") { ACR_SetupClient.Request("preset:import:" + System.ImportFromClipboard()); return true; }
+  if (key == "presetimport")
+  {
+   string clip = System.ImportFromClipboard();
+   if (clip.Length() > ACR_SetupPresets.MAX_IMPORT_CHARS)
+   {
+    SCR_HintManagerComponent.ShowCustomHint("The clipboard text is too long to be a setup preset.", "AC: Actual", 5, true);
+    return true;
+   }
+   ACR_SetupClient.Request("preset:import:" + clip);
+   return true;
+  }
   if (!key.StartsWith("preset") || m_sPresetSelected.IsEmpty()) return key.StartsWith("preset");
   if (key == "presetload") ACR_SetupClient.Request("preset:load:" + m_sPresetSelected);
   else if (key == "presetdelete") ACR_SetupClient.Request("preset:delete:" + m_sPresetSelected);
@@ -1865,6 +1875,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
  // "Start": the server ends the phase and closes the dialog everywhere.
  override protected void OnConfirm()
  {
+  if (m_PresetName && m_PresetName.IsInWriteMode()) return;
   ACR_SetupClient.Request("start");
  }
 

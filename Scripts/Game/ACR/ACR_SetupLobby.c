@@ -505,6 +505,12 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    input.RemoveActionListener("MenuTabRight", EActionTrigger.DOWN, OnTabRight);
    m_bListening = false;
   }
+  if (GetGame() && GetGame().GetCallqueue())
+  {
+   GetGame().GetCallqueue().Remove(RefitTip);
+   GetGame().GetCallqueue().Remove(RefitSpins);
+  }
+  super.OnMenuClose();
  }
 
  // The skin: colours of the page's own widgets, the heading font (a heading layout replaces the
@@ -742,11 +748,17 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   FillTabs();
   BuildRows(RowsShape());
   FillFooter(false);
+  m_Help.Focus("");
   FillSide();
  }
 
- protected void OnTabLeft() { ShowTab(m_iTab - 1); }
- protected void OnTabRight() { ShowTab(m_iTab + 1); }
+ protected bool Typing()
+ {
+  return (m_PresetName && m_PresetName.IsInWriteMode()) || (m_SeedBox && m_SeedBox.IsInWriteMode());
+ }
+
+ protected void OnTabLeft() { if (!Typing()) ShowTab(m_iTab - 1); }
+ protected void OnTabRight() { if (!Typing()) ShowTab(m_iTab + 1); }
 
  // ---------------------------------------------------------------- the centre column
  // Which rows the tab shows and of what kind: the column is rebuilt only when this changes, so a
@@ -826,6 +838,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    }
   }
   if (shown.IsEmpty()) AddText(m_wRows, "Nothing to set here with this setup.", 8);
+  if (GetGame() && GetGame().GetCallqueue())
+  {
+   GetGame().GetCallqueue().Remove(RefitSpins);
+   GetGame().GetCallqueue().CallLater(RefitSpins, 1, false);
+  }
   Refocus();
  }
 
@@ -884,7 +901,12 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  // The control itself is untouched, so mouse, keys and pad work as before.
  static void SpinLook(Widget w, ACR_SetupTheme theme)
  {
-  if (!w || !theme || !theme.m_bCompact) return;
+  if (!w || !theme) return;
+  TextWidget value = TextWidget.Cast(w.FindAnyWidget("SelectionText"));
+  if (value) value.SetTextWrapping(false);
+  TextWidget label = TextWidget.Cast(w.FindAnyWidget("Text"));
+  if (label) label.SetTextWrapping(false);
+  if (!theme.m_bCompact) return;
   Compact(w, FitHeight(16));
   Color clear = new Color(0, 0, 0, 0);
   Widget back = w.FindAnyWidget("Background");
@@ -911,13 +933,11 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    Widget mark = arrow.FindAnyWidget("Panel");
    if (mark) mark.SetColor(theme.m_Decor);
   }
-  TextWidget value = TextWidget.Cast(w.FindAnyWidget("SelectionText"));
   if (value)
   {
    value.SetExactFontSize(16);
    value.SetColor(theme.m_ButtonText);
   }
-  TextWidget label = TextWidget.Cast(w.FindAnyWidget("Text"));
   if (label) label.SetExactFontSize(16);
   // The value in a thin box (the mock-ups): the spin box's arrows and value moved into an overlay
   // over a 1 px frame. The parts keep their own handlers, so the control works as before.
@@ -980,6 +1000,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   AlignableSlot.SetVerticalAlign(m_wTipText, LayoutVerticalAlign.Stretch);
   AlignableSlot.SetPadding(m_wTipText, TIP_PAD, TIP_PAD, TIP_PAD, TIP_PAD);
   MonoFont(m_wTipText, TIP_FONT);
+  m_wTipText.SetTextWrapping(false);
   m_wTipText.SetColor(m_Theme.m_Help);
  }
 
@@ -1001,6 +1022,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
 
  protected void HideTip()
  {
+  if (GetGame() && GetGame().GetCallqueue()) GetGame().GetCallqueue().Remove(RefitTip);
   m_TipState.Clear();
   m_wTipShown = null;
   if (m_wTip) m_wTip.SetVisible(false);
@@ -1041,6 +1063,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   float boxWide = TIP_WIDTH;
   float left = x;
   float top = y + high + 6;
+  float anchorTop = y;
+  float anchorBottom = y + high;
   bool above = key.StartsWith("footer");
   if (key.StartsWith("tab:") && m_wTabs)
   {
@@ -1058,6 +1082,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
     last.GetRootWidget().GetScreenSize(lastW, lastH);
     top = ws.DPIUnscale(lastY + lastH) + 12;
    }
+   anchorTop = ws.DPIUnscale(railY);
+   anchorBottom = top - 6;
   }
   string wrapped;
   int lines;
@@ -1065,9 +1091,10 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   m_wTipText.SetText(wrapped);
   float measuredW, measuredH;
   m_wTipText.GetTextSize(measuredW, measuredH);
-  if (measuredH > 0) boxHigh = Math.Max(boxHigh, ws.DPIUnscale(measuredH) + 2 * TIP_PAD + 2);
-  m_fTipAnchorTop = y;
-  m_fTipAnchorBottom = y + high;
+  if (measuredW > 0) boxWide = Math.Max(boxWide, ws.DPIUnscale(measuredW) + 2 * TIP_PAD + 4);
+  if (measuredH > 0) boxHigh = Math.Max(boxHigh, ws.DPIUnscale(measuredH) + 2 * TIP_PAD + 4);
+  m_fTipAnchorTop = anchorTop;
+  m_fTipAnchorBottom = anchorBottom;
   m_fTipLeft = left;
   m_bTipAbove = above;
   PlaceTip(boxWide, boxHigh);
@@ -1151,6 +1178,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
      LayoutSlot.SetSizeMode(monoLabel, LayoutSizeMode.Fill);
      AlignableSlot.SetVerticalAlign(monoLabel, LayoutVerticalAlign.Center);
      AlignableSlot.SetPadding(monoLabel, 8, 0, 4, 0);
+     monoLabel.SetTextWrapping(false);
      MonoFont(monoLabel, 15);
      m_MonoLabels.Set(key, monoLabel);
     }
@@ -1174,6 +1202,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
      AlignableSlot.SetHorizontalAlign(monoValue, LayoutHorizontalAlign.Center);
      AlignableSlot.SetVerticalAlign(monoValue, LayoutVerticalAlign.Center);
      AlignableSlot.SetPadding(monoValue, 6, 0, 6, 0);
+     monoValue.SetTextWrapping(false);
      MonoFont(monoValue, 15);
      monoValue.SetColor(m_Theme.m_ButtonText);
      m_MonoValues.Set(key, monoValue);
@@ -1181,6 +1210,140 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    }
   }
   if (monoValue) monoValue.SetText(value);
+ }
+
+ // Steps a single-line text widget down from baseSize until it fits within maxWidth (layout units).
+ static void FitSpinText(TextWidget tw, int baseSize, bool mono, float maxWidth)
+ {
+  if (!tw || maxWidth <= 0) return;
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  if (!ws) return;
+  tw.SetTextWrapping(false);
+  int minSize = 8;
+  int chosen = baseSize;
+  float measuredW, measuredH, unscaledW;
+  for (int size = baseSize; size >= minSize; size--)
+  {
+   Size(tw, size, mono);
+   tw.GetTextSize(measuredW, measuredH);
+   unscaledW = ws.DPIUnscale(measuredW);
+   chosen = size;
+   if (unscaledW <= maxWidth) break;
+  }
+  Size(tw, chosen, mono);
+ }
+
+ // Available width (layout units) for a spin box's value text, measured when laid out else estimated.
+ protected float SpinValueWidth(Widget spin, bool indented)
+ {
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  if (ws && spin)
+  {
+   Widget own = spin.FindAnyWidget("SelectionText");
+   if (own && own.GetParent())
+   {
+    float pw, ph;
+    own.GetParent().GetScreenSize(pw, ph);
+    if (pw > 0)
+    {
+     float avail = ws.DPIUnscale(pw) - 16.0;
+     if (avail > 40.0) return avail;
+    }
+   }
+   Widget content = spin.FindAnyWidget("ContentLayout");
+   if (content)
+   {
+    float cw, ch;
+    content.GetScreenSize(cw, ch);
+    if (cw > 0)
+    {
+     float avail2 = ws.DPIUnscale(cw) - 2.0 * ARROW_SIZE - 20.0;
+     if (avail2 > 40.0) return avail2;
+    }
+   }
+   if (m_wRows && spin.GetParent() == m_wRows)
+   {
+    float rw, rh;
+    m_wRows.GetScreenSize(rw, rh);
+    if (rw > 0)
+    {
+     float indentPx = 0.0;
+     if (indented) indentPx = INDENT;
+     float avail3 = (ws.DPIUnscale(rw) - 8.0 - indentPx) * 0.5 - 2.0 * ARROW_SIZE - 28.0;
+     if (avail3 > 40.0) return avail3;
+    }
+   }
+  }
+  if (indented) return 246.0;
+  return 264.0;
+ }
+
+ // Available width (layout units) for a spin box's left-hand label, measured when laid out else estimated.
+ protected float SpinLabelWidth(Widget spin, bool indented)
+ {
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  if (ws && spin)
+  {
+   Widget labelRow = spin.FindAnyWidget("LabelRoot");
+   if (labelRow)
+   {
+    float lw, lh;
+    labelRow.GetScreenSize(lw, lh);
+    if (lw > 0)
+    {
+     float avail = ws.DPIUnscale(lw) - 16.0;
+     if (avail > 40.0) return avail;
+    }
+   }
+   if (m_wRows && spin.GetParent() == m_wRows)
+   {
+    float rw, rh;
+    m_wRows.GetScreenSize(rw, rh);
+    if (rw > 0)
+    {
+     float indentPx = 0.0;
+     if (indented) indentPx = INDENT;
+     float avail2 = (ws.DPIUnscale(rw) - 8.0 - indentPx) * 0.5 - 20.0;
+     if (avail2 > 40.0) return avail2;
+    }
+   }
+  }
+  if (indented) return 302.0;
+  return 320.0;
+ }
+
+ protected void FitSpinRow(Widget spinWidget, string key, bool indented)
+ {
+  if (!spinWidget || !m_Theme) return;
+  float valueWide = SpinValueWidth(spinWidget, indented);
+  float labelWide = SpinLabelWidth(spinWidget, indented);
+  if (m_Theme.m_bMonoBody)
+  {
+   TextWidget monoValue = m_MonoValues.Get(key);
+   if (monoValue) FitSpinText(monoValue, 15, true, valueWide);
+   TextWidget monoLabel = m_MonoLabels.Get(key);
+   if (monoLabel) FitSpinText(monoLabel, 15, true, labelWide);
+   return;
+  }
+  int baseSize = 18;
+  if (m_Theme.m_bCompact) baseSize = 16;
+  TextWidget sel = TextWidget.Cast(spinWidget.FindAnyWidget("SelectionText"));
+  if (sel) FitSpinText(sel, baseSize, false, valueWide);
+  TextWidget lbl = TextWidget.Cast(spinWidget.FindAnyWidget("Text"));
+  if (lbl) FitSpinText(lbl, baseSize, false, labelWide);
+ }
+
+ // Re-fits every spin box once the layout pass has assigned real screen widths.
+ protected void RefitSpins()
+ {
+  foreach (string key, SCR_SpinBoxComponent spin : m_Spins)
+  {
+   if (!spin) continue;
+   ACR_SetupLobbyRow row = ACR_SetupLobbyModel.Find(m_aRows, key);
+   bool indented = row && !row.m_sParent.IsEmpty();
+   FitSpinRow(spin.GetRootWidget(), key, indented);
+  }
+  if (m_FooterPreset) FitSpinRow(m_FooterPreset.GetRootWidget(), "footerpreset", false);
  }
 
  static void HideItemBars(Widget spin)
@@ -1219,6 +1382,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   TextWidget labelWidget = spin.GetLabel();
   if (labelWidget) labelWidget.SetColor(labelColor);
   MonoRow(row.m_sKey, spin.GetRootWidget(), label, value, labelColor);
+  FitSpinRow(spin.GetRootWidget(), row.m_sKey, !row.m_sParent.IsEmpty());
   m_bFilling = false;
  }
 
@@ -1351,7 +1515,17 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
    return true;
   }
   if (key == "presetsave") { ACR_SetupClient.Request("preset:save:" + PresetTyped()); return true; }
-  if (key == "presetimport") { ACR_SetupClient.Request("preset:import:" + System.ImportFromClipboard()); return true; }
+  if (key == "presetimport")
+  {
+   string clip = System.ImportFromClipboard();
+   if (clip.Length() > ACR_SetupPresets.MAX_IMPORT_CHARS)
+   {
+    SCR_HintManagerComponent.ShowCustomHint("The clipboard text is too long to be a setup preset.", "AC: Actual", 5, true);
+    return true;
+   }
+   ACR_SetupClient.Request("preset:import:" + clip);
+   return true;
+  }
   if (!key.StartsWith("preset") || m_sPresetSelected.IsEmpty()) return key.StartsWith("preset");
   if (key == "presetload") ACR_SetupClient.Request("preset:load:" + m_sPresetSelected);
   else if (key == "presetdelete") ACR_SetupClient.Request("preset:delete:" + m_sPresetSelected);
@@ -1461,6 +1635,12 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (pick < names.Count()) m_sFooterPick = names[pick];
   else m_sFooterPick = "";
   MonoRow("footerpreset", m_FooterPreset.GetRootWidget(), m_Theme.Text("Preset to load"), m_FooterPreset.GetItemName(pick), m_Theme.m_Text);
+  FitSpinRow(m_FooterPreset.GetRootWidget(), "footerpreset", false);
+  if (rebuild && GetGame() && GetGame().GetCallqueue())
+  {
+   GetGame().GetCallqueue().Remove(RefitSpins);
+   GetGame().GetCallqueue().CallLater(RefitSpins, 1, false);
+  }
   m_bFilling = false;
  }
 
@@ -1492,6 +1672,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (m_bFilling || index < 0 || index >= m_aFooterPresets.Count()) return;
   m_sFooterPick = m_aFooterPresets[index];
   MonoRow("footerpreset", spin.GetRootWidget(), m_Theme.Text("Preset to load"), spin.GetItemName(index), m_Theme.m_Text);
+  FitSpinRow(spin.GetRootWidget(), "footerpreset", false);
  }
 
  // ---------------------------------------------------------------- right panel
@@ -1573,8 +1754,17 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   int count = 0;
   if (data) count = data.m_BasePositions.Count();
   string sig = string.Format("%1|%2|%3|%4", count, west, east, m_bAllowed);
-  if (data && count > 0) sig += "|" + data.m_BaseNames[0] + data.m_BasePositions[0].ToString() + data.m_BaseNames[count - 1] + data.m_BaseOwners[count - 1] + data.m_BaseOwners[0];
-  if (data && count > 0 && data.m_BaseDetails.Count() == count) sig += "|" + data.m_BaseDetails[0] + data.m_BaseDetails[count - 1];
+  if (data)
+  {
+   for (int s = 0; s < count; s++)
+   {
+    vector basePos = data.m_BasePositions[s];
+    sig += string.Format("|%1,%2", Math.Round(basePos[0]), Math.Round(basePos[2]));
+    if (s < data.m_BaseNames.Count()) sig += ":" + data.m_BaseNames[s];
+    if (s < data.m_BaseOwners.Count()) sig += ":" + data.m_BaseOwners[s];
+    if (s < data.m_BaseDetails.Count()) sig += ":" + data.m_BaseDetails[s];
+   }
+  }
   if (sig == m_sMapSig) return;
   m_sMapSig = sig;
   while (m_wMapDots.GetChildren()) m_wMapDots.GetChildren().RemoveFromHierarchy();
@@ -1942,7 +2132,7 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
  // Start (Space, or Y on a pad: not Enter/A, which press the focused row): the server ends the phase.
  override protected void OnConfirm()
  {
-  if (m_bAllowed) ACR_SetupClient.Request("start");
+  if (m_bAllowed && !Typing()) ACR_SetupClient.Request("start");
  }
 
  override protected void OnCancel()

@@ -1493,4 +1493,50 @@ modded class SCR_MapCursorModule
   if (pc && pc.ACR_PointerOverOwnUI()) return;
   super.HandleSelect();
  }
+
+ override protected void OnInputDrag(float value, EActionTrigger reason)
+ {
+  if (reason == EActionTrigger.DOWN)
+  {
+   SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
+   if (pc && pc.ACR_PointerOverOwnUI()) return;
+  }
+  super.OnInputDrag(value, reason);
+ }
+}
+
+// Vanilla map marker UI: ignore quick-marker menu and marker select clicks over our own panels.
+modded class SCR_MapMarkersUI
+{
+ override protected void OnInputQuickMarkerMenu(float value, EActionTrigger reason)
+ {
+  SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
+  if (pc && pc.ACR_PointerOverOwnUI()) return;
+  super.OnInputQuickMarkerMenu(value, reason);
+ }
+
+ override protected void OnInputMapSelect(float value, EActionTrigger reason)
+ {
+  SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
+  if (pc && pc.ACR_PointerOverOwnUI()) return;
+  super.OnInputMapSelect(value, reason);
+ }
+}
+
+// Vanilla map drawing UI: ignore line-drawing clicks over our own panels.
+modded class SCR_MapDrawingUI
+{
+ override protected void OnMapClick(float value, EActionTrigger reason)
+ {
+  SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
+  if (pc && pc.ACR_PointerOverOwnUI()) return;
+  super.OnMapClick(value, reason);
+ }
+
+ override protected void OnMapModifierClick(float value, EActionTrigger reason)
+ {
+  SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
+  if (pc && pc.ACR_PointerOverOwnUI()) return;
+  super.OnMapModifierClick(value, reason);
+ }
 }

@@ -345,6 +345,18 @@ class ACR_Depots
   // field now), the dead looted. One left alive (no room at the hideout): no theft.
   array<IEntity> crew = {};
   ACR_PendingPurchase.Occupants(vehicle, crew);
+  int living;
+  foreach (IEntity occupant : crew)
+  {
+   ChimeraCharacter aliveBody = ChimeraCharacter.Cast(occupant);
+   if (aliveBody && ACR_Respawn.IsAlive(aliveBody)) living++;
+  }
+  if (living > 0)
+  {
+   ACR_DefenderPost hideout = ACR_FIAIntel.SupplierOf(vehicle.GetOrigin());
+   if (!hideout || hideout.m_bGone || !hideout.m_Cell) return false;
+   if (ACR_FIAPrisoners.HeldAt(hideout) + living > ACR_FIAPrisoners.HOLD_MAX) return false;
+  }
   foreach (IEntity man : crew)
   {
    ChimeraCharacter body = ChimeraCharacter.Cast(man);

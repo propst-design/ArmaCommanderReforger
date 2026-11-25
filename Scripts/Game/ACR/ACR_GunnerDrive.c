@@ -71,6 +71,7 @@ class ACR_GunnerDrive
  // from the controller for the session stops that (restored in End).
  static bool s_bDetachPilot = true;
  PilotCompartmentSlot m_DetachedPilot;
+ bool m_bPilotHeld;
  static bool s_bFixedOnly = false; // test variant: write inputs only in the fixed (physics) frame
  float m_fClutch = 1;
  string m_EndReason;
@@ -150,7 +151,7 @@ class ACR_GunnerDrive
   if (!vehicle) return null;
   CarControllerComponent car = CarControllerComponent.Cast(vehicle.FindComponent(CarControllerComponent));
   if (!car || !car.GetSimulation()) return null;
-  PilotCompartmentSlot pilot = car.GetPilotCompartmentSlot();
+  PilotCompartmentSlot pilot = BBB_PilotHold.Seat(car);
   if (!pilot) return null;
   driver = ChimeraCharacter.Cast(pilot.GetOccupant());
   if (!driver || !driver.GetCharacterController() || driver.GetCharacterController().IsDead()) return null;
@@ -161,6 +162,8 @@ class ACR_GunnerDrive
  void Begin()
  {
   m_Squad.Halt("Driven by gunner", ACR_EOrderState.DRIVEN);
+  if (m_Squad) m_Squad.CancelUnstick();
+  if (m_Vehicle) BBB_PullOver.Release(m_Vehicle);
   AIControlComponent ai = AIControlComponent.Cast(m_Driver.FindComponent(AIControlComponent));
   if (s_bParkDriverAI && ai && ai.IsAIActivated())
   {
@@ -183,9 +186,12 @@ class ACR_GunnerDrive
   CarControllerComponent car = Car();
   if (car && s_bDetachPilot)
   {
-   m_DetachedPilot = car.GetPilotCompartmentSlot();
-   car.SetPilotCompartmentSlot(null);
-   PrintFormat("[ACR] GUNNER pilot slot detached: %1", m_DetachedPilot != null);
+   if (BBB_PilotHold.Take(car))
+   {
+    m_bPilotHeld = true;
+    m_DetachedPilot = BBB_PilotHold.Seat(car);
+   }
+   PrintFormat("[ACR] GUNNER pilot slot detached: %1", m_bPilotHeld);
   }
   if (car)
   {
@@ -231,7 +237,7 @@ class ACR_GunnerDrive
   if (!pilot)
   {
    CarControllerComponent car = Car();
-   if (car) pilot = car.GetPilotCompartmentSlot();
+   if (car) pilot = BBB_PilotHold.Seat(car);
   }
   return pilot && pilot.GetOccupant() == m_Driver;
  }
@@ -249,6 +255,11 @@ class ACR_GunnerDrive
    array<AIWaypoint> orders = {};
    m_Squad.m_Group.GetWaypoints(orders);
    if (!orders.IsEmpty()) { m_EndReason = "new order"; return false; }
+  }
+  if (s_bParkDriverAI)
+  {
+   AIControlComponent parkAI = AIControlComponent.Cast(m_Driver.FindComponent(AIControlComponent));
+   if (parkAI && parkAI.IsAIActivated()) { parkAI.DeactivateAI(); m_AIWasOn = true; }
   }
   CarControllerComponent car = Car();
   if (!car) { m_EndReason = "no car controller"; return false; }
@@ -469,7 +480,8 @@ class ACR_GunnerDrive
  void End()
  {
   CarControllerComponent car = Car();
-  if (car && m_DetachedPilot) car.SetPilotCompartmentSlot(m_DetachedPilot);
+  if (car && m_bPilotHeld) { BBB_PilotHold.Give(car); m_bPilotHeld = false; }
+  m_DetachedPilot = null;
   if (car && car.GetSimulation())
   {
    VehicleWheeledSimulation sim = car.GetSimulation();

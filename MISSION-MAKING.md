@@ -487,7 +487,7 @@ its `m_iStock` per match (scaled by threat level) at a fixed price. The host can
 **Decks.** With decks on (the default), each side's automatic buy list becomes a deck: the cards a side may
 buy, picked from its faction's catalogue (the automatic list above, plus extra kitted teams for the RHS and
 Ukrainian factions) within a points budget. A card costs its base price / 3 in points (special forces x1.5,
-service and construction trucks free and always in). The budget is 100 / 150 / 250 by threat level, or
+service and construction trucks free and always in). The budget is 125 / 200 / 300 by threat level, or
 `-acrDeckPoints`; it limits decks players build and the AI's own deck, never the standard deck (the automatic
 list as it is). Players build decks in game (F3) and hand them in; `-acrDeckWest` / `-acrDeckEast` pick
 what each side plays. Players can add custom cards: teams of the faction's own soldiers (2-12 men, priced

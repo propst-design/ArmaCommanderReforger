@@ -469,9 +469,14 @@ class ACR_SupplyRuns : Managed
   // Arrived?
   if (run.m_iStage == STAGE_LOAD)
   {
-   if (run.m_Hub && vector.DistanceXZ(at, run.m_Hub.GetOrigin()) <= run.m_Hub.m_fRadius)
+   if (!run.m_Hub || !RestocksAt(run.m_Hub, run.m_sFaction))
    {
-    if (!RestocksAt(run.m_Hub, run.m_sFaction)) return Fail(run, run.m_Hub.m_sName + " can't load supplies any more");
+    string hubName = "its hub";
+    if (run.m_Hub) hubName = run.m_Hub.m_sName;
+    return Fail(run, hubName + " can't load supplies any more");
+   }
+   if (vector.DistanceXZ(at, run.m_Hub.GetOrigin()) <= run.m_Hub.m_fRadius)
+   {
     if (!Load(run, run.m_Hub)) return Tell(run, string.Format("Supply run to %1 called off at %2: not enough RP to load (%3 needed)", fobName, run.m_Hub.m_sName, RUN_COST), "no rp");
     Drive(run, STAGE_DRIVE);
     return "";
