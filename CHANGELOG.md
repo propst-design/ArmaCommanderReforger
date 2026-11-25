@@ -1,5 +1,7 @@
 # Changelog
-## 0.7.0 — unreleased
+## 0.7.1 — unreleased
+
+## 0.7.0 — released
 
 - Insurgency, part 4: FIA spoils (on with FIA; `-acrFIASpoils 0` turns it off). After a fight, an FIA cell, hideout or pocket garrison should send two men over the ground it holds once none of the enemy is awake nearby:
   - **Loot:** they take the weapons and magazines of the fallen. The gear arms new recruits at the hideout that feeds the area, so it raises and tops up its cells sooner. Its fighters should also start turning up with the rifles and machine guns they took (a looted AK or M16 in FIA hands, with its own magazines).
