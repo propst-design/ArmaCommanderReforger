@@ -187,9 +187,15 @@ class ACR_RadioAudio
 		string sound = SoundFor(cue);
 		if (sound.IsEmpty()) return false;
 		float now = GetGame().GetWorld().GetWorldTime();
+		// Client-side match restart / reconnect guard: world time resets to 0 on a new match.
+		if (now < s_fLastAnyAt)
+		{
+			s_fLastAnyAt = -10000;
+			if (s_LastCueAt) s_LastCueAt.Clear();
+		}
 		if (!IsUrgent(cue) && now - s_fLastAnyAt < MIN_GAP_MS) return false;
 		float last = -60000;
-		if (s_LastCueAt && s_LastCueAt.Find(cue, last) && now - last < CooldownMs(cue)) return false;
+		if (s_LastCueAt && s_LastCueAt.Find(cue, last) && now >= last && now - last < CooldownMs(cue)) return false;
 		if (s_LastCueAt) s_LastCueAt.Set(cue, now);
 		s_fLastAnyAt = now;
 		s_iPlayedCount++;
