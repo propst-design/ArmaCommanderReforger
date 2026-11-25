@@ -30,10 +30,19 @@ class ACR_HideoutHomes
 	static const float GO_TO_GROUND_CLEAR = 250; // m from army soldiers to pack up cleanly
 	static const float SETUP_REACH = 40;         // m from site to begin setting up
 	static const float SETUP_S = 15;             // s on site to finish setting up
+	// Light guerrilla cache (FARP-lite): infantry rearm, basic medical, and light fuel/turret rearm
+	// for returning bands and stashed vehicles. No full arsenal and no heavy armour repair.
+	static const float CACHE_CAPACITY = 20;            // service loads per hideout
+	static const float CACHE_RESTOCK_PER_TICK = 0.067; // ~1 load per 30 s while uncontested (~10 min full)
+	static const float CACHE_SERVICE_RANGE = 35;       // m: covers buildings and vehicle stash (STASH_OFFSET 25 m)
+	static const int CACHE_SERVICES = ACR_EService.AMMO | ACR_EService.FUEL | ACR_EService.MEDICAL;
 
 	protected static ref map<ACR_DefenderPost, SCR_SpawnPoint> s_Points;
 	protected static ref map<SCR_SpawnPoint, ACR_DefenderPost> s_ByPoint;
 	protected static ref map<ACR_DefenderPost, ref array<IEntity>> s_Dressing;
+	protected static ref map<ACR_DefenderPost, IEntity> s_CachePoint;
+	protected static ref map<IEntity, ACR_DefenderPost> s_ByCachePoint;
+	protected static ref map<ACR_DefenderPost, float> s_CacheStock;
 	protected static ref array<ref ACR_HideoutSetup> s_Setups;
 
 	// Called by ACR_StaticInit at game start.
@@ -42,6 +51,9 @@ class ACR_HideoutHomes
 		s_Points = new map<ACR_DefenderPost, SCR_SpawnPoint>();
 		s_ByPoint = new map<SCR_SpawnPoint, ACR_DefenderPost>();
 		s_Dressing = new map<ACR_DefenderPost, ref array<IEntity>>();
+		s_CachePoint = new map<ACR_DefenderPost, IEntity>();
+		s_ByCachePoint = new map<IEntity, ACR_DefenderPost>();
+		s_CacheStock = new map<ACR_DefenderPost, float>();
 		s_Setups = {};
 	}
 
@@ -54,6 +66,18 @@ class ACR_HideoutHomes
 			s_Points.Clear();
 		}
 		if (s_ByPoint) s_ByPoint.Clear();
+		ACR_Manager manager = ACR_Manager.GetInstance();
+		if (s_CachePoint)
+		{
+			if (manager && manager.m_Logistics)
+			{
+				foreach (ACR_DefenderPost cpPost, IEntity cpEnt : s_CachePoint)
+					if (cpEnt) manager.m_Logistics.RemovePoint(cpEnt);
+			}
+			s_CachePoint.Clear();
+		}
+		if (s_ByCachePoint) s_ByCachePoint.Clear();
+		if (s_CacheStock) s_CacheStock.Clear();
 		if (s_Dressing)
 		{
 			foreach (ACR_DefenderPost dp, array<IEntity> props : s_Dressing)
@@ -105,11 +129,17 @@ class ACR_HideoutHomes
 		// Anchor props around the central building cluster, clear of roads and water.
 		vector center = post.m_vPos;
 		int placed;
+		IEntity cacheAnchor;
 		foreach (int i, ResourceName prefab : activeGear)
 		{
 			int ring = i % 3;
 			IEntity prop = SpawnPropNear(prefab, center, 4 + ring * 4, 18, i * 0.7);
-			if (prop) { spawned.Insert(prop); placed++; }
+			if (prop)
+			{
+				spawned.Insert(prop);
+				placed++;
+				if (!cacheAnchor) cacheAnchor = prop;
+			}
 		}
 		foreach (int j, ResourceName cPrefab : clutter)
 		{
@@ -118,12 +148,15 @@ class ACR_HideoutHomes
 			if (cProp) { spawned.Insert(cProp); placed++; }
 		}
 		s_Dressing.Set(post, spawned);
+		if (cacheAnchor) RegisterCache(post, cacheAnchor);
 		PrintFormat("[ACR] HIDEOUT DRESS %1: %2 props placed", post.m_sName, placed);
 	}
 
 	static void CleanDressing(ACR_DefenderPost post, bool leaveColdClutter = false)
 	{
-		if (!post || !s_Dressing) return;
+		if (!post) return;
+		UnregisterCache(post);
+		if (!s_Dressing) return;
 		array<IEntity> props;
 		if (!s_Dressing.Find(post, props)) return;
 		int keep = 0;
@@ -134,6 +167,90 @@ class ACR_HideoutHomes
 				if (props[i]) SCR_EntityHelper.DeleteEntityAndChildren(props[i]);
 		}
 		s_Dressing.Remove(post);
+	}
+
+	// ---------------------------------------------------------------- light supply cache
+
+	protected static void RegisterCache(ACR_DefenderPost post, IEntity anchor)
+	{
+		if (!post || !anchor || !s_CachePoint) return;
+		s_CachePoint.Set(post, anchor);
+		s_ByCachePoint.Set(anchor, post);
+		s_CacheStock.Set(post, CACHE_CAPACITY);
+		ACR_Manager manager = ACR_Manager.GetInstance();
+		if (manager && manager.m_Logistics)
+			manager.m_Logistics.AddPoint(anchor, CACHE_SERVICES, post.m_sFaction);
+	}
+
+	static void UnregisterCache(ACR_DefenderPost post)
+	{
+		if (!post || !s_CachePoint) return;
+		IEntity anchor;
+		if (s_CachePoint.Find(post, anchor))
+		{
+			ACR_Manager manager = ACR_Manager.GetInstance();
+			if (anchor && manager && manager.m_Logistics) manager.m_Logistics.RemovePoint(anchor);
+			if (anchor && s_ByCachePoint) s_ByCachePoint.Remove(anchor);
+			s_CachePoint.Remove(post);
+		}
+		if (s_CacheStock) s_CacheStock.Remove(post);
+	}
+
+	// Called every second from TickSetups: registers starting hideouts once m_Logistics is
+	// created on tick 1, and prunes destroyed hideouts.
+	static void SyncCachePoints(ACR_Manager manager)
+	{
+		if (!Replication.IsServer() || !manager || !manager.m_Logistics || !s_CachePoint) return;
+		array<ACR_DefenderPost> gone = {};
+		foreach (ACR_DefenderPost post, IEntity anchor : s_CachePoint)
+		{
+			if (!post || post.m_bGone || !anchor) { gone.Insert(post); continue; }
+			if (!manager.m_Logistics.IsPoint(anchor))
+				manager.m_Logistics.AddPoint(anchor, CACHE_SERVICES, post.m_sFaction);
+		}
+		foreach (ACR_DefenderPost dead : gone) UnregisterCache(dead);
+	}
+
+	static IEntity CachePointOf(ACR_DefenderPost post)
+	{
+		if (!post || !s_CachePoint) return null;
+		IEntity anchor;
+		s_CachePoint.Find(post, anchor);
+		return anchor;
+	}
+
+	static ACR_DefenderPost HideoutOfPoint(IEntity point)
+	{
+		if (!point || !s_ByCachePoint) return null;
+		ACR_DefenderPost post;
+		s_ByCachePoint.Find(point, post);
+		return post;
+	}
+
+	static float CacheStock(ACR_DefenderPost post)
+	{
+		if (!post || post.m_bGone || Contested(post) || !s_CacheStock) return 0;
+		float stock;
+		if (!s_CacheStock.Find(post, stock)) return 0;
+		return stock;
+	}
+
+	static bool UseCache(ACR_DefenderPost post, float amount)
+	{
+		if (amount <= 0) return true;
+		float stock = CacheStock(post);
+		if (stock < amount) return false;
+		s_CacheStock.Set(post, Math.Max(0, stock - amount));
+		return true;
+	}
+
+	static void RestockCache(ACR_DefenderPost post, float amount = CACHE_RESTOCK_PER_TICK)
+	{
+		if (!post || post.m_bGone || Contested(post) || amount <= 0 || !s_CacheStock) return;
+		float stock;
+		if (!s_CacheStock.Find(post, stock)) return;
+		if (stock >= CACHE_CAPACITY) return;
+		s_CacheStock.Set(post, Math.Min(CACHE_CAPACITY, stock + amount));
 	}
 
 	static int DressingCount(ACR_DefenderPost post)
@@ -276,6 +393,8 @@ class ACR_HideoutHomes
 			string detail = string.Format("Hideout | garrison: %1 | intel: %2", men, heat);
 			int prisoners = ACR_FIAPrisoners.HeldAt(post);
 			if (prisoners > 0) detail += string.Format(" | prisoners: %1", prisoners);
+			if (s_CacheStock && s_CacheStock.Contains(post))
+				detail += string.Format(" | cache: %1%%", (int)Math.Round(100.0 * s_CacheStock.Get(post) / CACHE_CAPACITY));
 			bool contested = Contested(post);
 			if (contested) detail += " | CONTESTED";
 			frame.m_BasePos.Insert(post.m_vPos);
@@ -363,7 +482,9 @@ class ACR_HideoutHomes
 	// Called every second from ACR_Manager.Tick.
 	static void TickSetups(ACR_Manager manager)
 	{
-		if (!Replication.IsServer() || !s_Setups || s_Setups.IsEmpty()) return;
+		if (!Replication.IsServer()) return;
+		SyncCachePoints(manager);
+		if (!s_Setups || s_Setups.IsEmpty()) return;
 		float now = GetGame().GetWorld().GetWorldTime();
 		string army = ACR_Coin.Army();
 		for (int i = s_Setups.Count() - 1; i >= 0; i--)

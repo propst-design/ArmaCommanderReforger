@@ -92,26 +92,52 @@ class ACR_TestFiaHome
 		bool waterOk = !ACR_Guerrillas.CanSiteHideout(Vector(0, 0, 0), mid, refWater, army) && !refWater.IsEmpty();
 		Check("fiahome: hideout siting refuses invalid spot with a reason", waterOk, refWater);
 
-		// 6. Go to ground: empties hideout, deletes spawn point, refunds RP, clears army leads.
+		// 6. Hideout acts as a light supply cache (AMMO | FUEL | MEDICAL, no REPAIR) and spends/restocks.
+		bool cacheOk = false;
+		string cacheInfo = "no hideout";
+		if (first && manager.m_Logistics)
+		{
+			IEntity anchor = ACR_HideoutHomes.CachePointOf(first);
+			array<IEntity> ammoStations = {};
+			array<IEntity> fuelStations = {};
+			array<IEntity> medStations = {};
+			array<IEntity> repStations = {};
+			manager.m_Logistics.Stations(ins, ACR_EService.AMMO, ammoStations);
+			manager.m_Logistics.Stations(ins, ACR_EService.FUEL, fuelStations);
+			manager.m_Logistics.Stations(ins, ACR_EService.MEDICAL, medStations);
+			manager.m_Logistics.Stations(ins, ACR_EService.REPAIR, repStations);
+			float stock0 = manager.m_Logistics.StockOf(anchor);
+			bool used = anchor && manager.m_Logistics.Use(anchor, 2);
+			float stock1 = manager.m_Logistics.StockOf(anchor);
+			ACR_HideoutHomes.RestockCache(first, 1);
+			float stock2 = manager.m_Logistics.StockOf(anchor);
+			cacheOk = anchor && ammoStations.Contains(anchor) && fuelStations.Contains(anchor) && medStations.Contains(anchor) && !repStations.Contains(anchor) && stock0 > 0 && used && stock1 < stock0 && stock2 > stock1;
+			cacheInfo = string.Format("anchor %1, ammo %2 fuel %3 med %4 rep %5, stock %6->%7->%8", anchor != null, ammoStations.Contains(anchor), fuelStations.Contains(anchor), medStations.Contains(anchor), repStations.Contains(anchor), stock0, stock1, stock2);
+		}
+		Check("fiahome: hideout registers as a light supply cache (ammo, fuel, medical; no repair)", cacheOk, cacheInfo);
+
+		// 7. Go to ground: empties hideout, deletes spawn point, unregisters cache, refunds RP, clears army leads.
 		bool groundOk = false;
 		string groundInfo = "no hideout";
 		if (first)
 		{
+			IEntity anchorBefore = ACR_HideoutHomes.CachePointOf(first);
 			ACR_FIAIntel.Lead(army, first, "before go to ground");
 			int rpBeforeG = manager.m_Bases.GetRP(ins);
 			string refG;
 			bool did = ACR_HideoutHomes.GoToGround(ins, first.m_sName, refG);
 			int rpAfterG = manager.m_Bases.GetRP(ins);
 			bool leadGone = ACR_FIAIntel.LeadOf(army, first) == null;
+			bool cacheGone = ACR_HideoutHomes.CachePointOf(first) == null && (!manager.m_Logistics || !manager.m_Logistics.IsPoint(anchorBefore));
 			int spawnsAfter = 0;
 			foreach (SCR_SpawnPoint sp2 : SCR_SpawnPoint.GetSpawnPoints())
 				if (sp2 && sp2.GetFactionKey() == ins && ACR_HideoutHomes.IsHideoutPoint(sp2)) spawnsAfter++;
-			groundOk = did && first.m_bGone && rpAfterG == rpBeforeG + ACR_HideoutHomes.GO_TO_GROUND_REFUND && leadGone && spawnsAfter == spawnCount - 1;
-			groundInfo = string.Format("did %1, gone %2, rp %3->%4, leadGone %5, spawns %6->%7, ref '%8'", did, first.m_bGone, rpBeforeG, rpAfterG, leadGone, spawnCount, spawnsAfter, refG);
+			groundOk = did && first.m_bGone && rpAfterG == rpBeforeG + ACR_HideoutHomes.GO_TO_GROUND_REFUND && leadGone && cacheGone && spawnsAfter == spawnCount - 1;
+			groundInfo = string.Format("did %1, gone %2, rp %3->%4, leadGone %5, cacheGone %6, spawns %7->%8, ref '%9'", did, first.m_bGone, rpBeforeG, rpAfterG, leadGone, cacheGone, spawnCount, spawnsAfter, refG);
 		}
-		Check("fiahome: go to ground empties hideout, removes spawn point, refunds RP, clears lead", groundOk, groundInfo);
+		Check("fiahome: go to ground empties hideout, removes spawn point and cache, refunds RP, clears lead", groundOk, groundInfo);
 
-		ACR_TestRegress.Complete("fiahome", 6);
+		ACR_TestRegress.Complete("fiahome", 7);
 	}
 
 	protected static void Check(string name, bool ok, string detail)

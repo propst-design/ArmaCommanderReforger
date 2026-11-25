@@ -168,6 +168,8 @@ class ACR_Logistics : Managed
  {
   if (IsPoint(vehicle))
   {
+   ACR_DefenderPost hideout = ACR_HideoutHomes.HideoutOfPoint(vehicle);
+   if (hideout) return ACR_HideoutHomes.CacheStock(hideout);
    ACR_Base fob = ServiceFob(vehicle);
    if (!ACR_LogisticsRules.SuppliedServices()) return 1000;
    if (!fob) return 0;
@@ -199,6 +201,8 @@ class ACR_Logistics : Managed
   m_fLastPaidUsed = 0;
   if (IsPoint(vehicle))
   {
+   ACR_DefenderPost hideout = ACR_HideoutHomes.HideoutOfPoint(vehicle);
+   if (hideout) return ACR_HideoutHomes.UseCache(hideout, amount);
    ACR_Base fob = ServiceFob(vehicle);
    if (!ACR_LogisticsRules.SuppliedServices()) return true;
    if (!fob) return false;
@@ -594,6 +598,15 @@ class ACR_Logistics : Managed
   {
    IEntity point = m_PointFlags.GetKey(i);
    if (!point) continue;
+   ACR_DefenderPost hideout = ACR_HideoutHomes.HideoutOfPoint(point);
+   float range = SERVICE_RANGE;
+   if (hideout)
+   {
+    if (hideout.m_bGone) continue;
+    ACR_HideoutHomes.RestockCache(hideout);
+    if (ACR_HideoutHomes.Contested(hideout) || ACR_HideoutHomes.CacheStock(hideout) <= 0) continue;
+    range = ACR_HideoutHomes.CACHE_SERVICE_RANGE;
+   }
    int flags = m_PointFlags.GetElement(i);
    string faction = m_PointFaction.Get(point);
    vector at = point.GetOrigin();
@@ -601,8 +614,8 @@ class ACR_Logistics : Managed
    {
     if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() != faction) continue;
     IEntity anchor = squad.GetAnchor();
-    if (!anchor || vector.DistanceXZ(anchor.GetOrigin(), at) > SERVICE_RANGE + 150) continue;
-    ServeSquad(point, flags, squad, now);
+    if (!anchor || vector.DistanceXZ(anchor.GetOrigin(), at) > range + 150) continue;
+    ServeSquad(point, flags, squad, now, range);
    }
    array<int> players = {};
    GetGame().GetPlayerManager().GetPlayers(players);
@@ -611,7 +624,7 @@ class ACR_Logistics : Managed
     IEntity body = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
     Faction playerFaction = SCR_FactionManager.SGetPlayerFaction(id);
     if (!body || !playerFaction || playerFaction.GetFactionKey() != faction || m_Manager.FindSquadBySoldier(body)) continue;
-    if (vector.DistanceXZ(body.GetOrigin(), at) > SERVICE_RANGE) continue;
+    if (vector.DistanceXZ(body.GetOrigin(), at) > range) continue;
     ServeSoldier(point, flags, body, now);
     IEntity ridden = ACR_Transport.VehicleOf(body);
     if (ridden) ServeVehicle(point, flags, ridden, now);
@@ -623,7 +636,7 @@ class ACR_Logistics : Managed
     ACR_Vehicles.All(vehicles);
     foreach (IEntity parked : vehicles)
     {
-     if (vector.DistanceXZ(parked.GetOrigin(), at) > SERVICE_RANGE || Health(parked) <= 0) continue;
+     if (vector.DistanceXZ(parked.GetOrigin(), at) > range || Health(parked) <= 0) continue;
      if (ACR_Vehicles.FactionOf(parked) != faction) continue;
      ServeVehicle(point, flags, parked, now);
     }
@@ -648,7 +661,7 @@ class ACR_Logistics : Managed
   return true;
  }
 
- protected void ServeSquad(IEntity station, int flags, ACR_Squad squad, float now)
+ protected void ServeSquad(IEntity station, int flags, ACR_Squad squad, float now, float range = SERVICE_RANGE)
  {
   array<IEntity> vehicles = {};
   squad.GetVehicles(vehicles);
@@ -656,14 +669,14 @@ class ACR_Logistics : Managed
   // agent seat scan. The squad's owned vehicle is still a valid service target.
   if (squad.m_OwnVehicle && !vehicles.Contains(squad.m_OwnVehicle)) vehicles.Insert(squad.m_OwnVehicle);
   foreach (IEntity vehicle : vehicles)
-   if (vehicle != station && vector.DistanceXZ(vehicle.GetOrigin(), station.GetOrigin()) <= SERVICE_RANGE + 5) ServeVehicle(station, flags, vehicle, now);
+   if (vehicle != station && vector.DistanceXZ(vehicle.GetOrigin(), station.GetOrigin()) <= range + 5) ServeVehicle(station, flags, vehicle, now);
   array<AIAgent> agents = {};
   squad.GetAgents(agents);
   foreach (AIAgent agent : agents)
   {
    IEntity soldier = agent.GetControlledEntity();
    if (!soldier || !ACR_Respawn.IsAlive(soldier) || ACR_Transport.VehicleOf(soldier)) continue;
-   if (vector.DistanceXZ(soldier.GetOrigin(), station.GetOrigin()) > SERVICE_RANGE) continue;
+   if (vector.DistanceXZ(soldier.GetOrigin(), station.GetOrigin()) > range) continue;
    int target = squad.MagazineTarget(soldier);
    ServeSoldier(station, flags, soldier, now, target);
   }
