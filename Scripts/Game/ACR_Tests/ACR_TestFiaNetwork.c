@@ -66,20 +66,22 @@ class ACR_TestFiaNetwork
 
 		// 2. Place IED team on a road within hideout reach, clear of enemy troops and other IEDs.
 		vector iedSite = vector.Zero;
-		bool foundIedRoad = false;
+		int iedBefore = ACR_IED.Live();
+		rpBefore = data.m_iRP;
+		string iedRef;
+		bool placedIed = false;
 		foreach (vector r2 : ACR_Guerrillas.s_aRoads)
 		{
 			if (!ACR_FIAIntel.SupplierOf(r2)) continue;
 			if (!ACR_Guerrillas.UsableAmbush(r2)) continue;
 			if (ACR_IED.HostileNear(ins, r2, ACR_IED.PLANT_CLEAR)) continue;
-			iedSite = r2;
-			foundIedRoad = true;
-			break;
+			if (ACR_InsurgentNetwork.PlaceIED(ins, r2, iedRef))
+			{
+				iedSite = r2;
+				placedIed = true;
+				break;
+			}
 		}
-		int iedBefore = ACR_IED.Live();
-		rpBefore = data.m_iRP;
-		string iedRef;
-		bool placedIed = foundIedRoad && ACR_InsurgentNetwork.PlaceIED(ins, iedSite, iedRef);
 		string dupRef;
 		bool dupRefused = placedIed && !ACR_InsurgentNetwork.PlaceIED(ins, iedSite, dupRef);
 		Check("fianetwork: placing IED succeeds, deducts RP, and refuses duplicate spacing",
