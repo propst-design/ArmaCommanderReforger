@@ -501,7 +501,7 @@ class ACR_Setup
  // it was last, a page away).
  static array<string> RowKeys()
  {
-  array<string> keys = {"west", "east", "matchtype", "coinarmy", "coininsurgency", "coinstrength", "coinposture", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "twoic", "unitcap", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "periodjets", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "pullover", "mines", "minesreal", "minesai", "fortify", "fortifyai", "aibuild", "baseworks", "fieldsoffire", "squadtactics", "evadearmour", "supplyruns", "hubs", "saveroutes"};
+  array<string> keys = {"west", "east", "matchtype", "coinarmy", "coininsurgency", "coinstrength", "coinposture", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "twoic", "unitcap", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "periodjets", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "pullover", "mines", "minesreal", "minesai", "fortify", "fortifyai", "aibuild", "baseworks", "fieldsoffire", "squadtactics", "evadearmour", "supplyruns", "hubs", "saveroutes", "supplylines"};
   return keys;
  }
 
@@ -594,6 +594,7 @@ class ACR_Setup
   if (key == "supplyruns") return "Supply runs (trucks supply FOBs)";
   if (key == "hubs") return "Logistics hubs";
   if (key == "saveroutes") return "Save supply routes";
+  if (key == "supplylines") return "Supply lines (isolated bases)";
   return key;
  }
 
@@ -602,7 +603,7 @@ class ACR_Setup
  {
   // Period jets, pull over, fields of fire and the 2IC left it on 19 Nov (Jacob: played and trusted),
   // on by default on their own tabs (ACR_SetupDialog.Tab).
-  return key == "squadtactics" || key == "evadearmour" || key == "supplyruns" || key == "hubs" || key == "saveroutes";
+  return key == "squadtactics" || key == "evadearmour" || key == "supplyruns" || key == "hubs" || key == "saveroutes" || key == "supplylines";
  }
 
  // What a row does, shown under the rows when it is pointed at or focused (ACR_SetupDialog.OnRowFocus,
@@ -671,6 +672,7 @@ class ACR_Setup
   if (key == "supplyruns") return "FOB supplies come by construction truck from a hub (20 RP to load);\nthe old delivery stays as a fallback at 40 RP / 180 s. Spawns stay on RP.";
   if (key == "hubs") return "Trucks load and restock only at the HQ, ports and FOBs with\na supply depot, not at every base. Needs supply runs to matter most.";
   if (key == "saveroutes") return "Routes supply trucks drove are kept in the host's profile for\nthis map and used in later matches. Nothing leaves this machine.";
+  if (key == "supplylines") return "Bases cut off from HQ, ports and depot FOBs (or blocked by enemy\nroadblocks) earn half RP and block deploy/reinforce until relieved.";
   return "";
  }
 
@@ -819,6 +821,7 @@ class ACR_Setup
   if (key == "supplyruns") return "acrSupplyRuns";
   if (key == "hubs") return "acrLogisticsHubs";
   if (key == "saveroutes") return "acrSaveRoutes";
+  if (key == "supplylines") return "acrSupplyLines";
   return "";
  }
 
