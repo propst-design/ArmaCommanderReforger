@@ -619,6 +619,47 @@ class ACR_BaseWorks
   return true;
  }
 
+ // Host option: living sides' HQs start with tier-1 fortifications and site dressing (-acrHQWorks 0 turns it off).
+ static bool HQWorksOn()
+ {
+  if (!Enabled()) return false;
+  string value;
+  if (ACR_Options.Get("acrHQWorks", value) && !value.IsEmpty())
+  {
+   value.ToLower();
+   return value != "0" && value != "false" && value != "off";
+  }
+  return true;
+ }
+
+ // Server, at match start (ACR_Skirmish.ApplyOnce): give each living side's HQ tier-1 fortifications
+ // and site dressing (sandbags, camo nets, crates, radio/map props) so HQs look and fight like HQs
+ // from the get-go without blocking roads or later tier upgrades.
+ static void ApplyHQs()
+ {
+  if (!Replication.IsServer() || !HQWorksOn()) return;
+  array<string> sides = {ACR_FactionSelection.West(), ACR_FactionSelection.East()};
+  foreach (string side : sides)
+  {
+   if (side.IsEmpty() || ACR_OneSide.IsAbsent(side)) continue;
+   ACR_Base hq = ACR_OneSide.HQOf(side);
+   if (!hq || hq.m_bRetired || hq.m_sOwner != side || hq.m_bPocket) continue;
+   ACR_BaseWork work = WorkFor(hq, side);
+   if (!work || work.m_aSites.IsEmpty()) continue;
+   int built;
+   foreach (ACR_BaseSite site : work.m_aSites)
+   {
+    if (!site || site.m_bBuilt || site.m_iTier > 1) continue;
+    if (Build(work, site)) built++;
+   }
+   if (built <= 0) continue;
+   work.m_iTier = Math.Max(work.m_iTier, 1);
+   RaiseDefenders(work);
+   ManWorks(work);
+   PrintFormat("[ACR] BASEWORKS HQ %1 (%2): pre-fortified tier 1 (%3 sites)", hq.m_sName, side, built);
+  }
+ }
+
  // A nest built into a line: the sandbags and dressing where it goes come out.
  protected static void MakeWay(ACR_BaseWork work, ACR_BaseSite nest)
  {

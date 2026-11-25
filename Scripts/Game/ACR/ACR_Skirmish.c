@@ -175,6 +175,7 @@ class ACR_Skirmish : GenericEntity
   ACR_Insurgency.Apply();
   ACR_Outbreak.Apply();
   ACR_TownSupport.Apply();
+  ACR_BaseWorks.ApplyHQs();
  }
 
  void Apply()

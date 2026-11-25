@@ -924,6 +924,7 @@ objects in its world, not because of the header.
 | `m_iAcrFortify` | `-acrFortify 1` (default) or `0`; the commander's Fortify order (see [Fortify position](#fortify-position)) |
 | `m_iAcrFortifyAI` | `-acrFortifyAI 0` (default) or `1`; AI commanders dig in and upgrade positions on their approaches |
 | `m_iAcrBaseWorks` | `-acrBaseWorks 1` (default) or `0`; Fortify on the middle of a base of ours fortifies the whole town |
+| `m_iAcrHQWorks` | `-acrHQWorks 1` (default) or `0`; living sides' HQs start with tier-1 fortifications and site dressing |
 | `m_iAcrBaseBays` | `-acrBaseBays 1` (default) or `0`; a fortified town's long lines step in and out with fire bays |
 | `m_iAcrBaseSmallGuns` | `-acrBaseSmallGuns 1` (default) or `0`; a small gun position takes one piece of a line where a big nest has no room |
 | `m_iAcrWings` | `-acrWings 1` (default) or `0`; new Fortify positions and squad-built checkpoints get sandbag wings |
@@ -1101,6 +1102,7 @@ mission makers and server operators; players choose match settings in game.
 | `-acrFortify 0` | Turn off the commander's Fortify order (on by default; see [Fortify position](#fortify-position)) |
 | `-acrFortifyAI 1` | AI commanders fortify: every 60 s, with RP to spare, one order at a time, they upgrade their position nearest the frontline base or (fewer than two positions) dig a free infantry squad in 80-160 m out towards the nearest enemy base (off by default) |
 | `-acrBaseWorks 0` | Turn off fortifying a whole base (on by default): Fortify on the middle of a base we hold has a squad work the town site by site, one tier per order (street corners and perimeter sandbags; redoubts, MG nests and checkpoints; the command post, bunkers and towers), paying per site; with `-acrFortifyAI 1` AI commanders do it at threatened front bases with RP banked |
+| `-acrHQWorks 0` | Turn off starting HQ fortifications and site dressing (on by default while `-acrBaseWorks` is on): each living side's HQ begins the match with tier-1 perimeter fortifications, camo nets and command/supply dressing, manned by its garrison |
 | `-acrBaseBays 0` | A fortified town's long lines run without fire bays (on by default: most long lines step in or out every 5 to 9 pieces, each at its own spacing) |
 | `-acrBaseSmallGuns 0` | Fortified towns get big MG nests only (on by default: where a big nest has no room on a line, the game's small gun position takes the place of one piece; FIA has none) |
 | `-acrWings 0` | New Fortify positions and squad-built checkpoints stand without sandbag wings (on by default: each end ties into a wall, building or rock within 30 m, 20 m for a checkpoint, or bends back or runs on and curls back, picked from what's there, weighted and seeded; a checkpoint's lane stays clear) |
