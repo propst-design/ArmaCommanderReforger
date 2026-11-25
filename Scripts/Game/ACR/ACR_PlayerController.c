@@ -1888,7 +1888,7 @@ modded class SCR_PlayerController
   else if (m_ACR_CursorMode == ACR_ECursorMode.EVAC) hint = "Right-click within 600 m of a town holding out (Civilians ring): its people walk to that evac point, they go there; park a vehicle on it to load them, then drive them to a base (click Evac point again to cancel)";
   else if (m_ACR_CursorMode == ACR_ECursorMode.QRF) hint = "Right-click its post: it stands by there, goes after enemies your side spots within 300 m and comes back (click QRF again to cancel)";
   else if (m_ACR_CursorMode >= ACR_ECursorMode.MINES_AP && m_ACR_CursorMode <= ACR_ECursorMode.DISARM_MINES) hint = ACR_Minefields.Hint(ACR_Minefields.KindOfCursor(m_ACR_CursorMode)) + ACR_MineShapeHint();
-  else hint = "Right-click: move there";
+  else hint = "Right-click: move (enemy: hunt, vehicle: get in, own base: defend)";
   if (friendly && m_ACR_IsCommander && ACR_Aimable()) hint += " Right-click and drag to set the way it faces (a right-drag aims while this is armed, it doesn't pan the map).";
   string title = m_ACR_Data.m_GroupNames[index];
   string detail = m_ACR_GroupDetails[index];
@@ -2297,14 +2297,35 @@ modded class SCR_PlayerController
    aim = aimTo;
    target = m_ACR_AimFrom;
   }
-  // Right-click on a spotted enemy: hunt it down.
-  if (m_ACR_CursorMode == ACR_ECursorMode.MOVE && !append)
+  // Contextual right-click in MOVE mode:
+  //  - on a spotted enemy: hunt it down
+  //  - on a friendly empty vehicle: get in
+  //  - on an owned base icon: defend it
+  if (m_ACR_CursorMode == ACR_ECursorMode.MOVE && !append && !aimed)
   {
    int hunted = ACR_ContactUnderCursor(mapEntity, x, z);
    if (hunted >= 0)
    {
     command = ACR_ERequest.ORDER_HUNT;
     target = m_ACR_ContactPositions[hunted];
+   }
+   else
+   {
+    int veh = ACR_VehicleUnderCursor(mapEntity, x, z);
+    if (veh >= 0)
+    {
+     command = ACR_ERequest.ORDER_GET_IN;
+     target = m_ACR_VehiclePositions[veh];
+    }
+    else
+    {
+     int ownBase = ACR_OwnBaseUnderCursor(mapEntity, x, z);
+     if (ownBase >= 0)
+     {
+      command = ACR_ERequest.ORDER_DEFEND;
+      target = m_ACR_Data.m_BasePositions[ownBase];
+     }
+    }
    }
   }
   ACR_IssueOrder(command, target, append, aim);
@@ -2600,6 +2621,49 @@ modded class SCR_PlayerController
   float bestPixels = 16;
   foreach (int i, vector pos : m_ACR_ContactPositions)
   {
+   int px, py;
+   mapEntity.WorldToScreen(pos[0], pos[2], px, py, true);
+   float dx = px - cx;
+   float dy = py - cy;
+   float pixels = Math.Sqrt(dx * dx + dy * dy);
+   if (pixels < bestPixels) { bestPixels = pixels; best = i; }
+  }
+  return best;
+ }
+
+ // Index of our empty vehicle marker within 16 px of the map cursor, or -1.
+ protected int ACR_VehicleUnderCursor(SCR_MapEntity mapEntity, float x, float z)
+ {
+  int cx, cy;
+  mapEntity.WorldToScreen(x, z, cx, cy, true);
+  int best = -1;
+  float bestPixels = 16;
+  foreach (int i, vector pos : m_ACR_VehiclePositions)
+  {
+   int px, py;
+   mapEntity.WorldToScreen(pos[0], pos[2], px, py, true);
+   float dx = px - cx;
+   float dy = py - cy;
+   float pixels = Math.Sqrt(dx * dx + dy * dy);
+   if (pixels < bestPixels) { bestPixels = pixels; best = i; }
+  }
+  return best;
+ }
+
+ // Index of an owned friendly base marker within 18 px of the map cursor, or -1.
+ protected int ACR_OwnBaseUnderCursor(SCR_MapEntity mapEntity, float x, float z)
+ {
+  Faction mine = SCR_FactionManager.SGetLocalPlayerFaction();
+  if (!mine || !m_ACR_Data) return -1;
+  string myKey = mine.GetFactionKey();
+  if (myKey.IsEmpty()) return -1;
+  int cx, cy;
+  mapEntity.WorldToScreen(x, z, cx, cy, true);
+  int best = -1;
+  float bestPixels = 18;
+  foreach (int i, vector pos : m_ACR_Data.m_BasePositions)
+  {
+   if (i >= m_ACR_Data.m_BaseOwners.Count() || m_ACR_Data.m_BaseOwners[i] != myKey) continue;
    int px, py;
    mapEntity.WorldToScreen(pos[0], pos[2], px, py, true);
    float dx = px - cx;
