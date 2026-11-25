@@ -39,6 +39,11 @@ class ACR_Depot : Managed
  int m_iRetargets;           // new targets this raid took after one it never got going to
  ref array<vector> m_aBadTargets = {}; // targets no technical drives to (ACR_Depots.Drivable) ...
  ref array<float> m_aBadUntil = {};    // ... skipped until this time
+ vector m_vBackPos;                    // where the technical was when BACK movement was last seen
+ float m_fBackMovedAt;                 // when it last moved BACK_MOVE_M on the drive home
+ float m_fBackBestGap;                 // nearest it has been to the yard on the drive home
+ float m_fBackProgressAt;              // when it last got BACK_MOVE_M nearer the yard
+ int m_iBackNudges;                    // re-orders while stalled on the drive home
 }
 
 class ACR_Depots
@@ -69,6 +74,9 @@ class ACR_Depots
  static const int NUDGES = 3;      // a stolen vehicle's drive home: re-orders before its crew stands down
  static const int RAID_NUDGES = 1; // a raid: one re-order, then another target (RETARGETS)
  static const int RETARGETS = 2;
+ static const float BACK_MOVE_M = 20;      // m moved or gained toward the yard to count as progress
+ static const float BACK_NUDGE_MS = 45000; // stalled this long on the way home: re-order, then dismount
+ static const int BACK_NUDGES = 2;
  // Raid targets a wheeled vehicle can drive to (Jacob, 21 Nov: srv:guerrillas' technical sat in its
  // yard, re-ordered three times at a target off the roads it could reach): a road point within
  // TARGET_ROAD_M of the target, with a road route from the yard of at most ROUTE_MAX_M. A target that
@@ -389,6 +397,7 @@ class ACR_Depots
   depot.m_fArrivedAt = now; // no rest after: it got what it went for
   depot.m_fEmptySince = 0;
   depot.m_iNudges = 0;
+  InitBackProgress(depot, now);
   team.SetCustomName(string.Format("FIA stolen %1", ACR_Vehicles.NameOf(vehicle)), 0);
   int seated = Seat(team, vehicle);
   ACR_Guerrillas.SetCombatMode(team, EAIGroupCombatMode.RETURN_FIRE);
@@ -604,8 +613,8 @@ class ACR_Depots
   if (depot.m_iState == WALK)
   {
    if (CrewNear(depot.m_Crew, depot.m_vWalkTo, JOIN)) Join(manager, depot);
-   // No way there: once out of contact they join it all the same (as any post packs up).
-   else if (now - depot.m_fStateAt >= WALK_MAX_MS && !CrewInContact(depot.m_Crew))
+   // No way there: once out of contact and away from players they join it all the same (as any post packs up).
+   else if (now - depot.m_fStateAt >= WALK_MAX_MS && !CrewInContact(depot.m_Crew) && !CrewNearPlayer(depot.m_Crew))
    {
     PrintFormat("[ACR] DEPOTS %1: the technical's crew never got there on foot", NameOf(depot));
     Join(manager, depot);
@@ -692,14 +701,44 @@ class ACR_Depots
    EndRaid(manager, depot);
    return;
   }
-  // Stuck on the way home (a failed route, a player in it): as OUT gives up after TRIP_MAX_MS, so
-  // does the drive home, or the depot stayed busy all match and the technical kept counting.
-  // Out of contact only: EndRaid deletes the crew where it stands (as a post packs up), and two men
-  // vanished mid-fight in front of whoever was shooting at them.
-  if (now - depot.m_fStateAt >= TRIP_MAX_MS && !CrewInContact(depot.m_Crew))
+  // Progress & stall tracking on the drive home: an actively driving technical (including a long
+  // road route or a stolen vehicle from up to STEAL_REACH) never times out mid-drive. If it stalls
+  // out of contact, re-order it first; only if genuinely stuck (or making no net progress for
+  // TRIP_MAX_MS) does the crew dismount and walk home via Walk().
+  vector pos = depot.m_Out.GetOrigin();
+  float gap = vector.DistanceXZ(pos, Yard(depot));
+  if (depot.m_vBackPos == vector.Zero || vector.DistanceXZ(pos, depot.m_vBackPos) >= BACK_MOVE_M)
   {
-   PrintFormat("[ACR] DEPOTS %1: the technical never made it home, its crew stands down", NameOf(depot));
-   EndRaid(manager, depot);
+   depot.m_vBackPos = pos;
+   depot.m_fBackMovedAt = now;
+   depot.m_iBackNudges = 0;
+  }
+  if (gap <= depot.m_fBackBestGap - BACK_MOVE_M)
+  {
+   depot.m_fBackBestGap = gap;
+   depot.m_fBackProgressAt = now;
+  }
+  if (CrewInContact(depot.m_Crew))
+  {
+   depot.m_fBackMovedAt = now;
+   depot.m_fBackProgressAt = now;
+   return;
+  }
+  bool stalled = now - depot.m_fBackMovedAt >= BACK_NUDGE_MS;
+  if (stalled && depot.m_iBackNudges < BACK_NUDGES)
+  {
+   depot.m_iBackNudges++;
+   depot.m_fBackMovedAt = now;
+   ACR_Guerrillas.Order(depot.m_Crew, ACR_Squad.WP_MOVE, Yard(depot), 20, false);
+   PrintFormat("[ACR] DEPOTS %1: the technical stalled on the way home (%2 m out), ordered again (%3/%4)", NameOf(depot), (int)gap, depot.m_iBackNudges, BACK_NUDGES);
+   return;
+  }
+  bool noProgress = now - depot.m_fBackProgressAt >= TRIP_MAX_MS;
+  if (stalled || noProgress)
+  {
+   PrintFormat("[ACR] DEPOTS %1: the technical is stuck on the way home (%2 m out), its crew dismounts", NameOf(depot), (int)gap);
+   Dismount(depot.m_Crew, depot.m_Out);
+   Walk(depot);
   }
  }
 
@@ -720,9 +759,49 @@ class ACR_Depots
  {
   depot.m_iState = BACK;
   depot.m_fStateAt = now;
+  InitBackProgress(depot, now);
   ACR_Guerrillas.SetCombatMode(depot.m_Crew, EAIGroupCombatMode.RETURN_FIRE);
   ACR_Guerrillas.Order(depot.m_Crew, ACR_Squad.WP_MOVE, Yard(depot), 20, false);
   PrintFormat("[ACR] DEPOTS %1: the technical drives home", NameOf(depot));
+ }
+
+ protected static void InitBackProgress(ACR_Depot depot, float now)
+ {
+  depot.m_fBackMovedAt = now;
+  depot.m_fBackProgressAt = now;
+  depot.m_iBackNudges = 0;
+  if (depot.m_Out)
+  {
+   depot.m_vBackPos = depot.m_Out.GetOrigin();
+   depot.m_fBackBestGap = vector.DistanceXZ(depot.m_vBackPos, Yard(depot));
+  }
+  else
+  {
+   depot.m_vBackPos = vector.Zero;
+   depot.m_fBackBestGap = float.MAX;
+  }
+ }
+
+ protected static void Dismount(SCR_AIGroup crew, IEntity vehicle)
+ {
+  if (!crew) return;
+  if (vehicle)
+  {
+   SCR_AIVehicleUsageComponent usage = SCR_AIVehicleUsageComponent.Cast(vehicle.FindComponent(SCR_AIVehicleUsageComponent));
+   SCR_AIGroupUtilityComponent utility = crew.GetGroupUtilityComponent();
+   if (usage && utility && utility.IsUsableVehicle(usage)) utility.RemoveUsableVehicle(usage);
+  }
+  array<AIAgent> agents = {};
+  crew.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   ChimeraCharacter body = ChimeraCharacter.Cast(agent.GetControlledEntity());
+   if (!body || !body.IsInVehicle() || ACR_Squad.FindController(body) > 0 || ACR_FIASpoils.OutOfFight(body)) continue;
+   CompartmentAccessComponent access = body.GetCompartmentAccessComponent();
+   if (!access) continue;
+   if (!access.GetOutVehicle(EGetOutType.ANIMATED, -1, ECloseDoorAfterActions.LEAVE_OPEN, false))
+    access.GetOutVehicle(EGetOutType.TELEPORT, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
+  }
  }
 
  // On foot to the nearest standing cell or hideout (none: the depot itself).
@@ -805,6 +884,28 @@ class ACR_Depots
   return false;
  }
 
+ protected static bool CrewNearPlayer(SCR_AIGroup crew)
+ {
+  array<AIAgent> agents = {};
+  crew.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   IEntity body = agent.GetControlledEntity();
+   if (body && ACR_Respawn.IsAlive(body) && ACR_FIAPrisoners.PlayerNear(body.GetOrigin(), PLAYER_CLEAR)) return true;
+  }
+  return false;
+ }
+
+ protected static bool PlayerAboard(IEntity vehicle)
+ {
+  if (!vehicle) return false;
+  array<IEntity> crew = {};
+  ACR_PendingPurchase.Occupants(vehicle, crew);
+  foreach (IEntity man : crew)
+   if (man && ACR_Squad.FindController(man) > 0) return true;
+  return false;
+ }
+
  // The raid is over: the crew stands down (out of the vehicle and gone), the technical stays
  // (in the yard: parked for the next raid; anywhere else: Prune drops it). A raid that never got
  // there rests the depot (an unreachable target would relaunch it every few minutes).
@@ -838,7 +939,7 @@ class ACR_Depots
    else manager.m_Bases.PackUpGuards(depot.m_Crew);
   }
   depot.m_bTheft = false;
-  if (depot.m_Out && depot.m_Out.GetPhysics())
+  if (depot.m_Out && !PlayerAboard(depot.m_Out) && depot.m_Out.GetPhysics())
   {
    depot.m_Out.GetPhysics().SetVelocity(vector.Zero);
    depot.m_Out.GetPhysics().SetAngularVelocity(vector.Zero);
