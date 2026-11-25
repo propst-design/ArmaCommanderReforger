@@ -594,8 +594,8 @@ class ACR_MapFeed
     detail += ACR_FobSupply.Describe(base);
     detail += ACR_FobSlots.Describe(base);
    }
-   // The calm map names the enemy's HQ when zoomed out (ACR_MapDeclutter.IsHQ).
-   if (calm && ACR_LogisticsRules.IsHQ(base)) detail += " | HQ";
+   // The calm map names the enemy's HQ when zoomed out (ACR_MapDeclutter.IsHQ), never an unclaimed or undiscovered base.
+   if (calm && !owner.IsEmpty() && ACR_LogisticsRules.IsHQ(base)) detail += " | HQ";
    frame.m_BasePos.Insert(base.GetOrigin());
    frame.m_BaseNames.Insert(base.GetLabel());
    frame.m_BaseOwners.Insert(owner);

@@ -59,6 +59,7 @@ class ACR_TestCoin
   if (stronghold) strongText = string.Format("%1 owner %2 pocket %3 garrison %4", stronghold.m_sName, stronghold.m_sOwner, stronghold.m_bPocket, stronghold.m_iGarrison);
   if (stronghold && ACR_OneSide.Home()) far = vector.DistanceXZ(stronghold.GetOrigin(), ACR_OneSide.Home().GetOrigin());
   Check("coin: the absent army's HQ is the stronghold: an FIA pocket of 16+ with a depot", stronghold && stronghold == ACR_OneSide.AbsentHQ() && stronghold.m_sOwner == ACR_Pockets.FACTION && stronghold.m_bPocket && stronghold.m_iGarrison >= ACR_Coin.STRONGHOLD_MIN && depot, string.Format("%1, depot %2, %3 m from the army's HQ", strongText, depot, (int)far));
+  Check("coin: the stronghold is hidden from the army and no longer flagged as an HQ", stronghold && !ACR_LogisticsRules.IsHQ(stronghold) && stronghold.OwnerSeenBy(army).IsEmpty(), string.Format("isHQ %1, seenByArmy '%2'", ACR_LogisticsRules.IsHQ(stronghold), stronghold.OwnerSeenBy(army)));
   bool rows = ACR_Setup.HiddenByMatchType("fiaallegiance") && ACR_Setup.HiddenByMatchType("fialeaning") && ACR_Setup.HiddenByMatchType("zombiemode") && !ACR_Setup.HiddenByMatchType("coinarmy") && !ACR_Setup.Rows().Contains("fiaallegiance\t") && ACR_Setup.Rows().Contains("coinarmy\t");
   Check("coin: the allegiance and leaning rows are hidden, the army row shown; FIA hostile, no leaning", rows && ACR_Insurgency.Ally().IsEmpty() && !ACR_Insurgency.Leaning(), string.Format("rows %1, ally '%2', leaning %3", rows, ACR_Insurgency.Ally(), ACR_Insurgency.Leaning()));
   int houses;
@@ -95,7 +96,7 @@ class ACR_TestCoin
    if (squad.GetFaction().GetFactionKey() == ACR_Coin.Army()) army++;
   }
   Check("coin: the absent side has no squads, the army has some", squads == 0 && army > 0, string.Format("%1 absent, %2 army squads", squads, army));
-  ACR_TestRegress.Complete("coin", 9);
+  ACR_TestRegress.Complete("coin", 10);
  }
 
  // ---------------------------------------------------------------- srv:support

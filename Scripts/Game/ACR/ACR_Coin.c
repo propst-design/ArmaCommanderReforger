@@ -173,6 +173,9 @@ class ACR_Coin
   if (hq && !hq.m_bRetired && hq.m_sOwner.IsEmpty())
   {
    s_Stronghold = hq;
+   // Strip the absent army's HQ role so the stronghold stays hidden as an ordinary town until
+   // discovered (not AUTHORED, which would re-trigger IsHQ on a player-insurgent spawn point).
+   hq.m_eLogisticsRole = ACR_EBaseRole.SETTLEMENT;
    ACR_Pockets.Add(hq, Math.RandomIntInclusive(STRONGHOLD_MIN, STRONGHOLD_MAX));
    stronghold = string.Format("%1 (%2 men)", hq.m_sName, hq.m_iGarrison);
   }

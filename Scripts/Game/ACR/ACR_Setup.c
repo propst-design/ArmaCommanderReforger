@@ -83,7 +83,10 @@ class ACR_Setup
   if (generated || quick != "off") seed = ACR_Generator.Seed();
   string west = ACR_FactionSelection.West();
   string east = ACR_FactionSelection.East();
-  string signature = string.Format("%1|%2|%3|%4|%5|%6", layout, seed, west, east, ACR_Generator.s_iMovesVersion, quick);
+  bool coin = ACR_Coin.On();
+  string absent = "";
+  if (coin) absent = ACR_OneSide.Absent();
+  string signature = string.Format("%1|%2|%3|%4|%5|%6|%7", layout, seed, west, east, ACR_Generator.s_iMovesVersion, quick, absent);
   if (signature == s_sPreviewSig) return;
   s_sPreviewSig = signature;
   s_PreviewPos.Clear();
@@ -93,6 +96,7 @@ class ACR_Setup
   s_PreviewRadii.Clear();
   s_PreviewWeights.Clear();
   s_PreviewHidden.Clear();
+  array<string> openDetails = {};
   if (generated)
   {
    array<ref ACR_GenSite> plan = {};
@@ -101,10 +105,12 @@ class ACR_Setup
    foreach (ACR_GenSite site : plan)
    {
     string owner = "";
-    string detail = site.Describe();
+    string openDetail = site.Describe();
+    string detail = openDetail;
     if (hqs.Count() == 2 && site == hqs[0]) { owner = west; detail = "HQ (" + ACR_FactionSelection.DisplayName(west) + "), 2 RP"; }
     if (hqs.Count() == 2 && site == hqs[1]) { owner = east; detail = "HQ (" + ACR_FactionSelection.DisplayName(east) + "), 2 RP"; }
     AddPreview(site.m_vPos, site.m_sName, owner, detail, site.m_fRadius, ACR_QuickStart.Weight(site.m_bIncome, site.m_iValue), site.m_sKind == "landmark");
+    openDetails.Insert(openDetail);
    }
   }
   else
@@ -114,16 +120,33 @@ class ACR_Setup
     string baseOwner = base.m_sOwner;
     if (baseOwner == "US") baseOwner = west;
     else if (baseOwner == "USSR") baseOwner = east;
-    string baseDetail = string.Format("Control point, %1 RP", base.m_iValue);
-    if (!base.m_bIncome) baseDetail = "Control point, no income";
+    string openDetail = string.Format("Control point, %1 RP", base.m_iValue);
+    if (!base.m_bIncome) openDetail = "Control point, no income";
+    string baseDetail = openDetail;
     // HQs read as HQs, as on a generated layout (20 Nov: the lobby's sketch drew the world's own
     // HQs at a plain base's size, its "HQ" test never matched "Control point, ...").
     if (ACR_LogisticsRules.IsHQ(base) && !baseOwner.IsEmpty()) baseDetail = string.Format("HQ (%1), %2 RP", ACR_FactionSelection.DisplayName(baseOwner), base.m_iValue);
-    if (base.m_bHidden) baseDetail += " | Hidden";
+    if (base.m_bHidden)
+    {
+     openDetail += " | Hidden";
+     baseDetail += " | Hidden";
+    }
     AddPreview(base.GetOrigin(), base.m_sName, baseOwner, baseDetail, base.m_fRadius, ACR_QuickStart.Weight(base.m_bIncome, base.m_iValue), base.m_bHidden);
+    openDetails.Insert(openDetail);
    }
   }
   if (quick != "off") PreviewQuickStart(quick, seed, west, east);
+  // COIN (ACR_Coin): the absent side sits out and its HQ becomes a hidden stronghold, so the
+  // setup preview opens its bases and strips its HQ label (matching ACR_OneSide.Apply).
+  if (coin && !absent.IsEmpty())
+  {
+   for (int p = 0; p < s_PreviewOwners.Count(); p++)
+   {
+    if (s_PreviewOwners[p] != absent) continue;
+    s_PreviewOwners[p] = "";
+    if (p < openDetails.Count()) s_PreviewDetails[p] = openDetails[p];
+   }
+  }
   PrintFormat("[ACR] SETUP preview %1: %2 bases", signature, s_PreviewNames.Count());
  }
 
