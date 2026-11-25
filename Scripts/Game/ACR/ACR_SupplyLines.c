@@ -21,6 +21,7 @@ class ACR_SupplyLines
 
 	protected static ref map<ACR_Base, bool> s_Isolated;
 	protected static ref map<ACR_Base, float> s_ReliefUntil;
+	protected static ref map<ACR_Base, string> s_ReliefSide;
 	protected static float s_fNextTick = -1;
 
 	// Called by ACR_StaticInit at game start.
@@ -28,12 +29,14 @@ class ACR_SupplyLines
 	{
 		s_Isolated = new map<ACR_Base, bool>();
 		s_ReliefUntil = new map<ACR_Base, float>();
+		s_ReliefSide = new map<ACR_Base, string>();
 	}
 
 	static void Reset()
 	{
 		if (s_Isolated) s_Isolated.Clear();
 		if (s_ReliefUntil) s_ReliefUntil.Clear();
+		if (s_ReliefSide) s_ReliefSide.Clear();
 		s_fNextTick = -1;
 	}
 
@@ -58,19 +61,22 @@ class ACR_SupplyLines
 
 	static bool HasRelief(ACR_Base base, float now = -1)
 	{
-		if (!base || !s_ReliefUntil) return false;
+		if (!base || base.m_sOwner.IsEmpty() || !s_ReliefUntil || !s_ReliefSide) return false;
 		if (now < 0) now = GetGame().GetWorld().GetWorldTime();
 		float until;
-		return s_ReliefUntil.Find(base, until) && now < until;
+		if (!s_ReliefUntil.Find(base, until) || now >= until) return false;
+		string side;
+		return s_ReliefSide.Find(base, side) && side == base.m_sOwner;
 	}
 
-	// Grant temporary emergency supply relief (truck delivery or air lift).
+	// Grant temporary emergency supply relief (truck delivery or air lift) to this base only.
 	static void Relieve(ACR_Base base, string why = "supply relief")
 	{
-		if (!Replication.IsServer() || !base || base.m_bRetired || !s_ReliefUntil) return;
+		if (!Replication.IsServer() || !base || base.m_bRetired || base.m_sOwner.IsEmpty() || !s_ReliefUntil || !s_ReliefSide) return;
 		float now = GetGame().GetWorld().GetWorldTime();
 		bool wasCut = IsIsolated(base);
 		s_ReliefUntil.Set(base, now + RELIEF_MS);
+		s_ReliefSide.Set(base, base.m_sOwner);
 		if (s_Isolated) s_Isolated.Set(base, false);
 		if (wasCut && !base.m_sOwner.IsEmpty())
 		{
@@ -132,7 +138,13 @@ class ACR_SupplyLines
 		for (int j = s_ReliefUntil.Count() - 1; j >= 0; j--)
 		{
 			ACR_Base b = s_ReliefUntil.GetKey(j);
-			if (!b || b.m_bRetired || now >= s_ReliefUntil.GetElement(j)) s_ReliefUntil.RemoveElement(j);
+			string relSide;
+			bool ownerChanged = !b || !s_ReliefSide || !s_ReliefSide.Find(b, relSide) || b.m_sOwner != relSide;
+			if (!b || b.m_bRetired || ownerChanged || now >= s_ReliefUntil.GetElement(j))
+			{
+				if (b && s_ReliefSide) s_ReliefSide.Remove(b);
+				s_ReliefUntil.RemoveElement(j);
+			}
 		}
 	}
 
@@ -140,8 +152,8 @@ class ACR_SupplyLines
 	{
 		if (ACR_LogisticsRules.IsHQ(base)) return true;
 		if (ACR_SupplyRuns.IsPort(base)) return true;
-		if (base.m_bBuilt && !base.m_bHqLost && manager.m_Structures && manager.m_Structures.HasDepot(base)) return true;
-		if (HasRelief(base, now)) return true;
+		// A FOB with a built supply depot sustains its sector only while it actually holds stock.
+		if (base.m_bBuilt && !base.m_bHqLost && base.m_FobSupply && ACR_FobSupply.Stock(base.m_FobSupply) > 0 && manager.m_Structures && manager.m_Structures.HasDepot(base)) return true;
 		return false;
 	}
 
@@ -189,7 +201,8 @@ class ACR_SupplyLines
 		{
 			bool wasCut = false;
 			s_Isolated.Find(base, wasCut);
-			bool nowCut = !reached.Contains(base);
+			// Emergency truck/air relief un-isolates this specific base without making it a root for others.
+			bool nowCut = !reached.Contains(base) && !HasRelief(base, now);
 			s_Isolated.Set(base, nowCut);
 			if (nowCut && !wasCut)
 			{
