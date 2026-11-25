@@ -30,17 +30,26 @@ class ACR_TestFiaNetwork
 		ACR_DefenderPost hideout;
 		if (!hideouts.IsEmpty()) hideout = hideouts[0];
 
-		// 1. Place cell: find a surveyed road point within SUPPLY_REACH of a hideout.
+		// 1. Place cell: find a surveyed road or house point within SUPPLY_REACH of any standing hideout.
 		vector cellSite = vector.Zero;
 		bool foundRoad = false;
-		if (hideout)
+		foreach (vector r : ACR_Guerrillas.s_aRoads)
 		{
-			foreach (vector r : ACR_Guerrillas.s_aRoads)
+			if (!ACR_FIAIntel.SupplierOf(r)) continue;
+			if (!ACR_Guerrillas.UsableAmbush(r) || ACR_Guerrillas.Crowded(r, null)) continue;
+			if (manager.m_Bases.MenWithin(r, ACR_InsurgentNetwork.CELL_CLEAR, army) > 0) continue;
+			cellSite = r;
+			foundRoad = true;
+			break;
+		}
+		if (!foundRoad)
+		{
+			foreach (vector hh : ACR_Guerrillas.s_aHouses)
 			{
-				if (vector.DistanceXZ(r, hideout.m_vPos) > ACR_Guerrillas.SUPPLY_REACH - 200) continue;
-				if (!ACR_Guerrillas.UsableAmbush(r) || ACR_Guerrillas.Crowded(r, null)) continue;
-				if (manager.m_Bases.MenWithin(r, ACR_InsurgentNetwork.CELL_CLEAR, army) > 0) continue;
-				cellSite = r;
+				if (!ACR_FIAIntel.SupplierOf(hh)) continue;
+				if (!ACR_Guerrillas.UsableAmbush(hh) || ACR_Guerrillas.Crowded(hh, null)) continue;
+				if (manager.m_Bases.MenWithin(hh, ACR_InsurgentNetwork.CELL_CLEAR, army) > 0) continue;
+				cellSite = hh;
 				foundRoad = true;
 				break;
 			}
@@ -58,17 +67,14 @@ class ACR_TestFiaNetwork
 		// 2. Place IED team on a road within hideout reach, clear of enemy troops and other IEDs.
 		vector iedSite = vector.Zero;
 		bool foundIedRoad = false;
-		if (hideout)
+		foreach (vector r2 : ACR_Guerrillas.s_aRoads)
 		{
-			foreach (vector r2 : ACR_Guerrillas.s_aRoads)
-			{
-				if (vector.DistanceXZ(r2, hideout.m_vPos) > ACR_IED.IED_REACH - 200) continue;
-				if (!ACR_Guerrillas.UsableAmbush(r2)) continue;
-				if (ACR_IED.HostileNear(ins, r2, ACR_IED.PLANT_CLEAR)) continue;
-				iedSite = r2;
-				foundIedRoad = true;
-				break;
-			}
+			if (!ACR_FIAIntel.SupplierOf(r2)) continue;
+			if (!ACR_Guerrillas.UsableAmbush(r2)) continue;
+			if (ACR_IED.HostileNear(ins, r2, ACR_IED.PLANT_CLEAR)) continue;
+			iedSite = r2;
+			foundIedRoad = true;
+			break;
 		}
 		int iedBefore = ACR_IED.Live();
 		rpBefore = data.m_iRP;
@@ -120,6 +126,16 @@ class ACR_TestFiaNetwork
 				if (vector.DistanceXZ(r3, home) > 2200 || vector.DistanceXZ(r3, home) < 200) continue;
 				vector drivable;
 				if (ACR_Depots.Drivable(idleDepot, r3, drivable)) { techTarget = drivable; foundTech = true; break; }
+			}
+			if (!foundTech)
+			{
+				foreach (ACR_Base b3 : ACR_Base.s_All)
+				{
+					if (!b3 || b3.m_bRetired || b3 == idleDepot.m_Base) continue;
+					if (vector.DistanceXZ(b3.GetOrigin(), home) > 2200 || vector.DistanceXZ(b3.GetOrigin(), home) < 200) continue;
+					vector drivableB;
+					if (ACR_Depots.Drivable(idleDepot, b3.GetOrigin(), drivableB)) { techTarget = drivableB; foundTech = true; break; }
+				}
 			}
 			rpBefore = data.m_iRP;
 			string techRef;

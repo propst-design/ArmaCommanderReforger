@@ -60,7 +60,10 @@ enum ACR_EPanelAction
  NET_SABOTAGE,
  NET_TECH_RAID,
  SETUP_HIDEOUT,           // insurgent band: set up hideout (#97 item 7)
- GO_TO_GROUND             // insurgent hideout: go to ground (#97 item 7)
+ GO_TO_GROUND,            // insurgent hideout: go to ground (#97 item 7)
+ TOGGLE_MUSTER,           // insurgent requisition: muster on map toggle (#97 item 9)
+ DISPERSE,                // insurgent band: disperse (#97 item 9)
+ DRAW_IED_KIT             // insurgent hideout: draw hand-fired IED kit (#97 item 9)
 }
 
 enum ACR_ECursorMode
@@ -163,6 +166,12 @@ class ACR_CommandPanel : Managed
  protected Widget m_SetupHideoutWidget;
  protected SCR_ButtonTextComponent m_GoToGroundButton;
  protected Widget m_GoToGroundWidget;
+ protected SCR_ButtonTextComponent m_DrawIedKitButton;
+ protected Widget m_DrawIedKitWidget;
+ protected SCR_ButtonTextComponent m_DisperseButton;
+ protected Widget m_DisperseWidget;
+ protected SCR_ButtonTextComponent m_MusterToggleButton;
+ protected Widget m_MusterToggleWidget;
  protected SCR_ButtonTextComponent m_NetworkButton;
  protected Widget m_NetworkWidget;
  protected Widget m_NetworkSection;
@@ -266,6 +275,8 @@ class ACR_CommandPanel : Managed
   m_NetworkButtons.Insert(AddButton(m_NetworkSection, "Place IED team (10 RP)", ACR_EPanelAction.NET_IED));
   m_NetworkButtons.Insert(AddButton(m_NetworkSection, "Sabotage raid (15 RP)", ACR_EPanelAction.NET_SABOTAGE));
   m_NetworkButtons.Insert(AddButton(m_NetworkSection, "Technical raid (15 RP)", ACR_EPanelAction.NET_TECH_RAID));
+  m_MusterToggleButton = AddButton(m_NetworkSection, "Muster on map: off", ACR_EPanelAction.TOGGLE_MUSTER);
+  m_MusterToggleWidget = m_LastButtonWidget;
 
   // What isn't needed to run the fight folds away under one button.
   m_MoreButton = AddButton(m_Content, "", ACR_EPanelAction.MORE_FOLD);
@@ -293,6 +304,9 @@ class ACR_CommandPanel : Managed
   m_GoToGroundButton = AddButton(m_GroupSection, "Go to ground (+15 RP)", ACR_EPanelAction.GO_TO_GROUND);
   m_GoToGroundWidget = m_LastButtonWidget;
   if (m_GoToGroundWidget) m_GoToGroundWidget.SetVisible(false);
+  m_DrawIedKitButton = AddButton(m_GroupSection, "Draw IED kit (5 RP)", ACR_EPanelAction.DRAW_IED_KIT);
+  m_DrawIedKitWidget = m_LastButtonWidget;
+  if (m_DrawIedKitWidget) m_DrawIedKitWidget.SetVisible(false);
   m_FobSupplyButton = AddButton(m_FobSection, "Order 500 supplies - 20 RP / 60 s", ACR_EPanelAction.FOB_SUPPLY);
   m_FobBuildButton = AddButton(m_FobSection, "Build at FOB (stand inside its circle)", ACR_EPanelAction.FOB_BUILD);
   m_FobAIButton = AddButton(m_FobSection, "AI manages this FOB: off", ACR_EPanelAction.FOB_AI);
@@ -357,6 +371,10 @@ class ACR_CommandPanel : Managed
   m_SetupHideoutButton = AddButton(m_BuildSection, "Set up hideout (25 RP)", ACR_EPanelAction.SETUP_HIDEOUT);
   m_SetupHideoutWidget = m_LastButtonWidget;
   if (m_SetupHideoutWidget) m_SetupHideoutWidget.SetVisible(false);
+  if (m_DisperseWidget) m_DisperseWidget.SetVisible(false);
+  m_DisperseButton = AddButton(m_BuildSection, "Disperse band", ACR_EPanelAction.DISPERSE);
+  m_DisperseWidget = m_LastButtonWidget;
+  if (m_DisperseWidget) m_DisperseWidget.SetVisible(false);
   // Roadblocks: the three checkpoint sizes in a row, a barricade under them.
   m_RoadblockWidget = ws.CreateWidget(WidgetType.VerticalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_BuildSection);
   m_RoadblockSizes = ws.CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_RoadblockWidget);
@@ -1233,11 +1251,21 @@ class ACR_CommandPanel : Managed
  {
   if (m_GoToGroundWidget) m_GoToGroundWidget.SetVisible(visible);
   if (m_GoToGroundButton) m_GoToGroundButton.SetEnabled(canGoToGround, false);
+  if (m_DrawIedKitWidget) m_DrawIedKitWidget.SetVisible(visible);
+  if (m_DrawIedKitButton) m_DrawIedKitButton.SetEnabled(visible, false);
  }
 
  void SetSetupHideout(bool visible)
  {
   if (m_SetupHideoutWidget) m_SetupHideoutWidget.SetVisible(visible);
+  if (m_DisperseWidget) m_DisperseWidget.SetVisible(visible);
+ }
+
+ void SetMusterMode(bool on)
+ {
+  if (!m_MusterToggleButton) return;
+  if (on) m_MusterToggleButton.SetText("[Muster on map: ON]");
+  else m_MusterToggleButton.SetText("Muster on map: off");
  }
 
  void SetNetwork(bool visible, bool open, int rp, int pending)
@@ -1266,6 +1294,7 @@ class ACR_CommandPanel : Managed
  {
   if (m_FobSection) m_FobSection.SetVisible(false);
   if (m_GoToGroundWidget) m_GoToGroundWidget.SetVisible(false);
+  if (m_DrawIedKitWidget) m_DrawIedKitWidget.SetVisible(false);
   if (!m_GroupSection) return;
   m_GroupSection.SetVisible(true);
   m_GroupName.SetText(name);
@@ -1275,6 +1304,7 @@ class ACR_CommandPanel : Managed
   if (m_SquadAIWidget) m_SquadAIWidget.SetVisible(false);
   if (m_EstablishFobWidget) m_EstablishFobWidget.SetVisible(false);
   if (m_SetupHideoutWidget) m_SetupHideoutWidget.SetVisible(false);
+  if (m_DisperseWidget) m_DisperseWidget.SetVisible(false);
   if (m_RoadblockWidget) m_RoadblockWidget.SetVisible(false);
   if (m_MinesWidget) m_MinesWidget.SetVisible(false);
   if (m_FortifyWidget) m_FortifyWidget.SetVisible(false);

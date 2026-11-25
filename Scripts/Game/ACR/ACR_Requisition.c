@@ -422,6 +422,39 @@ class ACR_Requisition : Managed
   return string.Format("%1 deploying at %2", name, hideout.m_sName);
  }
 
+ // Spawns an already-paid foot infantry entry at a muster spot (ACR_Muster, #97 item 9).
+ bool SpawnFootEntryAt(string key, int entryIndex, vector spot)
+ {
+  ACR_FactionData data = m_Manager.m_Bases.GetFaction(key);
+  if (entryIndex < 0 || entryIndex >= data.m_aRequisitions.Count()) return false;
+  ACR_RequisitionEntry entry = data.m_aRequisitions[entryIndex];
+  if (!entry || entry.m_iRemaining <= 0) return false;
+  ACR_PendingPurchase purchase = new ACR_PendingPurchase();
+  purchase.m_sFaction = key;
+  purchase.m_Entry = entry;
+  purchase.m_iPaid = 0; // RP already handled by ACR_Muster
+  entry.m_iRemaining--;
+  entry.m_iBought++;
+  entry.m_iNamed++;
+  ACR_Pricing.Reprice(entry);
+  purchase.m_sName = string.Format("%1 %2", entry.m_sName, entry.m_iNamed);
+  vector groupPos = ACR_Manager.Ground(spot);
+  vector freeG;
+  if (ACR_BaseSystem.ClearGround(freeG, groupPos, 15, 1.5)) groupPos = freeG;
+  ResourceName group = ACR_FactionCatalog.ResolvePrefab(key, entry.m_sGroup, EEntityCatalogType.GROUP);
+  if (!SpawnParts(purchase, group, "", false, "", groupPos, groupPos))
+  {
+   entry.m_iRemaining++;
+   return false;
+  }
+  if (purchase.NeedsWatch())
+  {
+   purchase.m_fDeadline = GetGame().GetWorld().GetWorldTime() + s_fPendingTimeoutMs;
+   m_aPending.Insert(purchase);
+  }
+  return true;
+ }
+
  // ---------------------------------------------------------------- purchase transactions
 
  static float s_fPendingTimeoutMs = 30000; // a bought unit with nobody in it after this is refunded (tests shorten it)

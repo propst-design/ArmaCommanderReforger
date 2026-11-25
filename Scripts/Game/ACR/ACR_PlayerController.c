@@ -1763,6 +1763,7 @@ modded class SCR_PlayerController
   ACR_Cooldowns(cooldowns);
   m_ACR_Panel.SetSupports(m_ACR_IsCommander, m_ACR_SupportOpen, m_ACR_SupNames, m_ACR_SupCosts, cooldowns, m_ACR_RP, m_ACR_PendingSupport);
   m_ACR_Panel.SetNetwork(m_ACR_IsCommander && insurgentViewer, m_ACR_NetworkOpen, m_ACR_RP, m_ACR_PendingNetwork);
+  m_ACR_Panel.SetMusterMode(m_ACR_MusterMode);
   m_ACR_Panel.SetReport(m_ACR_ReportOpen, m_ACR_ReportText);
   if (m_ACR_PendingNetwork >= 0)
   {
@@ -1790,7 +1791,9 @@ modded class SCR_PlayerController
   }
   if (m_ACR_PendingEntry >= 0 && m_ACR_PendingEntry < m_ACR_ReqNames.Count())
   {
-   m_ACR_Panel.SetBase(m_ACR_ReqNames[m_ACR_PendingEntry], "Click one of your bases to deploy. Right-click to cancel.");
+   string deployHint = "Click one of your bases to deploy. Right-click to cancel.";
+   if (m_ACR_MusterMode && insurgentViewer) deployHint = "Click any covered spot on the map to muster this band (+25% RP). Right-click to cancel.";
+   m_ACR_Panel.SetBase(m_ACR_ReqNames[m_ACR_PendingEntry], deployHint);
    return;
   }
   if (!m_ACR_SelectedBase.IsEmpty())
@@ -1974,6 +1977,11 @@ modded class SCR_PlayerController
     return;
    case ACR_EPanelAction.SETUP_HIDEOUT: ACR_ToggleCursor(ACR_ECursorMode.SETUP_HIDEOUT); return;
    case ACR_EPanelAction.GO_TO_GROUND: Rpc(ACR_GoToGroundServer, m_ACR_SelectedBase); return;
+   case ACR_EPanelAction.TOGGLE_MUSTER: m_ACR_MusterMode = !m_ACR_MusterMode; return;
+   case ACR_EPanelAction.DISPERSE:
+    if (m_ACR_SelectedGroup.IsValid()) Rpc(ACR_DisperseServer, m_ACR_SelectedGroup);
+    return;
+   case ACR_EPanelAction.DRAW_IED_KIT: Rpc(ACR_DrawIedKitServer); return;
    case ACR_EPanelAction.TOGGLE_NETWORK:
     m_ACR_NetworkOpen = !m_ACR_NetworkOpen;
     if (m_ACR_NetworkOpen) m_ACR_RequisitionOpen = false;
@@ -2822,6 +2830,7 @@ modded class SCR_PlayerController
 
  protected string m_ACR_SelectedBase;
  protected bool m_ACR_NetworkOpen;
+ protected bool m_ACR_MusterMode;
  protected int m_ACR_PendingNetwork = -1;
 
  void ACR_SendBases(array<vector> positions, array<string> names, array<string> owners, array<string> details, array<float> radii, array<int> contested, array<int> supplies)
@@ -2885,6 +2894,52 @@ modded class SCR_PlayerController
   string refusal;
   if (ACR_InsurgentNetwork.Order(faction.GetFactionKey(), kind, point, refusal))
    Rpc(ACR_FeedbackOwner, ACR_InsurgentNetwork.NameOf(kind) + " ordered");
+  else
+   Rpc(ACR_FeedbackOwner, refusal);
+ }
+
+ // Insurgent panel: muster a foot band at a covered map spot (#97 item 9).
+ [RplRpc(RplChannel.Reliable, RplRcver.Server)]
+ protected void ACR_MusterServer(int entryIndex, vector point)
+ {
+  if (ACR_TooSoon("muster", 500)) return;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager || !manager.IsCommander(GetPlayerId())) { Rpc(ACR_FeedbackOwner, "Only the commander can muster bands"); return; }
+  Faction faction = SCR_FactionManager.SGetPlayerFaction(GetPlayerId());
+  if (!faction) { Rpc(ACR_FeedbackOwner, "No faction"); return; }
+  string refusal;
+  if (ACR_Muster.Order(faction.GetFactionKey(), entryIndex, point, refusal))
+   Rpc(ACR_FeedbackOwner, "Band mustering...");
+  else
+   Rpc(ACR_FeedbackOwner, refusal);
+ }
+
+ // Insurgent panel: disperse a selected foot band (#97 item 9).
+ [RplRpc(RplChannel.Reliable, RplRcver.Server)]
+ protected void ACR_DisperseServer(RplId groupId)
+ {
+  if (ACR_TooSoon("disperse", 500)) return;
+  ACR_Manager manager = ACR_Manager.GetInstance();
+  if (!manager || !manager.IsCommander(GetPlayerId())) { Rpc(ACR_FeedbackOwner, "Only the commander can disperse bands"); return; }
+  SCR_AIGroup grp = SCR_AIGroup.Cast(SCR_EntityHelper.RplIdToEntity(groupId));
+  ACR_Squad squad = manager.FindSquadByGroup(grp);
+  string refusal;
+  if (ACR_Muster.Disperse(squad, refusal))
+   Rpc(ACR_FeedbackOwner, "Band dispersed");
+  else
+   Rpc(ACR_FeedbackOwner, refusal);
+ }
+
+ // Insurgent panel: draw a hand-fired IED kit at a hideout (#97 / #244 ruling 5).
+ [RplRpc(RplChannel.Reliable, RplRcver.Server)]
+ protected void ACR_DrawIedKitServer()
+ {
+  if (ACR_TooSoon("iedkit", 500)) return;
+  Faction faction = SCR_FactionManager.SGetPlayerFaction(GetPlayerId());
+  if (!faction) { Rpc(ACR_FeedbackOwner, "No faction"); return; }
+  string refusal;
+  if (ACR_HideoutHomes.GiveIedKit(GetControlledEntity(), faction.GetFactionKey(), refusal))
+   Rpc(ACR_FeedbackOwner, "IED kit drawn (-5 RP)");
   else
    Rpc(ACR_FeedbackOwner, refusal);
  }
@@ -3070,6 +3125,12 @@ modded class SCR_PlayerController
  // Deploy (or select) at the base whose ring contains this map point.
  bool ACR_ClickBaseAt(float x, float z)
  {
+  if (m_ACR_PendingEntry >= 0 && m_ACR_MusterMode)
+  {
+   Rpc(ACR_MusterServer, m_ACR_PendingEntry, Vector(x, 0, z));
+   m_ACR_PendingEntry = -1;
+   return true;
+  }
   int best = -1;
   float bestDistance = float.MAX;
   foreach (int i, vector pos : m_ACR_Data.m_BasePositions)

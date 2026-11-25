@@ -341,5 +341,6 @@ class ACR_InsurgentNetwork
 			radii.Insert(45);
 			labels.Insert("Sabotage raid");
 		}
+		ACR_Muster.Zones(faction, positions, radii, labels);
 	}
 }

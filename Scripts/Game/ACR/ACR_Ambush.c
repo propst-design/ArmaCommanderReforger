@@ -27,6 +27,9 @@ class ACR_AmbushPlan : Managed
  int m_iAlive;       // living members once in place (a loss springs it)
  bool m_bProne;      // the prone setting is on the group
  string m_sSprung;   // what sprang it
+ float m_fSprungAt;
+ int m_iAliveAtSpring;
+ bool m_bFaded;      // insurgent band (#97 item 9): broke off after springing ambush
  float m_fPositioningAt;
  float m_fSpotsLoggedAt;
  ref array<IEntity> m_aMen = {};    // each man ...
@@ -397,6 +400,30 @@ class ACR_Ambush
   bool own = squad.m_Order.StartsWith("Ambush") || (plan.m_bDefend && squad.m_Order.StartsWith("Defend:"));
   Apply(squad, plan, own);
   if (!own) return;
+  // Insurgent band ambush fade (#97 item 9): after a short fight (60 s) or >=30% losses,
+  // break contact and head back to the nearest hideout unless the commander gives a new order.
+  if (plan.m_ePhase == ACR_EAmbushPhase.SPRUNG && !plan.m_bFaded && !plan.m_bDefend && squad.GetFaction() && ACR_InsurgentSide.IsInsurgent(squad.GetFaction().GetFactionKey()))
+  {
+   int alive = squad.CountAlive();
+   bool tookLosses = plan.m_iAliveAtSpring > 0 && alive <= Math.Floor(plan.m_iAliveAtSpring * 0.7);
+   if (alive > 0 && (now - plan.m_fSprungAt >= 60000 || tookLosses))
+   {
+    plan.m_bFaded = true;
+    IEntity anchor = squad.GetAnchor();
+    if (anchor)
+    {
+     ACR_DefenderPost home = ACR_HideoutHomes.NearestHome(anchor.GetOrigin(), true);
+     if (home)
+     {
+      squad.RouteTo(home.m_vPos, ACR_Squad.WP_MOVE, -1, "Fading to hideout", ACR_EOrderKind.MOVE);
+      ACR_Manager mgr = ACR_Manager.GetInstance();
+      if (mgr) mgr.Command().Feed(squad.GetFaction().GetFactionKey(), string.Format("%1 fading back to %2", squad.GetName(), home.m_sName), anchor.GetOrigin());
+      PrintFormat("[ACR] AMBUSH FADE %1 heading to %2", squad.GetName(), home.m_sName);
+     }
+    }
+   }
+   return;
+  }
   if (plan.m_ePhase == ACR_EAmbushPhase.MOVING)
   {
    string onTheWay;
@@ -838,6 +865,8 @@ class ACR_Ambush
  {
   plan.m_ePhase = ACR_EAmbushPhase.SPRUNG;
   plan.m_sSprung = why;
+  plan.m_fSprungAt = GetGame().GetWorld().GetWorldTime();
+  plan.m_iAliveAtSpring = squad.CountAlive();
   squad.SetOrder("Ambush: sprung", ACR_EOrderState.DEFEND);
   Apply(squad, plan, true);
   PrintFormat("[ACR] AMBUSH %1: sprung (%2)", squad.GetName(), why);

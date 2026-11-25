@@ -76,6 +76,7 @@ class ACR_StaticInit
   ACR_Skirmish.ACR_InitStatics();
   ACR_SpawnPoints.ACR_InitStatics();
   ACR_HideoutHomes.ACR_InitStatics();
+  ACR_Muster.ACR_InitStatics();
   ACR_SquadAI.ACR_InitStatics();
   ACR_SquadMarksmen.ACR_InitStatics();
   ACR_StartingUnit.ACR_InitStatics();

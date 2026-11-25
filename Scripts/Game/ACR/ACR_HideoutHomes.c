@@ -442,4 +442,44 @@ class ACR_HideoutHomes
 		PrintFormat("[ACR] HIDEOUT %1 went to ground (+%2 RP to %3)", post.m_sName, GO_TO_GROUND_REFUND, factionKey);
 		return true;
 	}
+
+	// ---------------------------------------------------------------- hand-fired IED kit (#97 / #244 ruling 5)
+
+	static const int IED_KIT_COST = 5;
+	static const float IED_KIT_REACH = 40; // m from a standing hideout
+
+	// Gives an insurgent player a vanilla explosive charge + blasting machine from a hideout.
+	static bool GiveIedKit(IEntity body, string factionKey, out string refusal, bool skipDistForTest = false)
+	{
+		refusal = "";
+		if (!ACR_InsurgentSide.IsInsurgent(factionKey)) { refusal = "only insurgents can draw an IED kit"; return false; }
+		if (!body || !ACR_Respawn.IsAlive(body)) { refusal = "must be alive to draw an IED kit"; return false; }
+		if (!skipDistForTest)
+		{
+			ACR_DefenderPost near = NearestHome(body.GetOrigin(), true);
+			if (!near || vector.DistanceXZ(near.m_vPos, body.GetOrigin()) > IED_KIT_REACH)
+			{
+				refusal = "stand within 40 m of a hideout to draw an IED kit";
+				return false;
+			}
+		}
+		InventoryStorageManagerComponent inv = InventoryStorageManagerComponent.Cast(body.FindComponent(InventoryStorageManagerComponent));
+		if (!inv) { refusal = "no inventory available"; return false; }
+		ACR_Manager manager = ACR_Manager.GetInstance();
+		if (!manager || !manager.m_Bases || !manager.m_Bases.Spend(factionKey, IED_KIT_COST))
+		{
+			refusal = string.Format("not enough RP (%1 needed)", IED_KIT_COST);
+			return false;
+		}
+		bool okCharge = inv.TrySpawnPrefabToStorage(ACR_Demolition.ChargeFor(factionKey));
+		bool okDet = inv.TrySpawnPrefabToStorage(ACR_Demolition.DetonatorFor(factionKey));
+		if (!okCharge || !okDet)
+		{
+			manager.m_Bases.Refund(factionKey, IED_KIT_COST);
+			refusal = "not enough room in your inventory for the charge and blasting machine";
+			return false;
+		}
+		PrintFormat("[ACR] HIDEOUT IED KIT drawn by %1 (-%2 RP)", factionKey, IED_KIT_COST);
+		return true;
+	}
 }

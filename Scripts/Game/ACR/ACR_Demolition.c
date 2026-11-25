@@ -59,6 +59,18 @@ class ACR_Demolition
    destroyed++;
   }
   if (destroyed > 0) manager.m_Structures.ACR_ForceTick();
+  // COIN hand-fired IED (#97 / #244 ruling 5): a blast near army troops marks the road
+  // dangerous and gives the army a lead on the supplying hideout, like an AI IED team.
+  if (ACR_Coin.On() && manager.m_Bases)
+  {
+   string army = ACR_Coin.Army();
+   if (!army.IsEmpty() && manager.m_Bases.MenWithin(position, 40, army) > 0)
+   {
+    ACR_Insurgency.OnLoss(army, position, "an IED blast");
+    ACR_DefenderPost supplier = ACR_FIAIntel.SupplierOf(position);
+    if (supplier) ACR_FIAIntel.Lead(army, supplier, "an IED blast");
+   }
+  }
   return destroyed;
  }
 
