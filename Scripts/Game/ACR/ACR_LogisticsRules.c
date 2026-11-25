@@ -34,6 +34,7 @@ class ACR_LogisticsRules
  {
   if (!base || base.m_bRetired || !base.m_bAllowSpawn) return false;
   if (RelayBlocked(base)) return false;
+  if (!IsHQ(base) && ACR_SupplyLines.IsIsolated(base)) return false;
   string policy = Choice("acrDeployment", "military");
   if (policy == "all") return true;
   if (base.m_bBuilt || IsHQ(base)) return true;
@@ -56,6 +57,7 @@ class ACR_LogisticsRules
  {
   if (!base || base.m_bRetired || !base.m_bAllowReinforce) return false;
   if (RelayBlocked(base)) return false;
+  if (ACR_SupplyLines.IsIsolated(base)) return false;
   string policy = Choice("acrReinforcement", "settlements");
   if (policy == "all") return true;
   if (policy == "deployment") return CanDeploy(base);

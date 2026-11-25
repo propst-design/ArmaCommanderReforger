@@ -140,8 +140,9 @@ class ACR_TownSupport
  // The army's share of the town's income (ACR_BaseSystem.GetIncome): 1, or HostileIncome when Hostile.
  static float IncomeShare(ACR_Base base, string factionKey)
  {
-  if (!s_bOn || !IsTown(base) || base.m_iSupportTier != HOSTILE || !ACR_Coin.IsArmy(factionKey)) return 1;
-  return ACR_Coin.HostileIncome();
+  float share = ACR_SupplyLines.IncomeShare(base);
+  if (!s_bOn || !IsTown(base) || base.m_iSupportTier != HOSTILE || !ACR_Coin.IsArmy(factionKey)) return share;
+  return share * ACR_Coin.HostileIncome();
  }
 
  // The insurgent side's share of a town's value by its support tier (#244 / #97):

@@ -32,7 +32,7 @@ class ACR_Report
   s_Sides = new map<string, ref ACR_SideStats>();
  }
 
- static void Reset() { s_Sides.Clear(); ACR_RadioAudio.Reset(); ACR_RadioIntercept.Reset(); ACR_Veterancy.Reset(); }
+ static void Reset() { s_Sides.Clear(); ACR_RadioAudio.Reset(); ACR_RadioIntercept.Reset(); ACR_SupplyLines.Reset(); ACR_Veterancy.Reset(); }
 
  static ACR_SideStats Of(string key)
  {

@@ -606,6 +606,7 @@ class ACR_Manager : Managed
   m_Bases.Tick(this);
   ACR_RadioAudio.Tick();
   ACR_RadioIntercept.TickRelays(this);
+  ACR_SupplyLines.Tick(this);
   ACR_Veterancy.Prune();
   ACR_Garrison.Sweep();
   ACR_OrganEasterEgg.Tick();

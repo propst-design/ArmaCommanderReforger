@@ -499,6 +499,7 @@ class ACR_SupplyRuns : Managed
   if (run.m_iStage == STAGE_DRIVE) RecordTrack(run.m_sFaction, run.m_aTrack, run.m_Truck.GetOrigin());
   m_Fails.Remove(run.m_Fob);
   m_FailedAt.Remove(run.m_Fob);
+  ACR_SupplyLines.Relieve(run.m_Fob, "supply truck");
   string extra = "";
   if (added >= 1) extra = string.Format(" (+%1 for a player-driven load)", Math.Round(added));
   float left = m_Manager.m_Logistics.PaidSupplies(run.m_Truck);

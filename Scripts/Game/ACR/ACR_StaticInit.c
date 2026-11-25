@@ -84,6 +84,7 @@ class ACR_StaticInit
   ACR_SquadMarksmen.ACR_InitStatics();
   ACR_StartingUnit.ACR_InitStatics();
   ACR_Structures.ACR_InitStatics();
+  ACR_SupplyLines.ACR_InitStatics();
   ACR_Supports.ACR_InitStatics();
   ACR_Think.ACR_InitStatics();
   ACR_Transport.ACR_InitStatics();

@@ -848,6 +848,7 @@ class ACR_AirLift : ACR_SupportRun
      }
     }
     Tell(supports, string.Format("%1 landed at %2.", m_sSquadName, ACR_Manager.Grid(m_Drops[0])));
+  ACR_SupplyLines.RelieveNear(m_sFaction, m_Drops[0], "air lift");
     Leave(supports, now, "done");
     break;
    }
@@ -1294,6 +1295,7 @@ class ACR_AirLift : ACR_SupportRun
     }
    }
    Tell(supports, string.Format("%1 landed at %2.", m_sSquadName, ACR_Manager.Grid(m_Drops[0])));
+  ACR_SupplyLines.RelieveNear(m_sFaction, m_Drops[0], "air lift");
    Leave(supports, now, "done");
   }
  }
