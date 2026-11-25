@@ -1669,8 +1669,16 @@ class ACR_TestRegress
  static ACR_Base s_UnconsciousBase;
  static void UnconsciousPlant()
  {
+  s_UnconsciousBase = null;
   foreach (ACR_Base base : ACR_Base.s_All)
    if (base.m_sOwner == "US" && !base.m_bContested && !base.m_GarrisonGroup) { s_UnconsciousBase = base; break; }
+  // HQWorks may deploy Farm's garrison before tick 6 on the Test Range; fall back to any uncontested US base
+  // since UnconsciousForce() knocks the fixture out on the spawn frame before garrison AI engages.
+  if (!s_UnconsciousBase)
+  {
+   foreach (ACR_Base base : ACR_Base.s_All)
+    if (base.m_sOwner == "US" && !base.m_bContested) { s_UnconsciousBase = base; break; }
+  }
   if (!s_UnconsciousBase) return;
   vector at = ACR_Manager.Ground(s_UnconsciousBase.GetOrigin() + Vector(s_UnconsciousBase.m_fRadius * 0.5, 0, 0));
   s_Unconscious = ACR_Manager.SpawnPrefab(ACR_TestFobDesign.USSR_RIFLEMAN, at);
