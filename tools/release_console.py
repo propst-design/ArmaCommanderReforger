@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SPECS = {
     'ACA': dict(workshopDraft=True, folder='ArmaCommanderReforger', title='Arma Commander: Actual',
                 guid='AC230926A0010001', dirs=['Scripts', 'Configs', 'Missions', 'Prefabs', 'Worlds',
-                                               'Assets', 'Sounds'],
+                                               'Assets', 'Sounds', 'UI'],
                 files=['LICENSE.md', 'README.md', 'MISSION-MAKING.md']),
     'BBB': dict(workshopDraft=True, folder='BetterBattleBuddies', title='Better Battle Buddies',
                 guid='BBB0261015000001', dirs=['Scripts/Game/BBB', 'Configs/BBB', 'Prefabs/BBB', 'UI/layouts/BBB'],
