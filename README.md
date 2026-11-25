@@ -19,8 +19,8 @@ play side against side.
 An unofficial Reforger rebuild of Arma 3's **Arma Commander**, licensed under
 APL-SA. Original authors and contributors are credited below and in [LICENSE.md](LICENSE.md).
 
-The current Workshop release is **0.5.12**, with **Better Battle Buddies 0.1.10**; `main` is
-heading for 0.6.0 with Better Battle Buddies 0.2.0.
+The current Workshop release is **0.7.0**, with **Better Battle Buddies 0.3.0**; `main` is
+heading for 0.8.0 (counter-insurgency and playable insurgents).
 See [CHANGELOG.md](CHANGELOG.md) for the release history and what is waiting for the next one.
 
 ## Requirements
