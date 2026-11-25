@@ -116,6 +116,45 @@ class ACR_TestModernPack
    ACR_TestRegress.Check("modern: WCS vehicles stay out of the vanilla " + vanillaSide + " list", foreign == 0, string.Format("%1:%2", foreign, names));
    s_iExpected++;
   }
+  // WCS_Armaments injects Javelin/Igla/Stinger characters into vanilla US, USSR and FIA
+  // character catalogs: garrisons stay vanilla-only (no Javelins or MANPADS on FIA).
+  array<string> garrisonSides = {"FIA", "US", "USSR"};
+  foreach (string gSide : garrisonSides)
+  {
+   array<ResourceName> pool = manager.m_Bases.GetFaction(gSide).m_aGarrison;
+   int leaked;
+   string bad;
+   foreach (ResourceName soldier : pool)
+   {
+    string sPath = soldier;
+    if (sPath.Contains("Javelin") || sPath.Contains("IGLA") || sPath.Contains("Stinger"))
+    {
+     leaked++;
+     bad += " " + Leaf(sPath);
+    }
+   }
+   PrintFormat("[ACR] MODERNTEST %1 garrison pool: %2 entries, leaked%3", gSide, pool.Count(), bad);
+   ACR_TestRegress.Check("modern: WCS Javelin/AA soldiers stay out of " + gSide + " garrisons", !pool.IsEmpty() && leaked == 0, string.Format("pool %1, leaked %2:%3", pool.Count(), leaked, bad));
+   s_iExpected++;
+  }
+  // FIA garrisons draw the Modern pack's guerrilla kits (rolled per soldier) and every prefab loads.
+  array<ResourceName> fiaPool = manager.m_Bases.GetFaction("FIA").m_aGarrison;
+  int picks = 200;
+  int kitted;
+  int invalidMod;
+  for (int pick = 0; pick < picks && !fiaPool.IsEmpty(); pick++)
+  {
+   ResourceName role = fiaPool[pick % fiaPool.Count()];
+   array<ResourceName> one = {role};
+   ResourceName picked = ACR_BaseSystem.PickGarrisonSoldier("FIA", one);
+   string pStr = picked;
+   if (!pStr.Contains("MOD_FIA_")) continue;
+   kitted++;
+   Resource res = Resource.Load(picked);
+   if (!res || !res.IsValid()) invalidMod++;
+  }
+  ACR_TestRegress.Check("modern: FIA garrisons draw Modern guerrilla kits and all prefabs load", !fiaPool.IsEmpty() && kitted * 10 >= picks * 5 && invalidMod == 0, string.Format("%1 of %2 kitted, %3 invalid", kitted, picks, invalidMod));
+  s_iExpected++;
  }
 
  protected static void Buy(ACR_Manager manager, string side, ACR_RequisitionEntry entry, int slot)
