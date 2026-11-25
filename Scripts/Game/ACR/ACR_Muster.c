@@ -259,7 +259,7 @@ class ACR_Muster
 			job.m_fProgressMs += stepMs;
 			if (job.m_fProgressMs < job.m_fDurationMs) continue;
 			// Stand up the band at job.m_vSpot!
-			bool spawned = manager && manager.m_Requisition && manager.m_Requisition.SpawnFootEntryAt(job.m_sFaction, job.m_iEntry, job.m_vSpot);
+			bool spawned = manager && manager.m_Requisition && manager.m_Requisition.SpawnFootEntryAt(job.m_sFaction, job.m_iEntry, job.m_vSpot, job.m_Hideout);
 			if (spawned)
 			{
 				s_CooldownUntil.Set(job.m_Hideout, now + COOLDOWN_S * 1000);

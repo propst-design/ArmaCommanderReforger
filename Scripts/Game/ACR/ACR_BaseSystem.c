@@ -1028,6 +1028,8 @@ class ACR_BaseSystem : Managed
    AddGarrisonSoldier(base, group, pool);
   ACR_Squad.KeepSimulated(group);
   base.m_GarrisonGroup = group;
+  if (base.m_bPocket && (base.m_sOwner == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(base.m_sOwner)))
+   ACR_FIASpoils.ArmGroup(group, center, base.m_sName + " garrison");
   // A base with works standing: the garrison mans the lines that face the enemy before it takes to the houses
   // (the user, 2 Nov, Chotain Base: the attack came, nobody was on the bags, the garrison sat in the offices).
   ACR_BaseWork work = ACR_BaseWorks.Find(base);

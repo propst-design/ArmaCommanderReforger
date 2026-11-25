@@ -418,12 +418,14 @@ class ACR_Requisition : Managed
    purchase.m_fDeadline = GetGame().GetWorld().GetWorldTime() + s_fPendingTimeoutMs;
    m_aPending.Insert(purchase);
   }
+  if (purchase.m_Group && (key == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(key)))
+   ACR_FIASpoils.ArmGroupSoon(purchase.m_Group, groupPos, purchase.m_sName, hideout);
   PrintFormat("[ACR] PURCHASE %1 at hideout %2 for %3 RP (%4 left, next %5 RP)", name, hideout.m_sName, paid, entry.m_iRemaining, entry.m_iCost);
   return string.Format("%1 deploying at %2", name, hideout.m_sName);
  }
 
  // Spawns an already-paid foot infantry entry at a muster spot (ACR_Muster, #97 item 9).
- bool SpawnFootEntryAt(string key, int entryIndex, vector spot)
+ bool SpawnFootEntryAt(string key, int entryIndex, vector spot, ACR_DefenderPost hideout = null)
  {
   ACR_FactionData data = m_Manager.m_Bases.GetFaction(key);
   if (entryIndex < 0 || entryIndex >= data.m_aRequisitions.Count()) return false;
@@ -452,6 +454,8 @@ class ACR_Requisition : Managed
    purchase.m_fDeadline = GetGame().GetWorld().GetWorldTime() + s_fPendingTimeoutMs;
    m_aPending.Insert(purchase);
   }
+  if (purchase.m_Group && (key == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(key)))
+   ACR_FIASpoils.ArmGroupSoon(purchase.m_Group, groupPos, purchase.m_sName, hideout);
   return true;
  }
 

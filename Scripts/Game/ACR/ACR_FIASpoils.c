@@ -736,19 +736,38 @@ class ACR_FIASpoils
  // Just deployed (ACR_Guerrillas.Deployed): some of its men take looted arms.
  static void ArmRecruits(ACR_DefenderPost post)
  {
-  if (!s_bOn || !post || !post.m_Group) return;
-  ACR_DefenderPost hideout = ArsenalOf(post);
-  if (!hideout || hideout.m_Cell.m_aLootedArms.IsEmpty()) return;
+  if (!post) return;
+  ArmGroup(post.m_Group, post.m_vPos, post.m_sName, ArsenalOf(post));
+ }
+
+ // Arm a freshly spawned FIA group (cell, hideout, pocket garrison, or mustered/bought band)
+ // from its supplying hideout's looted-arms tally, scaling the share with how full the cache is
+ // (1 weapon -> 1 fighter; full TALLY_MAX cache -> up to ARMED_SHARE of the group).
+ static void ArmGroup(SCR_AIGroup group, vector at, string label, ACR_DefenderPost hideout = null)
+ {
+  if (!s_bOn || !group) return;
+  if (!hideout) hideout = ACR_FIAIntel.SupplierOf(at);
+  if (!hideout || !hideout.m_Cell || hideout.m_Cell.m_aLootedArms.IsEmpty()) return;
   array<ChimeraCharacter> men = {};
-  Awake(post.m_Group, men);
-  int most = (int)Math.Ceil(men.Count() * ARMED_SHARE);
+  Awake(group, men);
+  if (men.IsEmpty()) return;
+  int cached = hideout.m_Cell.m_aLootedArms.Count();
+  float share = Math.Min(ARMED_SHARE, ARMED_SHARE * cached / TALLY_MAX);
+  int most = Math.Max(1, (int)Math.Round(men.Count() * share));
   int asked;
   foreach (ChimeraCharacter man : men)
   {
    if (asked >= most) break;
    if (Arm(man, hideout.m_Cell.m_aLootedArms.GetRandomElement())) asked++;
   }
-  if (asked > 0) PrintFormat("[ACR] SPOILS %1: %2 men take looted arms from %3 (%4 in its tally)", post.m_sName, asked, hideout.m_sName, hideout.m_Cell.m_aLootedArms.Count());
+  if (asked > 0) PrintFormat("[ACR] SPOILS %1: %2 of %3 men take looted arms from %4 (%5/%6 in its tally)", label, asked, men.Count(), hideout.m_sName, cached, TALLY_MAX);
+ }
+
+ // Delayed arming for purchased/mustered foot bands whose members may finish spawning on a later frame.
+ static void ArmGroupSoon(SCR_AIGroup group, vector at, string label, ACR_DefenderPost hideout = null)
+ {
+  if (!s_bOn || !group || !GetGame() || !GetGame().GetCallqueue()) return;
+  GetGame().GetCallqueue().CallLater(ArmGroup, 1500, false, group, at, label, hideout);
  }
 
  // His rifle replaced by 'prefab' (confirmed by ACR_LootSwap a moment later). False: not started.
