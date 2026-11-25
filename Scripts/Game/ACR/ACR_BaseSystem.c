@@ -176,8 +176,16 @@ class ACR_BaseSystem : Managed
 
  int GetIncome(string factionKey)
  {
-  // COIN (ACR_TownSupport): a Hostile town pays its army only part of its value.
+  // COIN (ACR_TownSupport): the insurgent side earns from town support rather than held bases;
+  // a Hostile town pays its army only part of its value.
   float income = m_iBasicIncome;
+  if (ACR_InsurgentSide.UsesSupportIncome(factionKey))
+  {
+   float scale = ACR_InsurgentSide.IncomeScale();
+   foreach (ACR_Base town : ACR_Base.s_All)
+    if (ACR_TownSupport.IsTown(town)) income += town.m_iValue * ACR_TownSupport.InsurgentIncomeShare(town) * scale;
+   return Math.Round(income);
+  }
   foreach (ACR_Base base : ACR_Base.s_All)
    if (base.m_sOwner == factionKey && base.m_bIncome) income += base.m_iValue * ACR_TownSupport.IncomeShare(base, factionKey);
   return Math.Round(income);
@@ -203,9 +211,9 @@ class ACR_BaseSystem : Managed
   foreach (Faction faction : factions)
   {
    string key = faction.GetFactionKey();
-   // Only the two sides at war earn (broad review, refactor 10): CIV, Outbreak's Z, FIA and modded
-   // factions got a full record (requisitions built) and RP nobody spends.
-   if (!ACR_FactionSelection.IsSelected(key)) continue;
+   // Only the sides at war earn (broad review, refactor 10): CIV, Outbreak's Z, uncommanded FIA
+   // and modded factions got a full record (requisitions built) and RP nobody spends.
+   if (!ACR_FactionSelection.IsPlayableKey(key) || ACR_OneSide.IsAbsent(key)) continue;
    int added = Math.Round(GetIncome(key) * ACR_Manager.IncomeOption());
    ACR_FactionData data = GetFaction(key);
    int before = data.m_iRP;

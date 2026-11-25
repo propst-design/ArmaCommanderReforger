@@ -153,13 +153,13 @@ modded class ACR_OrderDisplay
    if (i < data.m_DeclSide.Count()) side = data.m_DeclSide[i];
    bool keep = i >= data.m_DeclKeep.Count() || data.m_DeclKeep[i];
    bool contested = i < data.m_BaseContested.Count() && (data.m_BaseContested[i] & 1) != 0;
-   int color = ACR_MapDeclutter.SideColor(side).PackToInt();
+   int color = ACR_MapDeclutter.SideColorFor(side, data.m_sDeclViewer).PackToInt();
    if (!data.m_bDeclFar && !data.m_bDeclZonesOff && i < data.m_BaseRadii.Count())
    {
     int ex, ey;
     mapEntity.WorldToScreen(pos[0] + data.m_BaseRadii[i], pos[2], ex, ey, true);
     float radius = Math.AbsFloat(ex - cx);
-    if (radius > Px(24)) Ring(cx, cy, radius, ACR_MapDeclutter.SideColor(side, 0.35).PackToInt(), Px(1.5), 48);
+    if (radius > Px(24)) Ring(cx, cy, radius, ACR_MapDeclutter.SideColorFor(side, data.m_sDeclViewer, 0.35).PackToInt(), Px(1.5), 48);
    }
    float dot = Px(7);
    if (!keep) dot = Px(4.5);
@@ -1422,6 +1422,7 @@ modded class SCR_PlayerController
   string mine = "";
   Faction faction = SCR_FactionManager.SGetLocalPlayerFaction();
   if (faction) mine = faction.GetFactionKey();
+  data.m_sDeclViewer = mine;
   data.m_sDeclSelectedBase = m_ACR_SelectedBase;
   data.m_DeclSide.Clear();
   data.m_DeclPips.Clear();
@@ -1827,7 +1828,7 @@ modded class SCR_PlayerController
    }
    marker.SetWorldPos(wx, wz);
    marker.RefreshStyle();
-   if (marker.GetRootWidget()) marker.ACR_SetColor(ACR_MapDeclutter.SideColor(side));
+   if (marker.GetRootWidget()) marker.ACR_SetColor(ACR_MapDeclutter.SideColorFor(side, m_ACR_Data.m_sDeclViewer));
   }
   ACR_DeclBaseIcons(0);
  }
@@ -2061,7 +2062,7 @@ modded class SCR_PlayerController
    if (m_aDeclChipTexts[b].GetText() != words) m_aDeclChipTexts[b].SetText(words);
    int side = ACR_EBaseSide.FREE;
    if (b < m_ACR_Data.m_DeclSide.Count()) side = m_ACR_Data.m_DeclSide[b];
-   m_aDeclChipEdges[b].SetColor(ACR_MapDeclutter.SideColor(side));
+   m_aDeclChipEdges[b].SetColor(ACR_MapDeclutter.SideColorFor(side, m_ACR_Data.m_sDeclViewer));
   }
  }
 

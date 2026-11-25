@@ -402,7 +402,7 @@ class ACR_Decks
  static void Apply(string faction, ACR_FactionSettings settings, array<ref ACR_RequisitionEntry> list)
  {
   if (!s_Applied) s_Applied = new map<string, string>();
-  if (!ACR_DeckRules.Enabled())
+  if (!ACR_DeckRules.Enabled() || ACR_InsurgentSide.IsInsurgent(faction))
   {
    s_Applied.Set(faction, "decks off");
    return;

@@ -186,6 +186,7 @@ class ACR_HeliStation : Managed
  // unless a skirmish layout left the side without one (then the off-map helicopters).
  static bool UsesPads(string factionKey)
  {
+  if (ACR_InsurgentSide.IsInsurgent(factionKey)) return false;
   return InUse() && ACR_Skirmish.SideHasPads(factionKey);
  }
 

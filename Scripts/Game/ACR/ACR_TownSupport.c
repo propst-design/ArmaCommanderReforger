@@ -144,6 +144,17 @@ class ACR_TownSupport
   return ACR_Coin.HostileIncome();
  }
 
+ // The insurgent side's share of a town's value by its support tier (#244 / #97):
+ // Loyal pays nothing, Quiet a trickle, Restless most, Hostile full.
+ static float InsurgentIncomeShare(ACR_Base base)
+ {
+  if (!s_bOn || !IsTown(base) || base.m_iSupportTier < 0) return 0;
+  if (base.m_iSupportTier == LOYAL) return 0;
+  if (base.m_iSupportTier == QUIET) return 0.25;
+  if (base.m_iSupportTier == RESTLESS) return 0.6;
+  return 1.0;
+ }
+
  // " | support: Loyal" for the base's panel line and map label (ACR_BaseSystem.Describe).
  static string Detail(ACR_Base base, string viewer)
  {

@@ -161,6 +161,7 @@ class ACR_FactionSelection
  static string West() { Apply(); if (!s_bApplied) { string w, e; Choice(w, e); return w; } return s_sWest; }
  static string East() { Apply(); if (!s_bApplied) { string w, e; Choice(w, e); return e; } return s_sEast; }
  static bool IsSelected(string key) { return key == West() || key == East(); }
+ static bool IsPlayableKey(string key) { return IsSelected(key) || ACR_InsurgentSide.IsInsurgent(key); }
  static bool Applied() { return s_bApplied; }
  static void Reset()
  {
@@ -289,8 +290,13 @@ class ACR_FactionSelection
   if (!s_bApplied) return;
   string west = s_sWest;
   string east = s_sEast;
-  // A one-side match (TvZ, COIN): only the living side is offered (ACR_OneSide).
-  if (ACR_OneSide.On()) { west = ACR_OneSide.Living(); east = west; }
+  // A one-side match (TvZ, COIN): only the living side is offered, unless COIN opens the insurgent seat.
+  if (ACR_OneSide.On())
+  {
+   west = ACR_OneSide.Living();
+   if (ACR_InsurgentSide.PlayersAllowed()) east = ACR_InsurgentSide.Key();
+   else east = west;
+  }
   string signature = west + "," + east;
   array<int> ids = {};
   GetGame().GetPlayerManager().GetPlayers(ids);
@@ -356,9 +362,10 @@ modded class SCR_PlayerFactionAffiliationComponent
  {
   string key = ACR_PlayerSide.Key();
   if (key != "" && faction && faction.GetFactionKey() != key) return false;
-  // Only the match's two sides (a client with a stale side list could still ask for FIA);
+  // Only the match's playable sides (a client with a stale side list could still ask for an absent side);
   // a side the host forces with -acrPlayers stays allowed.
-  if (key == "" && faction && ACR_FactionSelection.Applied() && !ACR_FactionSelection.IsSelected(faction.GetFactionKey())) return false;
+  if (key == "" && faction && ACR_FactionSelection.Applied() && !ACR_FactionSelection.IsPlayableKey(faction.GetFactionKey())) return false;
+  if (key == "" && faction && ACR_OneSide.IsAbsent(faction.GetFactionKey())) return false;
   // Deployed once: on that side for the rest of the match (ACR_SpawnPoints side lock).
   if (!GetPlayerController()) return super.CanRequestFaction_S(faction);
   int playerId = GetPlayerController().GetPlayerId();

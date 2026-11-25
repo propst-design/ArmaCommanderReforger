@@ -144,7 +144,7 @@ class ACR_Options
  static void Log()
  {
   string line;
-  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIASpoils", "acrFIAGrievance", "acrFIAHidden", "acrMatchType", "acrCoinArmy", "acrCoinStrength", "acrCoinPosture", "acrCoinHostileIncome", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrHoldGuns", "acrMapDeclutter", "acrIntro", "acrIntroMusic", "acrIntroMusicZombies", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAICommander", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC", "acrSupplyRuns", "acrLogisticsHubs", "acrSaveRoutes"};
+  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIASpoils", "acrFIAGrievance", "acrFIAHidden", "acrMatchType", "acrCoinArmy", "acrCoinInsurgency", "acrCoinInsurgent", "acrCoinInsurgentIncome", "acrCoinStrength", "acrCoinPosture", "acrCoinHostileIncome", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrHoldGuns", "acrMapDeclutter", "acrIntro", "acrIntroMusic", "acrIntroMusicZombies", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAICommander", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC", "acrSupplyRuns", "acrLogisticsHubs", "acrSaveRoutes"};
   foreach (string name : names)
   {
    string value;
@@ -180,6 +180,12 @@ class ACR_MissionHeader : SCR_MissionHeader
  string m_sAcrMatchType;
  [Attribute("", UIWidgets.EditBox, "Counter-insurgency: which side is the army, west (default) or east (-acrCoinArmy)")]
  string m_sAcrCoinArmy;
+ [Attribute("", UIWidgets.EditBox, "Counter-insurgency: who runs the insurgency, rules (default), players or ai (-acrCoinInsurgency)")]
+ string m_sAcrCoinInsurgency;
+ [Attribute("", UIWidgets.EditBox, "Counter-insurgency: faction key holding the insurgent role (default FIA) (-acrCoinInsurgent)")]
+ string m_sAcrCoinInsurgent;
+ [Attribute("", UIWidgets.EditBox, "Counter-insurgency: insurgent town-support income multiplier (default 1, 0 = base income) (-acrCoinInsurgentIncome)")]
+ string m_sAcrCoinInsurgentIncome;
  [Attribute("", UIWidgets.EditBox, "Counter-insurgency: insurgency strength, few, many (default) or heavy (every growth cap x1.5) (-acrCoinStrength)")]
  string m_sAcrCoinStrength;
  [Attribute("", UIWidgets.EditBox, "Counter-insurgency: the AI army's posture, auto (default: Blue side airmobile, Red side garrison and convoy), airmobile or convoy (-acrCoinPosture)")]
@@ -344,6 +350,9 @@ class ACR_MissionHeader : SCR_MissionHeader
   Text(values, "acrFIAHidden", m_sAcrFIAHidden);
   Text(values, "acrMatchType", m_sAcrMatchType);
   Text(values, "acrCoinArmy", m_sAcrCoinArmy);
+  Text(values, "acrCoinInsurgency", m_sAcrCoinInsurgency);
+  Text(values, "acrCoinInsurgent", m_sAcrCoinInsurgent);
+  Text(values, "acrCoinInsurgentIncome", m_sAcrCoinInsurgentIncome);
   Text(values, "acrCoinStrength", m_sAcrCoinStrength);
   Text(values, "acrCoinPosture", m_sAcrCoinPosture);
   Text(values, "acrCoinHostileIncome", m_sAcrCoinHostileIncome);

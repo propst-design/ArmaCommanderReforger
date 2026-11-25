@@ -237,6 +237,7 @@ coin|-acrCoinTest 1|120|Worlds/ACR_Everon.ent
 support|-acrSupportTest 1|130|Worlds/ACR_Everon.ent
 coingrowth|-acrCoinGrowthTest 1|120|Worlds/ACR_Everon.ent
 coinai|-acrCoinAITest 1|150|Worlds/ACR_Everon.ent
+fiaside|-acrFiaSideTest 1|120|Worlds/ACR_Everon.ent
 containment|-acrContainmentTest 1|240|Worlds/ACR_Everon.ent
 kolguyevsoak|-acrEveronSoakTest 1|1380|Worlds/ACR_Kolguyev.ent
 deploymenu|-acrDeployMenuTest 1|180|Worlds/ACR_Arland.ent

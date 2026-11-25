@@ -98,8 +98,17 @@ class ACR_OneSide
   ACR_Skirmish.RecountPads();
   ACR_FactionSettings settings = ACR_FactionSettings.Find(s_sAbsent);
   if (settings) settings.m_bAICommander = false;
-  ACR_PlayerSide.Force(s_sLiving);
-  ACR_FactionSelection.SetPlayable(s_sLiving, s_sLiving);
+  if (ACR_InsurgentSide.PlayersAllowed())
+  {
+   // Insurgent seat open to players (#97): keep both the army and the insurgent side playable;
+   // -acrPlayers still works if the host set it explicitly.
+   ACR_FactionSelection.SetPlayable(s_sLiving, ACR_InsurgentSide.Key());
+  }
+  else
+  {
+   ACR_PlayerSide.Force(s_sLiving);
+   ACR_FactionSelection.SetPlayable(s_sLiving, s_sLiving);
+  }
   string home = "none";
   string absentHQ = "none";
   if (s_Home) home = s_Home.m_sName;

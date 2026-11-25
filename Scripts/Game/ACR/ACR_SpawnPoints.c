@@ -52,7 +52,7 @@ class ACR_SpawnPoints
 
  protected static bool IsPlayableSide(string key)
  {
-  return key != "" && ACR_FactionSelection.IsSelected(key);
+  return key != "" && ACR_FactionSelection.IsPlayableKey(key) && !ACR_OneSide.IsAbsent(key);
  }
 
  // The base a home point stands at (its side's HQ), or null.

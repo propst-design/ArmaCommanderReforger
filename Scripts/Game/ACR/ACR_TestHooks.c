@@ -31,6 +31,8 @@ class ACR_TestHooks
  string ZombieMode() { return ""; }
  // Match type a test asks for (standard / coin), "" = the host option (ACR_Coin).
  string MatchType() { return ""; }
+ // Insurgency run-by mode a test asks for (rules / players / ai), "" = the host option (ACR_InsurgentSide).
+ string CoinInsurgency() { return ""; }
  // Outbreak start a test asks for (nests / contain), "" = the host option (ACR_Containment).
  string Outbreak() { return ""; }
  // AI doctrine a test asks for (ACR_AIDoctrine key), "" = the host option or random.

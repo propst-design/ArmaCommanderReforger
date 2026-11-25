@@ -234,6 +234,7 @@ class ACR_Manager : Managed
   ACR_TvZ.Reset();
   ACR_OneSide.Reset();
   ACR_Coin.Reset();
+  ACR_InsurgentSide.Reset();
   ACR_TownSupport.Reset();
   ACR_Province.Reset();
   ACR_Report.Reset();
@@ -409,6 +410,7 @@ class ACR_Manager : Managed
   // Every selected side needs a settings entity (AI commander, RP); copy the authored side's.
   ACR_FactionSettings.EnsureFor(ACR_FactionSelection.West(), "US");
   ACR_FactionSettings.EnsureFor(ACR_FactionSelection.East(), "USSR");
+  if (ACR_InsurgentSide.On()) ACR_InsurgentSide.EnsureSettings();
   foreach (ACR_FactionSettings settings : ACR_FactionSettings.s_All)
   {
    string key = settings.m_sFaction;
@@ -419,6 +421,8 @@ class ACR_Manager : Managed
    if (setCap && unitCap.ToInt() > 0) settings.m_iAIUnitCap = unitCap.ToInt();
    // A one-side match (TvZ, COIN): the absent side doesn't play (ACR_OneSide).
    if (ACR_OneSide.IsAbsent(settings.m_sFaction)) settings.m_bAICommander = false;
+   // Insurgent side never runs under the conventional AI commander (Guerrilla doctrine is stage 3).
+   if (ACR_InsurgentSide.IsInsurgent(settings.m_sFaction)) settings.m_bAICommander = false;
   }
   // Threat level (Jacob, 2 Oct): low = a smaller, infantry war; high = all-out war.
   int threat = ThreatOption();

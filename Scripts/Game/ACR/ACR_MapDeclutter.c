@@ -152,17 +152,24 @@ class ACR_MapDeclutter
  {
   if (owner.IsEmpty()) return ACR_EBaseSide.FREE;
   if (!mine.IsEmpty() && owner == mine) return ACR_EBaseSide.OWN;
-  if (owner == ACR_Pockets.FACTION) return ACR_EBaseSide.OTHER;
+  if (owner == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgentColor(owner)) return ACR_EBaseSide.OTHER;
   return ACR_EBaseSide.ENEMY;
  }
 
- // Blue ours, red enemy, yellow free (green: FIA, a third party).
+ // Blue ours, red enemy, yellow free (green: FIA / insurgent side).
  static Color SideColor(int side, float alpha = 1)
  {
   if (side == ACR_EBaseSide.OWN) return Rgb(47, 128, 237, alpha);
   if (side == ACR_EBaseSide.ENEMY) return Rgb(229, 62, 62, alpha);
   if (side == ACR_EBaseSide.OTHER) return Rgb(72, 168, 96, alpha);
   return Rgb(242, 201, 76, alpha);
+ }
+
+ // Viewer-aware colour: insurgent players see their own side in green instead of army blue.
+ static Color SideColorFor(int side, string viewer, float alpha = 1)
+ {
+  if (side == ACR_EBaseSide.OWN && ACR_InsurgentSide.IsInsurgentColor(viewer)) return SideColor(ACR_EBaseSide.OTHER, alpha);
+  return SideColor(side, alpha);
  }
 
  // The base's size as pips (1-3, its income), from the label's " [N]" or, failing that, the

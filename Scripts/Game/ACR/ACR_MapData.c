@@ -4,6 +4,7 @@
 class ACR_MapData : Managed
 {
  int m_iMyId;   // the local player's id
+ string m_sDeclViewer; // local player's faction key for map colour polarity (ACR_MapDeclutter.SideColorFor)
  // squad leaders (group markers)
  ref array<RplId> m_LeaderIds = {};
  ref array<vector> m_LeaderPositions = {};

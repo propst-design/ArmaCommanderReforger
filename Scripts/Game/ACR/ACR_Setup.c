@@ -331,7 +331,7 @@ class ACR_Setup
  static bool HiddenByMatchType(string key)
  {
   bool coin = Current("matchtype") == "coin";
-  if (key == "coinarmy" || key == "coinstrength" || key == "coinposture") return !coin;
+  if (key == "coinarmy" || key == "coininsurgency" || key == "coinstrength" || key == "coinposture") return !coin;
   if (key == "fiaallegiance" || key == "fialeaning" || key == "zombiemode") return coin;
   return false;
  }
@@ -382,7 +382,7 @@ class ACR_Setup
   if (key == "layout" || key == "seed" || key == "map" || key == "undo" || key == "threat") return 0;
   if (key == "pockets" || key == "guerrillas" || key == "fiaallegiance" || key == "fialeaning" || key == "fiahidden" || key == "zombies" || key == "zombiemode" || key == "outbreak") return 0;
   // 2. Match: the sides, their commanders, how it opens.
-  if (key == "west" || key == "east" || key == "matchtype" || key == "coinarmy" || key == "coinstrength" || key == "coinposture" || key == "ai" || key == "quickstart" || key == "startrp") return 1;
+  if (key == "west" || key == "east" || key == "matchtype" || key == "coinarmy" || key == "coininsurgency" || key == "coinstrength" || key == "coinposture" || key == "ai" || key == "quickstart" || key == "startrp") return 1;
   // 3. Forces and AI: the AI commanders and their squads, minefields and fortifying.
   if (key == "aicommander" || key == "doctrinewest" || key == "doctrineeast" || key == "doctrineadapt" || key == "unitcap" || key == "capscale" || key == "aibuild" || key == "holdguns") return 2;
   if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "baseworks") return 2;
@@ -403,7 +403,7 @@ class ACR_Setup
   if (key.StartsWith("about")) return key.Substring(5, key.Length() - 5);
   if (key == "seed") return "layout";
   if (key == "undo") return "map";
-  if (key == "coinarmy" || key == "coinstrength" || key == "coinposture") return "matchtype";
+  if (key == "coinarmy" || key == "coininsurgency" || key == "coinstrength" || key == "coinposture") return "matchtype";
   if (key == "fiaallegiance" || key == "fialeaning" || key == "fiahidden") return "guerrillas";
   if (key == "zombiemode" || key == "outbreak") return "zombies";
   if (key == "deckeditor" || key == "deckpoints" || key == "deckwest" || key == "deckeast") return "decks";
@@ -478,7 +478,7 @@ class ACR_Setup
  // it was last, a page away).
  static array<string> RowKeys()
  {
-  array<string> keys = {"west", "east", "matchtype", "coinarmy", "coinstrength", "coinposture", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "twoic", "unitcap", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "periodjets", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "pullover", "mines", "minesreal", "minesai", "fortify", "fortifyai", "aibuild", "baseworks", "fieldsoffire", "squadtactics", "evadearmour", "supplyruns", "hubs", "saveroutes"};
+  array<string> keys = {"west", "east", "matchtype", "coinarmy", "coininsurgency", "coinstrength", "coinposture", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "twoic", "unitcap", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "periodjets", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "pullover", "mines", "minesreal", "minesai", "fortify", "fortifyai", "aibuild", "baseworks", "fieldsoffire", "squadtactics", "evadearmour", "supplyruns", "hubs", "saveroutes"};
   return keys;
  }
 
@@ -511,6 +511,7 @@ class ACR_Setup
   if (key == "east") return "Red side";
   if (key == "matchtype") return "Match type";
   if (key == "coinarmy") return "Army";
+  if (key == "coininsurgency") return "Insurgency run by";
   if (key == "coinstrength") return "Insurgency strength";
   if (key == "coinposture") return "AI army posture";
   if (key == "layout") return "Battlefield";
@@ -596,6 +597,7 @@ class ACR_Setup
   if (key == "ai") return "Which sides an AI commander runs.";
   if (key == "matchtype") return "Two armies, or counter-insurgency: one army against the FIA\ninsurgency, towns leaning to one or the other.";
   if (key == "coinarmy") return "Which of the two sides is the army; the other sits out and its\nHQ becomes the insurgency's stronghold.";
+  if (key == "coininsurgency") return "Who commands the insurgency: its own rules (default), players\n(opens the insurgent seat on deploy), or an AI commander.";
   if (key == "coinstrength") return "How much FIA there is: few or many pockets and cells to start,\nheavy also raises every cap on how far it can grow.";
   if (key == "coinposture") return "How the AI army holds the province: airmobile (few posts, a\nflying reserve) or garrison and convoy (many posts, escorts).";
   if (key == "startrp") return "Requisition points each side starts with.";
@@ -684,6 +686,7 @@ class ACR_Setup
   }
   else if (key == "matchtype") values = {"standard", "coin"};
   else if (key == "coinarmy") values = {"west", "east"};
+  else if (key == "coininsurgency") values = {"rules", "players", "ai"};
   else if (key == "coinstrength") values = {"many", "few", "heavy"};
   else if (key == "coinposture") values = {"auto", "airmobile", "convoy"};
   else if (key == "pockets") values = {"few", "many", "off"};
@@ -737,6 +740,7 @@ class ACR_Setup
  {
   if (key == "matchtype") return "acrMatchType";
   if (key == "coinarmy") return "acrCoinArmy";
+  if (key == "coininsurgency") return "acrCoinInsurgency";
   if (key == "coinstrength") return "acrCoinStrength";
   if (key == "coinposture") return "acrCoinPosture";
   if (key == "pockets") return "acrPockets";
@@ -841,6 +845,7 @@ class ACR_Setup
   {
    if (key == "matchtype") return "standard";
    if (key == "coinarmy") return "west";
+   if (key == "coininsurgency") return "rules";
    if (key == "coinstrength") return "many";
    if (key == "coinposture") return "auto";
    if (key == "pockets") return "few";
@@ -946,6 +951,9 @@ class ACR_Setup
   if (key == "coinstrength") return "many FIA";
   if (key == "coinarmy" && value == "east") return "the Red side (" + ACR_FactionSelection.East() + ")";
   if (key == "coinarmy") return "the Blue side (" + ACR_FactionSelection.West() + ")";
+  if (key == "coininsurgency" && value == "players") return "players (insurgent seat open)";
+  if (key == "coininsurgency" && value == "ai") return "AI commander";
+  if (key == "coininsurgency") return "its own rules";
   if (key == "pockets" && value == "few") return "a few pockets";
   if (key == "pockets" && value == "many") return "many pockets";
   if (key == "pockets" && value == "off") return "off";

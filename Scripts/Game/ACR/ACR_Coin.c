@@ -180,5 +180,6 @@ class ACR_Coin
   ACR_Base home = ACR_OneSide.Home();
   if (home && s_Stronghold) far = vector.DistanceXZ(home.GetOrigin(), s_Stronghold.GetOrigin());
   PrintFormat("[ACR] COIN %1 against the insurgency (%2 absent): stronghold %3, %4 m from the army's HQ; FIA x%5", ACR_OneSide.Living(), ACR_OneSide.Absent(), stronghold, (int)far, FIA_SCALE);
+  ACR_InsurgentSide.Apply();
  }
 }

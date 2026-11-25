@@ -174,7 +174,9 @@ class ACR_Minefields
  // Infantry that could take the order (the map feed's flag for the panel buttons).
  static bool CanLay(ACR_Squad squad)
  {
-  return Enabled() && squad && ACR_Fortify.Infantry(squad) && squad.CountAlive() > 0;
+  if (!Enabled() || !squad || !ACR_Fortify.Infantry(squad) || squad.CountAlive() <= 0) return false;
+  if (squad.GetFaction() && !ACR_InsurgentSide.HasOwnMines(squad.GetFaction().GetFactionKey())) return false;
+  return true;
  }
 
  // Sappers / engineers, or a construction truck with the squad, work twice as fast.
@@ -222,6 +224,11 @@ class ACR_Minefields
    return null;
   }
   string faction = squad.GetFaction().GetFactionKey();
+  if (!ACR_InsurgentSide.HasOwnMines(faction))
+  {
+   refusal = "this side has no mines of its own";
+   return null;
+  }
   int cost = Cost(kind);
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager || manager.m_Bases.GetRP(faction) < cost)

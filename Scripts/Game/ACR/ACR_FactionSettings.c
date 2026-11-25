@@ -508,24 +508,33 @@ class ACR_FactionCatalog
     if (!manual.m_sVehicle.IsEmpty()) used.Insert(manual.m_sVehicle);
    }
   }
+  bool insurgent = ACR_InsurgentSide.IsInsurgent(factionKey);
   if (!settings || settings.m_bAutoFill)
   {
    array<ResourceName> exclude = {};
    if (settings && settings.m_aExclude) exclude.Copy(settings.m_aExclude);
-   if (ACR_InfantryCatalog.UseDefaults(factionKey, settings)) ACR_InfantryCatalog.Build(factionKey, result);
+   if (!insurgent && ACR_InfantryCatalog.UseDefaults(factionKey, settings)) ACR_InfantryCatalog.Build(factionKey, result);
    else AddCatalog(factionKey, EEntityCatalogType.GROUP, used, exclude, result);
    AddCatalog(factionKey, EEntityCatalogType.VEHICLE, used, exclude, result);
    ACR_ContentSocket.Get().AddRequisitions(factionKey, result);
-   EnsureWestGunship(factionKey, exclude, result);
+   if (!insurgent) EnsureWestGunship(factionKey, exclude, result);
   }
-  EnsureRUAFVehicles(factionKey, result);
+  if (!insurgent) EnsureRUAFVehicles(factionKey, result);
   // Mission-authored lists retain their prices.
   if (!settings || !settings.m_aRequisitions || settings.m_aRequisitions.IsEmpty()) ACR_InfantryCatalog.VehiclePrices(factionKey, result);
   // Mission makers can edit support requisitions per faction; an absent row keeps defaults.
-  ACR_RequisitionEntry supportEntry = ACR_Mortars.MakeEntry();
-  if (ApplySupportUnit(supportEntry, settings, ACR_ESupportUnitRole.MORTAR_TEAM)) result.Insert(supportEntry);
-  supportEntry = ACR_FireMissions.MakeEntry(settings);
-  if (ApplySupportUnit(supportEntry, settings, ACR_ESupportUnitRole.OBSERVER_TEAM)) result.Insert(supportEntry);
+  // Insurgents (#97): mortars only where the faction has its own; no observer team or helipads.
+  ACR_RequisitionEntry supportEntry;
+  if (!insurgent || ACR_InsurgentSide.HasOwnMortar(factionKey))
+  {
+   supportEntry = ACR_Mortars.MakeEntry();
+   if (ApplySupportUnit(supportEntry, settings, ACR_ESupportUnitRole.MORTAR_TEAM)) result.Insert(supportEntry);
+  }
+  if (!insurgent)
+  {
+   supportEntry = ACR_FireMissions.MakeEntry(settings);
+   if (ApplySupportUnit(supportEntry, settings, ACR_ESupportUnitRole.OBSERVER_TEAM)) result.Insert(supportEntry);
+  }
   // Worlds with helipads: support helicopters are bought for a pad (a lost one is bought again).
   if (ACR_HeliStation.UsesPads(factionKey))
   {
@@ -626,6 +635,8 @@ class ACR_FactionCatalog
    // Guards can't be hired in vanilla either; static guns become supports later.
    if (entry.HasEditableEntityLabel(EEditableEntityLabel.ROLE_GUARD) || entry.HasEditableEntityLabel(EEditableEntityLabel.TRAIT_GUARD)) continue;
    if (entry.HasEditableEntityLabel(EEditableEntityLabel.VEHICLE_TURRET) || entry.HasEditableEntityLabel(EEditableEntityLabel.VEHICLE_AIRPLANE)) continue;
+   // Insurgent role (#97): no aircraft or armoured vehicles in the buy list.
+   if (ACR_InsurgentSide.IsInsurgent(factionKey) && (entry.HasEditableEntityLabel(EEditableEntityLabel.VEHICLE_HELICOPTER) || entry.HasEditableEntityLabel(EEditableEntityLabel.VEHICLE_APC) || entry.HasEditableEntityLabel(EEditableEntityLabel.TRAIT_ARMOR))) continue;
    string name = WidgetManager.Translate(entry.GetEntityName());
    if (name.IsEmpty()) name = FilePath.StripExtension(FilePath.StripPath(prefab));
    if (type == EEntityCatalogType.GROUP && name == "Group") name = GroupName(prefab);

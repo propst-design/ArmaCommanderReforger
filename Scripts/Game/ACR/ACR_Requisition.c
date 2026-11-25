@@ -265,7 +265,7 @@ class ACR_Requisition : Managed
   if (ACR_LogisticsRules.RelayBlocked(base)) return base.m_sName + " needs a completed friendly radio relay inside its circle before deploying new units";
   if (!ACR_LogisticsRules.CanDeploy(base)) return base.m_sName + " cannot deploy new units (use a military base, HQ or FOB)";
   if (base.m_bContested) return base.m_sName + " is under attack";
-  if (OverSoldierCap(key)) return string.Format("Too many soldiers in the field (limit %1)", m_Manager.m_iSoldierCap);
+  if (OverSoldierCap(key)) return string.Format("Too many soldiers in the field (limit %1)", ACR_InsurgentSide.SoldierCap(key, m_Manager.m_iSoldierCap));
   if (!m_Manager.m_Supports) m_Manager.m_Supports = new ACR_Supports(m_Manager);
   if (entry.m_iSupportHeli > 0)
   {
@@ -616,7 +616,7 @@ class ACR_Requisition : Managed
  bool OverSoldierCap(string faction)
  {
   if (!m_Manager.m_Cleanup) return false;
-  return m_Manager.m_Cleanup.SoldiersOf(faction) + PendingSoldiers(faction) >= m_Manager.m_iSoldierCap;
+  return m_Manager.m_Cleanup.SoldiersOf(faction) + PendingSoldiers(faction) >= ACR_InsurgentSide.SoldierCap(faction, m_Manager.m_iSoldierCap);
  }
 
  static const ResourceName SHOVEL_WEST = "{6E35D94130954509}Prefabs/Items/Equipment/Accessories/ETool_ALICE/ETool_ALICE_FreeRoamBuilding_Gadget.et";
@@ -751,7 +751,7 @@ class ACR_Requisition : Managed
   if (!base) return "No friendly base can send reinforcements";
   if (newTube && !ACR_LogisticsRules.CanDeploy(base)) return "A replacement mortar needs a military base, HQ or FOB";
   // The soldier limit counts reinforcements too (soft threshold, as for buying).
-  if (OverSoldierCap(key)) return string.Format("Too many soldiers in the field (limit %1)", m_Manager.m_iSoldierCap);
+  if (OverSoldierCap(key)) return string.Format("Too many soldiers in the field (limit %1)", ACR_InsurgentSide.SoldierCap(key, m_Manager.m_iSoldierCap));
   int extras = vehicleCost;
   if (newTube) extras += ACR_Mortars.TUBE_COST;
   int most = missing.Count() * REINFORCE_COST_PER_SOLDIER + extras;
