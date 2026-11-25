@@ -96,30 +96,10 @@
         "0.1.9",
         "0.1.10",
         "0.2.0",
-        "0.2.1"
+        "0.2.1",
+        "0.3.0"
       ],
-      "pending": {
-        "version": "0.3.0",
-        "messages": [
-          {
-            "content": "<@&1562228542274797608>\nBetter Battle Buddies — 0.3.0\nhttps://reforger.armaplatform.com/workshop/BBB0261015000001\nPart 1/1 · relay 053ac62a9a335879:1\n\n0.3.0\r\n\r\nFaster attacking squad tactics, new Fidelity setting for smaller battles, smarter vehicle unsticking, safer pull-overs, true bullet-stopping cover, and sticky static gunners. Works with AC: Actual 0.7.0.\r\n\r\nNEW\r\n\r\n- Fidelity setting (-bbbFidelity 0|1|2 for Standard, High, Uncapped): spends more server time on smaller battles for faster squad-leader target sharing, tactic re-planning, grenadier/AT checks, and multi-ray shoulder cover tests. Steps down automatically above 30 and 60 AI (-bbbFidelityGovernor 0 to disable).\r\n- Mod-maker hook MaxFidelity() lets a host mod cap the fidelity tier.\r\n\r\nFIXED AND IMPROVED\r\n\r\n- Attacking squad tactics no longer halt on first contact or freeze when the leader falls; against dug-in enemies at 70-250 m, half the squad flanks while the other half suppresses from the front.\r\n- AI vehicle unstick (-bbbUnstick): looks before reversing instead of backing blind into queued vehicles, soldiers, or ditches; armed crews stay aboard and hold when boxed in, while soft-vehicle crews dismount on foot.\r\n- Pulling over no longer tips trucks or APCs over: drivers brake on the road first, check verge slope and obstacles, ease onto the shoulder with stricter limits for tall/heavy vehicles, and stop immediately if the hull starts to roll or pitch.\r\n- True cover (-bbbTrueCover): greenhouses, glass, and wire fences no longer count as bullet-stopping cover or holdable buildings.\r\n- Defending squads keep the same gunner on static weapons instead of rotating him off every few minutes.\r\n- Night flares now log why a pending flare request was called off.",
-            "allowed_mentions": {
-              "parse": [],
-              "users": [],
-              "roles": [
-                "1562228542274797608"
-              ],
-              "replied_user": false
-            },
-            "flags": 4
-          }
-        ],
-        "next": 1,
-        "inflight": null,
-        "receipts": [
-          "1575003179450372096"
-        ]
-      },
+      "pending": null,
       "delivered": {
         "0.1.6": [
           "1564098960505966683",
@@ -153,6 +133,9 @@
         "0.2.1": [
           "1572883938517721188",
           "1572883951159345162"
+        ],
+        "0.3.0": [
+          "1575003179450372096"
         ]
       }
     },
