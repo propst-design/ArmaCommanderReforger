@@ -41,6 +41,7 @@ enum ACR_EPanelAction
  PATROL,
  QRF,
  KEY_HINTS,
+ RADIO_AUDIO,
  BUILD_FOLD,
  UPGRADES_FOLD,
  MORE_FOLD,
@@ -289,12 +290,14 @@ class ACR_CommandPanel : Managed
   if (m_ReportText) { m_ReportText.SetVisible(false); AlignableSlot.SetPadding(m_ReportText, 0, 4, 0, 4); }
   m_RTSCameraButton = AddButton(m_MoreSection, "3D Camera  [F10]", ACR_EPanelAction.TOGGLE_RTS_CAMERA);
   m_KeyHintsButton = AddButton(m_MoreSection, "", ACR_EPanelAction.KEY_HINTS);
+  m_RadioAudioButton = AddButton(m_MoreSection, "", ACR_EPanelAction.RADIO_AUDIO);
   // Zombie containment under "I'm the 2IC" (#107): the server answers whether it applies.
   AddButton(m_MoreSection, "2IC runs evacs: on/off", ACR_EPanelAction.TWOIC_EVAC);
   // TvTvZ truce (#107): the server answers whether one can be had.
   AddButton(m_MoreSection, "Truce: offer / accept", ACR_EPanelAction.TRUCE_OFFER);
   AddButton(m_MoreSection, "Truce: refuse / break", ACR_EPanelAction.TRUCE_REFUSE);
   RefreshKeyHints();
+  RefreshRadioAudio();
   AddExtraRows(m_MoreSection);
   RefreshMore();
 
@@ -831,6 +834,7 @@ class ACR_CommandPanel : Managed
  // ---------------------------------------------------------------- moving the panels
 
  protected SCR_ButtonTextComponent m_KeyHintsButton;
+ protected SCR_ButtonTextComponent m_RadioAudioButton;
 
  protected SCR_ButtonTextComponent m_BuildFoldButton;
  protected Widget m_BuildFoldWidget;
@@ -921,6 +925,14 @@ class ACR_CommandPanel : Managed
   ACR_UiPrefs.Load();
   if (ACR_UiPrefs.s_bKeyHints) m_KeyHintsButton.SetText("Key reminders: on");
   else m_KeyHintsButton.SetText("Key reminders: off");
+ }
+
+ void RefreshRadioAudio()
+ {
+  if (!m_RadioAudioButton) return;
+  ACR_UiPrefs.Load();
+  if (ACR_UiPrefs.s_bRadioAudio) m_RadioAudioButton.SetText("Radio audio: on");
+  else m_RadioAudioButton.SetText("Radio audio: off");
  }
 
  // Each panel of this box's, for the one way of moving a panel (ACR_PanelMover). The ACA panel is held

@@ -122,6 +122,7 @@ class ACR_DoctrineIntel : Managed
   ACR_Report.Event(Side(), timeline);
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (manager) manager.NotifyFaction(Side(), line);
+  ACR_RadioAudio.NotifyFaction(Side(), ACR_ERadioCue.INTEL_FOUND);
  }
 
  // The enemy commander changed doctrine (ACR_AICommander.ChangeDoctrine).

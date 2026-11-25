@@ -285,6 +285,7 @@ class ACR_RadioIntercept
   intel.m_Intercepts.Insert(ring);
   while (intel.m_Intercepts.Count() > MAX_RINGS) intel.m_Intercepts.RemoveOrdered(0);
   intel.AddFeed(now, string.Format("Radio intercept: enemy transmission %1", intel.Place(centre)), centre);
+  ACR_RadioAudio.NotifyFaction(intel.m_sFaction, ACR_ERadioCue.INTERCEPT);
  }
 
  static void Forget(ACR_Intel intel, float now)

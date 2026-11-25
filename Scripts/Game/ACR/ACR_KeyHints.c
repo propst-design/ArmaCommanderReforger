@@ -30,6 +30,7 @@ class ACR_UiPrefs
  }
  protected static string s_sFile = PREFS;
  static bool s_bKeyHints = true;
+ static bool s_bRadioAudio = true;
  static bool s_bBuildOpen;              // the ACA panel's build orders are unfolded
  static bool s_bUpgradesOpen;           // its FOB upgrades
  static bool s_bMoreOpen;               // its report, 3D camera, key reminders and UI size
@@ -67,6 +68,8 @@ class ACR_UiPrefs
    line = line.Trim();
    if (line == "keys=0") s_bKeyHints = false;
    if (line == "keys=1") s_bKeyHints = true;
+   if (line == "radioaudio=0") s_bRadioAudio = false;
+   if (line == "radioaudio=1") s_bRadioAudio = true;
    if (line == "build=1") s_bBuildOpen = true;
    if (line == "upgrades=1") s_bUpgradesOpen = true;
    if (line == "more=1") s_bMoreOpen = true;
@@ -99,6 +102,8 @@ class ACR_UiPrefs
   if (!file) return;
   if (s_bKeyHints) file.WriteLine("keys=1");
   else file.WriteLine("keys=0");
+  if (s_bRadioAudio) file.WriteLine("radioaudio=1");
+  else file.WriteLine("radioaudio=0");
   if (s_bBuildOpen) file.WriteLine("build=1");
   if (s_bUpgradesOpen) file.WriteLine("upgrades=1");
   if (s_bMoreOpen) file.WriteLine("more=1");

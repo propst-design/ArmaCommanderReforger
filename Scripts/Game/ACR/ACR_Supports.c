@@ -2145,6 +2145,7 @@ class ACR_Supports : Managed
   if (!GetGame()) return;
   ScriptCallQueue queue = GetGame().GetCallqueue();
   queue.Remove(FireBatteryRound);
+  queue.Remove(WarnIncomingBattery);
   queue.Remove(SpawnBombRunCallIn);
   queue.Remove(SpawnModule);
   queue.Remove(Explode);
@@ -2564,6 +2565,10 @@ class ACR_Supports : Managed
     // Three salvos of six over a wide area, each round a falling shell (its own incoming
     // whistle on every machine) that lands with a heavy blast.
     ResourceName shell = BatteryShellFor(factionKey);
+    int warnMs = (delay - BATTERY_FALL_SECONDS) * 1000;
+    if (warnMs < 0) warnMs = 0;
+    GetGame().GetCallqueue().CallLater(WarnIncomingBattery, warnMs, false, target);
+    if (!byAI) ACR_RadioAudio.NotifyFaction(factionKey, ACR_ERadioCue.FIRE_MISSION);
     for (int salvo = 0; salvo < BATTERY_SALVOS; salvo++)
     {
      for (int gun = 0; gun < BATTERY_ROUNDS; gun++)
@@ -2939,6 +2944,11 @@ class ACR_Supports : Managed
   ResourceName shell = "{98EC9C526AFBA282}Prefabs/Weapons/Ammo/Ammo_Shell_82mm_HE_O832DU.et";
   if (IsWestern(factionKey)) shell = "{38BAE094333E31BF}Prefabs/Weapons/Ammo/Ammo_Shell_81mm_HE_M821.et";
   return ACR_FactionCatalog.ResolvePrefab(factionKey, shell, EEntityCatalogType.VEHICLE);
+ }
+
+ protected void WarnIncomingBattery(vector target)
+ {
+  ACR_RadioAudio.WarnIncomingArtillery(target, BATTERY_RADIUS);
  }
 
  // One howitzer round: a shell dropped from high above the impact point (every machine flies

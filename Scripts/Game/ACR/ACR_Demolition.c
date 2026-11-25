@@ -51,7 +51,11 @@ class ACR_Demolition
    string name = "an HQ";
    if (fob) name = fob.m_sName + " HQ";
    PrintFormat("[ACR] DEMOLITION charge at %1 destroyed %2 (%3 m away)", position, name, (int)vector.Distance(position, hq.GetOrigin()));
-   if (fob) manager.NotifyFaction(fob.m_sOwner, string.Format("%1 destroyed by demolition: FOB offline until rebuilt", name));
+   if (fob)
+   {
+    manager.NotifyFaction(fob.m_sOwner, string.Format("%1 destroyed by demolition: FOB offline until rebuilt", name));
+    ACR_RadioAudio.NotifyFaction(fob.m_sOwner, ACR_ERadioCue.BASE_LOST);
+   }
    vector centre = hq.GetOrigin();
    ACR_Navmesh.DeleteStructure(hq);
    if (!manager.m_Supports) manager.m_Supports = new ACR_Supports(manager);

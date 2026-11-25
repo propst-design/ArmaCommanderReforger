@@ -68,6 +68,7 @@ class ACR_StaticInit
   ACR_Perf.ACR_InitStatics();
   ACR_PingDisplay.ACR_InitStatics();
   ACR_QuickStart.ACR_InitStatics();
+  ACR_RadioAudio.ACR_InitStatics();
   ACR_Report.ACR_InitStatics();
   ACR_RoadblockLane.ACR_InitStatics();
   ACR_RoadblockSiting.ACR_InitStatics();

@@ -32,7 +32,7 @@ class ACR_Report
   s_Sides = new map<string, ref ACR_SideStats>();
  }
 
- static void Reset() { s_Sides.Clear(); }
+ static void Reset() { s_Sides.Clear(); ACR_RadioAudio.Reset(); }
 
  static ACR_SideStats Of(string key)
  {
@@ -112,9 +112,9 @@ class ACR_Report
  {
   ACR_Insurgency.OnCapture(by, from);
   ACR_SideStats won = Of(by);
-  if (won) { won.m_iBasesWon++; Event(by, "took " + base); }
+  if (won) { won.m_iBasesWon++; Event(by, "took " + base); ACR_RadioAudio.NotifyFaction(by, ACR_ERadioCue.BASE_CAPTURED); }
   ACR_SideStats lost = Of(from);
-  if (lost) { lost.m_iBasesLost++; Event(from, "lost " + base); }
+  if (lost) { lost.m_iBasesLost++; Event(from, "lost " + base); ACR_RadioAudio.NotifyFaction(from, ACR_ERadioCue.BASE_LOST); }
  }
 
  static void OnIncome(string key, int amount) { ACR_SideStats s = Of(key); if (s) s.m_iRPEarned += amount; }

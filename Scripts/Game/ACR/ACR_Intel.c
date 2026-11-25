@@ -590,6 +590,7 @@ class ACR_Intel : Managed
   QueueRadio(string.Format("%1: enemy FOB spotted, %2.", spotter, relative));
   ACR_Report.Event(m_sFaction, "found enemy " + fob.m_sName);
   m_Manager.NotifyFaction(m_sFaction, string.Format("Enemy base discovered: %1", fob.m_sName));
+  ACR_RadioAudio.NotifyFaction(m_sFaction, ACR_ERadioCue.INTEL_FOUND);
   if (fob.m_sOwner == ACR_Debug.EnemyOf(m_sFaction)) m_DoctrineIntel.Add(ACR_DoctrineIntel.FOB_FOUND, "FOB found");
  }
 

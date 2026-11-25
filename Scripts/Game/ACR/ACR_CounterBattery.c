@@ -189,6 +189,8 @@ class ACR_CounterBattery
   {
    intel.AddFeed(now, line, centre);
    if (manager) manager.NotifyFaction(intel.m_sFaction, line);
+   if (fresh) ACR_RadioAudio.NotifyFaction(intel.m_sFaction, ACR_ERadioCue.COUNTER_BATTERY);
+   else ACR_RadioAudio.NotifyFaction(intel.m_sFaction, ACR_ERadioCue.COUNTER_BATTERY_PINNED);
   }
   return fix;
  }
@@ -275,7 +277,10 @@ class ACR_CounterBattery
    team.m_vIncomingFrom = from;
    // Its side's players hear it coming in, unless the AI will move the team itself (DisplaceUnderFire).
    if (team.m_Squad && !AIMoves(manager, team))
+   {
     manager.NotifyFaction(team.m_sFaction, string.Format("Counter-battery fire coming in on %1: move it", team.m_sName));
+    ACR_RadioAudio.NotifyFaction(team.m_sFaction, ACR_ERadioCue.COUNTER_BATTERY_INCOMING);
+   }
   }
  }
 

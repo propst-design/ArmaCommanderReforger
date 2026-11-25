@@ -2032,6 +2032,10 @@ modded class SCR_PlayerController
     ACR_KeyHints.Toggle();
     ACR_RefreshKeyHintsButton();
     return;
+   case ACR_EPanelAction.RADIO_AUDIO:
+    ACR_RadioAudio.Toggle();
+    if (m_ACR_Panel) m_ACR_Panel.RefreshRadioAudio();
+    return;
    case ACR_EPanelAction.HALT: ACR_RequestSelected(ACR_ERequest.ORDER_HALT); return;
    case ACR_EPanelAction.FIRE_AT_WILL: ACR_RequestSelected(ACR_ERequest.ORDER_FIRE_AT_WILL); return;
    case ACR_EPanelAction.PATROL: ACR_RequestSelected(ACR_ERequest.ORDER_PATROL); return;
@@ -2682,6 +2686,17 @@ modded class SCR_PlayerController
   m_ACR_RadioCount++;
   SCR_ChatPanelManager chat = SCR_ChatPanelManager.GetInstance();
   if (chat) chat.OnNewMessage("[Radio] " + message);
+  ACR_RadioAudio.Play(ACR_ERadioCue.CONTACT);
+ }
+
+ void ACR_SendRadioCue(int cue)
+ {
+  Rpc(ACR_RadioCueOwner, cue);
+ }
+ [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
+ protected void ACR_RadioCueOwner(int cue)
+ {
+  ACR_RadioAudio.Play(cue);
  }
  int ACR_FeedCount() { return m_ACR_Feed.Count(); }
 
