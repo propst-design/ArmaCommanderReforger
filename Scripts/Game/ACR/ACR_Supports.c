@@ -167,7 +167,6 @@ class ACR_Supports : Managed
   queue.Remove(FireBatteryRound);
   queue.Remove(WarnIncomingBattery);
   queue.Remove(SpawnBombRunCallIn);
-  queue.Remove(SpawnModule);
   queue.Remove(Explode);
   queue.Remove(Secondary);
  }
@@ -869,24 +868,6 @@ class ACR_Supports : Managed
   dir[1] = 0;
   if (dir.Length() < 1) dir = Vector(0, 0, 1);
   return dir.Normalized();
- }
-
- protected void ScheduleModule(ResourceName prefab, vector target, vector dir, int delaySeconds)
- {
-  GetGame().GetCallqueue().CallLater(SpawnModule, Math.Max(0, delaySeconds - 3) * 1000, false, prefab, target, dir);
- }
-
- // Effect modules fire their first round about 3 s after spawning.
- protected void SpawnModule(ResourceName prefab, vector target, vector dir)
- {
-  Resource resource = Resource.Load(prefab);
-  if (!resource.IsValid()) { PrintFormat("[ACR] SUPPORT missing prefab %1", prefab); return; }
-  EntitySpawnParams parameters = new EntitySpawnParams();
-  parameters.TransformMode = ETransformMode.WORLD;
-  Math3D.AnglesToMatrix(Vector(Math.Atan2(dir[0], dir[2]) * Math.RAD2DEG, 0, 0), parameters.Transform);
-  parameters.Transform[3] = target;
-  IEntity module = GetGame().SpawnEntityPrefab(resource, GetGame().GetWorld(), parameters);
-  PrintFormat("[ACR] SUPPORT module %1 spawned=%2", prefab, module != null);
  }
 
  void ExplodeAt(vector impact) { Explode(impact); } // tests
