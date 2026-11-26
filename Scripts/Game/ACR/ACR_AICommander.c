@@ -92,7 +92,7 @@ class ACR_AICommander : Managed
  string Faction() { return m_sFaction; }
  bool m_bActive;
  protected int m_iSeconds;
- protected ref array<ref ACR_AIAttack> m_Attacks = {};
+ ref array<ref ACR_AIAttack> m_Attacks = {};
  protected ref map<ACR_Base, int> m_Defence = new map<ACR_Base, int>();
  protected ref map<ACR_Base, int> m_Threat = new map<ACR_Base, int>();
  protected ref map<ACR_Base, string> m_LastOwner = new map<ACR_Base, string>();
@@ -233,12 +233,12 @@ class ACR_AICommander : Managed
  protected int m_iTickStarted;
 
  // The style this commander fights to this match (ACR_AIDoctrine), chosen when it is made.
- protected ref ACR_AIDoctrine m_Doctrine;
- protected string m_sDoctrineSource;
+ ref ACR_AIDoctrine m_Doctrine;
+ string m_sDoctrineSource;
  // Its home style: the doctrine it started with (its company's, unless the setup screen overrode
  // it). A changed doctrine goes back to it once the trouble that changed it is over (PickDoctrine),
  // never inside #29's hold, and only after a varied wait past it (HomeDriftMin).
- protected string m_sHomeDoctrine;
+ string m_sHomeDoctrine;
  ACR_AIDoctrine Doctrine() { return m_Doctrine; }
  string HomeDoctrine() { return m_sHomeDoctrine; }
  void SetDoctrineForTest(ACR_AIDoctrine doctrine) { m_Doctrine = doctrine; m_sDoctrineSource = "test"; }
@@ -955,249 +955,30 @@ class ACR_AICommander : Managed
  // At most one change per review; -acrDoctrineAdapt 0 keeps the first doctrine.
  static const float DOCTRINE_FIRST_REVIEW_MIN = 15;
  static const float DOCTRINE_REVIEW_MIN = 10;
- protected float m_fNextDoctrineReview = -1;
- protected int m_iReviewLost, m_iReviewKills, m_iReviewWon, m_iReviewBasesLost;
- protected int m_iDoctrineChanges;
- protected bool m_bDoctrineSettling; // changed at the last review: the next one only snapshots
- // A changed doctrine is kept DOCTRINE_HOLD_MIN, and the one just left can't come straight back
- // for the same kind of reason (Jacob, #29: a bleeding side swapped Fortress <-> Firepower at
- // every judged review, and counters chased each other all match).
+ float m_fNextDoctrineReview = -1;
+ int m_iReviewLost, m_iReviewKills, m_iReviewWon, m_iReviewBasesLost;
+ int m_iDoctrineChanges;
+ bool m_bDoctrineSettling; // changed at the last review: the next one only snapshots
  static const float DOCTRINE_HOLD_MIN = 30;
- protected float m_fDoctrineSince = -1;
- protected string m_sDoctrineLeft, m_sDoctrineLeftWhy;
- // A change that isn't urgent waits for the next review to pick it again (6 Nov, Chernarus: the US
- // changed doctrine 9 times in 5 h, Balanced <-> Blitz on single quiet 10-minute windows and
- // counters to an enemy doctrine its intel believed one review and not the next; every change
- // re-tasks squads and changes what it buys). The pick it is waiting to confirm:
- protected string m_sDoctrinePending;
- // Ahead in the war: this many more bases than the enemy holds (that it knows of), and at least
- // twice as many. 6 Nov: at 21 bases to 4 a quiet window read as "getting nowhere" and a believed
- // Blitz turned it to Fortress.
+ float m_fDoctrineSince = -1;
+ string m_sDoctrineLeft, m_sDoctrineLeftWhy;
+ string m_sDoctrinePending;
  static const int DOCTRINE_AHEAD_BY = 5;
-
- protected void SnapshotReview()
- {
-  ACR_SideStats s = ACR_Report.Of(m_sFaction);
-  if (!s) return;
-  m_iReviewLost = s.m_iLost;
-  m_iReviewKills = s.m_iKills;
-  m_iReviewWon = s.m_iBasesWon;
-  m_iReviewBasesLost = s.m_iBasesLost;
- }
-
- protected void ReviewDoctrine()
- {
-  if (!ACR_AIDoctrine.AdaptAllowed()) return;
-  float now = GetGame().GetWorld().GetWorldTime();
-  if (m_fNextDoctrineReview < 0)
-  {
-   m_fNextDoctrineReview = now + DOCTRINE_FIRST_REVIEW_MIN * 60000;
-   SnapshotReview();
-   return;
-  }
-  if (now < m_fNextDoctrineReview) return;
-  m_fNextDoctrineReview = now + DOCTRINE_REVIEW_MIN * 60000;
-  ACR_SideStats s = ACR_Report.Of(m_sFaction);
-  if (!s) return;
-  // A new doctrine is judged on what it does once settled in, not on the purchases and plans
-  // of the old one still arriving (Everon night soak 26 Oct: Balanced -> Firepower ->
-  // Fortress, ten minutes apart, both for losses).
-  if (m_bDoctrineSettling)
-  {
-   m_bDoctrineSettling = false;
-   SnapshotReview();
-   Say(string.Format("[ACR] AI commander %1 doctrine review: %2 settling in, judged from now", m_sFaction, m_Doctrine.m_sName));
-   return;
-  }
-  int lost = s.m_iLost - m_iReviewLost;
-  int kills = s.m_iKills - m_iReviewKills;
-  int won = s.m_iBasesWon - m_iReviewWon;
-  int basesLost = s.m_iBasesLost - m_iReviewBasesLost;
-  SnapshotReview();
-  string enemyKnown;
-  ACR_Intel intel = m_Manager.IntelFor(m_sFaction);
-  if (intel) enemyKnown = intel.Doctrine().Believed();
-  string why;
-  int ours, theirs;
-  BasesHeld(ours, theirs);
-  string pick = PickDoctrine(m_Doctrine.m_sKey, enemyKnown, won, basesLost, lost, kills, why, m_sHomeDoctrine, Ahead(ours, theirs));
-  Say(string.Format("[ACR] AI commander %1 doctrine review: %2, bases +%3 -%4, lost %5 killed %6, enemy doctrine '%7', holds %8 to %9: ", m_sFaction, m_Doctrine.m_sName, won, basesLost, lost, kills, enemyKnown, ours, theirs) + why);
-  string pending = m_sDoctrinePending;
-  m_sDoctrinePending = "";
-  if (pick.IsEmpty() || pick == m_Doctrine.m_sKey) return;
-  float heldMin = -1;
-  if (m_fDoctrineSince >= 0) heldMin = (now - m_fDoctrineSince) / 60000;
-  string blocked = DoctrineChangeBlocked(pick, why, heldMin, m_sDoctrineLeft, m_sDoctrineLeftWhy);
-  if (blocked.IsEmpty() && why == WHY_HOME) blocked = HomeDriftBlocked(heldMin, HomeDriftMin());
-  if (!blocked.IsEmpty())
-  {
-   Say(string.Format("[ACR] AI commander %1 doctrine: keeps %2 instead of %3 (%4)", m_sFaction, m_Doctrine.m_sName, ACR_AIDoctrine.NameOf(pick), blocked));
-   return;
-  }
-  if (NeedsConfirming(why) && pending != pick)
-  {
-   m_sDoctrinePending = pick;
-   Say(string.Format("[ACR] AI commander %1 doctrine: would switch to %2 (%3), if the next review agrees", m_sFaction, ACR_AIDoctrine.NameOf(pick), why));
-   return;
-  }
-  ChangeDoctrine(ACR_AIDoctrine.Find(pick), why);
- }
-
- // Only losing ground and heavy losses change doctrine at once; anything else (getting nowhere, a
- // counter, going home) must be picked at two reviews in a row.
- static bool NeedsConfirming(string why)
- {
-  return DoctrineReasonKind(why) != "going badly";
- }
-
- // Pure (tests): far enough ahead in bases held that a quiet spell or a believed enemy style
- // doesn't change how it fights.
- static bool Ahead(int ours, int theirs)
- {
-  return ours >= theirs + DOCTRINE_AHEAD_BY && ours >= theirs * 2;
- }
-
- // Bases this side holds, and those it knows a hostile side holds.
- protected void BasesHeld(out int ours, out int theirs)
- {
-  ours = 0;
-  theirs = 0;
-  foreach (ACR_Base base : ACR_Base.s_All)
-  {
-   if (!base || base.m_bRetired) continue;
-   if (base.m_sOwner == m_sFaction) ours++;
-   else if (HostileOwner(base) && Visible(base)) theirs++;
-  }
- }
-
- // Reasons that lead to the same answer count as one: losing ground and heavy losses both pick
- // whichever of Fortress and Firepower the side isn't on; every counter is a counter.
- static string DoctrineReasonKind(string why)
- {
-  if (why.StartsWith("countering")) return "counter";
-  if (why == "losing ground" || why == "losses too heavy") return "going badly";
-  return why;
- }
-
- // Why a picked change can't happen yet, "" when it can. heldMin < 0: never changed this match
- // (the starting doctrine has had the first review's wait).
- static string DoctrineChangeBlocked(string pick, string why, float heldMin, string left, string leftWhy)
- {
-  if (heldMin >= 0 && heldMin < DOCTRINE_HOLD_MIN)
-   return string.Format("held %1 of %2 min", Math.Floor(heldMin), DOCTRINE_HOLD_MIN);
-  if (!left.IsEmpty() && pick == left && DoctrineReasonKind(why) == DoctrineReasonKind(leftWhy))
-   return "just left it for the same reason: " + why;
-  return "";
- }
-
- // Going back to its home style is a reason of its own (the trouble that changed it is over), so
- // the hold above applies to it but the same-reason rule doesn't. It also waits a varied extra
- // HOME_DRIFT_EXTRA_MIN past the hold (up to twice that, ACR_Variety, seeded from the match seed,
- // the side and its changes so far): sides don't all go home at the first review they may.
- // -acrVariety 0: 40 min.
  static const string WHY_HOME = "the trouble is over, back to its home style";
  static const float HOME_DRIFT_EXTRA_MIN = 10;
- float HomeDriftMin()
- {
-  return DOCTRINE_HOLD_MIN + ACR_Variety.Jitter(HOME_DRIFT_EXTRA_MIN, 1, string.Format("home drift %1 %2", m_sFaction, m_iDoctrineChanges));
- }
- static string HomeDriftBlocked(float heldMin, float waitMin)
- {
-  if (heldMin >= 0 && heldMin < waitMin)
-   return string.Format("back to its home style after %1 min, held %2", Math.Floor(waitMin), Math.Floor(heldMin));
-  return "";
- }
 
- // What a review decides over one review window: the doctrine key to change to, "" to keep. Away
- // from its home style ("" none) a side only goes back to it (see below).
- // 'ahead' (Ahead): well ahead in the war, it changes only for losing ground or heavy losses.
- static string PickDoctrine(string current, string enemyKnown, int won, int basesLost, int lost, int kills, out string why, string home = "", bool ahead = false)
- {
-  bool losingGround = basesLost >= won + 2;
-  bool bleeding = lost >= 12 && lost > kills * 1.6;
-  // Bases gained count as winning only while not bleeding: early on they are mostly empty
-  // sites (Everon night soak 26 Oct: "+3 -0, lost 20 killed 4: it is working").
-  bool winning = (won >= basesLost + 2 && !bleeding) || (kills >= 12 && kills > lost * 1.6);
-  bool stuck = won == 0 && basesLost == 0;
-  if (winning)
-  {
-   why = "it is working";
-   return "";
-  }
-  if (ahead && !losingGround && !bleeding)
-  {
-   why = "well ahead in the war, keeps what it has";
-   return "";
-  }
-  string counter = ACR_AIDoctrine.Counter(enemyKnown);
-  if (!counter.IsEmpty() && counter != current)
-  {
-   why = "countering the enemy's " + ACR_AIDoctrine.NameOf(enemyKnown);
-   return counter;
-  }
-  // Already the answer to what the enemy does: only losing ground makes it think again.
-  if (!counter.IsEmpty() && !losingGround)
-  {
-   why = "already countering the enemy's " + ACR_AIDoctrine.NameOf(enemyKnown);
-   return "";
-  }
-  // Away from its home style (its company's, or the one it started with), a side keeps the change
-  // while the trouble that made it lasts, and goes back home once that is over: trouble no longer
-  // moves it on, or back and forth (#29). Only a known enemy's counter (above) still moves it to
-  // another doctrine.
-  if (!home.IsEmpty() && current != home)
-  {
-   if (losingGround || bleeding)
-   {
-    why = "still in trouble, keeps " + ACR_AIDoctrine.NameOf(current) + " before going back to " + ACR_AIDoctrine.NameOf(home);
-    return "";
-   }
-   why = WHY_HOME;
-   return home;
-  }
-  if (losingGround)
-  {
-   why = "losing ground";
-   if (current == "fortress") return "firepower";
-   return "fortress";
-  }
-  if (bleeding)
-  {
-   why = "losses too heavy";
-   if (current == "firepower") return "fortress";
-   return "firepower";
-  }
-  if (stuck)
-  {
-   why = "getting nowhere";
-   if (current == "blitz") return "raider";
-   return "blitz";
-  }
-  why = "holding its own";
-  return "";
- }
-
- void ChangeDoctrine(ACR_AIDoctrine doctrine, string why)
- {
-  if (!doctrine || doctrine == m_Doctrine) return;
-  ACR_AIDoctrine was = m_Doctrine;
-  m_Doctrine = doctrine;
-  m_sDoctrineSource = "changed";
-  m_iDoctrineChanges++;
-  m_bDoctrineSettling = true;
-  m_fDoctrineSince = GetGame().GetWorld().GetWorldTime();
-  m_sDoctrineLeft = was.m_sKey;
-  m_sDoctrineLeftWhy = why;
-  Say(string.Format("[ACR] AI commander %1 doctrine: %2 -> %3 (%4; %5)", m_sFaction, was.m_sName, doctrine.m_sName, why, doctrine.m_sSummary));
-  // Its own side hears it (players fighting under this commander); the enemy has to notice.
-  string line = string.Format("Commander: switching to %1 (%2)", doctrine.m_sName, why);
-  ACR_Intel own = m_Manager.IntelFor(m_sFaction);
-  if (own) own.AddFeed(GetGame().GetWorld().GetWorldTime(), line);
-  ACR_Report.Event(m_sFaction, string.Format("commander switched to %1 (%2)", doctrine.m_sName, why));
-  m_Manager.NotifyFaction(m_sFaction, line);
-  ACR_Intel enemy = m_Manager.IntelFor(ACR_Debug.EnemyOf(m_sFaction));
-  if (enemy) enemy.Doctrine().OnEnemyChanged(was.m_sKey);
- }
+ // Doctrine review and switching live in ACR_AIStrategy.c; thin forwarders preserve existing callers/tests.
+ protected void SnapshotReview() { ACR_AIStrategy.SnapshotReview(this); }
+ protected void ReviewDoctrine() { ACR_AIStrategy.ReviewDoctrine(this); }
+ static bool NeedsConfirming(string why) { return ACR_AIStrategy.NeedsConfirming(why); }
+ static bool Ahead(int ours, int theirs) { return ACR_AIStrategy.Ahead(ours, theirs); }
+ protected void BasesHeld(out int ours, out int theirs) { ACR_AIStrategy.BasesHeld(this, ours, theirs); }
+ static string DoctrineReasonKind(string why) { return ACR_AIStrategy.DoctrineReasonKind(why); }
+ static string DoctrineChangeBlocked(string pick, string why, float heldMin, string left, string leftWhy) { return ACR_AIStrategy.DoctrineChangeBlocked(pick, why, heldMin, left, leftWhy); }
+ float HomeDriftMin() { return ACR_AIStrategy.HomeDriftMin(this); }
+ static string HomeDriftBlocked(float heldMin, float waitMin) { return ACR_AIStrategy.HomeDriftBlocked(heldMin, waitMin); }
+ static string PickDoctrine(string current, string enemyKnown, int won, int basesLost, int lost, int kills, out string why, string home = "", bool ahead = false) { return ACR_AIStrategy.PickDoctrine(current, enemyKnown, won, basesLost, lost, kills, why, home, ahead); }
+ void ChangeDoctrine(ACR_AIDoctrine doctrine, string why) { ACR_AIStrategy.ChangeDoctrine(this, doctrine, why); }
 
  protected void TickSapperDemos()
  {
@@ -1256,7 +1037,7 @@ class ACR_AICommander : Managed
   }
  }
 
- protected vector PositionOf(ACR_Squad squad)
+ vector PositionOf(ACR_Squad squad)
  {
   IEntity anchor = squad.GetAnchor();
   if (anchor) return anchor.GetOrigin();
@@ -1293,7 +1074,7 @@ class ACR_AICommander : Managed
   return m_StalledUntil.Find(base, until) && GetGame().GetWorld().GetWorldTime() < until;
  }
 
- protected bool Visible(ACR_Base base)
+ bool Visible(ACR_Base base)
  {
   return base.IsVisibleTo(m_sFaction);
  }
@@ -1306,7 +1087,7 @@ class ACR_AICommander : Managed
 
  // Held, as this commander knows it, by someone it fights: an FIA pocket of an FIA allied to
  // this side is not (ACR_Insurgency).
- protected bool HostileOwner(ACR_Base base)
+ bool HostileOwner(ACR_Base base)
  {
   string seen = SeenOwner(base);
   return !seen.IsEmpty() && !ACR_Insurgency.Friendly(seen, m_sFaction);
@@ -5420,7 +5201,7 @@ class ACR_AICommander : Managed
  // possible, that is dry, has a dry run in, and stays clear of every other
  // enemy base we know of (forming up next to one drags the force into a fight
  // it didn't plan).
- protected bool StagingPoint(ACR_Base target, vector dir, float ring, out vector point)
+ bool StagingPoint(ACR_Base target, vector dir, float ring, out vector point)
  {
   array<float> turns = {0, 30, -30, 60, -60, 90, -90, 120, -120, 150, -150, 180};
   foreach (float turn : turns)
@@ -5451,327 +5232,30 @@ class ACR_AICommander : Managed
  static const float COVER_MAX_STRETCH = 2.5;   // an arc longer than this times the direct way (+300 m) isn't walked
  static const float COVER_MIN_GAIN = 0.15;     // the arc must cut the cost by this share
  static const float COVER_WALK_SPEED = 2;      // m/s on foot, for the forming-up wait
- protected float m_fCoverDetour;               // extra metres of the last covered route Travel chose (0: direct)
-
- // Where the objective's defenders look from: its centre and four points half way out, 2.2 m up.
- static void ObjectiveEyes(vector center, float radius, notnull array<vector> eyes)
- {
-  eyes.Insert(EyeAt(center));
-  for (int i = 0; i < 4; i++)
-   eyes.Insert(EyeAt(center + Turned(Vector(0, 0, 1), i * 90) * (radius * 0.5)));
- }
-
- static vector EyeAt(vector point)
- {
-  point[1] = GetGame().GetWorld().GetSurfaceY(point[0], point[2]) + 2.2;
-  return point;
- }
-
- // The ground at 'point' is in sight of an eye (terrain only).
- static bool GroundSeen(notnull array<vector> eyes, vector point)
- {
-  BaseWorld world = GetGame().GetWorld();
-  vector body = point;
-  body[1] = world.GetSurfaceY(point[0], point[2]) + 1.0;
-  foreach (vector eye : eyes)
-  {
-   if (vector.DistanceXZ(eye, body) > COVER_RANGE) continue;
-   TraceParam trace = new TraceParam();
-   trace.Start = eye;
-   trace.End = body;
-   trace.Flags = TraceFlags.WORLD;
-   if (world.TraceMove(trace, null) >= 1) return true;
-  }
-  return false;
- }
-
- // Length and exposed length of the path from 'from' through 'legs', sampled every COVER_SAMPLE m.
- static float PathExposure(notnull array<vector> eyes, vector from, notnull array<vector> legs, out float exposed)
- {
-  float length = 0;
-  exposed = 0;
-  vector a = from;
-  foreach (vector b : legs)
-  {
-   float d = vector.DistanceXZ(a, b);
-   int steps = (int)Math.Ceil(d / COVER_SAMPLE);
-   if (steps < 1) steps = 1;
-   for (int i = 1; i <= steps; i++)
-   {
-    float t = i;
-    t /= steps;
-    if (GroundSeen(eyes, a + (b - a) * t)) exposed += d / steps;
-   }
-   length += d;
-   a = b;
-  }
-  return length;
- }
-
- // Waypoints round 'center' from 'from' to 'stage', turning one way (sense 1 or -1), one every
- // COVER_ARC_STEP degrees. The radius runs from where the squad meets the arc (at most
- // COVER_SPIRAL_OUT past 'ring') to the staging point's, so the squad never walks in closer than that.
- static void ArcLegs(vector center, vector from, vector stage, float ring, int sense, notnull array<vector> legs)
- {
-  vector a = from - center;
-  a[1] = 0;
-  vector b = stage - center;
-  b[1] = 0;
-  float startAngle = Math.Atan2(a[2], a[0]);
-  float sweep = Math.Atan2(b[2], b[0]) - startAngle;
-  if (sense > 0) { while (sweep <= 0) sweep += Math.PI2; }
-  else { while (sweep >= 0) sweep -= Math.PI2; }
-  float startRadius = Math.Clamp(a.Length(), ring, ring + COVER_SPIRAL_OUT);
-  float endRadius = b.Length();
-  int steps = (int)Math.Ceil(Math.AbsFloat(sweep) * Math.RAD2DEG / COVER_ARC_STEP);
-  if (steps < 1) steps = 1;
-  for (int i = 0; i < steps; i++)
-  {
-   float t = i;
-   t /= steps;
-   float angle = startAngle + sweep * t;
-   float r = startRadius + (endRadius - startRadius) * t;
-   vector point = center + Vector(Math.Cos(angle) * r, 0, Math.Sin(angle) * r);
-   if (i == 0 && vector.DistanceXZ(point, from) < 30) continue;
-   legs.Insert(point);
-  }
-  legs.Insert(stage);
- }
-
- // The strongpoint an attack of ours on 'target' goes round, or null.
- protected ACR_AIAttack m_LaunchingAttack; // set while LaunchAttack sends its squads off
- protected ACR_Base BypassFor(ACR_Base target)
- {
-  if (m_LaunchingAttack && m_LaunchingAttack.m_Target == target && m_LaunchingAttack.m_Bypass && m_LaunchingAttack.m_Bypass.m_sOwner != m_sFaction) return m_LaunchingAttack.m_Bypass;
-  foreach (ACR_AIAttack attack : m_Attacks)
-   if (attack.m_Target == target && attack.m_Bypass && attack.m_Bypass.m_sOwner != m_sFaction) return attack.m_Bypass;
-  return null;
- }
-
- // A covered way for a foot squad to its staging point for 'target', when one beats the direct
- // line; sets m_fCoverDetour. False: walk the direct way (RouteTo).
- protected bool CoveredApproach(ACR_Squad squad, ACR_Base target, vector stage)
- {
-  int started = System.GetTickCount();
-  vector from = PositionOf(squad);
-  vector center = target.GetOrigin();
-  float ring = target.m_fRadius + STAGING_DISTANCE;
-  array<vector> eyes = {};
-  ObjectiveEyes(center, target.m_fRadius, eyes);
-  // Going round a strongpoint (ACR_AIEnvelopment): its eyes count too, and a wide way round it is tried.
-  ACR_Base bypass = BypassFor(target);
-  if (bypass) ObjectiveEyes(bypass.GetOrigin(), bypass.m_fRadius, eyes);
-  array<vector> direct = {stage};
-  float directSeen;
-  float directLength = PathExposure(eyes, from, direct, directSeen);
-  float directCost = directLength + directSeen * COVER_EXPOSED_WEIGHT;
-  array<vector> best;
-  float bestCost = directCost * (1 - COVER_MIN_GAIN);
-  float bestLength;
-  float bestSeen;
-  // Only when the squad isn't already inside the ring (a squad that close takes the short way).
-  if (directSeen > 0 && vector.DistanceXZ(from, center) > ring * 0.9)
-  {
-   for (int sense = -1; sense <= 1; sense += 2)
-   {
-    array<vector> arc = {};
-    ArcLegs(center, from, stage, ring, sense, arc);
-    bool usable = true;
-    vector prev = from;
-    foreach (int i, vector leg : arc)
-    {
-     arc[i] = ACR_Manager.Ground(leg);
-     if (BBB_Terrain.WaterAlong(prev, arc[i]) > 0 || (i < arc.Count() - 1 && NearOtherEnemyBase(arc[i], target))) { usable = false; break; }
-     prev = arc[i];
-    }
-    if (!usable) continue;
-    float seen;
-    float length = PathExposure(eyes, from, arc, seen);
-    if (length > directLength * COVER_MAX_STRETCH + 300) continue;
-    float cost = length + seen * COVER_EXPOSED_WEIGHT;
-    if (cost >= bestCost) continue;
-    best = arc;
-    bestCost = cost;
-    bestLength = length;
-    bestSeen = seen;
-   }
-  }
-  // Wide of the strongpoint: one waypoint round it at ACR_AIEnvelopment.CLEAR, then the staging point.
-  vector wide = vector.Zero;
-  if (bypass) wide = ACR_AIEnvelopment.WideLeg(from, stage, bypass.GetOrigin(), bypass.m_fRadius);
-  if (wide != vector.Zero)
-  {
-   array<vector> round = {ACR_Manager.Ground(wide), stage};
-   bool dry = !BBB_Terrain.IsWaterAt(round[0]) && BBB_Terrain.WaterAlong(from, round[0]) <= 0 && !NearOtherEnemyBase(round[0], target);
-   float roundSeen;
-   float roundLength = PathExposure(eyes, from, round, roundSeen);
-   float roundCost = roundLength + roundSeen * COVER_EXPOSED_WEIGHT;
-   if (dry && roundLength <= directLength * COVER_MAX_STRETCH + 300 && roundCost < bestCost)
-   {
-    best = round;
-    bestCost = roundCost;
-    bestLength = roundLength;
-    bestSeen = roundSeen;
-   }
-  }
-  ACR_Perf.Lap("ai.coverRoute", started);
-  if (!best) return false;
-  m_fCoverDetour = bestLength - directLength;
-  squad.WalkLegs(best, ACR_Squad.WP_MOVE, -1, "Moving", 0);
-  Say(string.Format("[ACR] AI %1: %2 takes a covered way to its staging point for %3: %4 m, %5 m in sight (direct %6 m, %7 m in sight)", m_sFaction, squad.GetName(), target.m_sName, (int)bestLength, (int)bestSeen, (int)directLength, (int)directSeen));
-  return true;
- }
-
- // A staging point near 'point' on the same approach line that the objective's ground can't see:
- // a little further round or further out, never closer than 150 m past the objective's edge.
- // 'others': the attack's other lines' staging points; a nudge never turns within
- // APPROACH_SEPARATION of one (#52: nudged 20 degrees towards each other, two lines failed the
- // spacing and the last squad was put on the first squad's staging point).
- protected vector HiddenStaging(ACR_Base target, vector point, array<vector> others = null)
- {
-  vector center = target.GetOrigin();
-  array<vector> eyes = {};
-  ObjectiveEyes(center, target.m_fRadius, eyes);
-  if (!GroundSeen(eyes, point)) return point;
-  vector dir = point - center;
-  dir[1] = 0;
-  float ring = dir.Length();
-  if (ring < 1) return point;
-  dir.Normalize();
-  array<float> turns = {0, -10, 10, -20, 20};
-  array<float> outs = {0, 60, -40, 120};
-  foreach (float outward : outs)
-  {
-   float r = ring + outward;
-   if (r < target.m_fRadius + 150) continue;
-   foreach (float turn : turns)
-   {
-    if (outward == 0 && turn == 0) continue;
-    vector candidate = ACR_Manager.Ground(center + Turned(dir, turn) * r);
-    if (BBB_Terrain.IsWaterAt(candidate) || NearOtherEnemyBase(candidate, target)) continue;
-    if (others && !ApartFrom(center, candidate, others)) continue;
-    if (!GroundSeen(eyes, candidate)) return candidate;
-   }
-  }
-  return point;
- }
-
- // Approach lines (Jacob 20 Oct, Etoupe: the big assault came down one main road and was shot
- // up there; reinforcements each staged on their own side, which was the same side). Every
- // squad of an attack gets a line turned off the main approach: the least-used line first, then
- // the one nearest the squad's own side. A line whose staging point ends up (water, other enemy
- // bases) closer than APPROACH_SEPARATION degrees to another line's point is skipped.
+ float m_fCoverDetour;                         // extra metres of the last covered route Travel chose (0: direct)
+ ACR_AIAttack m_LaunchingAttack;               // set while LaunchAttack sends its squads off
  static ref array<float> s_aApproachTurns;
- // Called by ACR_StaticInit at game start (static initializer budget: HANDBOOK Pitfalls).
  static void ACR_InitStatics()
  {
   s_aApproachTurns = {0, 60, -60, 115, -115};
  }
  static const float APPROACH_SEPARATION = 40;
 
- static vector Turned(vector dir, float degrees)
- {
-  float angle = degrees * Math.DEG2RAD;
-  return Vector(dir[0] * Math.Cos(angle) - dir[2] * Math.Sin(angle), 0, dir[0] * Math.Sin(angle) + dir[2] * Math.Cos(angle));
- }
-
- // Degrees between two directions on the ground.
- static float TurnBetween(vector a, vector b)
- {
-  a[1] = 0;
-  b[1] = 0;
-  if (a.LengthSq() < 0.001 || b.LengthSq() < 0.001) return 0;
-  a.Normalize();
-  b.Normalize();
-  return Math.Acos(Math.Clamp(vector.Dot(a, b), -1, 1)) * Math.RAD2DEG;
- }
-
- // The approach line for a squad joining this attack (slot index, -1: none found, stage is
- // then the main staging point). Squads already on lines are in attack.m_aSlot.
- int PickApproach(ACR_AIAttack attack, vector from, out vector stage)
- {
-  ACR_Base target = attack.m_Target;
-  stage = attack.m_Staging;
-  if (!target) return -1;
-  vector center = target.GetOrigin();
-  float ring = target.m_fRadius + STAGING_DISTANCE;
-  vector ahead = attack.m_vApproach;
-  vector own = from - center;
-  own[1] = 0;
-  if (own.LengthSq() > 1) own.Normalize();
-  else own = ahead;
-  if (ahead.LengthSq() < 0.001) ahead = own;
-  if (ahead.LengthSq() < 0.001) ahead = Vector(0, 0, 1);
-  array<int> order = {};
-  array<float> keys = {};
-  foreach (int slot, float turn : s_aApproachTurns)
-  {
-   int used = 0;
-   foreach (int taken : attack.m_aSlot) if (taken == slot) used++;
-   float key = used * 1000 + TurnBetween(Turned(ahead, turn), own);
-   // Going round a strongpoint: lines that form up in its sight and fire come last.
-   if (attack.m_Bypass && vector.DistanceXZ(center + Turned(ahead, turn) * ring, attack.m_Bypass.GetOrigin()) < attack.m_Bypass.m_fRadius + ACR_AIEnvelopment.CLEAR) key += 500;
-   int at = 0;
-   while (at < keys.Count() && keys[at] <= key) at++;
-   order.InsertAt(slot, at);
-   keys.InsertAt(key, at);
-  }
-  foreach (int pick : order)
-  {
-   vector candidate;
-   if (!StagingPoint(target, Turned(ahead, s_aApproachTurns[pick]), ring, candidate)) continue;
-   // The other lines' staging points (a squad sharing this line shares its point).
-   array<vector> others = {};
-   foreach (int i, int other : attack.m_aSlot)
-   {
-    if (other == pick || other < 0 || i >= attack.m_aStaging.Count()) continue;
-    others.Insert(attack.m_aStaging[i]);
-   }
-   if (!ApartFrom(center, candidate, others)) continue;
-   // Form up out of the objective's sight where the ground allows (Jacob 26 Oct, Provins),
-   // without closing in on another line, the ones no squad has taken yet included: nudged
-   // towards them, the next squads' lines no longer fitted (#52).
-   if (!target.m_sOwner.IsEmpty())
-   {
-    array<vector> keepClear = {};
-    keepClear.Copy(others);
-    foreach (int free, float freeTurn : s_aApproachTurns)
-    {
-     if (free != pick && !attack.m_aSlot.Contains(free)) keepClear.Insert(center + Turned(ahead, freeTurn) * ring);
-    }
-    candidate = HiddenStaging(target, candidate, keepClear);
-   }
-   stage = candidate;
-   return pick;
-  }
-  return -1;
- }
-
- // 'point' is at least APPROACH_SEPARATION degrees round 'center' from each of 'others'.
- static bool ApartFrom(vector center, vector point, notnull array<vector> others)
- {
-  foreach (vector other : others)
-   if (TurnBetween(other - center, point - center) < APPROACH_SEPARATION) return false;
-  return true;
- }
-
- // Distinct approach lines in use (for the log).
- static int ApproachLines(ACR_AIAttack attack)
- {
-  array<int> lines = {};
-  foreach (int slot : attack.m_aSlot) if (slot >= 0 && !lines.Contains(slot)) lines.Insert(slot);
-  return Math.Max(1, lines.Count());
- }
-
- protected bool NearOtherEnemyBase(vector point, ACR_Base except)
- {
-  foreach (ACR_Base base : ACR_Base.s_All)
-  {
-   if (base == except || base.m_sOwner == m_sFaction || base.m_sOwner.IsEmpty() || !Visible(base)) continue;
-   if (vector.DistanceXZ(point, base.GetOrigin()) < base.m_fRadius + STAGING_CLEARANCE) return true;
-  }
-  return false;
- }
+ // Covered approach & approach-line geometry lives in ACR_AIApproach.c; thin forwarders preserve existing callers/tests.
+ static void ObjectiveEyes(vector center, float radius, notnull array<vector> eyes) { ACR_AIApproach.ObjectiveEyes(center, radius, eyes); }
+ static vector EyeAt(vector point) { return ACR_AIApproach.EyeAt(point); }
+ static bool GroundSeen(notnull array<vector> eyes, vector point) { return ACR_AIApproach.GroundSeen(eyes, point); }
+ static float PathExposure(notnull array<vector> eyes, vector from, notnull array<vector> legs, out float exposed) { return ACR_AIApproach.PathExposure(eyes, from, legs, exposed); }
+ static void ArcLegs(vector center, vector from, vector stage, float ring, int sense, notnull array<vector> legs) { ACR_AIApproach.ArcLegs(center, from, stage, ring, sense, legs); }
+ protected ACR_Base BypassFor(ACR_Base target) { return ACR_AIApproach.BypassFor(this, target); }
+ protected bool CoveredApproach(ACR_Squad squad, ACR_Base target, vector stage) { return ACR_AIApproach.CoveredApproach(this, squad, target, stage); }
+ protected vector HiddenStaging(ACR_Base target, vector point, array<vector> others = null) { return ACR_AIApproach.HiddenStaging(this, target, point, others); }
+ static vector Turned(vector dir, float degrees) { return ACR_AIApproach.Turned(dir, degrees); }
+ static float TurnBetween(vector a, vector b) { return ACR_AIApproach.TurnBetween(a, b); }
+ int PickApproach(ACR_AIAttack attack, vector from, out vector stage) { return ACR_AIApproach.PickApproach(this, attack, from, stage); }
+ static bool ApartFrom(vector center, vector point, notnull array<vector> others) { return ACR_AIApproach.ApartFrom(center, point, others); }
+ static int ApproachLines(ACR_AIAttack attack) { return ACR_AIApproach.ApproachLines(attack); }
+ protected bool NearOtherEnemyBase(vector point, ACR_Base except) { return ACR_AIApproach.NearOtherEnemyBase(this, point, except); }
 
  // Crews that ended up on foot next to their own intact, empty vehicle get
  // back in (the game's AI sometimes bails out and leaves a BTR standing).
