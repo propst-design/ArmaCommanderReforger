@@ -947,8 +947,7 @@ class ACR_Minefields
   ChimeraCharacter person = ChimeraCharacter.Cast(root);
   if (!person && Vehicle.Cast(root)) person = ACR_Squad.DriverOf(root);
   if (!person || ACR_Squad.FindController(person) != 0) return false;
-  FactionAffiliationComponent affiliation = FactionAffiliationComponent.Cast(person.FindComponent(FactionAffiliationComponent));
-  return affiliation && affiliation.GetAffiliatedFaction() && affiliation.GetAffiliatedFaction().GetFactionKey() == owner;
+  return ACR_EntityUtil.FactionKeyOf(person) == owner;
  }
 
  // ---------------------------------------------------------------- upkeep

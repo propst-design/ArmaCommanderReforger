@@ -418,9 +418,7 @@ class ACR_RoadblockLane
   {
    vector l = Local(rb.m_Entity, man.GetOrigin());
    if (Math.AbsFloat(l[2]) > STEP_ALONG) continue;
-   AIControlComponent control = AIControlComponent.Cast(man.FindComponent(AIControlComponent));
-   if (!control || !control.GetControlAIAgent()) continue;
-   SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(control.GetControlAIAgent().FindComponent(SCR_AIUtilityComponent));
+   SCR_AIUtilityComponent utility = ACR_EntityUtil.AIUtility(man);
    if (!utility) continue;
    // Every holder near the lane, for an AI driver (it keeps to the lane, slowed): the game's dodge
    // leaves this vehicle to us (Guarded), and one it had already started is called off. A player

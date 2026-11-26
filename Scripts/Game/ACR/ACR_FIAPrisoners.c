@@ -241,8 +241,7 @@ class ACR_FIAPrisoners
    if (body) SCR_EntityHelper.DeleteEntityAndChildren(body);
    return null;
   }
-  FactionAffiliationComponent affiliation = FactionAffiliationComponent.Cast(man.FindComponent(FactionAffiliationComponent));
-  if (affiliation) affiliation.SetAffiliatedFactionByKey(pow.m_sSide);
+  ACR_EntityUtil.SetFactionByKey(man, pow.m_sSide);
   // Unarmed: his weapons and magazines were taken.
   SCR_InventoryStorageManagerComponent inventory = SCR_InventoryStorageManagerComponent.Cast(man.FindComponent(SCR_InventoryStorageManagerComponent));
   if (inventory)

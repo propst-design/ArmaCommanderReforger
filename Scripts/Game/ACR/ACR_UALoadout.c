@@ -351,8 +351,7 @@ class ACR_UALoadout
 
  static bool IsUA(IEntity soldier)
  {
-  FactionAffiliationComponent affiliation = FactionAffiliationComponent.Cast(soldier.FindComponent(FactionAffiliationComponent));
-  return affiliation && affiliation.GetAffiliatedFaction() && affiliation.GetAffiliatedFaction().GetFactionKey() == "US";
+  return ACR_EntityUtil.FactionKeyOf(soldier) == "US";
  }
 
  // Called every second for every AI soldier and command unit: equips each UA soldier once.
