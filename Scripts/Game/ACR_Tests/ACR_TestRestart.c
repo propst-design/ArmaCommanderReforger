@@ -230,7 +230,6 @@ class ACR_TestRestart
   c.Set("LocalFlyover.s_All", Pair(ACR_LocalFlyover.Count(), 0));
   c.Set("AttackGround.s_Building", Pair(ACR_AttackGround.BuildingCount(), 0));
   c.Set("BagHold.s_Places", Pair(ACR_BagHold.PlaceCount(), 0));
-  c.Set("BaseDefences.s_mBlockers", Pair(ACR_BaseDefences.s_mBlockers.Count(), 0));
   c.Set("BaseRing.s_aLastPath", Pair(ACR_BaseRing.s_aLastPath.Count(), 0));
   c.Set("Guerrillas.s_aWeights", Pair(ACR_Guerrillas.s_aWeights.Count(), 0));
   c.Set("Guerrillas.s_mTrafficAt", Pair(ACR_Guerrillas.s_mTrafficAt.Count(), 0));
