@@ -144,7 +144,7 @@ class ACR_Options
  static void Log()
  {
   string line;
-  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIASpoils", "acrFIAGrievance", "acrFIAHidden", "acrMatchType", "acrCoinArmy", "acrCoinInsurgency", "acrCoinInsurgent", "acrCoinInsurgentIncome", "acrCoinStrength", "acrCoinPosture", "acrCoinHostileIncome", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrHQWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrHoldGuns", "acrMapDeclutter", "acrIntro", "acrIntroMusic", "acrIntroMusicZombies", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAICommander", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC", "acrSupplyRuns", "acrLogisticsHubs", "acrSaveRoutes", "acrCommandPresence"};
+  array<string> names = {"acrLayout", "acrSize", "acrSeed", "acrPreset", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIASpoils", "acrFIAGrievance", "acrFIAHidden", "acrMatchType", "acrCoinArmy", "acrCoinInsurgency", "acrCoinInsurgent", "acrCoinInsurgentIncome", "acrCoinStrength", "acrCoinPosture", "acrCoinHostileIncome", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrDecks", "acrDeckPoints", "acrDeckWest", "acrDeckEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrSetupClassic", "acrSetupSkin", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrHQWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrGroundTilt", "acrHoldGuns", "acrMapDeclutter", "acrIntro", "acrIntroMusic", "acrIntroMusicZombies", "acrSquadTactics", "acrRoadFlow", "acrNoRoadHops", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAICommander", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC", "acr2ICKeep", "acrAmmoRuns", "acrCounterBattery", "acrVariety", "acrSupplyRuns", "acrLogisticsHubs", "acrSaveRoutes", "acrSupplyLines", "acrCommandPresence"};
   foreach (string name : names)
   {
    string value;
@@ -343,6 +343,56 @@ class ACR_MissionHeader : SCR_MissionHeader
  int m_iAcrPullOver;
  [Attribute("-1", UIWidgets.EditBox, "Second-in-command: 1 default (the 2IC runs the squads nobody leads), 2 I'm the 2IC (the AI commander runs the side), 0 off (-acr2IC)")]
  int m_iAcr2IC;
+ [Attribute("-1", UIWidgets.EditBox, "RP kept for the player with -acr2IC 2 (-acr2ICKeep)")]
+ int m_iAcr2ICKeep;
+ [Attribute("-1", UIWidgets.EditBox, "Decks: 1 default (on), 0 off (-acrDecks)")]
+ int m_iAcrDecks;
+ [Attribute("-1", UIWidgets.EditBox, "Deck point budget: 0 unlimited, else points (-acrDeckPoints)")]
+ int m_iAcrDeckPoints;
+ [Attribute("", UIWidgets.EditBox, "Blue side deck: standard, ai or submitted key (-acrDeckWest)")]
+ string m_sAcrDeckWest;
+ [Attribute("", UIWidgets.EditBox, "Red side deck: standard, ai or submitted key (-acrDeckEast)")]
+ string m_sAcrDeckEast;
+ [Attribute("-1", UIWidgets.EditBox, "Operational supply lines and isolated bases: 0 default, 1 on (-acrSupplyLines)")]
+ int m_iAcrSupplyLines;
+ [Attribute("-1", UIWidgets.EditBox, "Classic setup dialog instead of lobby: 0 default, 1 on (-acrSetupClassic)")]
+ int m_iAcrSetupClassic;
+ [Attribute("", UIWidgets.EditBox, "Setup lobby skin: vanilla, crt, tablet or outbreak (-acrSetupSkin)")]
+ string m_sAcrSetupSkin;
+ [Attribute("-1", UIWidgets.EditBox, "AI squads low on ammo run for ammo or call trucks: 1 default, 0 off (-acrAmmoRuns)")]
+ int m_iAcrAmmoRuns;
+ [Attribute("-1", UIWidgets.EditBox, "Sound-ranging counter-battery and mortar displacement: 1 default, 0 off (-acrCounterBattery)")]
+ int m_iAcrCounterBattery;
+ [Attribute("-1", UIWidgets.EditBox, "Built structures follow ground slope: 1 default, 0 dead level (-acrGroundTilt)")]
+ int m_iAcrGroundTilt;
+ [Attribute("-1", UIWidgets.EditBox, "AI choices pick near-best seeded options: 1 default, 0 deterministic best (-acrVariety)")]
+ int m_iAcrVariety;
+ [Attribute("-1", UIWidgets.EditBox, "AI commanders fight down a lane: 1 default, 0 off (-acrAIStrategy)")]
+ int m_iAcrAIStrategy;
+ [Attribute("-1", UIWidgets.EditBox, "AI job allocator mode: 2 default, 1 observe only, 0 off (-acrAIAllocator)")]
+ int m_iAcrAIAllocator;
+ [Attribute("-1", UIWidgets.EditBox, "AI attack ground reading: 0 default, 1 log, 2 draw (-acrAttackGround)")]
+ int m_iAcrAttackGround;
+ [Attribute("-1", UIWidgets.EditBox, "Covered fall-back under fire: 1 default, 0 off (-acrCoveredFallBack)")]
+ int m_iAcrCoveredFallBack;
+ [Attribute("-1", UIWidgets.EditBox, "AI defence forecast and screens: 2 default, 1 log, 0 off (-acrDefenceForecast)")]
+ int m_iAcrDefenceForecast;
+ [Attribute("-1", UIWidgets.EditBox, "AI squad tactics inside objectives: 0 default, 1 on (-acrSquadTactics)")]
+ int m_iAcrSquadTactics;
+ [Attribute("-1", UIWidgets.EditBox, "Unarmed vehicles evade armour: 0 default, 1 on (-acrEvadeArmour)")]
+ int m_iAcrEvadeArmour;
+ [Attribute("-1", UIWidgets.EditBox, "Physical truck supply runs to FOBs: 0 default, 1 on (-acrSupplyRuns)")]
+ int m_iAcrSupplyRuns;
+ [Attribute("-1", UIWidgets.EditBox, "Logistics hubs for restock and loading: 0 default, 1 on (-acrLogisticsHubs)")]
+ int m_iAcrLogisticsHubs;
+ [Attribute("-1", UIWidgets.EditBox, "Save supply-run routes per map: 0 default, 1 on (-acrSaveRoutes)")]
+ int m_iAcrSaveRoutes;
+ [Attribute("-1", UIWidgets.EditBox, "AI vehicles skip straight road waypoints: 1 default, 0 stop at each (-acrRoadFlow)")]
+ int m_iAcrRoadFlow;
+ [Attribute("-1", UIWidgets.EditBox, "AI foot squads keep off roads in enemy ground: 1 default, 0 vanilla (-acrFieldRoutes)")]
+ int m_iAcrFieldRoutes;
+ [Attribute("-1", UIWidgets.EditBox, "AI vehicles combine long road hops: 1 default, 0 short hops (-acrNoRoadHops)")]
+ int m_iAcrNoRoadHops;
 
  void Fill(map<string, string> values)
  {
@@ -434,6 +484,31 @@ class ACR_MissionHeader : SCR_MissionHeader
   Number(values, "acrFieldsOfFire", m_iAcrFieldsOfFire);
   Number(values, "acrPullOver", m_iAcrPullOver);
   Number(values, "acr2IC", m_iAcr2IC);
+  Number(values, "acr2ICKeep", m_iAcr2ICKeep);
+  Number(values, "acrDecks", m_iAcrDecks);
+  Number(values, "acrDeckPoints", m_iAcrDeckPoints);
+  Text(values, "acrDeckWest", m_sAcrDeckWest);
+  Text(values, "acrDeckEast", m_sAcrDeckEast);
+  Number(values, "acrSupplyLines", m_iAcrSupplyLines);
+  Number(values, "acrSetupClassic", m_iAcrSetupClassic);
+  Text(values, "acrSetupSkin", m_sAcrSetupSkin);
+  Number(values, "acrAmmoRuns", m_iAcrAmmoRuns);
+  Number(values, "acrCounterBattery", m_iAcrCounterBattery);
+  Number(values, "acrGroundTilt", m_iAcrGroundTilt);
+  Number(values, "acrVariety", m_iAcrVariety);
+  Number(values, "acrAIStrategy", m_iAcrAIStrategy);
+  Number(values, "acrAIAllocator", m_iAcrAIAllocator);
+  Number(values, "acrAttackGround", m_iAcrAttackGround);
+  Number(values, "acrCoveredFallBack", m_iAcrCoveredFallBack);
+  Number(values, "acrDefenceForecast", m_iAcrDefenceForecast);
+  Number(values, "acrSquadTactics", m_iAcrSquadTactics);
+  Number(values, "acrEvadeArmour", m_iAcrEvadeArmour);
+  Number(values, "acrSupplyRuns", m_iAcrSupplyRuns);
+  Number(values, "acrLogisticsHubs", m_iAcrLogisticsHubs);
+  Number(values, "acrSaveRoutes", m_iAcrSaveRoutes);
+  Number(values, "acrRoadFlow", m_iAcrRoadFlow);
+  Number(values, "acrFieldRoutes", m_iAcrFieldRoutes);
+  Number(values, "acrNoRoadHops", m_iAcrNoRoadHops);
  }
 
  protected static void Text(map<string, string> values, string name, string value)

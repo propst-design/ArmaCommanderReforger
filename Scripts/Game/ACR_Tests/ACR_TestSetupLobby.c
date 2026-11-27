@@ -330,7 +330,7 @@ class ACR_TestSetupLobby
    ACR_SetupLobbyModel.Shown(parsed, tab, shown);
    if (shown.IsEmpty()) empty += ACR_Setup.LobbyTabName(tab) + " ";
   }
-  array<string> matchKeys = {"west", "east", "quickstart", "ai", "startrp"};
+  array<string> matchKeys = {"west", "east", "matchtype", "coinarmy", "coininsurgency", "coinstrength", "coinposture", "quickstart", "ai", "startrp"};
   array<string> allKeys = ACR_Setup.RowKeys();
   foreach (string rowKey : allKeys) if (ACR_Setup.LobbyTab(rowKey) == ACR_Setup.LOBBY_FIRST && !matchKeys.Contains(rowKey)) stray += rowKey + " ";
   ACR_TestRegress.Check("lobby: every tab has rows and no row falls onto Match unsorted", empty.IsEmpty() && stray.IsEmpty(), "empty: " + empty + "| stray: " + stray);
@@ -404,7 +404,7 @@ class ACR_TestSetupLobby
   ACR_SetupLobbyModel.Parse(rows, parsed);
   string summary = ACR_SetupLobbyModel.Summary(parsed);
   string classic = ACR_SetupDialog.Summary(rows);
-  ACR_TestRegress.Check("lobby: summary matches the classic dialog's; classic tabs unchanged", summary == classic && summary.Contains(" vs ") && ACR_SetupDialog.Tab("threat") == 0 && ACR_SetupDialog.Tab("aicommander") == 1, summary + " | " + classic);
+  ACR_TestRegress.Check("lobby: summary matches the classic dialog's; classic tabs unchanged", summary == classic && summary.Contains(" vs ") && ACR_SetupDialog.Tab("threat") == 2 && ACR_SetupDialog.Tab("aicommander") == 1, summary + " | " + classic);
 
   // 13. The right panel has help for every option row, two lines at most.
   string noHelp;

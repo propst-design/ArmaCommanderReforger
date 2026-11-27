@@ -416,7 +416,7 @@ class ACR_Setup
   if (key == "deployment" || key == "reinforcement" || key == "fobservices" || key == "servicecost" || key == "rpservice" || key == "fobrelay" || key == "depotcapacity") return 3;
   // 5. Command: how players share and see command.
   if (key == "shared" || key == "declutter" || key == "intro" || key == "twoic") return 4;
-  if (Experimental(key)) return 5;
+  if (key == "commandpresence" || Experimental(key)) return 5;
   return LOBBY_FIRST;
  }
 

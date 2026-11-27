@@ -699,8 +699,8 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   if (!m_bBuilt)
   {
    m_bBuilt = true;
-   // Focus the first tab, so a gamepad can start moving at once.
-   SCR_ButtonTextComponent first = m_TabButtons.Get(0);
+   // Focus the active initial tab, so a gamepad can start moving at once.
+   SCR_ButtonTextComponent first = m_TabButtons.Get(m_iTab);
    if (first) GetGame().GetWorkspace().SetFocusedWidget(first.GetRootWidget());
   }
  }

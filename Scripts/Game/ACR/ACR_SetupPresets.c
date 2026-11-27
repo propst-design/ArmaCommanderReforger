@@ -252,6 +252,8 @@ class ACR_SetupPresets
   {
    if (key == "west" || key == "east" || key == "map" || key == "undo" || key == "deckeditor") continue;
    string current = ACR_Setup.Current(key);
+   // Ephemeral deck submissions belong only to the current setup session.
+   if ((key == "deckwest" || key == "deckeast") && current.StartsWith("sub:")) continue;
    // The seed only matters for a generated layout or a quick start's split.
    if (key == "seed" && !ACR_Setup.Current("layout").StartsWith("gen:") && ACR_Setup.Current("quickstart") == "off") continue;
    // Zombie rows only with Project Outbreak (their rows are hidden without it).
@@ -284,12 +286,22 @@ class ACR_SetupPresets
   array<string> pinned = {};
   foreach (string pinKey : keys)
   {
-   string option = ACR_Setup.Option(pinKey);
-   if (pinKey == "layout") option = "acrSize";
-   if (pinKey == "west") option = "acrFactions";
-   if (pinKey == "seed") option = "acrSeed";
-   string value;
-   if (option.IsEmpty() || !ACR_Options.PresetValue(option, value) || ACR_Options.Source(option) != "flag") continue;
+   bool isPinned = false;
+   if (pinKey == "layout")
+   {
+    string sizeVal, layoutVal;
+    bool hasPresetLayout = ACR_Options.PresetValue("acrSize", sizeVal) || ACR_Options.PresetValue("acrLayout", layoutVal);
+    isPinned = hasPresetLayout && (ACR_Options.Source("acrSize") == "flag" || ACR_Options.Source("acrLayout") == "flag");
+   }
+   else
+   {
+    string option = ACR_Setup.Option(pinKey);
+    if (pinKey == "west") option = "acrFactions";
+    if (pinKey == "seed") option = "acrSeed";
+    string value;
+    isPinned = !option.IsEmpty() && ACR_Options.PresetValue(option, value) && ACR_Options.Source(option) == "flag";
+   }
+   if (!isPinned) continue;
    string label = ACR_Setup.Label(pinKey);
    if (pinKey == "west") label = "Sides";
    if (!pinned.Contains(label)) pinned.Insert(label);

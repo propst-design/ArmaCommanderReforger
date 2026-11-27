@@ -948,6 +948,31 @@ objects in its world, not because of the header.
 | `m_iAcrFieldsOfFire` | `-acrFieldsOfFire 1` (default) or `0`; built guns, checkpoint posts and Fortify pieces clear the bushes round them |
 | `m_iAcrPullOver` | `-acrPullOver 1` (default) or `0`; a squad told to get out on a road has its driver pull onto the verge first |
 | `m_iAcr2IC` | `-acr2IC 1` (default, the 2IC), `2` (I'm the 2IC) or `0` (off); the second-in-command |
+| `m_iAcr2ICKeep` | `-acr2ICKeep N` (default 0); RP reserved for the player under `-acr2IC 2` |
+| `m_iAcrDecks` | `-acrDecks 1` (default) or `0` (off); enable or disable force decks |
+| `m_iAcrDeckPoints` | `-acrDeckPoints N` (0 unlimited); deck point budget override |
+| `m_sAcrDeckWest` | `-acrDeckWest <deck>`; blue side deck (`standard`, `ai` or submitted key) |
+| `m_sAcrDeckEast` | `-acrDeckEast <deck>`; red side deck (`standard`, `ai` or submitted key) |
+| `m_iAcrSupplyLines` | `-acrSupplyLines 0` (default) or `1`; operational supply lines and isolated bases |
+| `m_iAcrSetupClassic` | `-acrSetupClassic 0` (default) or `1`; classic setup dialog instead of lobby |
+| `m_sAcrSetupSkin` | `-acrSetupSkin vanilla` / `crt` / `tablet` / `outbreak`; setup lobby skin |
+| `m_iAcrAmmoRuns` | `-acrAmmoRuns 1` (default) or `0`; AI squads low on ammo run or call trucks |
+| `m_iAcrCounterBattery` | `-acrCounterBattery 1` (default) or `0`; sound-ranging counter-battery and displacement |
+| `m_iAcrGroundTilt` | `-acrGroundTilt 1` (default) or `0`; built structures follow terrain slope |
+| `m_iAcrVariety` | `-acrVariety 1` (default) or `0`; seeded near-best AI choice variety |
+| `m_iAcrAIStrategy` | `-acrAIStrategy 1` (default) or `0`; AI commanders fight down a lane |
+| `m_iAcrAIAllocator` | `-acrAIAllocator 2` (default), `1` or `0`; AI job allocator mode |
+| `m_iAcrAttackGround` | `-acrAttackGround 0` (default), `1` or `2`; AI attack ground reading |
+| `m_iAcrCoveredFallBack` | `-acrCoveredFallBack 1` (default) or `0`; covered fall-back under fire |
+| `m_iAcrDefenceForecast` | `-acrDefenceForecast 2` (default), `1` or `0`; AI defence forecast and screens |
+| `m_iAcrSquadTactics` | `-acrSquadTactics 0` (default) or `1`; AI squad tactics inside objectives |
+| `m_iAcrEvadeArmour` | `-acrEvadeArmour 0` (default) or `1`; unarmed vehicles evade armour |
+| `m_iAcrSupplyRuns` | `-acrSupplyRuns 0` (default) or `1`; physical truck supply runs to FOBs |
+| `m_iAcrLogisticsHubs` | `-acrLogisticsHubs 0` (default) or `1`; logistics hubs for restock and loading |
+| `m_iAcrSaveRoutes` | `-acrSaveRoutes 0` (default) or `1`; save supply-run routes per map |
+| `m_iAcrRoadFlow` | `-acrRoadFlow 1` (default) or `0`; AI vehicles skip straight road waypoints |
+| `m_iAcrFieldRoutes` | `-acrFieldRoutes 1` (default) or `0`; AI foot squads keep off roads in enemy ground |
+| `m_iAcrNoRoadHops` | `-acrNoRoadHops 1` (default) or `0`; AI vehicles combine long road hops |
 
 The header describes the scenario; it does not publish, package or copy the world. Workbench creates
 the `.meta` files beside the world and header. Keep them there and do not edit them. When you choose
