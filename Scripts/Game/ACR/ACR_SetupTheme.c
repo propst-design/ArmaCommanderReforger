@@ -2,10 +2,11 @@
 // lobby (ACR_SetupLobby) draws with comes from the theme in use; no widget code picks a colour of its
 // own. The theme only styles: row labels, values, buttons and help stay plain English in every skin
 // (Jacob: style yes, obscure wording no).
-// Skins, picked from the content socket's era (ACR_ContentSocket.Name) or -acrSetupSkin:
-//  vanilla - the command panel's navy and pale blue (the first and default skin),
-//  crt     - Cold War pack: a 1980s green-phosphor terminal (upper case, mono headings, > cursor, * marks),
-//  tablet  - modern stack: a ruggedised C2 tablet (dark green-grey, amber accents, a status line).
+// Skins, picked from -acrSetupSkin, active Project Outbreak zombies, or the content socket's era:
+//  vanilla  - the command panel's navy and pale blue (the first and default skin),
+//  crt      - Cold War pack: a 1980s green-phosphor terminal (upper case, mono headings, > cursor, * marks),
+//  tablet   - modern stack: a ruggedised C2 tablet (dark green-grey, amber accents, a status line),
+//  outbreak - zombies mode: an obsidian/crimson/amber bio-containment console (mono headings, > cursor, ! marks).
 // Fonts: script can't set a text widget's font, so a skin names a heading layout whose text widget
 // carries the font (headings only; rows keep the game's normal UI font and size).
 class ACR_SetupTheme : Managed
@@ -77,7 +78,7 @@ class ACR_SetupTheme : Managed
   return ACR_TwoICStyle.Rgb(r, g, b, a);
  }
 
- // The skin for this machine: -acrSetupSkin, else the content socket's era, else vanilla.
+ // The skin for this machine: -acrSetupSkin, else active Project Outbreak zombies, else the content socket's era, else vanilla.
  static ACR_SetupTheme Current()
  {
   if (!s_Current)
@@ -87,7 +88,9 @@ class ACR_SetupTheme : Managed
    // dependency left the socket empty, and the vanilla skin looked like a bug in the choice).
    string era = ACR_ContentSocket.Get().Name();
    if (era.IsEmpty()) era = "none plugged in";
-   PrintFormat("[ACR] SETUP skin %1 (era pack: %2)", s_Current.m_sName, era);
+   string outbreak = "off";
+   if (ACR_Outbreak.Loaded()) outbreak = ACR_Outbreak.LevelOption();
+   PrintFormat("[ACR] SETUP skin %1 (era pack: %2, outbreak: %3)", s_Current.m_sName, era, outbreak);
   }
   return s_Current;
  }
@@ -100,8 +103,9 @@ class ACR_SetupTheme : Managed
   if (ACR_Options.Get("acrSetupSkin", skin) && !skin.IsEmpty())
   {
    skin.ToLower();
-   if (skin == "crt" || skin == "tablet" || skin == "vanilla") return skin;
+   if (skin == "crt" || skin == "tablet" || skin == "outbreak" || skin == "vanilla") return skin;
   }
+  if (ACR_Outbreak.Loaded() && ACR_Outbreak.LevelOption() != "off") return "outbreak";
   string era = ACR_ContentSocket.Get().Name();
   if (era.Contains("Cold War")) return "crt";
   if (era.Contains("Modern")) return "tablet";
@@ -112,6 +116,7 @@ class ACR_SetupTheme : Managed
  {
   if (name == "crt") return Crt();
   if (name == "tablet") return Tablet();
+  if (name == "outbreak") return Outbreak();
   return Vanilla();
  }
 
@@ -262,6 +267,55 @@ class ACR_SetupTheme : Managed
   return theme;
  }
 
+ // Bio-containment EOC console: obsidian screen, crimson status/active tab, hazard-amber rules and
+ // mono headings, warm off-white body text. Sides keep blue and red so the map sketch reads at a glance.
+ static ACR_SetupTheme Outbreak()
+ {
+  ACR_SetupTheme theme = new ACR_SetupTheme();
+  theme.m_sName = "outbreak";
+  theme.m_Backdrop = Srgb(14, 12, 11, 0.96);
+  theme.m_Panel = Srgb(24, 20, 18);
+  theme.m_Heading = Srgb(255, 212, 112);
+  theme.m_Decor = Srgb(248, 206, 118);
+  theme.m_Subtitle = Srgb(206, 186, 162);
+  theme.m_Text = Srgb(238, 232, 222);
+  theme.m_TextDim = Srgb(162, 150, 138);
+  theme.m_Help = Srgb(226, 218, 204);
+  theme.m_Status = Srgb(255, 132, 92);
+  theme.m_Changed = Srgb(255, 196, 64);
+  theme.m_Button = Srgb(14, 12, 11, 0.0);
+  theme.m_ButtonHover = Srgb(48, 34, 22, 1.0);
+  theme.m_ButtonPress = Srgb(74, 48, 20, 1.0);
+  theme.m_ButtonSelected = Srgb(92, 30, 24, 1.0);
+  theme.m_ButtonBorder = Srgb(176, 118, 32);
+  theme.m_West = Srgb(96, 158, 245);
+  theme.m_East = Srgb(240, 92, 82);
+  theme.m_Neutral = Srgb(156, 148, 138);
+  theme.m_Other = Srgb(122, 200, 118);
+  theme.m_WestPanel = Srgb(26, 48, 86, 0.88);
+  theme.m_EastPanel = Srgb(88, 28, 24, 0.88);
+  theme.m_sChanged = "! ";
+  theme.m_sCursor = "> ";
+  theme.m_sDecor = "";
+  theme.m_sHeadingLayout = HEADING_MONO;
+  theme.m_bDevice = true;
+  theme.m_bRail = true;
+  theme.m_bCompact = true;
+  theme.m_Bezel = Srgb(28, 22, 20);
+  theme.m_Screen = Srgb(14, 12, 11);
+  theme.m_Line = Srgb(176, 118, 32);
+  theme.m_StatusBack = Srgb(46, 16, 14);
+  theme.m_ButtonText = Srgb(232, 220, 200);
+  theme.m_ButtonSelectedText = Srgb(255, 236, 196);
+  theme.m_Start = Srgb(138, 36, 28);
+  theme.m_StartHover = Srgb(162, 46, 34);
+  theme.m_StartText = Srgb(255, 244, 232);
+  theme.m_sStatusLeft = "BIO-CONTAINMENT // EOC TERMINAL";
+  theme.m_sStatusRight = "ALERT: ACTIVE";
+  theme.m_sKeys = "Space: Execute    Q / E: change tab    Left / right: change a value    Point at anything for what it does";
+  return theme;
+ }
+
  // A white button label's contrast on a button fill (WCAG ratio), the fill blended over this skin's
  // backdrop over a dark scene. The colours are linear here, so their weighted sum is the luminance.
  float LabelContrast(Color fill, Color text = null)
@@ -307,6 +361,16 @@ class ACR_SetupTheme : Managed
    if (tab == 5) return "[A] EXP";
    return "[B] PRST";
   }
+  if (m_sName == "outbreak")
+  {
+   if (tab == 0) return "ZONE";
+   if (tab == 1) return "FORCES";
+   if (tab == 2) return "OPS";
+   if (tab == 3) return "SUPPLY";
+   if (tab == 4) return "COMMS";
+   if (tab == 5) return "PROTO";
+   return "PRESETS";
+  }
   return "";
  }
 
@@ -315,7 +379,19 @@ class ACR_SetupTheme : Managed
  {
   if (m_sName == "crt") return string.Format("> PARA %1: %2", ACR_Setup.LobbyTabPrefix(tab).Substring(0, 1), Long(tab));
   if (m_sName == "tablet") return Long(tab);
+  if (m_sName == "outbreak") return OutbreakHeading(tab);
   return "";
+ }
+
+ protected static string OutbreakHeading(int tab)
+ {
+  if (tab == 0) return "QUARANTINE ZONE";
+  if (tab == 1) return "RESPONSE FORCES";
+  if (tab == 2) return "FIELD OPERATIONS";
+  if (tab == 3) return "SUPPLY & EVAC";
+  if (tab == 4) return "COMMAND & COMMS";
+  if (tab == 5) return "EXPERIMENTAL";
+  return "SAVED PROFILES";
  }
 
  protected static string Long(int tab)

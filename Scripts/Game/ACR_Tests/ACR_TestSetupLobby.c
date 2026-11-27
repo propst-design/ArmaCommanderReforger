@@ -56,7 +56,7 @@ class ACR_TestSetupLobby
   string missing;
   // 15b. The device skins' structure: an opaque screen in a bezel, the status bar with its words,
   // the rules and the rail line; vanilla keeps the see-through page.
-  array<string> skinNames = {"vanilla", "tablet", "crt"};
+  array<string> skinNames = {"vanilla", "tablet", "crt", "outbreak"};
   foreach (string skinKey : skinNames)
   {
    ACR_SetupTheme look = ACR_SetupTheme.Named(skinKey);
@@ -74,7 +74,7 @@ class ACR_TestSetupLobby
    if (device && look.m_bRail && !themed.FindAnyWidget("RailLine").IsVisible()) missing += skinKey + ":rail ";
    themed.RemoveFromHierarchy();
   }
-  if (!ACR_SetupTheme.Tablet().m_bDevice || !ACR_SetupTheme.Crt().m_bDevice || ACR_SetupTheme.Vanilla().m_bDevice) missing += "devices ";
+  if (!ACR_SetupTheme.Tablet().m_bDevice || !ACR_SetupTheme.Crt().m_bDevice || !ACR_SetupTheme.Outbreak().m_bDevice || ACR_SetupTheme.Vanilla().m_bDevice) missing += "devices ";
   return missing;
  }
 
@@ -84,7 +84,7 @@ class ACR_TestSetupLobby
   // 21. Themed wording (Jacob, 20 Nov): the tablet and terminal may say SITREP, EXEC, Execute, Area
   // of ops... but every themed tab, row and button has a plain tooltip; vanilla keeps plain labels.
   string tipWrong;
-  array<string> devices = {"tablet", "crt"};
+  array<string> devices = {"tablet", "crt", "outbreak"};
   foreach (string deviceName : devices)
   {
    ACR_SetupTheme skin = ACR_SetupTheme.Named(deviceName);
@@ -151,7 +151,7 @@ class ACR_TestSetupLobby
   Widget root = ws.CreateWidgets(LAYOUT);
   Widget rows = root.FindAnyWidget("Rows");
   float tw, th;
-  array<string> skins = {"tablet", "crt"};
+  array<string> skins = {"tablet", "crt", "outbreak"};
   foreach (string skinName : skins)
   {
    ACR_SetupTheme theme = ACR_SetupTheme.Named(skinName);
@@ -475,10 +475,10 @@ class ACR_TestSetupLobby
    missing += Devices(workspace);
    ACR_TestRegress.Check("lobby: the layout builds its named parts", loaded && root && missing.IsEmpty() && spinOk, string.Format("loaded %1, root %2, missing: %3, spin %4", loaded, root != null, missing, spinOk));
   }
-  // 16. The theme table: three skins, every colour set, plain words kept (upper case only in the CRT),
-  // vanilla on a server without an era pack, tab names led by the paragraph number.
+  // 16. The theme table: four skins, every colour set, plain words kept (upper case only in the CRT),
+  // vanilla on a server without an era pack or active zombies, tab names led by the paragraph number.
   string themeWrong;
-  array<string> skins = {"vanilla", "crt", "tablet"};
+  array<string> skins = {"vanilla", "crt", "tablet", "outbreak"};
   foreach (string skinName : skins)
   {
    ACR_SetupTheme theme = ACR_SetupTheme.Named(skinName);
@@ -498,13 +498,13 @@ class ACR_TestSetupLobby
     if (worst < 4.5) themeWrong += string.Format("%1:contrast %2 ", skinName, worst);
    }
   }
-  if (ACR_SetupTheme.Crt().Text("Starting RP") != "STARTING RP" || ACR_SetupTheme.Vanilla().Text("Starting RP") != "Starting RP") themeWrong += "case ";
+  if (ACR_SetupTheme.Crt().Text("Starting RP") != "STARTING RP" || ACR_SetupTheme.Vanilla().Text("Starting RP") != "Starting RP" || ACR_SetupTheme.Outbreak().Text("Starting RP") != "Starting RP") themeWrong += "case ";
   if (ACR_SetupTheme.Chosen() != "vanilla") themeWrong += "chosen:" + ACR_SetupTheme.Chosen() + " ";
   // The skin in use is the one the socket's era picks now (no stale cache after a reset).
   ACR_SetupTheme.Reset();
   if (ACR_SetupTheme.Current().m_sName != ACR_SetupTheme.Chosen()) themeWrong += "cached:" + ACR_SetupTheme.Current().m_sName + " ";
   if (ACR_Setup.LobbyTabPrefix(0) != "1." || ACR_Setup.LobbyTabPrefix(1) != "2." || ACR_Setup.LobbyTabPrefix(5) != "A." || ACR_Setup.LobbyTabPrefix(6) != "B.") themeWrong += "prefix ";
-  ACR_TestRegress.Check("lobby: three skins with every colour set, vanilla by default, plain tab names", themeWrong.IsEmpty(), themeWrong);
+  ACR_TestRegress.Check("lobby: four skins with every colour set, vanilla by default, plain tab names", themeWrong.IsEmpty(), themeWrong);
 
   MapSketch();
 
