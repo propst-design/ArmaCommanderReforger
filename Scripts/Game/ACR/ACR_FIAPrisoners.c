@@ -94,6 +94,21 @@ class ACR_FIAPrisoners
  {
   if (!man || !ACR_Respawn.IsAlive(man)) return false;
   string side = ACR_Intel.FactionKeyOf(man);
+  // ACE Captives flips surrendered/cuffed units' perceived faction to CIV; resolve original side.
+  if (side.IsEmpty() || side == "CIV")
+  {
+   int pid = ACR_Squad.FindController(man);
+   if (pid > 0)
+   {
+    Faction pf = SCR_FactionManager.SGetPlayerFaction(pid);
+    if (pf) side = pf.GetFactionKey();
+   }
+   if (side.IsEmpty() || side == "CIV")
+   {
+    FactionAffiliationComponent aff = FactionAffiliationComponent.Cast(man.FindComponent(FactionAffiliationComponent));
+    if (aff && aff.GetDefaultAffiliatedFaction()) side = aff.GetDefaultAffiliatedFaction().GetFactionKey();
+   }
+  }
   if (!ACR_IED.Target(ACR_InsurgentSide.Key(), side)) return false;
   if (!hideout || hideout.m_bGone || !hideout.m_Cell || HeldAt(hideout) >= HOLD_MAX)
   {

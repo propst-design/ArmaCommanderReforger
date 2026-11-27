@@ -460,8 +460,26 @@ class ACR_BBBHooks : BBB_Hooks
   return true;
  }
 
+ // FIA/insurgent captors route prisoners directly into ACR_FIAPrisoners BEFORE BBB_Morale.SecurePrisoner
+ // runs, avoiding ACE Captives CIV conversion (which breaks ACR_IED.Target) and avoiding cuffing a
+ // player right before ACR_FIAPrisoners redeploys them.
+ override bool HandlePrisonerCapture(SCR_AIGroup captor, IEntity prisoner)
+ {
+  if (!captor || !prisoner || !m_Manager) return false;
+  ChimeraCharacter man = ChimeraCharacter.Cast(prisoner);
+  if (!man) return false;
+  Faction captorFaction = captor.GetFaction();
+  if (!captorFaction) return false;
+  string side = captorFaction.GetFactionKey();
+  if (side != ACR_Pockets.FACTION && !ACR_InsurgentSide.IsInsurgent(side)) return false;
+  if (!ACR_FIASpoils.On()) return false;
+  ACR_DefenderPost hideout = ACR_FIAIntel.SupplierOf(man.GetOrigin());
+  if (!hideout) return false;
+  return ACR_FIAPrisoners.Capture(man, hideout);
+ }
+
  // When an AI squad captures a prisoner (BBB_Deadcheck):
- //  - FIA captors route the prisoner into ACR_FIAPrisoners (hideout propaganda & rescue loop).
+ //  - FIA captors are handled above in HandlePrisonerCapture (never award army RP if fallback runs).
  //  - Army captors (US/USSR) earn a small tactical RP bonus (+10 RP) and an intel feed notice.
  override void OnPrisonerCaptured(SCR_AIGroup captor, IEntity prisoner)
  {
@@ -471,13 +489,7 @@ class ACR_BBBHooks : BBB_Hooks
   Faction captorFaction = captor.GetFaction();
   if (!captorFaction) return;
   string side = captorFaction.GetFactionKey();
-  if (side == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(side))
-  {
-   if (!ACR_FIASpoils.On()) return;
-   ACR_DefenderPost hideout = ACR_FIAIntel.SupplierOf(man.GetOrigin());
-   if (hideout) ACR_FIAPrisoners.Capture(man, hideout);
-   return;
-  }
+  if (side == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(side)) return;
   int rp = ACR_Containment.Give(m_Manager, side, 10);
   if (rp > 0) ACR_Report.OnIncome(side, rp);
   ACR_Intel intel = m_Manager.IntelFor(side);
