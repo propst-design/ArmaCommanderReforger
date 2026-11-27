@@ -276,8 +276,35 @@ class ACR_Garrison
   return posts.Count();
  }
 
- // The best free spots, the first building first, then neighbours within SPILL_RADIUS of
- // it. false = a building's navmesh is still loading (waitForMesh).
+ // True when another group already holds a garrison post inside this building's footprint
+ // (or, when checkInbound is true, another squad is already ordered to garrison it).
+ protected static bool BuildingOccupied(IEntity building, SCR_AIGroup except = null, bool checkInbound = false)
+ {
+  if (!building) return false;
+  foreach (SCR_AIGroup other, array<IEntity> otherPosts : s_Posts)
+  {
+   if (other == except || !otherPosts) continue;
+   foreach (IEntity p : otherPosts)
+    if (p && DistanceToBox(building, p.GetOrigin()) < 1.5) return true;
+  }
+  if (checkInbound)
+  {
+   ACR_Manager manager = ACR_Manager.GetInstance();
+   if (manager)
+   {
+    foreach (ACR_Squad sq : manager.m_Squads)
+    {
+     if (!sq || sq.m_Group == except || sq.CountAlive() <= 0) continue;
+     if (sq.m_Order != "Garrisoning") continue;
+     if (DistanceToBox(building, sq.m_MoveTarget) < 6.0) return true;
+    }
+   }
+  }
+  return false;
+ }
+
+ // The best free spots, preferring unoccupied buildings within SPILL_RADIUS of the first
+ // before sharing an already-garrisoned building. false = navmesh still loading (waitForMesh).
  protected static bool PickSpots(array<IEntity> buildings, IEntity navAgent, int wanted, bool waitForMesh, float spill, notnull array<ref ACR_GarrisonSpot> chosen)
  {
   IEntity first = buildings[0];
@@ -286,20 +313,27 @@ class ACR_Garrison
   {
    foreach (IEntity p : otherPosts) if (p) taken.Insert(p.GetOrigin());
   }
-  foreach (IEntity building : buildings)
+  // Pass 0: unoccupied buildings first so multiple defending squads spread across separate houses.
+  // Pass 1: fall back to sharing occupied buildings if not enough free houses are in range.
+  for (int pass = 0; pass < 2; pass++)
   {
-   if (chosen.Count() >= wanted) break;
-   if (building != first && vector.DistanceXZ(building.GetOrigin(), first.GetOrigin()) > spill) continue;
-   array<ref ACR_GarrisonSpot> spots = Survey(building, navAgent, waitForMesh);
-   if (!spots) return false;
-   foreach (ACR_GarrisonSpot spot : spots)
+   foreach (IEntity building : buildings)
    {
     if (chosen.Count() >= wanted) break;
-    float spacing = SPACING;
-    if (spot.m_bInterior) spacing = INTERIOR_SPACING;
-    if (TooClose(spot.m_Pos, taken, spacing) || IsBad(spot.m_Pos)) continue;
-    chosen.Insert(spot);
-    taken.Insert(spot.m_Pos);
+    if (building != first && vector.DistanceXZ(building.GetOrigin(), first.GetOrigin()) > spill) continue;
+    bool occupied = BuildingOccupied(building);
+    if ((pass == 0 && occupied) || (pass == 1 && !occupied)) continue;
+    array<ref ACR_GarrisonSpot> spots = Survey(building, navAgent, waitForMesh);
+    if (!spots) return false;
+    foreach (ACR_GarrisonSpot spot : spots)
+    {
+     if (chosen.Count() >= wanted) break;
+     float spacing = SPACING;
+     if (spot.m_bInterior) spacing = INTERIOR_SPACING;
+     if (TooClose(spot.m_Pos, taken, spacing) || IsBad(spot.m_Pos)) continue;
+     chosen.Insert(spot);
+     taken.Insert(spot.m_Pos);
+    }
    }
   }
   return true;
@@ -745,12 +779,21 @@ class ACR_Garrison
   }
  }
 
- // The usable building nearest the point within 'area' (where AI squads garrison a base).
- static bool AnchorNear(vector point, float area, out vector at)
+ // The usable building nearest the point within 'area' (where AI squads garrison a base),
+ // preferring an unoccupied building so multiple defending squads spread across separate houses.
+ static bool AnchorNear(vector point, float area, out vector at, SCR_AIGroup except = null)
  {
   array<IEntity> buildings = {};
   BuildingsWithin(point, area, buildings);
   if (buildings.IsEmpty()) return false;
+  foreach (IEntity b : buildings)
+  {
+   if (BuildingOccupied(b, except, true)) continue;
+   array<ref ACR_GarrisonSpot> surveyed = s_Survey.Get(b);
+   if (surveyed && surveyed.IsEmpty()) continue;
+   at = b.GetOrigin();
+   return true;
+  }
   at = buildings[0].GetOrigin();
   return true;
  }

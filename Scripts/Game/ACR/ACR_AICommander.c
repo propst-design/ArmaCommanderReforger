@@ -2673,7 +2673,7 @@ class ACR_AICommander : Managed
    garrison = true;
    destination = building;
   }
-  else if (defend && !ACR_Transport.CrewedVehicle(squad) && ACR_Garrison.AnchorNear(destination, 80, building))
+  else if (defend && !ACR_Transport.CrewedVehicle(squad) && ACR_Garrison.AnchorNear(destination, 80, building, squad.m_Group))
   {
    garrison = true;
    destination = building;
@@ -2928,6 +2928,71 @@ class ACR_AICommander : Managed
     if (!FireLine(candidate, center)) continue;
     float heightAdvantage = candidate[1] - center[1];
     float score = walk - Math.Max(0.0, heightAdvantage * 2.5);
+    if (score < best)
+    {
+     spot = candidate;
+     best = score;
+    }
+   }
+  }
+  return best < float.MAX;
+ }
+
+ // Aim point for supporting gun vehicles: nearest known enemy around the objective, else the base centre.
+ vector SupportAimFor(ACR_Base target)
+ {
+  if (!target) return vector.Zero;
+  vector seenAt;
+  if (EnemyNear(target.GetOrigin(), target.m_fRadius + 250, seenAt)) return seenAt;
+  return target.GetOrigin();
+ }
+
+ // Real turret-height line of sight (terrain AND trees/buildings/walls) so gun vehicles don't park behind woods.
+ static bool VehicleFireLine(vector from, vector aim)
+ {
+  BaseWorld world = GetGame().GetWorld();
+  if (!world) return false;
+  TraceParam trace = new TraceParam();
+  trace.Start = from + Vector(0, 2.2, 0);
+  trace.End = aim + Vector(0, 1.5, 0);
+  trace.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
+  float fraction = world.TraceMove(trace, null);
+  float length = vector.Distance(trace.Start, trace.End);
+  return fraction >= 0.85 || (1 - fraction) * length <= 35;
+ }
+
+ // Firing spot for a crewed gun vehicle supporting an assault: tighter standoff and real WORLD|ENTS LOS.
+ // minShift > 0 forces repositioning away from a current blind spot.
+ bool VehicleOverwatchSpot(ACR_Base target, vector from, vector aimPoint, out vector spot, float minShift = 0)
+ {
+  if (!target) return false;
+  vector center = target.GetOrigin();
+  float minRange = Math.Max(110.0, target.m_fRadius + 60.0);
+  float maxRange = 340.0;
+  float here = vector.DistanceXZ(from, aimPoint);
+  if (minShift <= 0 && here >= minRange && here <= 320.0 && !BBB_Terrain.IsWaterAt(from) && VehicleFireLine(from, aimPoint))
+  {
+   spot = from;
+   return true;
+  }
+  vector side = from - aimPoint;
+  side[1] = 0;
+  if (side.LengthSq() < 1) side = Vector(0, 0, 1);
+  side.Normalize();
+  array<float> rings = {150, 200, 250, 300};
+  array<float> turns = {0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75};
+  float best = float.MAX;
+  foreach (float ring : rings)
+  {
+   float d = Math.Clamp(ring, minRange, maxRange);
+   foreach (float turn : turns)
+   {
+    vector candidate = ACR_Manager.Ground(aimPoint + Turned(side, turn) * d);
+    float walk = vector.DistanceXZ(candidate, from);
+    if (walk < minShift || BBB_Terrain.IsWaterAt(candidate) || NearOtherEnemyBase(candidate, target)) continue;
+    if (!VehicleFireLine(candidate, aimPoint)) continue;
+    float heightAdvantage = candidate[1] - aimPoint[1];
+    float score = walk - Math.Max(0.0, heightAdvantage * 3.0);
     if (score < best)
     {
      spot = candidate;
