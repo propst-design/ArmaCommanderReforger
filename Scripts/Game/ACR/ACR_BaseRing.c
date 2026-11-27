@@ -143,6 +143,19 @@ class ACR_BaseRing : ACR_TownGrid
   s_aLastPath = {};
  }
 
+ static void Reset()
+ {
+  if (s_aLastPath) s_aLastPath.Clear();
+  s_Filling = null;
+  s_iLastMs = 0;
+  s_iLastRuns = 0;
+  s_iLastCells = 0;
+  s_iPlans = 0;
+  s_bMeasureForTest = false;
+  s_iLastAsked = 0;
+  s_iLastClosed = 0;
+ }
+
  static bool On() { return ACR_LogisticsRules.Choice("acrBaseRing", "1") != "0"; }
  // -acrBaseFinalWalk 0: no walk against the finished plan, no last part on his softest way (FinalWalk).
  static bool FinalWalkOn() { return ACR_LogisticsRules.Choice("acrBaseFinalWalk", "1") != "0"; }

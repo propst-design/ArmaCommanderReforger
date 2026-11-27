@@ -227,12 +227,14 @@ class ACR_Manager : Managed
   ACR_OrganEasterEgg.Reset();
   ACR_CommandPresence.Reset();
   ACR_Intro.Reset();
+  ACR_LocalFlyover.Reset();
   ACR_RTSCameraManager.Close();
   ACR_RTSCameraManager.s_bAdminUnbound = false; // a listen host's /acr unbound ends with his match
-  ACR_NestDressing.StopFx();
+  ACR_Outbreak.Reset();
   ACR_Airdrop.EndMatch();
   ACR_CivilianSocket.Get().ResetMatch();
   ACR_Hud.Clear();
+  ACR_MapLayers.Reset();
   ACR_Skirmish.Reset();
   ACR_TvZ.Reset();
   ACR_OneSide.Reset();
@@ -256,6 +258,10 @@ class ACR_Manager : Managed
   ACR_QuickStart.Reset();
   ACR_Minefields.Reset();
   ACR_Fortify.Reset();
+  ACR_BaseDefences.Reset();
+  ACR_BagHold.Reset();
+  ACR_AttackGround.Reset();
+  ACR_RoadblockLane.Reset();
   ACR_SpawnPoints.Reset();
   // Caches keyed by world time: on the next mission the clock starts near 0 again, so their
   // "too recent" checks held for as long as the last match ran.
@@ -279,6 +285,7 @@ class ACR_Manager : Managed
   ACR_DoctrineKits.Reset();
   ACR_Think.Reset();
   ACR_Insurgency.Reset();
+  ACR_Guerrillas.Reset();
   ACR_FIAGrowth.Reset();
   ACR_IED.Reset();
   ACR_Raid.Reset();

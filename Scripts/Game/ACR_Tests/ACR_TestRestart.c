@@ -144,6 +144,11 @@ class ACR_TestRestart
   ACR_Guerrillas.s_aStarts.Insert(SENTINEL_AT);
   ACR_Guerrillas.s_mTraffic.Set(-4242, 1);
   ACR_Supports.s_aBatteryImpacts.Insert(SENTINEL_AT);
+  ACR_MapLayers.Set(0, true);
+  ACR_Outbreak.s_iCounters = 1;
+  ACR_LocalFlyover.s_iStarted = 1;
+  ACR_BaseDefences.s_mBlockers.Set(SENTINEL, 1);
+  ACR_BaseRing.s_aLastPath.Insert(SENTINEL_AT);
  }
 
  protected static string SentinelsKept()
@@ -158,6 +163,11 @@ class ACR_TestRestart
   if (ACR_Guerrillas.s_aStarts.Find(SENTINEL_AT) >= 0) kept += " Guerrillas.s_aStarts";
   if (ACR_Guerrillas.s_mTraffic.Contains(-4242)) kept += " Guerrillas.s_mTraffic";
   if (ACR_Supports.s_aBatteryImpacts.Find(SENTINEL_AT) >= 0) kept += " Supports.s_aBatteryImpacts";
+  if (ACR_MapLayers.AnyOff()) kept += " MapLayers.s_aOff";
+  if (ACR_Outbreak.s_iCounters != 0) kept += " Outbreak.s_iCounters";
+  if (ACR_LocalFlyover.s_iStarted != 0) kept += " LocalFlyover.s_iStarted";
+  if (ACR_BaseDefences.s_mBlockers.Contains(SENTINEL)) kept += " BaseDefences.s_mBlockers";
+  if (ACR_BaseRing.s_aLastPath.Find(SENTINEL_AT) >= 0) kept += " BaseRing.s_aLastPath";
   return kept;
  }
 
@@ -215,6 +225,35 @@ class ACR_TestRestart
   c.Set("SquadMarksmen.s_Pending", Pair(ACR_SquadMarksmen.s_Pending.Count(), 0));
   c.Set("Structures.s_Registered", Pair(ACR_Structures.s_Registered.Count(), ACR_TestRestartNulls<SCR_CampaignBuildingCompositionComponent>.In(ACR_Structures.s_Registered)));
   c.Set("Supports.s_aBatteryImpacts", Pair(ACR_Supports.s_aBatteryImpacts.Count(), 0));
+  c.Set("Outbreak.s_aStarts", Pair(ACR_Outbreak.StartCount(), 0));
+  c.Set("Outbreak.s_aCounterAt", Pair(ACR_Outbreak.CounterCount(), 0));
+  c.Set("LocalFlyover.s_All", Pair(ACR_LocalFlyover.Count(), 0));
+  c.Set("AttackGround.s_Building", Pair(ACR_AttackGround.BuildingCount(), 0));
+  c.Set("BagHold.s_Places", Pair(ACR_BagHold.PlaceCount(), 0));
+  c.Set("BaseDefences.s_mBlockers", Pair(ACR_BaseDefences.s_mBlockers.Count(), 0));
+  c.Set("BaseRing.s_aLastPath", Pair(ACR_BaseRing.s_aLastPath.Count(), 0));
+  c.Set("Guerrillas.s_aWeights", Pair(ACR_Guerrillas.s_aWeights.Count(), 0));
+  c.Set("Guerrillas.s_mTrafficAt", Pair(ACR_Guerrillas.s_mTrafficAt.Count(), 0));
+  c.Set("CommandPresence.State", Pair(ACR_CommandPresence.StateCount(), 0));
+  c.Set("SupplyLines.State", Pair(ACR_SupplyLines.StateCount(), 0));
+  c.Set("HideoutHomes.State", Pair(ACR_HideoutHomes.StateCount(), 0));
+  c.Set("Muster.s_Jobs", Pair(ACR_Muster.s_Jobs.Count(), 0));
+  c.Set("Disguise.s_States", Pair(ACR_Disguise.s_States.Count(), 0));
+  c.Set("GuerrillaAI.State", Pair(ACR_GuerrillaAI.StateCount(), 0));
+  c.Set("FIASpoils.s_aTeams", Pair(ACR_FIASpoils.s_aTeams.Count(), 0));
+  c.Set("FIASpoils.s_aSwaps", Pair(ACR_FIASpoils.s_aSwaps.Count(), 0));
+  c.Set("FIAPrisoners.s_aPows", Pair(ACR_FIAPrisoners.s_aPows.Count(), 0));
+  c.Set("FIAIntel.s_aLeads", Pair(ACR_FIAIntel.s_aLeads.Count(), 0));
+  c.Set("Depots.s_aDepots", Pair(ACR_Depots.s_aDepots.Count(), 0));
+  c.Set("IED.s_aIEDs", Pair(ACR_IED.s_aIEDs.Count(), 0));
+  c.Set("Containment.s_aSites", Pair(ACR_Containment.SiteCount(), 0));
+  c.Set("Evac.s_aPoints", Pair(ACR_Evac.Count(), 0));
+  c.Set("Airdrop.s_aPallets", Pair(ACR_Airdrop.Count(), 0));
+  c.Set("Decks.Submitted", Pair(ACR_Decks.Submitted().Count(), 0));
+  c.Set("OrganEasterEgg.State", Pair(ACR_OrganEasterEgg.StateCount(), 0));
+  c.Set("BBBHooks.s_mIntentSeen", Pair(ACR_BBBHooks.IntentCount(), 0));
+  c.Set("TwoICForecast.State", Pair(ACR_TwoICForecast.StateCount(), 0));
+  c.Set("UALoadout.State", Pair(ACR_UALoadout.StateCount(), 0));
   return c;
  }
 }

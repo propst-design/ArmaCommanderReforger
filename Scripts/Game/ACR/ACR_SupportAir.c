@@ -210,6 +210,36 @@ class ACR_LocalFlyover : Managed
 		s_All = {};
 	}
 	static int s_iStarted; // tests
+	static int Count() { return s_All.Count(); }
+
+	static void Reset()
+	{
+		if (s_All)
+		{
+			for (int i = s_All.Count() - 1; i >= 0; i--)
+			{
+				ACR_LocalFlyover flyover = s_All[i];
+				if (!flyover) continue;
+				if (GetGame() && GetGame().GetCallqueue()) GetGame().GetCallqueue().Remove(flyover.Step);
+				flyover.ClearBombs();
+				if (flyover.m_Glow) flyover.m_Glow.Clear();
+				if (flyover.m_Sound)
+				{
+					if (flyover.m_bSounding) flyover.m_Sound.Terminate(flyover.m_hEngineFar);
+					if (flyover.m_bSoundingNear) flyover.m_Sound.Terminate(flyover.m_hEngine);
+					if (flyover.m_bScreaming) flyover.m_Sound.Terminate(flyover.m_hScream);
+					if (flyover.m_bFlybyFired) flyover.m_Sound.Terminate(flyover.m_hFlyby);
+				}
+				if (flyover.m_Plane)
+				{
+					SCR_EntityHelper.DeleteEntityAndChildren(flyover.m_Plane);
+					flyover.m_Plane = null;
+				}
+			}
+			s_All.Clear();
+		}
+		s_iStarted = 0;
+	}
 	IEntity m_Plane;
 	vector m_vStart;
 	vector m_vDir;

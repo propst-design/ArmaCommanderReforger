@@ -50,6 +50,14 @@ class ACR_RoadblockLane
   s_mGuardFor = new map<IEntity, IEntity>();
   s_mGuardAt = new map<IEntity, float>();
  }
+
+ static void Reset()
+ {
+  if (s_mSteps) s_mSteps.Clear();
+  if (s_mGuardFor) s_mGuardFor.Clear();
+  if (s_mGuardAt) s_mGuardAt.Clear();
+  s_iStepsForTest = 0;
+ }
  static int s_iStepsForTest;                 // step-clear moves ordered
 
  // The lane's centre line across the road (local X) at local Z.

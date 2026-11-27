@@ -40,6 +40,11 @@ class ACR_SupplyLines
 		s_fNextTick = -1;
 	}
 
+	static int StateCount()
+	{
+		return s_Isolated.Count() + s_ReliefUntil.Count() + s_ReliefSide.Count();
+	}
+
 	static bool On()
 	{
 		return ACR_LogisticsRules.Choice("acrSupplyLines", "0") == "1";

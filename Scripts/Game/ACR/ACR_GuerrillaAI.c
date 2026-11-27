@@ -46,6 +46,11 @@ class ACR_GuerrillaAI
 		if (s_BandTown) s_BandTown.Clear();
 	}
 
+	static int StateCount()
+	{
+		return s_BandRole.Count() + s_BandOrderedAt.Count() + s_BandTown.Count();
+	}
+
 	static bool Active()
 	{
 		return ACR_InsurgentSide.AIControlled();

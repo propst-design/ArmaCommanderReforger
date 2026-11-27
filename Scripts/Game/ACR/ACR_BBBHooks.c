@@ -312,6 +312,7 @@ class ACR_BBBHooks : BBB_Hooks
   s_mIntentSeen = new map<SCR_AIGroup, string>();
  }
  static void ResetIntents() { s_mIntentSeen.Clear(); }
+ static int IntentCount() { return s_mIntentSeen.Count(); }
 
  protected BBB_EIntent IntentOf(ACR_Squad squad, out vector centre, out float radius, out string why)
  {

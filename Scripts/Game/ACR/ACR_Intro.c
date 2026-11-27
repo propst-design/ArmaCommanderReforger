@@ -199,7 +199,7 @@ class ACR_Intro : Managed
   }
   // The commander went to the map or the RTS camera, the body died or changed: hand over now.
   if (body != m_Body || !ACR_Respawn.IsAlive(body)) { Stop("body changed"); return; }
-  if (Busy(pc)) { Stop("map or camera opened"); return; }
+  if (Busy(pc) || GetGame().GetMenuManager().IsAnyMenuOpen()) { Stop("map, menu or camera opened"); return; }
   InputManager input = GetGame().GetInputManager();
   input.ActivateContext("ACR_IntroContext");
   if (input.GetActionTriggered("ACR_IntroSkip")) { Stop("skipped"); return; }
@@ -311,19 +311,34 @@ class ACR_Intro : Managed
   BuildUI();
   if (m_sMusic != "")
   {
-   int split = m_sMusic.LastIndexOf(":");
-   if (split > 0)
+   vector at[4];
+   Math3D.MatrixIdentity4(at);
+   at[3] = start[3];
+   m_Music = PlayMusic(m_sMusic, at);
+   if (m_Music == AudioHandle.Invalid)
    {
-    string acp = m_sMusic.Substring(0, split);
-    string eventName = m_sMusic.Substring(split + 1, m_sMusic.Length() - split - 1);
-    vector at[4];
-    Math3D.MatrixIdentity4(at);
-    at[3] = start[3];
-    m_Music = AudioSystem.PlayEvent(acp, eventName, at);
+    PrintFormat("[ACR] INTRO music '%1' invalid or failed, falling back to default", m_sMusic, level: LogLevel.WARNING);
+    string fallback = DEFAULT_MUSIC;
+    if (m_bZombies) fallback = ZOMBIE_MUSIC;
+    if (m_sMusic != fallback)
+    {
+     m_sMusic = fallback;
+     m_Music = PlayMusic(m_sMusic, at);
+    }
    }
   }
   m_fStart = GetGame().GetWorld().GetWorldTime();
   PrintFormat("[ACR] INTRO started at %1, music %2", m_vCentre, m_sMusic);
+ }
+
+ protected static AudioHandle PlayMusic(string spec, vector at[4])
+ {
+  int split = spec.LastIndexOf(":");
+  if (split <= 0 || split >= spec.Length() - 1) return AudioHandle.Invalid;
+  string acp = spec.Substring(0, split);
+  string eventName = spec.Substring(split + 1, spec.Length() - split - 1);
+  if (acp.IsEmpty() || eventName.IsEmpty()) return AudioHandle.Invalid;
+  return AudioSystem.PlayEvent(acp, eventName, at);
  }
 
  protected void Finish()
@@ -331,7 +346,25 @@ class ACR_Intro : Managed
   CameraManager cameras = GetGame().GetCameraManager();
   if (m_Camera)
   {
-   if (cameras && cameras.CurrentCamera() == m_Camera && m_PreviousCamera) cameras.SetCamera(m_PreviousCamera);
+   if (cameras && cameras.CurrentCamera() == m_Camera)
+   {
+    CameraBase restore = m_PreviousCamera;
+    if (!restore && GetGame().GetPlayerController()) restore = GetGame().GetPlayerController().GetPlayerCamera();
+    if (!restore)
+    {
+     array<CameraBase> all = {};
+     cameras.GetCamerasList(all);
+     for (int i = all.Count() - 1; i >= 0; i--)
+     {
+      if (all[i] && all[i] != m_Camera)
+      {
+       restore = all[i];
+       break;
+      }
+     }
+    }
+    if (restore) cameras.SetCamera(restore);
+   }
    SCR_ManualCamera manual = SCR_ManualCamera.Cast(m_Camera);
    if (manual)
    {
@@ -417,7 +450,7 @@ class ACR_Intro : Managed
   if (m_Title) m_Title.SetText("ARMA  COMMANDER");
   if (m_Subtitle) m_Subtitle.SetText("A C T U A L");
   if (m_Line) m_Line.SetText(m_sLine);
-  if (m_Hint) m_Hint.SetText("Space: skip");
+  if (m_Hint) m_Hint.SetText("<action name='ACR_IntroSkip' scale='1.1'/> skip");
   if (!m_bZombies) return;
   // Zombie matches: the word under the logo, a bolt of light that sweeps across the logo, its halo,
   // and a white flash over everything at the moment of the strike.
@@ -463,7 +496,7 @@ class ACR_Intro : Managed
   float lineIn = 2.6;
   if (m_bZombies) lineIn = STRIKE_S + 0.9;
   if (m_Line) m_Line.SetOpacity(Ramp(t, lineIn, lineIn + 1.2, TitlesOutFrom(), TitlesOutBy()) * 0.85);
-  if (m_Hint) m_Hint.SetOpacity(Ramp(t, 1.0, 2.0, ORBIT_S, ORBIT_S + 1.0) * 0.6);
+  if (m_Hint) m_Hint.SetOpacity(Ramp(t, 1.0, 2.0, ORBIT_S + ZOOM_S - 1.5, ORBIT_S + ZOOM_S - 0.5) * 0.6);
   if (!m_bZombies) return;
   // Zombie matches, around STRIKE_S: the bolt sweeps across the logo and lands on the beat, the screen
   // flashes white and dies away, and ZOMBIES is there as the flash clears.

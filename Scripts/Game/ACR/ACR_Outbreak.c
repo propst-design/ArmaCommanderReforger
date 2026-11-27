@@ -99,6 +99,28 @@ class ACR_Outbreak
   s_aPlain = {};
  }
 
+ static void Reset()
+ {
+  s_bOn = false;
+  s_iCap = 0;
+  s_bNight = false;
+  s_iSeconds = 0;
+  s_iCounters = 0;
+  s_iSightings = 0;
+  s_fWalkScaleForTest = 1;
+  if (s_aStarts) s_aStarts.Clear();
+  if (s_aSpecial) s_aSpecial.Clear();
+  if (s_aPlain) s_aPlain.Clear();
+  if (s_aCounterAt) s_aCounterAt.Clear();
+  if (s_aCounterTime) s_aCounterTime.Clear();
+  ACR_Containment.Reset();
+  ACR_Truce.Reset();
+  ACR_NestDressing.StopFx();
+ }
+
+ static int StartCount() { return s_aStarts.Count(); }
+ static int CounterCount() { return s_aCounterAt.Count(); }
+
  // Outbreak loaded: the world's faction manager carries Z.
  static bool Loaded()
  {

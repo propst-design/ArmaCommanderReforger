@@ -57,6 +57,11 @@ class ACR_HideoutHomes
 		s_Setups = {};
 	}
 
+	static int StateCount()
+	{
+		return s_Points.Count() + s_CachePoint.Count() + s_Setups.Count();
+	}
+
 	static void Reset()
 	{
 		if (s_Points)

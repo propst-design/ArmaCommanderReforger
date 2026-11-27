@@ -76,6 +76,15 @@ class ACR_AttackGround
   s_bPumping = false;
  }
 
+ static void Reset()
+ {
+  if (s_Building) s_Building.Clear();
+  s_bPumping = false;
+  if (GetGame() && GetGame().GetCallqueue()) GetGame().GetCallqueue().Remove(Pump);
+ }
+
+ static int BuildingCount() { return s_Building.Count(); }
+
  // 0 off, 1 build + log + Think, 2 also draw.
  static int Mode() { return Math.ClampInt(ACR_LogisticsRules.Choice("acrAttackGround", "0").ToInt(), 0, 2); }
  static bool On() { return Mode() > 0; }

@@ -22,6 +22,12 @@ class ACR_MapLayers
   s_aOff = {false, false, false, false, false};
  }
 
+ static void Reset()
+ {
+  if (!s_aOff) return;
+  for (int i = 0; i < s_aOff.Count(); i++) s_aOff[i] = false;
+ }
+
  static string Name(int layer)
  {
   switch (layer)

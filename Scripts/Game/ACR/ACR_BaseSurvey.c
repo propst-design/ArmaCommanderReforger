@@ -118,6 +118,14 @@ class ACR_BaseSurvey : Managed
   s_aRocks = {};
  }
 
+ static void Reset()
+ {
+  if (s_aWalls) s_aWalls.Clear();
+  if (s_aWorks) s_aWorks.Clear();
+  if (s_aRocks) s_aRocks.Clear();
+  s_iTraces = 0;
+ }
+
  // ---------------------------------------------------------------- sectors
 
  static float Normal(float bearing)

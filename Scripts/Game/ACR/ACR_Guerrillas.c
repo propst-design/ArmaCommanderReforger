@@ -525,6 +525,20 @@ class ACR_Guerrillas
   s_mTraffic = new map<int, float>();
   s_mTrafficAt = new map<int, vector>();
  }
+
+ static void Reset()
+ {
+  if (s_aRoads) s_aRoads.Clear();
+  if (s_aWeights) s_aWeights.Clear();
+  if (s_aHouses) s_aHouses.Clear();
+  if (s_aStarts) s_aStarts.Clear();
+  if (s_mTraffic) s_mTraffic.Clear();
+  if (s_mTrafficAt) s_mTrafficAt.Clear();
+  s_iSeconds = 0;
+  s_iWantedCells = 0;
+  s_bManyOption = false;
+  s_fHouseClear = 0;
+ }
  protected static int s_iSeconds;
 
  static void NoteTraffic(vector pos, float weight = 1)

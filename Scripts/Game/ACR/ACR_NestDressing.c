@@ -230,7 +230,12 @@ class ACR_NestDressing
  // starts it again.
  static void StopFx()
  {
-  if (GetGame()) GetGame().GetCallqueue().Remove(FxTick);
+  if (GetGame() && GetGame().GetCallqueue()) GetGame().GetCallqueue().Remove(FxTick);
+  s_iDecals = 0;
+  s_iFires = 0;
+  s_iPiles = 0;
+  s_iWrecks = 0;
+  s_iRemains = 0;
  }
 
  // A client that joined: lay out what the record holds even if the replication callback didn't

@@ -1172,6 +1172,25 @@ class ACR_BaseDefences : Managed
 		s_mBlockers = new map<string, int>();
 		s_aFences = {};
 	}
+
+	static void Reset()
+	{
+		ClearPreview();
+		if (s_aFound) s_aFound.Clear();
+		if (s_aSolid) s_aSolid.Clear();
+		if (s_mBlockers) s_mBlockers.Clear();
+		if (s_aFences) s_aFences.Clear();
+		s_Ignore = null;
+		s_iSeed = 1;
+		s_iCornersSeen = 0;
+		s_iNoRoad = 0;
+		s_iNoThreat = 0;
+		s_iNoFit = 0;
+		s_iBlocked = 0;
+		s_iNoSight = 0;
+		ACR_BaseRing.Reset();
+		ACR_BaseSurvey.Reset();
+	}
 	protected static bool CollectFence(IEntity e)
 	{
 		if (!e || !e.GetPhysics()) return true;

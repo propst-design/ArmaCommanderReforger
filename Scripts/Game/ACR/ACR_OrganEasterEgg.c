@@ -58,6 +58,11 @@ class ACR_OrganEasterEgg
   s_Candidates = {};
  }
 
+ static int StateCount()
+ {
+  return s_Organs.Count() + s_Sounds.Count() + s_Candidates.Count();
+ }
+
  static float Now() { return GetGame().GetWorld().GetWorldTime(); }
 
  static ACR_OrganState Find(IEntity organ)

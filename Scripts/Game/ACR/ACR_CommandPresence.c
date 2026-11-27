@@ -45,6 +45,11 @@ class ACR_CommandPresence
   if (s_ActiveBodies) s_ActiveBodies.Clear();
  }
 
+ static int StateCount()
+ {
+  return s_LastInBody.Count() + s_DisruptedUntil.Count() + s_ActivePositions.Count() + s_ActiveBodies.Count();
+ }
+
  static bool On()
  {
   return ACR_LogisticsRules.Choice("acrCommandPresence", "1") != "0";

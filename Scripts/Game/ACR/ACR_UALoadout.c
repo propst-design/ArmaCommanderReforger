@@ -65,6 +65,11 @@ class ACR_UALoadout
  };
  }
 
+ static int StateCount()
+ {
+  return s_Done.Count() + s_Pending.Count();
+ }
+
  // Items the soldier has whose prefab path contains part (worn gadgets and weapon slots too).
  static int CountKind(IEntity soldier, SCR_InventoryStorageManagerComponent inventory, string part)
  {
