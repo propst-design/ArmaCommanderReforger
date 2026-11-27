@@ -361,8 +361,8 @@ modded class ACR_AICommander
   squad.m_AITarget = null;
   if (r.m_iKind == ACR_ETwoICAsk.HOLD) squad.SetMode(ACR_EMoveMode.COMBAT);
   else squad.SetMode(ACR_EMoveMode.FAST);
-  Travel(squad, r.m_vPos, true, 0);
   m_OnRequest.Set(squad, r.m_iId);
+  Travel(squad, r.m_vPos, true, 0);
   r.m_Squad = squad;
   r.m_sSquad = squad.GetName();
   r.m_fUntil = 0;
