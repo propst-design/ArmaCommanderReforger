@@ -464,6 +464,7 @@ class ACR_SquadRouting
   sq.m_bPatrol = false; // a new order ends a patrol
   sq.m_iEscortPlayerId = 0;
   sq.m_vEscortAnchor = vector.Zero;
+  sq.m_EscortVehicle = null;
  }
 
  // Patrol (map panel): the squad walks its queued points (Shift + right-click) in a loop, the

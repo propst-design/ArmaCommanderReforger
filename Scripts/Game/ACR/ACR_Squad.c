@@ -868,6 +868,7 @@ class ACR_Squad : Managed
  bool m_bPatrol;     // the queued points loop: each goes back at the end once the squad sets off for it
  int m_iEscortPlayerId; // >0: escorting this player's primary command unit (ORDER_ESCORT)
  vector m_vEscortAnchor;
+ IEntity m_EscortVehicle; // CO vehicle the escort boarded (so it dismounts when the CO leaves it)
  int m_OrderKind;   // ACR_EOrderKind, for map symbology
  float m_fNextWaypointRecovery;
  int m_iWaypointRecoveries;

@@ -712,6 +712,38 @@ modded class ACR_Squad
  //  - soldiers get the mission's AI skill.
  // Escort CO (ORDER_ESCORT): follows the issuing player's primary command unit, boarding
  // their vehicle when open seats are within reach, and holding ground if the CO falls.
+ protected static int FreeEscortSeats(IEntity vehicle)
+ {
+  if (!vehicle) return 0;
+  SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
+  if (!compartments) return 0;
+  int free;
+  array<BaseCompartmentSlot> cargo = {};
+  compartments.GetCompartmentsOfType(cargo, ECompartmentType.CARGO);
+  foreach (BaseCompartmentSlot seat : cargo)
+   if (seat && !seat.GetOccupant()) free++;
+  array<BaseCompartmentSlot> turrets = {};
+  compartments.GetCompartmentsOfType(turrets, ECompartmentType.TURRET);
+  foreach (BaseCompartmentSlot slot : turrets)
+   if (slot && !slot.GetOccupant()) free++;
+  return free;
+ }
+
+ protected int CountAboard(IEntity vehicle)
+ {
+  if (!vehicle) return 0;
+  int count;
+  array<AIAgent> agents = {};
+  GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   if (!agent) continue;
+   IEntity man = agent.GetControlledEntity();
+   if (man && ACR_Respawn.IsAlive(man) && ACR_Transport.VehicleOf(man) == vehicle) count++;
+  }
+  return count;
+ }
+
  bool StartEscort(int playerId, out string refusal)
  {
   refusal = "";
@@ -724,14 +756,17 @@ modded class ACR_Squad
   {
    m_iEscortPlayerId = 0;
    m_vEscortAnchor = vector.Zero;
+   m_EscortVehicle = null;
    if (GetAnchor()) Defend(GetAnchor().GetOrigin());
    return true;
   }
   vector coPos = main.GetOrigin();
   IEntity coVeh = ACR_Transport.VehicleOf(main);
-  if (coVeh && !IsMounted() && GetAnchor() && vector.DistanceXZ(GetAnchor().GetOrigin(), coPos) <= 60 && ACR_Rides.FreeSeats(coVeh) > 0)
+  IEntity escortVeh;
+  if (coVeh && !IsMounted() && GetAnchor() && vector.DistanceXZ(GetAnchor().GetOrigin(), coPos) <= 60 && FreeEscortSeats(coVeh) > 0)
   {
-   GetIn(coVeh.GetOrigin());
+   BoardVehicle(Vehicle.Cast(coVeh), coVeh.GetOrigin());
+   escortVeh = coVeh;
   }
   else if (GetAnchor() && vector.DistanceXZ(GetAnchor().GetOrigin(), coPos) > 45)
   {
@@ -743,14 +778,21 @@ modded class ACR_Squad
   }
   m_iEscortPlayerId = playerId;
   m_vEscortAnchor = coPos;
-  m_Order = "Escorting CO";
+  m_EscortVehicle = escortVeh;
+  SetOrder("Escorting CO", m_eOrderState);
   return true;
  }
 
  void TickEscort()
  {
   if (m_iEscortPlayerId <= 0) return;
-  if (PlayerSteers() || m_bAICommanded) { m_iEscortPlayerId = 0; m_vEscortAnchor = vector.Zero; return; }
+  if (PlayerSteers() || m_bAICommanded)
+  {
+   m_iEscortPlayerId = 0;
+   m_vEscortAnchor = vector.Zero;
+   m_EscortVehicle = null;
+   return;
+  }
   IEntity anchor = GetAnchor();
   if (!anchor) return;
   PlayerManager pm = GetGame().GetPlayerManager();
@@ -763,6 +805,7 @@ modded class ACR_Squad
    int lostId = m_iEscortPlayerId;
    m_iEscortPlayerId = 0;
    m_vEscortAnchor = vector.Zero;
+   m_EscortVehicle = null;
    Defend(anchor.GetOrigin());
    ACR_Manager manager = ACR_Manager.GetInstance();
    if (manager) manager.Notify(lostId, m_Name + ": holding position after CO lost");
@@ -770,28 +813,76 @@ modded class ACR_Squad
   }
   vector coPos = main.GetOrigin();
   IEntity coVeh = ACR_Transport.VehicleOf(main);
-  if (coVeh && ACR_Transport.VehicleOf(anchor) == coVeh)
+  int keepId = m_iEscortPlayerId;
+  IEntity keepVeh = m_EscortVehicle;
+
+  // If the CO left the vehicle we rode in with them, dismount and resume foot escort.
+  if (m_EscortVehicle && coVeh != m_EscortVehicle)
   {
-   m_vEscortAnchor = coPos;
-   return;
+   if (CountAboard(m_EscortVehicle) > 0)
+   {
+    if (OrderState() == ACR_EOrderState.GET_OUT)
+    {
+     m_vEscortAnchor = coPos;
+     return;
+    }
+    if (GetOut())
+    {
+     m_iEscortPlayerId = keepId;
+     m_EscortVehicle = keepVeh;
+     m_vEscortAnchor = coPos;
+     SetOrder("Escorting CO", m_eOrderState);
+     return;
+    }
+   }
+   else
+   {
+    m_EscortVehicle = null;
+    keepVeh = null;
+   }
   }
-  if (coVeh && !IsMounted() && vector.DistanceXZ(anchor.GetOrigin(), coPos) <= 60 && ACR_Rides.FreeSeats(coVeh) > 0)
+
+  if (coVeh)
   {
-   int keepId = m_iEscortPlayerId;
-   GetIn(coVeh.GetOrigin());
-   m_iEscortPlayerId = keepId;
-   m_vEscortAnchor = coPos;
-   m_Order = "Escorting CO";
-   return;
+   int aboard = CountAboard(coVeh);
+   int alive = CountAlive();
+   int freeSeats = FreeEscortSeats(coVeh);
+   if (aboard > 0 && (aboard >= alive || freeSeats <= 0))
+   {
+    m_EscortVehicle = coVeh;
+    m_vEscortAnchor = coPos;
+    if (m_Order != "Escorting CO") SetOrder("Escorting CO", ACR_EOrderState.NONE);
+    return;
+   }
+   bool alreadyBoarding = OrderState() == ACR_EOrderState.GET_IN && m_BoardTarget == coVeh;
+   if (alreadyBoarding)
+   {
+    if (aboard > 0 || vector.DistanceXZ(anchor.GetOrigin(), coPos) <= 80)
+    {
+     m_vEscortAnchor = coPos;
+     return;
+    }
+   }
+   else if ((!IsMounted() || aboard > 0) && vector.DistanceXZ(anchor.GetOrigin(), coPos) <= 60 && freeSeats > 0)
+   {
+    BoardVehicle(Vehicle.Cast(coVeh), coVeh.GetOrigin());
+    m_iEscortPlayerId = keepId;
+    m_EscortVehicle = coVeh;
+    m_vEscortAnchor = coPos;
+    SetOrder("Escorting CO", m_eOrderState);
+    return;
+   }
   }
-  if (vector.DistanceXZ(coPos, m_vEscortAnchor) > 35)
+
+  bool staleBoarding = OrderState() == ACR_EOrderState.GET_IN && (!coVeh || m_BoardTarget != coVeh || vector.DistanceXZ(anchor.GetOrigin(), coPos) > 80);
+  if (staleBoarding || vector.DistanceXZ(coPos, m_vEscortAnchor) > 35)
   {
-   int keepId = m_iEscortPlayerId;
    if (vector.DistanceXZ(anchor.GetOrigin(), coPos) > 50) MoveTo(coPos);
    else Defend(coPos);
    m_iEscortPlayerId = keepId;
+   m_EscortVehicle = keepVeh;
    m_vEscortAnchor = coPos;
-   m_Order = "Escorting CO";
+   SetOrder("Escorting CO", m_eOrderState);
   }
  }
 
