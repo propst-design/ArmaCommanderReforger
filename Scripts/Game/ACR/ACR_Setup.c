@@ -501,7 +501,7 @@ class ACR_Setup
  // it was last, a page away).
  static array<string> RowKeys()
  {
-  array<string> keys = {"west", "east", "matchtype", "coinarmy", "coininsurgency", "coinstrength", "coinposture", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "twoic", "unitcap", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "periodjets", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "pullover", "mines", "minesreal", "minesai", "fortify", "fortifyai", "aibuild", "baseworks", "fieldsoffire", "squadtactics", "evadearmour", "supplyruns", "hubs", "saveroutes", "supplylines"};
+  array<string> keys = {"west", "east", "matchtype", "coinarmy", "coininsurgency", "coinstrength", "coinposture", "layout", "seed", "map", "undo", "pockets", "quickstart", "guerrillas", "fiaallegiance", "fialeaning", "fiahidden", "zombies", "zombiemode", "outbreak", "threat", "pricing", "ai", "doctrinewest", "doctrineeast", "doctrineadapt", "aicommander", "twoic", "unitcap", "capscale", "startrp", "income", "companywest", "companyeast", "decks", "deckeditor", "deckpoints", "deckwest", "deckeast", "shared", "holdguns", "declutter", "intro", "periodjets", "deployment", "reinforcement", "fobservices", "fobrelay", "depotcapacity", "servicecost", "rpservice", "pullover", "mines", "minesreal", "minesai", "fortify", "fortifyai", "aibuild", "baseworks", "fieldsoffire", "squadtactics", "evadearmour", "supplyruns", "hubs", "saveroutes", "supplylines", "commandpresence"};
   return keys;
  }
 
@@ -595,6 +595,7 @@ class ACR_Setup
   if (key == "hubs") return "Logistics hubs";
   if (key == "saveroutes") return "Save supply routes";
   if (key == "supplylines") return "Supply lines (isolated bases)";
+  if (key == "commandpresence") return "Command presence (frontline CO)";
   return key;
  }
 
@@ -673,6 +674,7 @@ class ACR_Setup
   if (key == "hubs") return "Trucks load and restock only at the HQ, ports and FOBs with\na supply depot, not at every base. Needs supply runs to matter most.";
   if (key == "saveroutes") return "Routes supply trucks drove are kept in the host's profile for\nthis map and used in later matches. Nothing leaves this machine.";
   if (key == "supplylines") return "Bases cut off from HQ, ports and depot FOBs (or blocked by enemy\nroadblocks) earn half RP and block deploy/reinforce until relieved.";
+  if (key == "commandpresence") return "Leading from your command unit steadies nearby squads (200 m),\ntightens observed fire support (650 m), and pauses off-map supports 30 s if killed.";
   return "";
  }
 
@@ -745,6 +747,7 @@ class ACR_Setup
   else if (key == "holdguns") values = {"1", "0"};
   else if (key == "declutter") values = {"1", "0"};
   else if (key == "intro") values = {"1", "0"};
+  else if (key == "commandpresence") values = {"1", "0"};
   else if (key == "deployment") values = {"military", "all", "hq"};
   else if (key == "reinforcement") values = {"settlements", "all", "deployment"};
   else if (key == "fobservices") values = {"supplies", "free"};
@@ -822,6 +825,7 @@ class ACR_Setup
   if (key == "hubs") return "acrLogisticsHubs";
   if (key == "saveroutes") return "acrSaveRoutes";
   if (key == "supplylines") return "acrSupplyLines";
+  if (key == "commandpresence") return "acrCommandPresence";
   return "";
  }
 
@@ -906,6 +910,7 @@ class ACR_Setup
   if (key == "holdguns" && value == "") return "1";
   if (key == "declutter" && value == "") return "1";
   if (key == "intro" && value == "") return "1";
+  if (key == "commandpresence" && value == "") return "1";
   return value;
  }
 
@@ -1642,6 +1647,7 @@ class ACR_SetupDialog : SCR_ConfigurableDialogUi
   if (key == "mines" || key == "minesreal" || key == "minesai" || key == "fortify" || key == "fortifyai" || key == "aibuild" || key == "baseworks" || key == "fieldsoffire") return 4;
   // COIN's AI posture beside the AI's other build rows: Battlefield is full in COIN (21 Nov).
   if (key == "coinposture") return 4;
+  if (key == "commandpresence") return 5;
   if (ACR_Setup.Experimental(key)) return 5;
   return 0;
  }

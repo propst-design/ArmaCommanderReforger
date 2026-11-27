@@ -43,7 +43,9 @@ enum ACR_ERequest
  ORDER_EVAC,         // set an evac point at point and go there (Containment, ACR_Evac)
  TOGGLE_2IC_EVAC,    // no squad: "I'm the 2IC" runs this side's evacs or leaves them to the commander
  TRUCE_OFFER,        // no squad: offer the other side a truce, or accept theirs (ACR_Truce, TvTvZ)
- TRUCE_REFUSE        // no squad: refuse or withdraw an offer, or break the truce
+ TRUCE_REFUSE,       // no squad: refuse or withdraw an offer, or break the truce
+ ORDER_ESCORT,       // escort the issuing commander's primary command unit
+ CO_PICKUP           // summon a free transport to pick up the commander's primary command unit
 }
 
 // Arma Commander core. One instance exists on every machine while the mode is
@@ -223,6 +225,7 @@ class ACR_Manager : Managed
  static void Stop()
  {
   ACR_OrganEasterEgg.Reset();
+  ACR_CommandPresence.Reset();
   ACR_Intro.Reset();
   ACR_RTSCameraManager.Close();
   ACR_RTSCameraManager.s_bAdminUnbound = false; // a listen host's /acr unbound ends with his match
@@ -603,6 +606,7 @@ class ACR_Manager : Managed
   m_Requisition.TickPending();
   t = ACR_Perf.Lap("scan", t);
   EnsureCommanders();
+  ACR_CommandPresence.Tick(this);
   m_Bases.Tick(this);
   ACR_RadioAudio.Tick();
   ACR_RadioIntercept.TickRelays(this);

@@ -416,6 +416,23 @@ class ACR_OrderDisplay : Managed
    }
    Ring(cx, cy, radius, red.PackToInt(), 3, 48);
   }
+  // Subtle green leadership ring around the local commander's primary command unit.
+  if (ACR_CommandPresence.On())
+  {
+   SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
+   IEntity main;
+   if (pc) main = pc.GetMainEntity();
+   if (main && ACR_Respawn.IsAlive(main))
+   {
+    vector coPos = main.GetOrigin();
+    int ccx, ccy, cex, cey;
+    mapEntity.WorldToScreen(coPos[0], coPos[2], ccx, ccy, true);
+    mapEntity.WorldToScreen(coPos[0] + ACR_CommandPresence.COMMAND_RADIUS, coPos[2], cex, cey, true);
+    float coRadius = Math.Max(Math.AbsFloat(cex - ccx), 6);
+    Color coGreen = new Color(0.25, 0.95, 0.4, 0.45);
+    Ring(ccx, ccy, coRadius, coGreen.PackToInt(), 1.5, 64);
+   }
+  }
  }
 
  // ---------------------------------------------------------------- shaped minefields (#200)

@@ -346,7 +346,9 @@ class ACR_BaseSystem : Managed
    {
     int count;
     inside.Find(key, count);
-    inside.Set(key, count + 1);
+    int weight = 1;
+    if (ACR_CommandPresence.IsActiveBody(body)) weight += ACR_CommandPresence.CAPTURE_BONUS;
+    inside.Set(key, count + weight);
     if (!base.m_aDetectedBy.Contains(key))
     {
      ACR_Intel finder;

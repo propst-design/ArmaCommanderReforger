@@ -710,9 +710,95 @@ modded class ACR_Squad
  //  - a Fast (forced) move stops ignoring the enemy once the squad makes contact;
  //  - a squad that reaches its destination takes up positions instead of standing around;
  //  - soldiers get the mission's AI skill.
+ // Escort CO (ORDER_ESCORT): follows the issuing player's primary command unit, boarding
+ // their vehicle when open seats are within reach, and holding ground if the CO falls.
+ bool StartEscort(int playerId, out string refusal)
+ {
+  refusal = "";
+  if (playerId <= 0) { refusal = "no commander"; return false; }
+  SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerManager().GetPlayerController(playerId));
+  if (!pc) { refusal = "commander unavailable"; return false; }
+  IEntity main = pc.GetMainEntity();
+  if (!main || !ACR_Respawn.IsAlive(main)) { refusal = "your command unit is dead"; return false; }
+  if (m_iEscortPlayerId == playerId)
+  {
+   m_iEscortPlayerId = 0;
+   m_vEscortAnchor = vector.Zero;
+   if (GetAnchor()) Defend(GetAnchor().GetOrigin());
+   return true;
+  }
+  vector coPos = main.GetOrigin();
+  IEntity coVeh = ACR_Transport.VehicleOf(main);
+  if (coVeh && !IsMounted() && GetAnchor() && vector.DistanceXZ(GetAnchor().GetOrigin(), coPos) <= 60 && ACR_Rides.FreeSeats(coVeh) > 0)
+  {
+   GetIn(coVeh.GetOrigin());
+  }
+  else if (GetAnchor() && vector.DistanceXZ(GetAnchor().GetOrigin(), coPos) > 45)
+  {
+   MoveTo(coPos);
+  }
+  else
+  {
+   Defend(coPos);
+  }
+  m_iEscortPlayerId = playerId;
+  m_vEscortAnchor = coPos;
+  m_Order = "Escorting CO";
+  return true;
+ }
+
+ void TickEscort()
+ {
+  if (m_iEscortPlayerId <= 0) return;
+  if (PlayerSteers() || m_bAICommanded) { m_iEscortPlayerId = 0; m_vEscortAnchor = vector.Zero; return; }
+  IEntity anchor = GetAnchor();
+  if (!anchor) return;
+  PlayerManager pm = GetGame().GetPlayerManager();
+  SCR_PlayerController pc;
+  if (pm) pc = SCR_PlayerController.Cast(pm.GetPlayerController(m_iEscortPlayerId));
+  IEntity main;
+  if (pc) main = pc.GetMainEntity();
+  if (!main || !ACR_Respawn.IsAlive(main))
+  {
+   int lostId = m_iEscortPlayerId;
+   m_iEscortPlayerId = 0;
+   m_vEscortAnchor = vector.Zero;
+   Defend(anchor.GetOrigin());
+   ACR_Manager manager = ACR_Manager.GetInstance();
+   if (manager) manager.Notify(lostId, m_Name + ": holding position after CO lost");
+   return;
+  }
+  vector coPos = main.GetOrigin();
+  IEntity coVeh = ACR_Transport.VehicleOf(main);
+  if (coVeh && ACR_Transport.VehicleOf(anchor) == coVeh)
+  {
+   m_vEscortAnchor = coPos;
+   return;
+  }
+  if (coVeh && !IsMounted() && vector.DistanceXZ(anchor.GetOrigin(), coPos) <= 60 && ACR_Rides.FreeSeats(coVeh) > 0)
+  {
+   int keepId = m_iEscortPlayerId;
+   GetIn(coVeh.GetOrigin());
+   m_iEscortPlayerId = keepId;
+   m_vEscortAnchor = coPos;
+   m_Order = "Escorting CO";
+   return;
+  }
+  if (vector.DistanceXZ(coPos, m_vEscortAnchor) > 35)
+  {
+   int keepId = m_iEscortPlayerId;
+   if (vector.DistanceXZ(anchor.GetOrigin(), coPos) > 50) MoveTo(coPos);
+   else Defend(coPos);
+   m_iEscortPlayerId = keepId;
+   m_vEscortAnchor = coPos;
+   m_Order = "Escorting CO";
+  }
+ }
+
  void Tactics(int skill, float now)
  {
   WatchCrew();
+  TickEscort();
   // A builder fights normally (Jacob, 18 Oct); its progress pauses while in contact.
   if (OrderState() == ACR_EOrderState.BUILD_FOB) TickEstablishFob(now);
   // A regroup or a player taking the squad sets the order aside and restores it: the build
@@ -738,7 +824,7 @@ modded class ACR_Squad
    if (!body || !manager) continue;
    SCR_AICombatComponent combat = SCR_AICombatComponent.Cast(body.FindComponent(SCR_AICombatComponent));
    float reaction = manager.m_fAIPerception;
-   if (!ACR_AISkill.IsPinned(body)) reaction *= vetReaction;
+   if (!ACR_AISkill.IsPinned(body)) reaction *= vetReaction * ACR_CommandPresence.ReactionScale(this);
    ACR_AISkill.Apply(combat, m_Group, skill, reaction, "", vetSteps);
   }
   // A player leads (or drives) this squad: they give the orders, e.g. with the command wheel.

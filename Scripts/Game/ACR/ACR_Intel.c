@@ -1095,7 +1095,13 @@ class ACR_Intel : Managed
    if (!squad || squad.GetName() != spotter || !squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction) continue;
    // Silent mode enforces radio discipline: no interceptable transmission signature.
    if (squad.m_Mode == ACR_EMoveMode.SILENT) return vector.Zero;
-   if (squad.GetAnchor()) return squad.GetAnchor().GetOrigin();
+   if (squad.GetAnchor())
+   {
+    vector at = squad.GetAnchor().GetOrigin();
+    // Local runner/voice comms near an active CO emit no radio signature.
+    if (ACR_CommandPresence.Near(m_sFaction, at, ACR_CommandPresence.SILENT_ORDER_RADIUS)) return vector.Zero;
+    return at;
+   }
    return vector.Zero;
   }
   array<int> players = {};

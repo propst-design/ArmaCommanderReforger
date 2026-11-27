@@ -2050,6 +2050,7 @@ modded class SCR_PlayerController
    case ACR_EPanelAction.TWOIC_EVAC: ACR_Request(ACR_ERequest.TOGGLE_2IC_EVAC); return;
    case ACR_EPanelAction.TRUCE_OFFER: ACR_Request(ACR_ERequest.TRUCE_OFFER); return;
    case ACR_EPanelAction.TRUCE_REFUSE: ACR_Request(ACR_ERequest.TRUCE_REFUSE); return;
+   case ACR_EPanelAction.CO_PICKUP: ACR_Request(ACR_ERequest.CO_PICKUP); return;
    case ACR_EPanelAction.MINES_AP: ACR_ToggleCursor(ACR_ECursorMode.MINES_AP); return;
    case ACR_EPanelAction.MINES_AT: ACR_ToggleCursor(ACR_ECursorMode.MINES_AT); return;
    case ACR_EPanelAction.MINES_MIXED: ACR_ToggleCursor(ACR_ECursorMode.MINES_MIXED); return;
@@ -2075,6 +2076,7 @@ modded class SCR_PlayerController
    case ACR_EPanelAction.HALT: ACR_RequestSelected(ACR_ERequest.ORDER_HALT); return;
    case ACR_EPanelAction.FIRE_AT_WILL: ACR_RequestSelected(ACR_ERequest.ORDER_FIRE_AT_WILL); return;
    case ACR_EPanelAction.PATROL: ACR_RequestSelected(ACR_ERequest.ORDER_PATROL); return;
+   case ACR_EPanelAction.ESCORT: ACR_RequestSelected(ACR_ERequest.ORDER_ESCORT); return;
    case ACR_EPanelAction.PING_LOOK: ACR_PickPing(ACR_EPing.LOOK); return;
    case ACR_EPanelAction.PING_ATTACK: ACR_PickPing(ACR_EPing.ATTACK); return;
    case ACR_EPanelAction.PING_DEFEND: ACR_PickPing(ACR_EPing.DEFEND); return;

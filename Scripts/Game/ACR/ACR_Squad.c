@@ -866,6 +866,8 @@ class ACR_Squad : Managed
  bool m_bClaimed;     // a player led or ordered it: the 2IC leaves it alone until handed back (ACR_SquadAI)
  ref array<IEntity> m_aHeldGuns = {}; // static guns at the spot it holds that its men sat in (ACR_GunHold)
  bool m_bPatrol;     // the queued points loop: each goes back at the end once the squad sets off for it
+ int m_iEscortPlayerId; // >0: escorting this player's primary command unit (ORDER_ESCORT)
+ vector m_vEscortAnchor;
  int m_OrderKind;   // ACR_EOrderKind, for map symbology
  protected float m_fNextWaypointRecovery;
  protected int m_iWaypointRecoveries;
@@ -2626,6 +2628,8 @@ class ACR_Squad : Managed
   m_aQueuePos.Clear();
   m_aQueueKind.Clear();
   m_bPatrol = false; // a new order ends a patrol
+  m_iEscortPlayerId = 0;
+  m_vEscortAnchor = vector.Zero;
  }
 
  // Patrol (map panel): the squad walks its queued points (Shift + right-click) in a loop, the
@@ -4198,6 +4202,7 @@ class ACR_Squad : Managed
   if (!missing.IsEmpty()) text += string.Format(" | %1 missing", missing.Count());
   string vet = ACR_Veterancy.Tag(this);
   if (!vet.IsEmpty()) text += " | " + vet;
+  if (ACR_CommandPresence.InCommandRange(this)) text += " | CO nearby";
   return text;
  }
 

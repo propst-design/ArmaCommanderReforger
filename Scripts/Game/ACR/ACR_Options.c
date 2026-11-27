@@ -144,7 +144,7 @@ class ACR_Options
  static void Log()
  {
   string line;
-  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIASpoils", "acrFIAGrievance", "acrFIAHidden", "acrMatchType", "acrCoinArmy", "acrCoinInsurgency", "acrCoinInsurgent", "acrCoinInsurgentIncome", "acrCoinStrength", "acrCoinPosture", "acrCoinHostileIncome", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrHQWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrHoldGuns", "acrMapDeclutter", "acrIntro", "acrIntroMusic", "acrIntroMusicZombies", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAICommander", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC", "acrSupplyRuns", "acrLogisticsHubs", "acrSaveRoutes"};
+  array<string> names = {"acrLayout", "acrSize", "acrPockets", "acrQuickStart", "acrGuerrillas", "acrFIAAllegiance", "acrFIALeaning", "acrFIASpoils", "acrFIAGrievance", "acrFIAHidden", "acrMatchType", "acrCoinArmy", "acrCoinInsurgency", "acrCoinInsurgent", "acrCoinInsurgentIncome", "acrCoinStrength", "acrCoinPosture", "acrCoinHostileIncome", "acrZombies", "acrZombieMode", "acrOutbreak", "acrFactions", "acrPlayers", "acrThreat", "acrPricing", "acrAI", "acrDoctrineWest", "acrDoctrineEast", "acrDoctrineAdapt", "acrCompanyWest", "acrCompanyEast", "acrUnitCap", "acrSoldierCap", "acrStartRP", "acrIncome", "acrSkill", "acrReaction", "acrSharedCommand", "acrRespawnSeconds", "acrGameMasterAll", "acrMarksmen", "acrFirstPlayerHost", "acrSetup", "acrDeployment", "acrReinforcement", "acrFobServices", "acrFobRelay", "acrDepotCapacity", "acrServiceSupplyCost", "acrFobRPServiceCost", "acrMines", "acrMinesRealistic", "acrMinesAI", "acrCapScale", "acrAIBuildShare", "acrFortify", "acrFortifyAI", "acrBaseWorks", "acrHQWorks", "acrBaseBays", "acrBaseSmallGuns", "acrWings", "acrBaseStyles", "acrBasePlacement", "acrEmplacements", "acrWingMen", "acrBaseDress", "acrBaseObstacles", "acrBagHold", "acrBaseRing", "acrKillGround", "acrBaseFinalWalk", "acrHoldGuns", "acrMapDeclutter", "acrIntro", "acrIntroMusic", "acrIntroMusicZombies", "acrSquadTactics", "acrRoadFlow", "acrFortifyDefenders1", "acrFortifyDefenders2", "acrFortifyDefenders3", "acrRoadblockDefenders", "acrFieldRoutes", "acrAICommander", "acrAIStrategy", "acrAIAllocator", "acrPeriodJets", "acrCoveredFallBack", "acrDefenceForecast", "acrAttackGround", "acrFieldsOfFire", "acrPullOver", "acrEvadeArmour", "acr2IC", "acrSupplyRuns", "acrLogisticsHubs", "acrSaveRoutes", "acrCommandPresence"};
   foreach (string name : names)
   {
    string value;
@@ -281,6 +281,8 @@ class ACR_MissionHeader : SCR_MissionHeader
  int m_iAcrMapDeclutter;
  [Attribute("-1", UIWidgets.EditBox, "Mission intro (orbit of the HQ, title, flight into the player): 1 default, 0 off (-acrIntro)")]
  int m_iAcrIntro;
+ [Attribute("-1", UIWidgets.EditBox, "Command presence aura, observed fire support, and 30 s support disruption on CO death: 1 default, 0 off (-acrCommandPresence)")]
+ int m_iAcrCommandPresence;
  [Attribute("", UIWidgets.EditBox, "Mission intro music: {GUID}path.acp:EVENT, or off; blank = Cliffhanger (-acrIntroMusic)")]
  string m_sAcrIntroMusic;
 
@@ -402,6 +404,7 @@ class ACR_MissionHeader : SCR_MissionHeader
   Number(values, "acrHoldGuns", m_iAcrHoldGuns);
   Number(values, "acrMapDeclutter", m_iAcrMapDeclutter);
   Number(values, "acrIntro", m_iAcrIntro);
+  Number(values, "acrCommandPresence", m_iAcrCommandPresence);
   Text(values, "acrIntroMusic", m_sAcrIntroMusic);
   Text(values, "acrIntroMusicZombies", m_sAcrIntroMusicZombies);
   Number(values, "acrMinesAI", m_iAcrMinesAI);

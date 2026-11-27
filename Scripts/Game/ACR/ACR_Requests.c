@@ -35,8 +35,19 @@ class ACR_Requests : Managed
    case ACR_ERequest.TOGGLE_2IC_EVAC: return TwoICEvac(pc);
    case ACR_ERequest.TRUCE_OFFER: return Truce(pc, true);
    case ACR_ERequest.TRUCE_REFUSE: return Truce(pc, false);
+   case ACR_ERequest.CO_PICKUP: return CoPickup(pc, point);
   }
   return Order(pc, command, targetId, point);
+ }
+
+ // Summon a free friendly transport to pick up the commander's primary command unit.
+ protected string CoPickup(SCR_PlayerController pc, vector point)
+ {
+  if (!m_Manager.IsCommander(pc.GetPlayerId())) return "Only the commander can do that. Take command first.";
+  if (!m_Manager.m_Rides) m_Manager.m_Rides = new ACR_Rides(m_Manager);
+  string why;
+  if (!m_Manager.m_Rides.RequestForCommander(pc, point, why)) return "CO pickup refused: " + why;
+  return why;
  }
 
  // The commander keeps evacs from "I'm the 2IC" (-acr2IC 2), or hands them back (ACR_Evac.TwoICExtracts).
@@ -311,6 +322,7 @@ class ACR_Requests : Managed
    case ACR_ERequest.ORDER_FORTIFY: return "fortifying";
    case ACR_ERequest.ORDER_QRF: return "standing by as a QRF";
    case ACR_ERequest.ORDER_EVAC: return "setting an evac point";
+   case ACR_ERequest.ORDER_ESCORT: return "escorting CO";
   }
   return "moving";
  }
@@ -515,6 +527,14 @@ class ACR_Requests : Managed
     PrintFormat("[ACR] PATROL player=%1 %2 patrol %3", pc.GetPlayerId(), name, squad.m_bPatrol);
     if (!squad.m_bPatrol) return outcome.Accept(name + ": patrol off (finishes the current leg)");
     return outcome.Accept(name + ": patrolling its points in a loop");
+   }
+   case ACR_ERequest.ORDER_ESCORT:
+   {
+    string escortWhy;
+    if (!squad.StartEscort(pc.GetPlayerId(), escortWhy)) return outcome.Refuse(name + ": " + escortWhy);
+    PrintFormat("[ACR] ESCORT player=%1 %2 escort=%3", pc.GetPlayerId(), name, squad.m_iEscortPlayerId);
+    if (squad.m_iEscortPlayerId == 0) return outcome.Accept(name + ": escort off (holding position)");
+    return outcome.Accept(name + ": escorting your command unit");
    }
    case ACR_ERequest.ORDER_FIRE_AT_WILL:
    {

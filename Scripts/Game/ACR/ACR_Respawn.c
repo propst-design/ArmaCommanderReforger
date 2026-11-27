@@ -37,7 +37,10 @@ class ACR_Respawn : Managed
  // the respawn timer (ACR_SpawnPoints.SetTimer) and the side's open spawn points.
  void OnCommandUnitKilled(int playerId)
  {
-  m_Manager.Notify(playerId, string.Format("Command unit killed. Choose where to redeploy in %1 s.", m_Manager.m_iRespawnSeconds));
+  ACR_CommandPresence.OnCommandUnitKilled(playerId);
+  string extra = "";
+  if (ACR_CommandPresence.On()) extra = " Off-map supports paused 30 s.";
+  m_Manager.Notify(playerId, string.Format("Command unit killed. Choose where to redeploy in %1 s.%2", m_Manager.m_iRespawnSeconds, extra));
   PrintFormat("[ACR] COMMAND UNIT KILLED player=%1, respawn in %2 s", playerId, m_Manager.m_iRespawnSeconds);
  }
 
@@ -288,10 +291,13 @@ class ACR_Respawn : Managed
    if (!m_DueAt.Contains(id))
    {
     Schedule(id);
+    ACR_CommandPresence.OnCommandUnitKilled(id);
     Faction faction = SCR_FactionManager.SGetPlayerFaction(id);
     string where = "your start point";
     if (faction) where = BaseName(faction.GetFactionKey());
-    m_Manager.Notify(id, string.Format("Your command unit was killed. A new one arrives at %1 in %2 s (F8 to switch when ready).", where, SecondsLeft(id)));
+    string extra = "";
+    if (ACR_CommandPresence.On()) extra = " Off-map supports paused 30 s.";
+    m_Manager.Notify(id, string.Format("Your command unit was killed. A new one arrives at %1 in %2 s (F8 to switch when ready).%3", where, SecondsLeft(id), extra));
     PrintFormat("[ACR] COMMAND UNIT LOST player=%1 (possessing)", id);
     continue;
    }
