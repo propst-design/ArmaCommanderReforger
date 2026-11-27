@@ -610,12 +610,18 @@ class ACR_AICommander : Managed
   }
 
   // Defences a committed assault squad may still be pulled to (AttackerMayDefend): real threats only.
+  // Also precompute fog-of-war enemy armor presence per job so AT/armor squads get a capability fit bonus.
   array<bool> realThreat = {};
+  array<bool> jobEnemyArmor = {};
   foreach (ACR_AIJob defJob : m_aAllocJobs)
   {
    bool pullable = true;
    if (defJob.m_iKind == ACR_EAITask.DEFEND) pullable = AttackerMayDefend(ThreatTo(defJob.m_Target), DefenceOf(defJob.m_Target), defJob.m_Target.m_bBuilt || IsHQ(defJob.m_Target));
    realThreat.Insert(pullable);
+   bool hasArmor = false;
+   if (defJob.m_Target && (defJob.m_iKind == ACR_EAITask.ATTACK || defJob.m_iKind == ACR_EAITask.DEFEND))
+    hasArmor = ACR_AIIntel.EnemyArmorNear(this, defJob.m_Target.GetOrigin(), THREAT_DISTANCE + defJob.m_Target.m_fRadius + 150);
+   jobEnemyArmor.Insert(hasArmor);
   }
   int keptOnAssault;
 
@@ -631,6 +637,7 @@ class ACR_AICommander : Managed
    ACR_AIAttack ownAttack;
    attackOf.Find(squad, ownAttack);
    bool support = IsSupportTeam(squad);
+   bool atCapable = ACR_AIRequisition.IsATSquad(squad);
    bool truckNear = AllocTruckNear(squad);
    bool heldByAssault = HeldByAssault(squad, ownAttack, pos);
    bool keptHere = false;
@@ -647,6 +654,7 @@ class ACR_AICommander : Managed
     if (fit > 0 && job.m_iKind == ACR_EAITask.ATTACK && !job.m_bTeam && !job.m_bRunning && GrabTimeOf(squad, where.GetOrigin(), float.MAX, grabByTruck) < 0) fit = 0;
     if (job.m_iKind == ACR_EAITask.ATTACK && !job.m_bTeam && !job.m_bRunning && GrabBarred(squad, where)) fit = 0; // stalled there lately
     if (job.m_iKind == ACR_EAITask.DEFEND && support) fit = 0.3;
+    if (fit > 0 && atCapable && jobEnemyArmor[j]) fit *= 1.3;
     // Committed to an assault: a defence only for a real threat there, never for a forecast alone.
     if (job.m_iKind == ACR_EAITask.DEFEND && heldByAssault && !realThreat[j])
     {
