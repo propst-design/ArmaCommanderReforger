@@ -143,6 +143,8 @@ class ACR_AIScreens
   if (!squad) return false;
   foreach (ACR_ScreenPost post : cmd.m_Screens)
    if (post.m_Squad == squad) return true;
+  foreach (ACR_ScreenPost op : cmd.m_ReconPosts)
+   if (op.m_Squad == squad) return true;
   return false;
  }
 
@@ -155,6 +157,7 @@ class ACR_AIScreens
 
  static void ManageScreens(ACR_AICommander cmd)
  {
+  ManageGroundRecon(cmd);
   if (!cmd.m_Forecast || !ACR_DefenceForecast.Acts())
   {
    cmd.m_Screens.Clear();
@@ -171,8 +174,8 @@ class ACR_AIScreens
   {
    ACR_ScreenPost post = cmd.m_Screens[i];
    ACR_Squad squad = post.m_Squad;
-   // Someone else has it now (a player, a defence, a refit), or it's gone.
-   if (!squad || !cmd.m_Manager.m_Squads.Contains(squad) || squad.CountAlive() == 0 || squad.PlayerSteers() || !cmd.Ours(squad) || squad.m_iAITask != ACR_EAITask.POSTED || !post.m_Base || post.m_Base.m_sOwner != cmd.m_sFaction)
+   // Someone else has it now (a player, a defence, a refit, an ambush fade), or it's gone.
+   if (!squad || !cmd.m_Manager.m_Squads.Contains(squad) || squad.CountAlive() == 0 || squad.PlayerSteers() || !cmd.Ours(squad) || squad.m_iAITask != ACR_EAITask.POSTED || squad.m_OrderLabel == "Fading to hideout" || !post.m_Base || post.m_Base.m_sOwner != cmd.m_sFaction)
    {
     cmd.m_Screens.Remove(i);
     continue;
@@ -305,6 +308,20 @@ class ACR_AIScreens
   cmd.LeaveAttacks(squad);
   squad.SetAITask(ACR_EAITask.POSTED);
   squad.SetMode(ACR_EMoveMode.COMBAT);
+  // Forecast counter-ambush: when a foot screen sits near a road along the enemy's predicted
+  // approach, lay a real road ambush (ACR_Ambush) instead of a passive Defend.
+  bool ambushing = false;
+  vector road, roadDir, ambSite, ambKz;
+  float roadWidth;
+  string ambWhy;
+  if (!squad.IsMounted() && !ACR_Transport.CrewedVehicle(squad) && ACR_Minefields.Snap(spot, 120, road, roadDir, roadWidth))
+   ambushing = ACR_Ambush.DefendOnRoad(squad, road, ambSite, ambKz, ambWhy);
+  if (ambushing)
+  {
+   post.m_vSpot = ambSite;
+   cmd.Say(string.Format("[ACR] AI %1: screen %2 %3 road ambush %4 m out from %5, watching the %6", cmd.m_sFaction, squad.GetName(), what, Math.Round(vector.DistanceXZ(ambSite, post.m_Base.GetOrigin())), post.m_Base.m_sName, ACR_DefenceForecast.CompassOf(bearing)));
+   return;
+  }
   squad.Defend(spot);
   cmd.Say(string.Format("[ACR] AI %1: screen %2 %3 %4 m out from %5, watching the %6 (sees %7/%8 of the way out)", cmd.m_sFaction, squad.GetName(), what, Math.Round(vector.DistanceXZ(spot, post.m_Base.GetOrigin())), post.m_Base.m_sName, ACR_DefenceForecast.CompassOf(bearing), sees, ACR_DefenceScreen.SAMPLES));
  }
@@ -334,12 +351,102 @@ class ACR_AIScreens
   ManageScreens(cmd);
  }
 
+ // Offensive ground recon: task idle recon/observer/sniper teams to overwatch OPs facing
+ // unphotographed or active-lane enemy bases, feeding ACR_Intel + ACR_FireMissions and pulling
+ // back on close contact.
+ static void ManageGroundRecon(ACR_AICommander cmd)
+ {
+  float now = GetGame().GetWorld().GetWorldTime();
+  // Prune and monitor active recon OPs.
+  for (int i = cmd.m_ReconPosts.Count() - 1; i >= 0; i--)
+  {
+   ACR_ScreenPost op = cmd.m_ReconPosts[i];
+   ACR_Squad squad = op.m_Squad;
+   if (!squad || !cmd.m_Manager.m_Squads.Contains(squad) || squad.CountAlive() == 0 || squad.PlayerSteers() || !cmd.Ours(squad) || squad.m_iAITask != ACR_EAITask.POSTED)
+   {
+    cmd.m_ReconPosts.Remove(i);
+    continue;
+   }
+   if (!op.m_Base || op.m_Base.m_bRetired || op.m_Base.m_sOwner == cmd.m_sFaction || !cmd.HostileOwner(op.m_Base))
+   {
+    squad.SetAITask(ACR_EAITask.FREE);
+    cmd.m_ReconPosts.Remove(i);
+    continue;
+   }
+   float pullDist = 160;
+   if (ACR_Raid.IsNight()) pullDist = 110;
+   if (squad.KnownEnemies(pullDist) > 0 || squad.StrengthRatio() < 0.7)
+   {
+    cmd.m_ReconAgain.Set(op.m_Base, now + 300000);
+    cmd.FallBack(squad, "recon OP compromised at " + op.m_Base.m_sName);
+    cmd.m_ReconPosts.Remove(i);
+    continue;
+   }
+  }
+  // Assign idle recon teams (excluded from attacks/allocator) to forward OPs.
+  array<ACR_Squad> free = {};
+  cmd.MySquads(free, true);
+  foreach (ACR_Squad recon : free)
+  {
+   if (!ACR_AICommander.IsReconTeam(recon) || recon == cmd.m_ReserveSquad || recon == cmd.m_FobEscort || recon.m_Commander != 0) continue;
+   if (recon.KnownEnemies(200) > 0 || cmd.DueForRefit(recon)) continue;
+   ACR_Base target = ReconTargetBase(cmd, recon, now);
+   if (!target) continue;
+   vector spot;
+   if (!cmd.OverwatchSpot(target, cmd.PositionOf(recon), spot)) continue;
+   ACR_ScreenPost op = new ACR_ScreenPost();
+   op.m_Base = target;
+   op.m_Squad = recon;
+   op.m_vSpot = spot;
+   op.m_fSince = now;
+   cmd.m_ReconPosts.Insert(op);
+   recon.SetAITask(ACR_EAITask.POSTED);
+   recon.SetMode(ACR_EMoveMode.COMBAT);
+   recon.Defend(spot);
+   cmd.Say(string.Format("[ACR] AI %1: recon %2 moves to OP overlooking %3 (%4 m out)", cmd.m_sFaction, recon.GetName(), target.m_sName, Math.Round(vector.DistanceXZ(spot, target.GetOrigin()))));
+  }
+ }
+
+ protected static ACR_Base ReconTargetBase(ACR_AICommander cmd, ACR_Squad recon, float now)
+ {
+  vector from = cmd.PositionOf(recon);
+  ACR_Base best;
+  float bestScore = float.MAX;
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || base.m_sOwner == cmd.m_sFaction || !cmd.HostileOwner(base) || !cmd.Visible(base)) continue;
+   float again;
+   if (cmd.m_ReconAgain.Find(base, again) && now < again) continue;
+   bool watched = false;
+   foreach (ACR_ScreenPost op : cmd.m_ReconPosts)
+    if (op.m_Base == base) { watched = true; break; }
+   if (watched) continue;
+   float maxReach = 2500;
+   if (ACR_Raid.IsNight()) maxReach = 3200;
+   float d = vector.DistanceXZ(from, base.GetOrigin());
+   if (d > maxReach) continue;
+   float score = d;
+   if (cmd.InLaneOrFlank(base)) score *= 0.5;
+   if (!ACR_AIIntel.Photographed(cmd, base)) score *= 0.7;
+   if (score < bestScore) { bestScore = score; best = base; }
+  }
+  return best;
+ }
+
  static void ThinkScreens(ACR_AICommander cmd, notnull array<string> lines)
  {
-  if (cmd.m_Screens.IsEmpty()) return;
-  lines.Insert("Screens:");
-  foreach (ACR_ScreenPost post : cmd.m_Screens)
-   if (post.m_Squad && post.m_Base) lines.Insert(string.Format("  %1 at %2, watching the %3 (%4 m out, sees %5/%6)", post.m_Squad.GetName(), post.m_Base.m_sName, ACR_DefenceForecast.CompassOf(post.m_fBearing), Math.Round(vector.DistanceXZ(post.m_vSpot, post.m_Base.GetOrigin())), post.m_iSees, ACR_DefenceScreen.SAMPLES));
+  if (!cmd.m_Screens.IsEmpty())
+  {
+   lines.Insert("Screens:");
+   foreach (ACR_ScreenPost post : cmd.m_Screens)
+    if (post.m_Squad && post.m_Base) lines.Insert(string.Format("  %1 at %2, watching the %3 (%4 m out, sees %5/%6)", post.m_Squad.GetName(), post.m_Base.m_sName, ACR_DefenceForecast.CompassOf(post.m_fBearing), Math.Round(vector.DistanceXZ(post.m_vSpot, post.m_Base.GetOrigin())), post.m_iSees, ACR_DefenceScreen.SAMPLES));
+  }
+  if (!cmd.m_ReconPosts.IsEmpty())
+  {
+   lines.Insert("Recon OPs:");
+   foreach (ACR_ScreenPost op : cmd.m_ReconPosts)
+    if (op.m_Squad && op.m_Base) lines.Insert(string.Format("  %1 overlooking %2 (%3 m out)", op.m_Squad.GetName(), op.m_Base.m_sName, Math.Round(vector.DistanceXZ(op.m_vSpot, op.m_Base.GetOrigin()))));
+  }
  }
 
  static void PositionTransports(ACR_AICommander cmd)

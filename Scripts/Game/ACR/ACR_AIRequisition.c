@@ -388,6 +388,9 @@ class ACR_AIRequisition
 
   bool boughtSF;
   float richFactor = cmd.FireFactor();
+  bool night = ACR_Raid.IsNight();
+  int seenArmor, seenInfantry, seenFortified;
+  ACR_AIIntel.SeenEnemyMix(cmd, seenArmor, seenInfantry, seenFortified);
   // The cap counts fighting units only (as above): trucks, ambulances, crewless
   // vehicles and 1-man remnants filled it on Everon and the AI sat on 1000 RP.
   for (int n = 0; n < 2 && capUsed < cap; n++)
@@ -418,8 +421,11 @@ class ACR_AIRequisition
      if (ACR_AICommander.IsServiceVehicle(entry)) continue;
      if (!entry.m_sVehicle.IsEmpty() && !entry.m_bArmed) continue;
      bool isSapper = IsSapperEntry(entry);
+     bool isAT = IsATEntry(entry);
+     bool isMG = IsMGEntry(entry);
      bool smallTeam = IsSmallTeamEntry(entry);
-     if (smallTeam && !(isSapper && HasEnemyFob(cmd)) && hasLineOffer && smallTeams >= 2 && smallTeams * 2 >= lineSquads)
+     bool needAT = isAT && seenArmor > 0;
+     if (smallTeam && !(isSapper && HasEnemyFob(cmd)) && !needAT && hasLineOffer && smallTeams >= 2 && smallTeams * 2 >= lineSquads)
      {
       // Raiders run more small teams, up to two per line squad.
       if (!cmd.m_Doctrine.m_bSmallTeamsFree || (smallTeams >= 3 && smallTeams >= lineSquads * 2)) continue;
@@ -427,9 +433,27 @@ class ACR_AIRequisition
      // Weigh by the base price: a unit whose stepped price has climbed isn't worth more.
      float weight = ACR_InfantryCatalog.AIWeight(entry);
      if (entry.m_sVehicle.IsEmpty() && !smallTeam && !IsSpecialistTeam(entry)) weight *= 1.8;
-     else if (smallTeam && !(isSapper && HasEnemyFob(cmd))) weight *= 0.35;
+     else if (smallTeam && !(isSapper && HasEnemyFob(cmd)) && !needAT) weight *= 0.35;
      if (smallTeam) weight *= cmd.m_Doctrine.m_fSmallTeamWeight;
      if (!entry.m_sVehicle.IsEmpty()) weight *= cmd.m_Doctrine.m_fVehicleWeight;
+     // Intel-driven counter-buying (strictly from seen enemy mix): counter armor with AT/vehicles,
+     // counter infantry mass and fortifications with MGs and sappers.
+     if (seenArmor > 0)
+     {
+      if (isAT) weight *= Math.Min(3.0, 1.0 + seenArmor * 0.6);
+      else if (!entry.m_sVehicle.IsEmpty()) weight *= Math.Min(1.8, 1.0 + seenArmor * 0.25);
+     }
+     if (seenFortified > 0 || seenInfantry >= 4)
+     {
+      if (isMG) weight *= 1.5;
+      if (isSapper && seenFortified > 0) weight *= 1.6;
+     }
+     // Night rhythm: lean toward infiltration/raider/sapper/observer teams over exposed armor.
+     if (night)
+     {
+      if (smallTeam || isSapper || entry.m_bObserverTeam) weight *= 1.35;
+      else if (!entry.m_sVehicle.IsEmpty()) weight *= 0.75;
+     }
      if (highThreat && !entry.m_sVehicle.IsEmpty()) weight *= 1.5;
      if (highThreat && cmd.m_sFaction == "RHS_AFRF" && IsRUArmorEntry(cmd, entry)) weight *= 2;
      if (!entry.m_sVehicle.IsEmpty() && vehicles == 0 && combatLine >= 3) weight *= 1.6;
@@ -587,6 +611,35 @@ class ACR_AIRequisition
   grp.ToLower();
   if (grp.Contains("sapper") || grp.Contains("engineer")) return true;
   return false;
+ }
+
+ static bool IsATEntry(ACR_RequisitionEntry entry)
+ {
+  if (!entry || !entry.m_sVehicle.IsEmpty()) return false;
+  if (entry.m_eFormation != ACR_EFormation.NONE) return entry.m_eFormation == ACR_EFormation.AT;
+  string name = entry.m_sName;
+  name.ToLower();
+  return name.Contains("anti-tank") || name.Contains("antitank") || name.Contains("at team") || name.Contains("rpg");
+ }
+
+ static bool IsMGEntry(ACR_RequisitionEntry entry)
+ {
+  if (!entry || !entry.m_sVehicle.IsEmpty()) return false;
+  if (entry.m_eFormation != ACR_EFormation.NONE) return entry.m_eFormation == ACR_EFormation.MG;
+  string name = entry.m_sName;
+  name.ToLower();
+  return name.Contains("machine gun") || name.Contains("mg team");
+ }
+
+ static bool IsATSquad(ACR_Squad squad)
+ {
+  if (!squad) return false;
+  if (squad.m_Group && squad.m_Group.m_eACRFormation == ACR_EFormation.AT) return true;
+  IEntity veh = ACR_Transport.CrewedVehicle(squad);
+  if (veh && squad.HasGunner(veh)) return true;
+  string name = squad.GetName();
+  name.ToLower();
+  return name.Contains("anti-tank") || name.Contains("antitank") || name.Contains("at team") || name.Contains("rpg");
  }
 
  static bool HasEnemyFob(ACR_AICommander cmd)

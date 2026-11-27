@@ -610,14 +610,21 @@ class ACR_AICommander : Managed
   }
 
   // Defences a committed assault squad may still be pulled to (AttackerMayDefend): real threats only.
+  // Also precompute fog-of-war enemy armor presence per job so AT/armor squads get a capability fit bonus.
   array<bool> realThreat = {};
+  array<bool> jobEnemyArmor = {};
   foreach (ACR_AIJob defJob : m_aAllocJobs)
   {
    bool pullable = true;
    if (defJob.m_iKind == ACR_EAITask.DEFEND) pullable = AttackerMayDefend(ThreatTo(defJob.m_Target), DefenceOf(defJob.m_Target), defJob.m_Target.m_bBuilt || IsHQ(defJob.m_Target));
    realThreat.Insert(pullable);
+   bool hasArmor = false;
+   if (defJob.m_Target && (defJob.m_iKind == ACR_EAITask.ATTACK || defJob.m_iKind == ACR_EAITask.DEFEND))
+    hasArmor = ACR_AIIntel.EnemyArmorNear(this, defJob.m_Target.GetOrigin(), THREAT_DISTANCE + defJob.m_Target.m_fRadius + 150);
+   jobEnemyArmor.Insert(hasArmor);
   }
   int keptOnAssault;
+  bool night = ACR_Raid.IsNight();
 
   // Squads: strength, what they do now, a cheap estimate and fit for every job.
   foreach (ACR_Squad squad : pool)
@@ -631,6 +638,7 @@ class ACR_AICommander : Managed
    ACR_AIAttack ownAttack;
    attackOf.Find(squad, ownAttack);
    bool support = IsSupportTeam(squad);
+   bool atCapable = ACR_AIRequisition.IsATSquad(squad);
    bool truckNear = AllocTruckNear(squad);
    bool heldByAssault = HeldByAssault(squad, ownAttack, pos);
    bool keptHere = false;
@@ -647,6 +655,12 @@ class ACR_AICommander : Managed
     if (fit > 0 && job.m_iKind == ACR_EAITask.ATTACK && !job.m_bTeam && !job.m_bRunning && GrabTimeOf(squad, where.GetOrigin(), float.MAX, grabByTruck) < 0) fit = 0;
     if (job.m_iKind == ACR_EAITask.ATTACK && !job.m_bTeam && !job.m_bRunning && GrabBarred(squad, where)) fit = 0; // stalled there lately
     if (job.m_iKind == ACR_EAITask.DEFEND && support) fit = 0.3;
+    if (fit > 0 && atCapable && jobEnemyArmor[j]) fit *= 1.3;
+    if (fit > 0 && night && job.m_iKind == ACR_EAITask.ATTACK && job.m_bTeam)
+    {
+     if (ACR_Transport.CrewedVehicle(squad)) fit *= 0.85;
+     else fit *= 1.15;
+    }
     // Committed to an assault: a defence only for a real threat there, never for a forecast alone.
     if (job.m_iKind == ACR_EAITask.DEFEND && heldByAssault && !realThreat[j])
     {
@@ -696,7 +710,7 @@ class ACR_AICommander : Managed
    // Locked: going in under fire, in a sapper raid with its charge under way, or on its way to a
    // posting (see the trips note; one bound nowhere the allocator knows stays out of it). In
    // control, defence stays AssignDefenders' (it runs first): the two never pull a defender to and fro.
-   if (ownAttack && ownAttack.m_bAssaulting && squad.KnownEnemies(300) > 0) entry.m_bLocked = true;
+   if (ownAttack && (ownAttack.m_bPrep || (ownAttack.m_bAssaulting && squad.KnownEnemies(300) > 0))) entry.m_bLocked = true;
    if (ownAttack && ownAttack.m_SapperDemo && ownAttack.m_SapperDemo.InProgress()) entry.m_bLocked = true;
    if (ACR_AirLift.Busy(squad)) entry.m_bLocked = true;
    // A fresh attack keeps its squads for a grace period: it only ends by its own rules (losses,
@@ -2853,7 +2867,8 @@ class ACR_AICommander : Managed
   if (!attack.m_bOverwatch)
   {
    vector found;
-   if (!OverwatchSpot(target, PositionOf(fire), found)) { LiftFire(attack, "no firing spot"); return; }
+   bool gotCrest = attack.m_Ground && attack.m_Ground.IsDone() && attack.m_Ground.BestFiringToward(PositionOf(fire), target.m_fRadius + OVERWATCH_MIN_GAP, FIRE_BASE_RANGE, found);
+   if (!gotCrest && !OverwatchSpot(target, PositionOf(fire), found)) { LiftFire(attack, "no firing spot"); return; }
    attack.m_vOverwatch = found;
    attack.m_bOverwatch = true;
    attack.m_fFireBaseMoveSince = 0;
@@ -3056,6 +3071,7 @@ class ACR_AICommander : Managed
    string phase = "staging";
    if (attack.m_bGrab) phase = "grab";
    else if (attack.m_bAssaulting) phase = "assault";
+   else if (attack.m_bPrep) phase = "prep";
    int minutes = 0;
    if (attack.m_fAssaultStart > 0) minutes = (now - attack.m_fAssaultStart) / 60000;
    attacks += string.Format(" %1(%2 %3m)", attack.m_Target.m_sName, phase, minutes);
@@ -3125,6 +3141,7 @@ class ACR_AICommander : Managed
    else if (attack.m_bFobRaid) kind = "FOB raid";
    string phase;
    if (attack.m_bAssaulting || attack.m_bGrab) phase = string.Format("assault %1 min", (int)((now - attack.m_fAssaultStart) / 60000));
+   else if (attack.m_bPrep) phase = string.Format("prep, %1 s left", (int)Math.Max(0, (attack.m_fPrepUntil - now) / 1000));
    else phase = string.Format("staging, %1 s left", (int)Math.Max(0, (attack.m_fStageDeadline - now) / 1000));
    string grids;
    foreach (vector stage : attack.m_aStaging)
@@ -3286,6 +3303,8 @@ class ACR_AICommander : Managed
  static const float SCREEN_QUIET_MS = 180000; // a base no longer wanted this long: its screen is released
  static const float SCREEN_AGAIN_MS = 120000; // a base whose screen pulled back isn't screened again for this long
  ref array<ref ACR_ScreenPost> m_Screens = {};
+ ref array<ref ACR_ScreenPost> m_ReconPosts = {};
+ ref map<ACR_Base, float> m_ReconAgain = new map<ACR_Base, float>();
  ref map<ACR_Base, float> m_ScreenAgain = new map<ACR_Base, float>();
 
  bool IsScreen(ACR_Squad squad) { return ACR_AIScreens.IsScreen(this, squad); }

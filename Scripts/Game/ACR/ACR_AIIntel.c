@@ -175,6 +175,46 @@ class ACR_AIIntel
   return best;
  }
 
+ // Strictly fog-of-war tally of seen enemy composition: crewed armed vehicles, combat infantry
+ // squads, and visible fortified/built enemy bases. Drives counter-buying in ACR_AIRequisition.
+ static void SeenEnemyMix(ACR_AICommander cmd, out int armor, out int infantry, out int fortified)
+ {
+  armor = 0;
+  infantry = 0;
+  fortified = 0;
+  foreach (ACR_Squad squad : cmd.m_Manager.m_Squads)
+  {
+   if (!squad || !squad.GetFaction() || squad.GetFaction().GetFactionKey() == cmd.m_sFaction) continue;
+   if (ACR_Insurgency.Friendly(squad.GetFaction().GetFactionKey(), cmd.m_sFaction)) continue;
+   vector known;
+   if (!KnownPosition(cmd, squad, known)) continue;
+   IEntity veh = ACR_Transport.CrewedVehicle(squad);
+   if (veh && squad.HasGunner(veh)) armor++;
+   else if (squad.IsCombatUnit()) infantry++;
+  }
+  foreach (ACR_Base base : ACR_Base.s_All)
+  {
+   if (!base || base.m_bRetired || base.m_sOwner == cmd.m_sFaction || !cmd.HostileOwner(base) || !cmd.Visible(base)) continue;
+   if (base.m_bBuilt || cmd.FortifiedCredit(base) > 0) fortified++;
+  }
+ }
+
+ // True when a hostile armed vehicle has a known (fog-of-war) sighting within 'radius' of 'point'.
+ static bool EnemyArmorNear(ACR_AICommander cmd, vector point, float radius)
+ {
+  foreach (ACR_Squad squad : cmd.m_Manager.m_Squads)
+  {
+   if (!squad || !squad.GetFaction() || squad.GetFaction().GetFactionKey() == cmd.m_sFaction) continue;
+   if (ACR_Insurgency.Friendly(squad.GetFaction().GetFactionKey(), cmd.m_sFaction)) continue;
+   IEntity veh = ACR_Transport.CrewedVehicle(squad);
+   if (!veh || !squad.HasGunner(veh)) continue;
+   vector known;
+   if (!KnownPosition(cmd, squad, known)) continue;
+   if (vector.DistanceXZ(known, point) <= radius) return true;
+  }
+  return false;
+ }
+
  static void Assess(ACR_AICommander cmd)
  {
   cmd.m_Defence.Clear();

@@ -9,6 +9,10 @@ class ACR_AIAttack
  ref array<int> m_aSlot = {};        // each squad's approach line (ACR_AICommander.s_aApproachTurns index, -1 none)
  vector m_Staging;                   // main approach, for smoke
  vector m_vApproach;                 // main approach direction, from the target towards the attackers
+ bool m_bPrep;                       // H-Hour prep phase: prep fires landing, base of fire taking crest, smoke before release
+ float m_fPrepUntil;                 // world ms when prep phase releases into the assault
+ bool m_bPrepFired;                  // prep HE/air/gunship already called
+ bool m_bSmokeFired;                 // smoke screen already called
  bool m_bAssaulting;
  bool m_bGivenAway;                  // its last squad went to a player (Forget) or another job (LeaveAttacks): ends without a "failed" report
  float m_fStageDeadline;

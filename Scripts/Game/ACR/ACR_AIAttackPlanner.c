@@ -322,6 +322,7 @@ class ACR_AIAttackPlanner
     if (base.m_bBuilt)
     {
      score *= 0.35 * cmd.m_Doctrine.m_fFobTarget;
+     if (ACR_Raid.IsNight()) score *= 0.75; // night favours sapper raids on enemy FOBs
      float frontDist = float.MAX;
      foreach (ACR_Base ownBase : ACR_Base.s_All)
      {
@@ -469,7 +470,10 @@ class ACR_AIAttackPlanner
   vector dir = from - target.GetOrigin();
   dir[1] = 0;
   dir.Normalize();
-  float ring = target.m_fRadius + ACR_AICommander.STAGING_DISTANCE;
+  bool night = ACR_Raid.IsNight();
+  float stageDist = ACR_AICommander.STAGING_DISTANCE;
+  if (night) stageDist *= 0.72; // tighter staging ring under cover of darkness
+  float ring = target.m_fRadius + stageDist;
   // Going round a strongpoint: the main approach turns away from it, out of its sight and fire.
   if (attack.m_Bypass && attack.m_Bypass.m_sOwner != cmd.m_sFaction) dir = ACR_AIEnvelopment.ApproachAway(target.GetOrigin(), from, attack.m_Bypass.GetOrigin(), ring);
   attack.m_vApproach = dir;
@@ -524,7 +528,10 @@ class ACR_AIAttackPlanner
    squad.SetAITask(ACR_EAITask.ATTACK);
    squad.m_AITarget = target;
    if (carried.Contains(squad)) continue; // the ride has its orders
-   squad.SetMode(ACR_EMoveMode.FAST);
+   if (night && !empty && !squad.IsMounted() && !ACR_Transport.CrewedVehicle(squad) && vector.DistanceXZ(cmd.PositionOf(squad), target.GetOrigin()) <= 600)
+    squad.SetMode(ACR_EMoveMode.COMBAT);
+   else
+    squad.SetMode(ACR_EMoveMode.FAST);
    // Nobody to fight at an empty base: go straight in.
    if (empty) cmd.Travel(squad, target.GetOrigin(), false, 100);
    else
@@ -567,7 +574,14 @@ class ACR_AIAttackPlanner
   if (!empty && ACR_AttackGround.On()) cmd.StartGround(attack);
   cmd.m_Attacks.Insert(attack);
   cmd.m_fLastOffensive = GetGame().GetWorld().GetWorldTime();
-  if (attack.m_Bypass && attack.m_Bypass.m_sOwner != cmd.m_sFaction) cmd.Say(string.Format("[ACR] AI %1: %2 via %3", cmd.m_sFaction, cmd.EnvelopText(target), target.m_sName));
+  if (attack.m_Bypass && attack.m_Bypass.m_sOwner != cmd.m_sFaction)
+  {
+   cmd.Say(string.Format("[ACR] AI %1: %2 via %3", cmd.m_sFaction, cmd.EnvelopText(target), target.m_sName));
+   // Fixing feint: shell or smoke the bypassed strongpoint from standoff so its garrison stays pinned
+   // while the main force swings around to the weak flank/rear base.
+   if (!empty && !cmd.CallSupport(ACR_ESupportType.MORTAR_HE_SMALL, attack.m_Bypass.GetOrigin(), "fixing fire on bypassed " + attack.m_Bypass.m_sName))
+    cmd.CallSupport(ACR_ESupportType.MORTAR_SMOKE, attack.m_Bypass.GetOrigin(), "fixing smoke on bypassed " + attack.m_Bypass.m_sName);
+  }
   if (pressure < 1) cmd.Say(string.Format("[ACR] AI %1: taking the initiative against %2 (accepting x%3 odds after a quiet spell)", cmd.m_sFaction, target.m_sName, pressure));
   string kind = "attacking";
   if (attack.m_bCounter) { kind = "COUNTERATTACKING"; cmd.m_CounterTarget = null; }
@@ -839,6 +853,8 @@ class ACR_AIAttackPlanner
      else squad.SetAITask(ACR_EAITask.FREE);
     }
     cmd.m_Attacks.RemoveOrdered(i);
+    if (won && !attack.m_bGrab && target && !cmd.SmallForce())
+     TryExploit(cmd, target, attack.m_Squads, attack.m_iStartStrength);
     continue;
    }
    if (attack.m_bAssaulting)
@@ -859,6 +875,50 @@ class ACR_AIAttackPlanner
     cmd.TickGround(attack);
     PushAttackers(cmd, attack);
     cmd.TickFireBase(attack);
+    continue;
+   }
+   if (attack.m_bPrep && !attack.m_bAssaulting)
+   {
+    cmd.TickGround(attack);
+    if (attack.m_Suppressor && ACR_AICommander.TakersIn(attack, attack.m_Suppressor) == 0) attack.m_Suppressor = null;
+    if (attack.m_Suppressor) cmd.UpdateFireBase(attack);
+    float prepNow = GetGame().GetWorld().GetWorldTime();
+    if (!attack.m_bSmokeFired && prepNow >= attack.m_fPrepUntil - 12000)
+    {
+     attack.m_bSmokeFired = true;
+     vector screen = attack.m_Staging + (target.GetOrigin() - attack.m_Staging) * 0.55;
+     vector breakPos;
+     if (attack.m_Ground && attack.m_Ground.IsDone() && attack.m_Ground.BreakToward(attack.m_Staging, breakPos))
+      screen = breakPos;
+     cmd.CallSupport(ACR_ESupportType.MORTAR_SMOKE, screen, "smoke screen for " + target.m_sName);
+    }
+    if (prepNow < attack.m_fPrepUntil) continue;
+    attack.m_bPrep = false;
+    attack.m_bAssaulting = true;
+    attack.m_fAssaultStart = prepNow;
+    foreach (ACR_Squad squad : attack.m_Squads)
+    {
+     squad.SetMode(ACR_EMoveMode.COMBAT);
+     if (squad != attack.m_Suppressor)
+     {
+      IEntity vSquad = ACR_Transport.CrewedVehicle(squad);
+      if (vSquad && squad.HasGunner(vSquad))
+      {
+       vector vSpot;
+       if (attack.m_Ground && attack.m_Ground.IsDone() && attack.m_Ground.BestFiringToward(cmd.PositionOf(squad), target.m_fRadius + ACR_AICommander.OVERWATCH_MIN_GAP, ACR_AICommander.FIRE_BASE_RANGE, vSpot)) squad.Defend(vSpot);
+       else if (cmd.OverwatchSpot(target, cmd.PositionOf(squad), vSpot)) squad.Defend(vSpot);
+       else squad.Assault(target.GetOrigin());
+      }
+      else
+      {
+       squad.Assault(target.GetOrigin());
+      }
+     }
+    }
+    if (attack.m_Suppressor) cmd.UpdateFireBase(attack);
+    string suppressor = "none";
+    if (attack.m_Suppressor) suppressor = attack.m_Suppressor.GetName();
+    cmd.Say(string.Format("[ACR] AI %1: assaulting %2 with %3 squad(s) on %4 approach line(s), base of fire: %5", cmd.m_sFaction, target.m_sName, attack.m_Squads.Count(), ACR_AICommander.ApproachLines(attack), suppressor));
     continue;
    }
    cmd.TickGround(attack);
@@ -893,49 +953,110 @@ class ACR_AIAttackPlanner
    }
    if (gathered || (!anyAirLift && stageNow > attack.m_fStageDeadline))
    {
-    attack.m_bAssaulting = true;
     // The base of fire goes in too when it is the only squad left that can take the base.
     if (attack.m_Suppressor && ACR_AICommander.TakersIn(attack, attack.m_Suppressor) == 0) attack.m_Suppressor = null;
-    attack.m_fAssaultStart = GetGame().GetWorld().GetWorldTime();
-    // Preparation: shell the objective with heavy assets against fortified FOBs
+    // Phased H-Hour: fire prep HE/air and move the base of fire to its crest first, then drop smoke
+    // on the exposure break and release the assault once prep lands.
+    attack.m_bPrep = true;
+    attack.m_bPrepFired = true;
+    bool firedPrep = false;
     bool heavyPrep = target.m_bBuilt || cmd.DefenceOf(target) >= ACR_AICommander.Lowered(cmd.m_Doctrine.m_iHeavyPrep, cmd.FireFactor());
-    if (!heavyPrep || !cmd.CallSupport(ACR_ESupportType.BOMB_RUN, target.GetOrigin(), "airstrike preparation on " + target.m_sName))
-     if (!heavyPrep || !cmd.CallSupport(ACR_ESupportType.ROCKET_STRIKE, target.GetOrigin(), "rocket strike preparation on " + target.m_sName))
-      if (!heavyPrep || !cmd.CallSupport(ACR_ESupportType.HELI_GUN_RUN, target.GetOrigin(), "gun run preparation on " + target.m_sName))
-       if (!cmd.CallSupport(ACR_ESupportType.MORTAR_HE_LARGE, target.GetOrigin(), "preparation fire on " + target.m_sName))
-        if (!cmd.CallSupport(ACR_ESupportType.MORTAR_HE_SMALL, target.GetOrigin(), "preparation fire on " + target.m_sName))
-         cmd.CallSupport(ACR_ESupportType.ARTILLERY_BATTERY, target.GetOrigin(), "battery preparation fire on " + target.m_sName);
-    vector screen = attack.m_Staging + (target.GetOrigin() - attack.m_Staging) * 0.55;
-    cmd.CallSupport(ACR_ESupportType.MORTAR_SMOKE, screen, "smoke screen for " + target.m_sName);
+    if (heavyPrep && cmd.CallSupport(ACR_ESupportType.BOMB_RUN, target.GetOrigin(), "airstrike preparation on " + target.m_sName)) firedPrep = true;
+    else if (heavyPrep && cmd.CallSupport(ACR_ESupportType.ROCKET_STRIKE, target.GetOrigin(), "rocket strike preparation on " + target.m_sName)) firedPrep = true;
+    else if (heavyPrep && cmd.CallSupport(ACR_ESupportType.HELI_GUN_RUN, target.GetOrigin(), "gun run preparation on " + target.m_sName)) firedPrep = true;
+    else if (cmd.CallSupport(ACR_ESupportType.MORTAR_HE_LARGE, target.GetOrigin(), "preparation fire on " + target.m_sName)) firedPrep = true;
+    else if (cmd.CallSupport(ACR_ESupportType.MORTAR_HE_SMALL, target.GetOrigin(), "preparation fire on " + target.m_sName)) firedPrep = true;
+    else if (cmd.CallSupport(ACR_ESupportType.ARTILLERY_BATTERY, target.GetOrigin(), "battery preparation fire on " + target.m_sName)) firedPrep = true;
     // Reserve gunship support for an assault, not only the rare counterattack.
-    // CallSupport still checks cooldown, range/pad readiness and friendly distance.
-    // A content pack's attack helicopter (ACR_ContentSocket) goes first when the side has one.
     if (!cmd.CallSupport(ACR_ESupportType.ATTACK_HELI, target.GetOrigin(), "attack helicopter for the assault on " + target.m_sName))
      if (!cmd.CallSupport(ACR_ESupportType.HELI_LOITER, target.GetOrigin(), "gunship for the assault on " + target.m_sName))
       cmd.CallSupport(ACR_ESupportType.HELI_DOOR_GUNS, target.GetOrigin(), "door-gunner heli for the assault on " + target.m_sName);
-    foreach (ACR_Squad squad : attack.m_Squads)
+    float prepWaitMs = 15000;
+    if (firedPrep) prepWaitMs = 25000;
+    attack.m_fPrepUntil = stageNow + prepWaitMs;
+    if (attack.m_Suppressor) cmd.UpdateFireBase(attack);
+    // If AttackGround has a closer dead-ground line of departure on a squad's spoke, nudge infantry up to it during prep.
+    if (attack.m_Ground && attack.m_Ground.IsDone())
     {
-     squad.SetMode(ACR_EMoveMode.COMBAT);
-     if (squad != attack.m_Suppressor)
+     foreach (ACR_Squad squad : attack.m_Squads)
      {
-      IEntity vSquad = ACR_Transport.CrewedVehicle(squad);
-      if (vSquad && squad.HasGunner(vSquad))
+      if (!squad || squad == attack.m_Suppressor || ACR_Transport.CrewedVehicle(squad)) continue;
+      vector dep;
+      if (attack.m_Ground.DepartureToward(cmd.PositionOf(squad), dep) && vector.DistanceXZ(dep, target.GetOrigin()) < vector.DistanceXZ(cmd.PositionOf(squad), target.GetOrigin()) - 25)
       {
-       vector vSpot;
-       if (cmd.OverwatchSpot(target, cmd.PositionOf(squad), vSpot)) squad.Defend(vSpot);
-       else squad.Assault(target.GetOrigin());
-      }
-      else
-      {
-       squad.Assault(target.GetOrigin());
+       squad.SetMode(ACR_EMoveMode.COMBAT);
+       squad.MoveTo(dep);
       }
      }
     }
-    if (attack.m_Suppressor) cmd.UpdateFireBase(attack);
-    string suppressor = "none";
-    if (attack.m_Suppressor) suppressor = attack.m_Suppressor.GetName();
-    cmd.Say(string.Format("[ACR] AI %1: assaulting %2 with %3 squad(s) on %4 approach line(s), base of fire: %5", cmd.m_sFaction, target.m_sName, attack.m_Squads.Count(), ACR_AICommander.ApproachLines(attack), suppressor));
+    cmd.Say(string.Format("[ACR] AI %1: preparing assault on %2 (%3 s H-Hour prep; prep fires: %4)", cmd.m_sFaction, target.m_sName, (int)(prepWaitMs / 1000), firedPrep));
    }
   }
+ }
+
+ // Operational exploitation: after winning a base with healthy survivors (>=65% of start strength),
+ // roll them straight into an adjacent weak/empty base within 1100 m instead of resetting to idle.
+ protected static void TryExploit(ACR_AICommander cmd, ACR_Base wonBase, notnull array<ACR_Squad> survivors, int startStrength)
+ {
+  array<ACR_Squad> healthy = {};
+  int exploitStr = 0;
+  bool hasTaker = false;
+  foreach (ACR_Squad squad : survivors)
+  {
+   if (!squad || !cmd.m_Manager.m_Squads.Contains(squad) || squad.PlayerSteers() || !squad.IsCombatUnit()) continue;
+   if (IsSupportTeam(squad) || ACR_AICommander.IsReconTeam(squad)) continue;
+   if (squad.StrengthRatio() < 0.65) continue;
+   if (squad.m_iAmmoPct >= 0 && squad.m_iAmmoPct < ACR_AICommander.OUT_OF_AMMO + 10) continue;
+   healthy.Insert(squad);
+   exploitStr += squad.Strength();
+   if (ACR_AICommander.CanTakeBase(squad, false)) hasTaker = true;
+  }
+  if (healthy.IsEmpty() || !hasTaker || startStrength * 0.65 > exploitStr) return;
+  // Respect concurrent attack cap and leave one healthy squad behind to hold the freshly captured base.
+  if (cmd.m_Attacks.Count() >= cmd.m_Doctrine.m_iMaxAttacks) return;
+  if (healthy.Count() >= 2 && cmd.PostedAt(wonBase) == 0)
+  {
+   int holdIdx = 0;
+   int holdStr = healthy[0].Strength();
+   for (int h = 1; h < healthy.Count(); h++)
+   {
+    if (healthy[h].Strength() < holdStr) { holdStr = healthy[h].Strength(); holdIdx = h; }
+   }
+   ACR_Squad garrison = healthy[holdIdx];
+   healthy.RemoveOrdered(holdIdx);
+   exploitStr -= garrison.Strength();
+   garrison.SetAITask(ACR_EAITask.POSTED);
+   garrison.SetMode(ACR_EMoveMode.COMBAT);
+   cmd.Travel(garrison, wonBase.GetOrigin(), true, 0);
+   hasTaker = false;
+   foreach (ACR_Squad rem : healthy) if (ACR_AICommander.CanTakeBase(rem, false)) { hasTaker = true; break; }
+   if (healthy.IsEmpty() || !hasTaker) return;
+  }
+  ACR_Base nextTarget;
+  float bestScore = float.MAX;
+  foreach (ACR_Base cand : ACR_Base.s_All)
+  {
+   if (!cand || cand.m_bRetired || cand == wonBase || cand.m_sOwner == cmd.m_sFaction || !cmd.Visible(cand) || cmd.IsAttacking(cand) || cmd.CoolingDown(cand)) continue;
+   bool isEmpty = cmd.SeenOwner(cand).IsEmpty();
+   if (!isEmpty && (!cmd.HostileOwner(cand) || !cmd.HqTargetable(cand))) continue;
+   float d = vector.DistanceXZ(wonBase.GetOrigin(), cand.GetOrigin());
+   if (d > 1100) continue;
+   if (!isEmpty && AttackNeed(cmd, cand) > exploitStr) continue;
+   float score = d;
+   if (cmd.InLaneOrFlank(cand)) score *= 0.5;
+   if (score < bestScore) { bestScore = score; nextTarget = cand; }
+  }
+  if (!nextTarget) return;
+  if (cmd.SeenOwner(nextTarget).IsEmpty())
+  {
+   cmd.SortByDistance(healthy, nextTarget.GetOrigin());
+   cmd.StartGrab(healthy[0], nextTarget);
+   cmd.Say(string.Format("[ACR] AI %1: exploiting %2 -> %3 grabs empty %4 (%5 m)", cmd.m_sFaction, wonBase.m_sName, healthy[0].GetName(), nextTarget.m_sName, (int)vector.DistanceXZ(wonBase.GetOrigin(), nextTarget.GetOrigin())));
+   return;
+  }
+  ACR_AIAttack exploit = NewAttack(cmd, nextTarget, false);
+  foreach (ACR_Squad sq : healthy) exploit.m_Squads.Insert(sq);
+  cmd.Say(string.Format("[ACR] AI %1: exploiting capture of %2 straight into %3 with %4 squad(s)", cmd.m_sFaction, wonBase.m_sName, nextTarget.m_sName, healthy.Count()));
+  LaunchAttack(cmd, exploit, wonBase.GetOrigin(), exploitStr, AttackNeed(cmd, nextTarget), 1.0);
  }
 }
