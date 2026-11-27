@@ -122,11 +122,18 @@ class ACR_TestFortify
    array<string> labels = {};
    ACR_Fortify.Zones("US", positions, radii, labels);
    string label;
-   if (!labels.IsEmpty()) label = labels[0];
-   int own = labels.Count();
+   int own = 0;
+   foreach (string zLabel : labels)
+   {
+    if (!zLabel.StartsWith("~Fortified position")) continue;
+    if (label.IsEmpty()) label = zLabel;
+    own++;
+   }
    labels.Clear();
    ACR_Fortify.Zones("USSR", positions, radii, labels);
-   ACR_TestRegress.Check("fortify: a pale ring on its own side's map only", own == 1 && label == "~Fortified position I" && labels.IsEmpty(), string.Format("US %1 '%2', USSR %3", own, label, labels.Count()));
+   int enemyOwn = 0;
+   foreach (string ezLabel : labels) if (ezLabel.StartsWith("~Fortified position")) enemyOwn++;
+   ACR_TestRegress.Check("fortify: a pale ring on its own side's map only", own == 1 && label == "~Fortified position I" && enemyOwn == 0, string.Format("US %1 '%2', USSR %3", own, label, enemyOwn));
    // A tier II whose nest has no clear line of fire anywhere is refused whole: the middle post it
    // would replace stands again where it stood.
    // (Build deletes the post it replaces, which empties this reference.)
@@ -336,9 +343,11 @@ class ACR_TestFortify
    array<float> goneRadii = {};
    array<string> goneLabels = {};
    ACR_Fortify.Zones("US", gonePositions, goneRadii, goneLabels);
+   int goneFortZones = 0;
+   foreach (string gzLabel : goneLabels) if (gzLabel.StartsWith("~Fortified position")) goneFortZones++;
    int wireLeft;
    foreach (IEntity segment : s_aWire) if (segment) wireLeft++;
-   ACR_TestRegress.Check("fortify: a position with no pieces left drops off the map, its wire too", ACR_Fortify.CountPositions("US") == 0 && goneLabels.IsEmpty() && !alpha.m_Fortification && s_aWire.Count() > 0 && wireLeft == 0, string.Format("%1 positions, wire %2 of %3 left", ACR_Fortify.CountPositions("US"), wireLeft, s_aWire.Count()));
+   ACR_TestRegress.Check("fortify: a position with no pieces left drops off the map, its wire too", ACR_Fortify.CountPositions("US") == 0 && goneFortZones == 0 && !alpha.m_Fortification && s_aWire.Count() > 0 && wireLeft == 0, string.Format("%1 positions, %2 fort zones, wire %3 of %4 left", ACR_Fortify.CountPositions("US"), goneFortZones, wireLeft, s_aWire.Count()));
 
    // AI commander: off by default, on with -acrFortifyAI 1.
    us.m_iRP = 500;

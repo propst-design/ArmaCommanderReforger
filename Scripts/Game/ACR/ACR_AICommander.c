@@ -2653,7 +2653,8 @@ class ACR_AICommander : Managed
   bool garrison;
   vector building;
   // A base with works standing: behind the bags on the enemy's side, which ACR_Garrison takes for what's meant.
-  if (defend && !ACR_Transport.CrewedVehicle(squad) && ACR_BaseWorks.LinePoint(destination, m_sFaction, building))
+  // Never hijack an explicit 2IC Hold request onto a nearby base's works line.
+  if (defend && !OnRequest(squad) && !ACR_Transport.CrewedVehicle(squad) && ACR_BaseWorks.LinePoint(destination, m_sFaction, building))
   {
    garrison = true;
    destination = building;
