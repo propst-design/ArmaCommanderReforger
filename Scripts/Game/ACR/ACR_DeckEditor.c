@@ -364,9 +364,9 @@ class ACR_DeckEditor
   AlignableSlot.SetPadding(footer, 26, 10, 26, 14);
   m_Status = ACR_TwoICStyle.Text(footer, "", ACR_TwoICStyle.Accent(), 17);
   m_Applied = ACR_TwoICStyle.Text(footer, "", ACR_TwoICStyle.Grey(), 16);
+  // Body (not TitleBar): the header holds the Blue/Red tab buttons, which TitleBar's z=5 band would block.
   ACR_PanelMover.Add("deck", m_Root, 0.5, 0.5, 0, 10);
   ACR_PanelMover.Body("deck", m_Root);
-  ACR_PanelMover.TitleBar("deck", m_Root, 76, 70);
 
   m_iSide = 0;
   m_bSideChosen = false;
