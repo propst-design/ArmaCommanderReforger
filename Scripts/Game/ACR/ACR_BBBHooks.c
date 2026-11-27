@@ -447,6 +447,44 @@ class ACR_BBBHooks : BBB_Hooks
  {
   if (m_Manager.m_Cleanup) m_Manager.m_Cleanup.AddLitter(item);
  }
+
+ // Post-contact deadchecking and AI prisoner capture (BBB_Deadcheck): allowed for autonomous
+ // foot combat squads, never airlifted, silent, player-commanded, mortar, roadblock or fortified posts.
+ override bool AllowDeadcheck(SCR_AIGroup group)
+ {
+  ACR_Squad squad = SquadOf(group);
+  if (!squad) return true;
+  if (ACR_AirLift.Busy(squad) || squad.HumanInCharge() || squad.m_Mode == ACR_EMoveMode.SILENT) return false;
+  if (squad.m_bMortar || squad.m_ActiveRoadblock || squad.m_Fortification || squad.m_CombatFlank.Active()) return false;
+  return true;
+ }
+
+ // When an AI squad captures a prisoner (BBB_Deadcheck):
+ //  - FIA captors route the prisoner into ACR_FIAPrisoners (hideout propaganda & rescue loop).
+ //  - Army captors (US/USSR) earn a small tactical RP bonus (+10 RP) and an intel feed notice.
+ override void OnPrisonerCaptured(SCR_AIGroup captor, IEntity prisoner)
+ {
+  if (!captor || !prisoner || !m_Manager) return;
+  ChimeraCharacter man = ChimeraCharacter.Cast(prisoner);
+  if (!man) return;
+  Faction captorFaction = captor.GetFaction();
+  if (!captorFaction) return;
+  string side = captorFaction.GetFactionKey();
+  if (side == ACR_Pockets.FACTION)
+  {
+   ACR_DefenderPost hideout = ACR_FIAIntel.SupplierOf(man.GetOrigin());
+   if (hideout) ACR_FIAPrisoners.Capture(man, hideout);
+   return;
+  }
+  int rp = ACR_Containment.Give(m_Manager, side, 10);
+  if (rp > 0) ACR_Report.OnIncome(side, rp);
+  ACR_Intel intel = m_Manager.IntelFor(side);
+  if (intel)
+  {
+   float now = GetGame().GetWorld().GetWorldTime();
+   intel.AddFeed(now, string.Format("%1 captured an enemy prisoner at %2 (+%3 RP)", NameOf(captor), ACR_Manager.Grid(man.GetOrigin()), rp));
+  }
+ }
 }
 
 // A squad's end-of-unstick callback (BBB_Unstick tells it when backing out is over).
