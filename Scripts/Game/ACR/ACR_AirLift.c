@@ -999,9 +999,7 @@ class ACR_AirLift : ACR_SupportRun
     if (candidateDistance < bestDistance) { bestDistance = candidateDistance; best = heli; seat = free; }
    }
    if (!best) continue;
-   AIControlComponent control = AIControlComponent.Cast(character.FindComponent(AIControlComponent));
-   if (!control || !control.GetControlAIAgent()) continue;
-   SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(control.GetControlAIAgent().FindComponent(SCR_AIUtilityComponent));
+   SCR_AIUtilityComponent utility = ACR_EntityUtil.AIUtility(character);
    if (!utility) continue;
    // Respect an existing native get-in task; never pile up competing behaviors.
    if (utility.FindActionOfType(SCR_AIGetInVehicle)) continue;

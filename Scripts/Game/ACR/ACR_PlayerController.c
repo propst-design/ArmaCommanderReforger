@@ -1,187 +1,3 @@
-// Map markers for soldiers and group leaders. Clicking one requests possession.
-class ACR_UnitMarker : SCR_MapMarkerBase
-{
- RplId m_UnitId;
- string m_Label;
- string m_BaseCaption; // display only; requests retain the exact label
- string m_BaseHover;
- int m_State;          // 0 AI, 1 player-controlled, 2 dead
- bool m_Original;      // the player's command unit
- bool m_bCommandUnit;  // persistent marker for a fellow commander, not a possession target
- bool m_Selected;
- RplId m_GroupId;      // squad this marker belongs to
- int m_BaseIndex = -1; // >= 0: this marker is a base
- bool m_bContact;      // spotted enemy: clicks go through to the map
- bool m_bSuspected;    // spotted enemy not seen for a while (ACR_CONTACT_SUSPECTED)
- float m_fAlpha = 1;   // spotted enemy: fades as the sighting ages
- int m_iContactShape = -1; // spotted enemy: icons and dimension it was prepared with
- int m_iPingId = -1;   // >= 0: this marker is a ping's label
- int m_iSymbolKey;     // changes when m_GroupSymbol is set differently
- protected Widget m_wPip; // ground-level reticle pip for spotted contacts
- protected string m_sStyled = "-"; // what RefreshStyle last applied
- ref ACR_MarkerClick m_Click;
- ref SCR_MilitarySymbol m_GroupSymbol;
- override void OnCreateMarker(bool skipProfanityFilter = false)
- {
-  // Map-open and local insertion can both create this marker. Remove the old
-  // widget before replacing its reference, or its caption stays at the origin.
-  if (m_wRoot) m_wRoot.RemoveFromHierarchy();
-  m_wRoot = null;
-  m_MarkerWidgetComp = null;
-  // Always update: units move into view without the map being panned.
-  m_bTestVisibleFrame = false;
-  m_sStyled = "-";
-  m_wPip = null; // it went with the old root
-  super.OnCreateMarker(true);
-  if (!m_wRoot) return;
-  m_Click = new ACR_MarkerClick();
-  m_Click.m_Marker = this;
-  m_wRoot.AddHandler(m_Click);
-  OnUpdate();
-  RefreshStyle();
- }
- override void SetWorldPos(int posX, int posY)
- {
-  super.SetWorldPos(posX, posY);
-  // Position immediately; persistent captions must never wait at (0, 0).
-  if (m_wRoot && m_MapEntity) OnUpdate();
- }
- void ACR_SetColor(Color color)
- {
-  if (m_MarkerWidgetComp) m_MarkerWidgetComp.SetColor(color);
- }
- // A marker with no click of its own: a click on it means the base whose name or icon is under it
- // (ACR_MarkerClick). A zone's label (a town's "Civilians (n)" ring is centred on the town, so its
- // label covered the town's name: a click on the name did nothing), a spotted enemy or zombie
- // contact, our empty vehicle, a fellow commander's unit, an order's or the 2IC's tag. Bases, pings,
- // our own command unit and squads' and soldiers' markers (ofSquad) keep their clicks.
- // ofSquad comes from the controller's marker lists: m_GroupId can't tell, an unset RplId is valid (0).
- bool PassesClickToBase(bool ofSquad)
- {
-  if (m_BaseIndex >= 0 || m_iPingId >= 0 || m_Original) return false;
-  return m_bContact || m_bCommandUnit || !ofSquad;
- }
- // The marker's icon, symbol and caption on screen (native px; x, y, w, h each), for a click's hit test.
- void ScreenRects(notnull array<float> rects)
- {
-  if (m_MarkerWidgetComp && m_wRoot && m_wRoot.IsVisible()) m_MarkerWidgetComp.ACR_ScreenRects(rects);
- }
- // Called every map frame: the widget is only touched when something changed.
- void RefreshStyle()
- {
-  if (!m_MarkerWidgetComp) return;
-  string shown = m_Label;
-  if (m_BaseIndex >= 0) shown = m_BaseCaption;
-  int alphaStep = Math.Round(m_fAlpha * 20);
-  string key = string.Format("%1|%2|%3|%4|%5|%6|%7|%8", shown, m_State, m_Original, m_Selected, m_iSymbolKey, m_BaseHover, alphaStep, m_bSuspected);
-  if (key == m_sStyled) return;
-  m_sStyled = key;
-  if (m_BaseIndex >= 0) m_MarkerWidgetComp.SetEventListening(true);
-  m_MarkerWidgetComp.SetText(shown, true);
-  m_MarkerWidgetComp.SetTextVisible(true);
-  Color color = new Color(0.1, 0.65, 1, 1);
-  if (m_State == 1) color = new Color(1, 0.75, 0.1, 1);
-  if (m_State == 2) color = new Color(0.5, 0.5, 0.5, 1);
-  if (m_State == 3) color = new Color(1, 0.25, 0.2, 1);   // spotted enemy
-  if (m_State == 4) color = new Color(0.65, 0.8, 0.95, 1); // our empty vehicle
-  if (m_State == 5) color = new Color(0.92, 0.92, 0.92, 1); // another commander's tag on an order
-  if (m_State == 6) color = new Color(1, 1, 1, 1);          // ping label (coloured by kind afterwards)
-  if (m_Original) color = new Color(0.2, 1, 0.3, 1);
-  if (m_Selected) color = new Color(1, 1, 1, 1);
-  if (m_fAlpha < 1) color = new Color(color.R(), color.G(), color.B(), color.A() * m_fAlpha);
-  m_MarkerWidgetComp.SetColor(color);
-  if (m_GroupSymbol) m_MarkerWidgetComp.UpdateMilitarySymbol(m_GroupSymbol);
-  // A spotted enemy's reticle; not our empty vehicles (state 4) or order tags (state 5), which use
-  // m_bContact for click-through
-  if (m_bContact && m_State != 4 && m_State != 5 && m_wRoot && !m_wPip)
-  {
-   WorkspaceWidget ws = GetGame().GetWorkspace();
-   if (ws)
-   {
-    m_wPip = ws.CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.BLEND | WidgetFlags.STRETCH | WidgetFlags.IGNORE_CURSOR, new Color(1, 0.22, 0.18, 0.9), 99, m_wRoot);
-    FrameSlot.SetAnchorMin(m_wPip, 0.5, 0.5);
-    FrameSlot.SetAnchorMax(m_wPip, 0.5, 0.5);
-    FrameSlot.SetAlignment(m_wPip, 0.5, 0.5);
-    FrameSlot.SetSize(m_wPip, 6, 6);
-   }
-  }
-  if (m_wPip)
-  {
-   float pipAlpha = 0.95 * m_fAlpha;
-   if (m_bSuspected) pipAlpha = Math.Min(pipAlpha, 0.55);
-   m_wPip.SetColor(new Color(1, 0.22, 0.18, pipAlpha));
-  }
- }
- // Left-click: select this marker's squad (Arma Commander style). The command
- // unit marker instead returns you to your command unit.
- void Select()
- {
-  SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
-  if (!pc) return;
-  pc.ACR_MarkUiClick();
-  if (m_iPingId >= 0)
-  {
-   pc.ACR_ClickPing(m_iPingId);
-   return;
-  }
-  // Deploying: a click on a squad standing on a base counts as a click on the base.
-  if (m_BaseIndex < 0 && pc.ACR_DeployPending())
-  {
-   int pos[2];
-   GetWorldPos(pos);
-   pc.ACR_ClickBaseAt(pos[0], pos[1]);
-   return;
-  }
-  // Deploying on a base marker: the unit appears where the cursor is.
-  if (m_BaseIndex >= 0 && pc.ACR_DeployPending())
-  {
-   SCR_MapEntity markerMap = SCR_MapEntity.GetMapInstance();
-   float cx, cz;
-   if (markerMap)
-   {
-    markerMap.GetMapCursorWorldPosition(cx, cz);
-    pc.ACR_ClickBase(m_Label, Vector(cx, 0, cz), true);
-    return;
-   }
-  }
-  if (m_Original) pc.ACR_Request(ACR_ERequest.RETURN);
-  else if (m_BaseIndex >= 0) pc.ACR_ClickBase(m_Label);
-  else pc.ACR_PickGroup(this);
- }
-}
-class ACR_MarkerClick : ScriptedWidgetEventHandler
-{
- ACR_UnitMarker m_Marker;
- override bool OnMouseButtonDown(Widget w, int x, int y, int button)
- {
-  if (button != 0 || !m_Marker) return false;
-  // Markers drawn over a base's name (zone labels, zombie contacts) let the click reach the base.
-  SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
-  if (pc && pc.ACR_PassesClickToBase(m_Marker) && pc.ACR_ClickBaseUnderCursor()) return true;
-  if (m_Marker.m_bContact) return false;
-  m_Marker.Select();
-  return true;
- }
-}
-
-// Ctrl + drag on the command map (see ACR_BoxDown / ACR_BoxUp).
-class ACR_BoxHandler : ScriptedWidgetEventHandler
-{
- SCR_PlayerController m_Owner;
- override bool OnMouseButtonDown(Widget w, int x, int y, int button)
- {
-  if (button != 0 || !m_Owner) return false;
-  m_Owner.ACR_BoxDown(x, y);
-  return true;
- }
- override bool OnMouseButtonUp(Widget w, int x, int y, int button)
- {
-  if (button != 0 || !m_Owner) return false;
-  m_Owner.ACR_BoxUp(x, y);
-  return true;
- }
-}
-
 modded class SCR_PlayerController
 {
  // ---------------------------------------------------------------- menu control flags
@@ -264,8 +80,8 @@ modded class SCR_PlayerController
   else Rpc(ACR_FeedbackOwner, message);
  }
 
- protected string m_ACR_ReinforceFeedback;
- protected float m_ACR_ReinforceFeedbackAt = -10000;
+ string m_ACR_ReinforceFeedback;
+ float m_ACR_ReinforceFeedbackAt = -10000;
  protected int m_ACR_ReinforceFeedbackCount;
  [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
  protected void ACR_ReinforceFeedbackOwner(string message)
@@ -541,13 +357,13 @@ modded class SCR_PlayerController
  }
 
  // ---------------------------------------------------------------- debug menu (host/admins)
- protected bool m_ACR_DebugAllowed;
- protected bool m_ACR_DebugOpen;
- protected string m_ACR_DebugStatus;
- protected string m_ACR_DebugOwn;     // side names for the buttons ("USSR", "RHS US")
- protected string m_ACR_DebugEnemy;
- protected bool m_ACR_DebugPaused;    // the enemy AI commander is paused
- protected bool m_ACR_DebugReveal;    // our intel sees every enemy soldier
+ bool m_ACR_DebugAllowed;
+ bool m_ACR_DebugOpen;
+ string m_ACR_DebugStatus;
+ string m_ACR_DebugOwn;     // side names for the buttons ("USSR", "RHS US")
+ string m_ACR_DebugEnemy;
+ bool m_ACR_DebugPaused;    // the enemy AI commander is paused
+ bool m_ACR_DebugReveal;    // our intel sees every enemy soldier
  protected float m_ACR_LastDebug = -1000;
  void ACR_SendDebug(bool allowed, string status, string ownName, string enemyName, bool paused, bool reveal)
  {
@@ -816,13 +632,13 @@ modded class SCR_PlayerController
  }
 
  // ---------------------------------------------------------------- command status
- protected bool m_ACR_IsCommander;
- protected bool m_ACR_SharedCommand;
- protected string m_ACR_CommandText;
- protected int m_ACR_RP;
- protected int m_ACR_Income;
- protected int m_ACR_IncomeSeconds;
- protected int m_ACR_IncomeAt;   // tick count when m_ACR_IncomeSeconds arrived
+ bool m_ACR_IsCommander;
+ bool m_ACR_SharedCommand;
+ string m_ACR_CommandText;
+ int m_ACR_RP;
+ int m_ACR_Income;
+ int m_ACR_IncomeSeconds;
+ int m_ACR_IncomeAt;   // tick count when m_ACR_IncomeSeconds arrived
  void ACR_SendCommandStatus(bool isCommander, string text, bool shared, int rp, int income, int seconds)
  {
   Rpc(ACR_CommandStatusOwner, isCommander, text, shared, rp, income, seconds);
@@ -964,9 +780,9 @@ modded class SCR_PlayerController
  }
 
  // ---------------------------------------------------------------- group leaders
- protected ref array<int> m_ACR_GroupSymbols = {};
+ ref array<int> m_ACR_GroupSymbols = {};
  protected ref array<int> m_ACR_LeaderStates = {};
- protected ref array<string> m_ACR_GroupDetails = {};
+ ref array<string> m_ACR_GroupDetails = {};
  protected ref array<ref ACR_UnitMarker> m_ACR_GroupMarkers = {};
 
  // The squads' names, symbols and details, when they changed (review P3); flags: per squad, the
@@ -1493,9 +1309,9 @@ modded class SCR_PlayerController
  }
 
  // ---------------------------------------------------------------- selection + command panel
- protected RplId m_ACR_SelectedGroup = RplId.Invalid();
- protected ACR_ECursorMode m_ACR_CursorMode = ACR_ECursorMode.MOVE;
- protected ref ACR_CommandPanel m_ACR_Panel;
+ RplId m_ACR_SelectedGroup = RplId.Invalid();
+ ACR_ECursorMode m_ACR_CursorMode = ACR_ECursorMode.MOVE;
+ ref ACR_CommandPanel m_ACR_Panel;
  protected int m_ACR_LastUiClick;
 
  RplId ACR_GetSelectedGroup() { return m_ACR_SelectedGroup; }
@@ -1552,7 +1368,7 @@ modded class SCR_PlayerController
  }
 
  // Send a command for every selected squad (orders without a map point).
- protected void ACR_RequestSelected(int command)
+ void ACR_RequestSelected(int command)
  {
   foreach (RplId id : m_ACR_Data.m_Selected) ACR_Request(command, id);
  }
@@ -1769,377 +1585,23 @@ modded class SCR_PlayerController
  bool ACR_IsCommanderForHints() { return m_ACR_IsCommander; }
  ACR_CommandPanel ACR_CommandPanelForTest() { return m_ACR_Panel; }
 
- void ACR_RefreshKeyHintsButton()
- {
-  if (m_ACR_Panel) m_ACR_Panel.RefreshKeyHints();
- }
+ void ACR_RefreshKeyHintsButton() { ACR_PlayerPanel.ACR_RefreshKeyHintsButton(this); }
+ void ACR_OpenPickerPublic(SCR_MapEntity mapEntity, vector pos) { ACR_OpenPicker(mapEntity, pos); }
+ void ACR_ClosePickerPublic() { ACR_ClosePicker(); }
+ void ACR_SendFob(string label, bool build) { Rpc(ACR_FobServer, label, build); }
+ void ACR_SendFobAI(string label) { Rpc(ACR_FobAIServer, label); }
+ void ACR_SendGoToGround(string label) { Rpc(ACR_GoToGroundServer, label); }
+ void ACR_SendDisperse(RplId groupId) { Rpc(ACR_DisperseServer, groupId); }
+ void ACR_SendDrawIedKit() { Rpc(ACR_DrawIedKitServer); }
+ void ACR_SendToggleDisguise() { Rpc(ACR_ToggleDisguiseServer); }
+ void ACR_SendSupport(int support, vector target, RplId groupId) { Rpc(ACR_SupportServer, support, target, groupId); }
+ void ACR_SendNetworkOrder(int order, vector pos) { Rpc(ACR_NetworkOrderServer, order, pos); }
 
- protected void ACR_UpdatePanel()
- {
-  if (!m_ACR_Panel) return;
-  m_ACR_Panel.TickDrag();
-  string reinforceFeedback = "";
-  if (GetGame().GetWorld().GetWorldTime() - m_ACR_ReinforceFeedbackAt < 12000) reinforceFeedback = m_ACR_ReinforceFeedback;
-  m_ACR_Panel.SetReinforceFeedback(reinforceFeedback);
-  m_ACR_Panel.SetDebug(m_ACR_DebugAllowed, m_ACR_DebugOpen, m_ACR_DebugStatus, m_ACR_SelectedBase, m_ACR_DebugOwn, m_ACR_DebugEnemy, m_ACR_DebugPaused, m_ACR_DebugReveal);
-  bool canTake = !m_ACR_IsCommander && (m_ACR_SharedCommand || m_ACR_CommandText == "Command: AI");
-  m_ACR_Panel.SetCommand(m_ACR_CommandText, m_ACR_IsCommander, canTake);
-  int incomeIn = Math.Max(0, m_ACR_IncomeSeconds - ACR_MapData.Since(m_ACR_IncomeAt));
-  m_ACR_Panel.SetEconomy(string.Format("RP %1   +%2 in %3s", m_ACR_RP, m_ACR_Income, incomeIn));
-  m_ACR_Panel.SetRoster(ACR_RosterText());
-  if (!m_ACR_IsCommander) m_ACR_PendingEntry = -1;
-  if (!m_ACR_IsCommander) m_ACR_PendingSupport = -1;
-  if (!m_ACR_IsCommander) m_ACR_PendingNetwork = -1;
-  string myFactionKey = "";
-  Faction localFaction = SCR_FactionManager.SGetLocalPlayerFaction();
-  if (localFaction) myFactionKey = localFaction.GetFactionKey();
-  bool insurgentViewer = ACR_InsurgentSide.IsInsurgentColor(myFactionKey) && m_ACR_SupNames.IsEmpty();
-  m_ACR_Panel.SetRequisitions(m_ACR_IsCommander, m_ACR_RequisitionOpen, m_ACR_ReqNames, m_ACR_ReqCosts, m_ACR_ReqRemaining, m_ACR_RP, m_ACR_PendingEntry);
-  array<int> cooldowns = {};
-  ACR_Cooldowns(cooldowns);
-  m_ACR_Panel.SetSupports(m_ACR_IsCommander, m_ACR_SupportOpen, m_ACR_SupNames, m_ACR_SupCosts, cooldowns, m_ACR_RP, m_ACR_PendingSupport);
-  m_ACR_Panel.SetNetwork(m_ACR_IsCommander && insurgentViewer, m_ACR_NetworkOpen, m_ACR_RP, m_ACR_PendingNetwork);
-  m_ACR_Panel.SetMusterMode(m_ACR_MusterMode);
-  m_ACR_Panel.SetReport(m_ACR_ReportOpen, m_ACR_ReportText);
-  if (m_ACR_PendingNetwork >= 0)
-  {
-   m_ACR_Panel.SetBase(ACR_InsurgentNetwork.NameOf(m_ACR_PendingNetwork), ACR_InsurgentNetwork.HintOf(m_ACR_PendingNetwork));
-   return;
-  }
-  if (m_ACR_HasSupportTarget && m_ACR_SupportOpen)
-  {
-   m_ACR_Panel.SetBase("Support for " + m_ACR_SupportTargetFor, "Pick a support above: it fires on the ping. Click Supports to cancel.");
-   return;
-  }
-  if (m_ACR_PendingSupport >= 0 && m_ACR_PendingSupport < m_ACR_SupNames.Count())
-  {
-   string supportHint = "Right-click the target on the map. Click the entry again to cancel.";
-   string supportName = m_ACR_SupNames[m_ACR_PendingSupport];
-   supportName.ToLower();
-   if (supportName.Contains("air lift")) supportHint = "Select the squad to fly, then right-click where it should land. Click the entry again to cancel.";
-   m_ACR_Panel.SetBase(m_ACR_SupNames[m_ACR_PendingSupport], supportHint);
-   return;
-  }
-  if (!m_ACR_SupportResult.IsEmpty() && System.GetTickCount() - m_ACR_SupportResultAt < 10000)
-  {
-   m_ACR_Panel.SetBase("Support call", m_ACR_SupportResult);
-   return;
-  }
-  if (m_ACR_PendingEntry >= 0 && m_ACR_PendingEntry < m_ACR_ReqNames.Count())
-  {
-   string deployHint = "Click one of your bases to deploy. Right-click to cancel.";
-   if (m_ACR_MusterMode && insurgentViewer) deployHint = "Click any covered spot on the map to muster this band (+25% RP). Right-click to cancel.";
-   m_ACR_Panel.SetBase(m_ACR_ReqNames[m_ACR_PendingEntry], deployHint);
-   return;
-  }
-  if (!m_ACR_SelectedBase.IsEmpty())
-  {
-   int baseIndex = m_ACR_Data.m_BaseNames.Find(m_ACR_SelectedBase);
-   if (baseIndex >= 0)
-   {
-    m_ACR_Panel.SetBase(m_ACR_Data.m_BaseNames[baseIndex], ACR_CommandPanel.FobDetail(m_ACR_Data.m_BaseDetails[baseIndex]));
-    bool isHideout = m_ACR_Data.m_BaseDetails[baseIndex].StartsWith("Hideout |");
-    m_ACR_Panel.SetHideout(isHideout && m_ACR_IsCommander, isHideout && m_ACR_IsCommander && (m_ACR_Data.m_BaseContested[baseIndex] & 1) == 0);
-    int stride = 3 + ACR_FobSlots.UPGRADE_COUNT;
-    int supplyOffset = baseIndex * stride;
-    if (m_ACR_Data.m_BaseSupply.Count() >= supplyOffset + stride)
-    {
-     int stock = m_ACR_Data.m_BaseSupply[supplyOffset];
-     int capacity = m_ACR_Data.m_BaseSupply[supplyOffset + 1];
-     int delivery = m_ACR_Data.m_BaseSupply[supplyOffset + 2];
-     // delivery -1: the FOB's HQ is destroyed and it is offline until rebuilt.
-     bool ready = m_ACR_IsCommander && (m_ACR_Data.m_BaseContested[baseIndex] & 1) == 0 && delivery >= 0;
-     string factionKey = "";
-     Faction myFaction = SCR_FactionManager.SGetPlayerFaction(GetPlayerId());
-     if (myFaction) factionKey = myFaction.GetFactionKey();
-     array<int> slotStates = {};
-     for (int s = 0; s < ACR_FobSlots.UPGRADE_COUNT; s++)
-     {
-      slotStates.Insert(m_ACR_Data.m_BaseSupply[supplyOffset + 3 + s]);
-     }
-     m_ACR_Panel.SetFob(stock >= 0, ready && capacity - stock >= ACR_FobSupply.DELIVERY_AMOUNT && delivery == 0 && m_ACR_RP >= ACR_FobSupply.DELIVERY_COST, ready && stock > 0, slotStates, stock, ready, factionKey);
-     m_ACR_Panel.SetFobSupplyRuns((m_ACR_Data.m_BaseContested[baseIndex] & 4) != 0);
-     m_ACR_Panel.SetFobAI(m_ACR_IsCommander && delivery >= 0, (m_ACR_Data.m_BaseContested[baseIndex] & 2) != 0);
-    }
-    else if (m_ACR_Data.m_BaseSupply.Count() > supplyOffset + 2)
-    {
-     int stock = m_ACR_Data.m_BaseSupply[supplyOffset];
-     int capacity = m_ACR_Data.m_BaseSupply[supplyOffset + 1];
-     int delivery = m_ACR_Data.m_BaseSupply[supplyOffset + 2];
-     bool ready = m_ACR_IsCommander && (m_ACR_Data.m_BaseContested[baseIndex] & 1) == 0;
-     m_ACR_Panel.SetFob(stock >= 0, ready && capacity - stock >= ACR_FobSupply.DELIVERY_AMOUNT && delivery == 0 && m_ACR_RP >= ACR_FobSupply.DELIVERY_COST, ready && stock > 0);
-    }
-    return;
-   }
-   m_ACR_SelectedBase = "";
-  }
-  int index = -1;
-  if (m_ACR_SelectedGroup.IsValid()) index = m_ACR_Data.m_GroupIds.Find(m_ACR_SelectedGroup);
-  if (index < 0)
-  {
-   // Selection vanished (squad wiped out, or not in the latest snapshot yet).
-   m_ACR_Panel.SetGroup("", "", false, false, 0, 0, "");
-   return;
-  }
-  bool friendly = index < m_ACR_Data.m_Commandable.Count() && m_ACR_Data.m_Commandable[index] == 1;
-  int modeAndFlags = m_ACR_GroupSymbols[index * 4 + 3];
-  bool canEstablishFob = friendly && (modeAndFlags & 32) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
-  if (!canEstablishFob && m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB)
-   m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-  bool canSetupHideout = friendly && insurgentViewer && m_ACR_Data.m_Selected.Count() <= 1;
-  if (!canSetupHideout && m_ACR_CursorMode == ACR_ECursorMode.SETUP_HIDEOUT)
-   m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-  m_ACR_Panel.SetSetupHideout(canSetupHideout);
-  bool canRoadblock = friendly && (modeAndFlags & 64) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
-  int roadblock = ACR_CommandPanel.RoadblockOfMode(m_ACR_CursorMode);
-  if (!canRoadblock && roadblock >= 0)
-  {
-   m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-   roadblock = -1;
-  }
-  string roadblockFaction = "";
-  Faction roadblockSide = SCR_FactionManager.SGetPlayerFaction(GetPlayerId());
-  if (roadblockSide) roadblockFaction = roadblockSide.GetFactionKey();
-  bool canMines = friendly && (modeAndFlags & 128) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
-  if (!canMines && m_ACR_CursorMode >= ACR_ECursorMode.MINES_AP && m_ACR_CursorMode <= ACR_ECursorMode.DISARM_MINES)
-   m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-  bool canEvac = friendly && (modeAndFlags & 4096) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
-  if (!canEvac && m_ACR_CursorMode == ACR_ECursorMode.EVAC)
-   m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-  bool canFortify = friendly && (modeAndFlags & 256) != 0 && m_ACR_Data.m_Selected.Count() <= 1;
-  if (!canFortify && m_ACR_CursorMode == ACR_ECursorMode.FORTIFY)
-   m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-  string hint;
-  if (!friendly) hint = "Player group: not commandable";
-  else if (!m_ACR_IsCommander) hint = "Take command to give orders";
-  else if (m_ACR_CursorMode == ACR_ECursorMode.DEFEND) hint = "Right-click: defend there, on a road an ambush (click Defend again to cancel). Dragged: posts where you pressed facing where you let go, an ambush when you let go on a road.";
-  else if (m_ACR_CursorMode == ACR_ECursorMode.GARRISON) hint = "Right-click a building: they hold its windows and doors, filling the next buildings if needed (click Garrison again to cancel)";
-  else if (m_ACR_CursorMode == ACR_ECursorMode.GET_IN) hint = "Right-click near a vehicle: get in (click Get in again to cancel)";
-  else if (m_ACR_CursorMode == ACR_ECursorMode.LZ) hint = "Right-click the landing zone: they jump out when their ride sets down there";
-  else if (m_ACR_CursorMode == ACR_ECursorMode.RIDE) hint = "Right-click the destination: a free truck nearby picks them up and drops them there";
-  else if (m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB) hint = "Right-click a clear site: establish forward base (click Establish FOB again to cancel)";
-  else if (m_ACR_CursorMode == ACR_ECursorMode.SETUP_HIDEOUT) hint = "Right-click a building outside towns and bases: set up hideout, 25 RP (click again to cancel)";
-  else if (roadblock >= 0) hint = ACR_Roadblocks.Hint(roadblock, roadblockFaction);
-  else if (m_ACR_CursorMode == ACR_ECursorMode.FORTIFY) hint = ACR_Fortify.Hint();
-  else if (m_ACR_CursorMode == ACR_ECursorMode.EVAC) hint = "Right-click within 600 m of a town holding out (Civilians ring): its people walk to that evac point, they go there; park a vehicle on it to load them, then drive them to a base (click Evac point again to cancel)";
-  else if (m_ACR_CursorMode == ACR_ECursorMode.QRF) hint = "Right-click its post: it stands by there, goes after enemies your side spots within 300 m and comes back (click QRF again to cancel)";
-  else if (m_ACR_CursorMode >= ACR_ECursorMode.MINES_AP && m_ACR_CursorMode <= ACR_ECursorMode.DISARM_MINES) hint = ACR_Minefields.Hint(ACR_Minefields.KindOfCursor(m_ACR_CursorMode)) + ACR_MineShapeHint();
-  else hint = "Right-click: move (enemy: hunt, vehicle: get in, own base: defend)";
-  if (friendly && m_ACR_IsCommander && ACR_Aimable()) hint += " Right-click and drag to set the way it faces (a right-drag aims while this is armed, it doesn't pan the map).";
-  string title = m_ACR_Data.m_GroupNames[index];
-  string detail = m_ACR_GroupDetails[index];
-  string orderedBy = ACR_OrderedByText(m_ACR_SelectedGroup);
-  if (!orderedBy.IsEmpty()) detail += "\n" + orderedBy;
-  if (m_ACR_Data.m_Selected.Count() > 1)
-  {
-   title = string.Format("%1 squads selected", m_ACR_Data.m_Selected.Count());
-   string names;
-   foreach (RplId member : m_ACR_Data.m_Selected)
-   {
-    int memberIndex = m_ACR_Data.m_GroupIds.Find(member);
-    if (memberIndex < 0) continue;
-    if (!names.IsEmpty()) names += ", ";
-    names += m_ACR_Data.m_GroupNames[memberIndex];
-   }
-   detail = names + " | orders go to all (switch: first)";
-  }
-  if (friendly && m_ACR_IsCommander && m_ACR_CursorMode == ACR_ECursorMode.MOVE) hint += "  |  Shift+right-click: add waypoint  |  Ctrl+drag: select squads";
-  m_ACR_Panel.SetGroup(title, detail, friendly, m_ACR_IsCommander, modeAndFlags & 15, m_ACR_CursorMode, hint);
-  m_ACR_Panel.SetGunner(friendly && (modeAndFlags & 16) != 0 && m_ACR_Data.m_Selected.Count() <= 1);
-  m_ACR_Panel.SetSquadAI(friendly && m_ACR_IsCommander && m_ACR_Data.m_Selected.Count() <= 1, (modeAndFlags & 1024) != 0);
-  m_ACR_Panel.SetPatrol((modeAndFlags & 512) != 0);
-  m_ACR_Panel.SetEstablishFob(canEstablishFob);
-  m_ACR_Panel.SetEvac(canEvac);
-  m_ACR_Panel.SetRoadblock(canRoadblock, !ACR_Roadblocks.IsFia(roadblockFaction));
-  m_ACR_Panel.SetMines(canMines);
-  m_ACR_Panel.SetFortify(canFortify);
-  // Also for a full squad low on ammo: inside a deploy base Reinforce restocks it
-  // (the server says so when it isn't in one).
-  string details = m_ACR_GroupDetails[index];
-  bool missing = details.Contains("missing");
-  bool lowAmmo = details.Contains("| ammo ") && !details.Contains("| ammo 100%");
-  m_ACR_Panel.SetReinforce("Reinforce (3 RP/soldier; FOB instant service extra)", missing || lowAmmo);
- }
+ protected void ACR_UpdatePanel() { ACR_PlayerPanel.ACR_UpdatePanel(this); }
 
- void ACR_OnPanelAction(int action)
- {
-  ACR_MarkUiClick();
-  switch (action)
-  {
-   case ACR_EPanelAction.TOGGLE_COMMAND:
-    if (m_ACR_IsCommander) ACR_Request(ACR_ERequest.LEAVE_COMMAND);
-    else ACR_Request(ACR_ERequest.TAKE_COMMAND);
-    return;
-   case ACR_EPanelAction.TOGGLE_RTS_CAMERA:
-    ACR_ToggleRTSCamera();
-    return;
-   case ACR_EPanelAction.SWITCH: ACR_Request(ACR_ERequest.SWITCH_TO_GROUP, m_ACR_SelectedGroup); return;
-   case ACR_EPanelAction.TAKE_GUNNER: ACR_Request(ACR_ERequest.TAKE_GUNNER, m_ACR_SelectedGroup); return;
-   case ACR_EPanelAction.MODE_COMBAT: ACR_RequestSelected(ACR_ERequest.MODE_COMBAT); return;
-   case ACR_EPanelAction.MODE_FAST: ACR_RequestSelected(ACR_ERequest.MODE_FAST); return;
-   case ACR_EPanelAction.MODE_SILENT: ACR_RequestSelected(ACR_ERequest.MODE_SILENT); return;
-   // Defend / Get in arm the next right-click; pressing the same button again
-   // cancels back to a plain move.
-   case ACR_EPanelAction.DEFEND:
-    if (m_ACR_CursorMode == ACR_ECursorMode.DEFEND) m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-    else m_ACR_CursorMode = ACR_ECursorMode.DEFEND;
-    return;
-   case ACR_EPanelAction.GARRISON:
-    if (m_ACR_CursorMode == ACR_ECursorMode.GARRISON) m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-    else m_ACR_CursorMode = ACR_ECursorMode.GARRISON;
-    return;
-   case ACR_EPanelAction.GET_IN:
-    if (m_ACR_CursorMode == ACR_ECursorMode.GET_IN) m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-    else m_ACR_CursorMode = ACR_ECursorMode.GET_IN;
-    return;
-   case ACR_EPanelAction.SET_LZ:
-    if (m_ACR_CursorMode == ACR_ECursorMode.LZ) m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-    else m_ACR_CursorMode = ACR_ECursorMode.LZ;
-    return;
-   case ACR_EPanelAction.RIDE:
-    if (m_ACR_CursorMode == ACR_ECursorMode.RIDE) m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-    else m_ACR_CursorMode = ACR_ECursorMode.RIDE;
-    return;
-   case ACR_EPanelAction.GET_OUT: ACR_RequestSelected(ACR_ERequest.ORDER_GET_OUT); return;
-   case ACR_EPanelAction.UNLOAD: ACR_RequestSelected(ACR_ERequest.ORDER_UNLOAD); return;
-   case ACR_EPanelAction.REINFORCE: ACR_RequestSelected(ACR_ERequest.REINFORCE); return;
-   case ACR_EPanelAction.FOB_SUPPLY: Rpc(ACR_FobServer, m_ACR_SelectedBase, false); return;
-   case ACR_EPanelAction.FOB_BUILD: Rpc(ACR_FobServer, m_ACR_SelectedBase, true); return;
-   case ACR_EPanelAction.FOB_AI: Rpc(ACR_FobAIServer, m_ACR_SelectedBase); return;
-   case ACR_EPanelAction.SQUAD_AI: ACR_RequestSelected(ACR_ERequest.ORDER_SQUAD_AI); return;
-   case ACR_EPanelAction.ESTABLISH_FOB:
-    if (m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB) m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-    else m_ACR_CursorMode = ACR_ECursorMode.ESTABLISH_FOB;
-    return;
-   case ACR_EPanelAction.SETUP_HIDEOUT: ACR_ToggleCursor(ACR_ECursorMode.SETUP_HIDEOUT); return;
-   case ACR_EPanelAction.GO_TO_GROUND: Rpc(ACR_GoToGroundServer, m_ACR_SelectedBase); return;
-   case ACR_EPanelAction.TOGGLE_MUSTER: m_ACR_MusterMode = !m_ACR_MusterMode; return;
-   case ACR_EPanelAction.DISPERSE:
-    if (m_ACR_SelectedGroup.IsValid()) Rpc(ACR_DisperseServer, m_ACR_SelectedGroup);
-    return;
-   case ACR_EPanelAction.DRAW_IED_KIT: Rpc(ACR_DrawIedKitServer); return;
-   case ACR_EPanelAction.TOGGLE_DISGUISE: Rpc(ACR_ToggleDisguiseServer); return;
-   case ACR_EPanelAction.TOGGLE_NETWORK:
-    m_ACR_NetworkOpen = !m_ACR_NetworkOpen;
-    if (m_ACR_NetworkOpen) m_ACR_RequisitionOpen = false;
-    m_ACR_PendingEntry = -1;
-    if (!m_ACR_NetworkOpen) m_ACR_PendingNetwork = -1;
-    return;
-   case ACR_EPanelAction.NET_CELL:
-    if (m_ACR_PendingNetwork == ACR_InsurgentNetwork.NET_CELL) m_ACR_PendingNetwork = -1;
-    else m_ACR_PendingNetwork = ACR_InsurgentNetwork.NET_CELL;
-    return;
-   case ACR_EPanelAction.NET_IED:
-    if (m_ACR_PendingNetwork == ACR_InsurgentNetwork.NET_IED) m_ACR_PendingNetwork = -1;
-    else m_ACR_PendingNetwork = ACR_InsurgentNetwork.NET_IED;
-    return;
-   case ACR_EPanelAction.NET_SABOTAGE:
-    if (m_ACR_PendingNetwork == ACR_InsurgentNetwork.NET_SABOTAGE) m_ACR_PendingNetwork = -1;
-    else m_ACR_PendingNetwork = ACR_InsurgentNetwork.NET_SABOTAGE;
-    return;
-   case ACR_EPanelAction.NET_TECH_RAID:
-    if (m_ACR_PendingNetwork == ACR_InsurgentNetwork.NET_TECH_RAID) m_ACR_PendingNetwork = -1;
-    else m_ACR_PendingNetwork = ACR_InsurgentNetwork.NET_TECH_RAID;
-    return;
-   case ACR_EPanelAction.ROADBLOCK: ACR_ToggleCursor(ACR_ECursorMode.ROADBLOCK); return;
-   case ACR_EPanelAction.ROADBLOCK_S: ACR_ToggleCursor(ACR_ECursorMode.ROADBLOCK_S); return;
-   case ACR_EPanelAction.ROADBLOCK_L: ACR_ToggleCursor(ACR_ECursorMode.ROADBLOCK_L); return;
-   case ACR_EPanelAction.BARRICADE: ACR_ToggleCursor(ACR_ECursorMode.BARRICADE); return;
-   case ACR_EPanelAction.QRF: ACR_ToggleCursor(ACR_ECursorMode.QRF); return;
-   case ACR_EPanelAction.EVAC: ACR_ToggleCursor(ACR_ECursorMode.EVAC); return;
-   case ACR_EPanelAction.TWOIC_EVAC: ACR_Request(ACR_ERequest.TOGGLE_2IC_EVAC); return;
-   case ACR_EPanelAction.TRUCE_OFFER: ACR_Request(ACR_ERequest.TRUCE_OFFER); return;
-   case ACR_EPanelAction.TRUCE_REFUSE: ACR_Request(ACR_ERequest.TRUCE_REFUSE); return;
-   case ACR_EPanelAction.MINES_AP: ACR_ToggleCursor(ACR_ECursorMode.MINES_AP); return;
-   case ACR_EPanelAction.MINES_AT: ACR_ToggleCursor(ACR_ECursorMode.MINES_AT); return;
-   case ACR_EPanelAction.MINES_MIXED: ACR_ToggleCursor(ACR_ECursorMode.MINES_MIXED); return;
-   case ACR_EPanelAction.DISARM_MINES: ACR_ToggleCursor(ACR_ECursorMode.DISARM_MINES); return;
-   case ACR_EPanelAction.FORTIFY: ACR_ToggleCursor(ACR_ECursorMode.FORTIFY); return;
-   case ACR_EPanelAction.BUILD_FOLD:
-    if (m_ACR_Panel) m_ACR_Panel.ToggleBuildFold();
-    return;
-   case ACR_EPanelAction.UPGRADES_FOLD:
-    if (m_ACR_Panel) m_ACR_Panel.ToggleUpgradesFold();
-    return;
-   case ACR_EPanelAction.MORE_FOLD:
-    if (m_ACR_Panel) m_ACR_Panel.ToggleMoreFold();
-    return;
-   case ACR_EPanelAction.KEY_HINTS:
-    ACR_KeyHints.Toggle();
-    ACR_RefreshKeyHintsButton();
-    return;
-   case ACR_EPanelAction.RADIO_AUDIO:
-    ACR_RadioAudio.Toggle();
-    if (m_ACR_Panel) m_ACR_Panel.RefreshRadioAudio();
-    return;
-   case ACR_EPanelAction.HALT: ACR_RequestSelected(ACR_ERequest.ORDER_HALT); return;
-   case ACR_EPanelAction.FIRE_AT_WILL: ACR_RequestSelected(ACR_ERequest.ORDER_FIRE_AT_WILL); return;
-   case ACR_EPanelAction.PATROL: ACR_RequestSelected(ACR_ERequest.ORDER_PATROL); return;
-   case ACR_EPanelAction.PING_LOOK: ACR_PickPing(ACR_EPing.LOOK); return;
-   case ACR_EPanelAction.PING_ATTACK: ACR_PickPing(ACR_EPing.ATTACK); return;
-   case ACR_EPanelAction.PING_DEFEND: ACR_PickPing(ACR_EPing.DEFEND); return;
-   case ACR_EPanelAction.PING_SUPPORT: ACR_PickPing(ACR_EPing.SUPPORT); return;
-   case ACR_EPanelAction.DEBUG_TOGGLE: m_ACR_DebugOpen = !m_ACR_DebugOpen; return;
-   case ACR_EPanelAction.DEBUG_THINK: ACR_Think.Cycle(); return;
-   case ACR_EPanelAction.TOGGLE_REQUISITION:
-    m_ACR_RequisitionOpen = !m_ACR_RequisitionOpen;
-    if (m_ACR_RequisitionOpen) m_ACR_SupportOpen = false;
-    m_ACR_PendingEntry = -1;
-    m_ACR_PendingSupport = -1;
-    return;
-   case ACR_EPanelAction.TOGGLE_REPORT: m_ACR_ReportOpen = !m_ACR_ReportOpen; return;
-   case ACR_EPanelAction.TOGGLE_SUPPORTS:
-    m_ACR_SupportOpen = !m_ACR_SupportOpen;
-    m_ACR_HasSupportTarget = false;
-    if (m_ACR_SupportOpen) m_ACR_RequisitionOpen = false;
-    m_ACR_PendingEntry = -1;
-    m_ACR_PendingSupport = -1;
-    return;
-  }
-  if (action >= ACR_EPanelAction.DEBUG_ACTION && action < ACR_EPanelAction.REQUISITION_ENTRY)
-  {
-   ACR_RequestDebug(action - ACR_EPanelAction.DEBUG_ACTION);
-   return;
-  }
-  if (action >= ACR_EPanelAction.FOB_UPGRADE && action < ACR_EPanelAction.FOB_UPGRADE + ACR_FobSlots.UPGRADE_COUNT)
-  {
-   int slot = action - ACR_EPanelAction.FOB_UPGRADE;
-   ACR_RequestFobUpgrade(m_ACR_SelectedBase, slot);
-   return;
-  }
-  if (action >= ACR_EPanelAction.SUPPORT_ENTRY)
-  {
-   int support = action - ACR_EPanelAction.SUPPORT_ENTRY;
-   // Aimed from a Support ping: fire at it straight away.
-   if (m_ACR_HasSupportTarget)
-   {
-    m_ACR_HasSupportTarget = false;
-    Rpc(ACR_SupportServer, support, m_ACR_SupportTarget, m_ACR_SelectedGroup);
-    m_ACR_PendingSupport = -1;
-    m_ACR_SupportOpen = false;
-    return;
-   }
-   if (m_ACR_PendingSupport == support) m_ACR_PendingSupport = -1;
-   else m_ACR_PendingSupport = support;
-   m_ACR_PendingEntry = -1;
-   return;
-  }
-  if (action >= ACR_EPanelAction.REQUISITION_ENTRY)
-  {
-   int entry = action - ACR_EPanelAction.REQUISITION_ENTRY;
-   if (m_ACR_PendingEntry == entry) m_ACR_PendingEntry = -1; // click again to cancel
-   else m_ACR_PendingEntry = entry;
-  }
- }
+ void ACR_OnPanelAction(int action) { ACR_PlayerPanel.ACR_OnPanelAction(this, action); }
 
- // Called by the map radial menu hook. Returns true if the right-click was used.
- // Game Master or a construction truck's build mode is open: its map clicks are its own
- // (in build mode they used to reach a possessed vehicle's squad as move orders).
- static bool ACR_EditorOpen()
- {
-  SCR_EditorManagerEntity editor = SCR_EditorManagerEntity.GetInstance();
-  return editor && editor.IsOpened();
- }
+ static bool ACR_EditorOpen() { return ACR_PlayerPanel.ACR_EditorOpen(); }
 
  // ---------------------------------------------------------------- drag to aim
  // Roadblocks, Fortify and the minefields face the threat (ACR_Intel.ThreatPoint) on a plain
@@ -2149,274 +1611,46 @@ modded class SCR_PlayerController
  // The facing goes with the order request (ACR_Requests.s_vAim), so it holds in multiplayer;
  // the AI commander keeps ThreatPoint.
  // Minefield points (#200): the right-clicks so far for the armed mine order, for one squad in one mode.
- protected ref array<vector> m_ACR_MineCorners = {};
- protected RplId m_ACR_MineCornersFor;
- protected int m_ACR_MineCornersMode = -1;
+ ref array<vector> m_ACR_MineCorners = {};
+ RplId m_ACR_MineCornersFor;
+ int m_ACR_MineCornersMode = -1;
  static const int MINE_SAME_PX = 14;      // px: the last point clicked again
- protected bool m_ACR_AimHeld;
- protected vector m_ACR_AimFrom;
- protected int m_ACR_AimFromX;
- protected int m_ACR_AimFromY;
- protected float m_ACR_AimAt;
+ bool m_ACR_AimHeld;
+ vector m_ACR_AimFrom;
+ int m_ACR_AimFromX;
+ int m_ACR_AimFromY;
+ float m_ACR_AimAt;
  static const int AIM_DEAD_ZONE = 12;     // px: a smaller move is a plain click
  static const float AIM_MAX_MS = 15000;   // a press held longer is dropped
- protected bool m_ACR_AimReleased;        // ACR_AimUp passes its facing to ACR_HandleMapRightClick
- protected vector m_ACR_AimRelease;
- protected ref ACR_ClickGate m_ACR_ClickGate = new ACR_ClickGate(); // one right-click, one order
+ bool m_ACR_AimReleased;        // ACR_AimUp passes its facing to ACR_HandleMapRightClick
+ vector m_ACR_AimRelease;
+ ref ACR_ClickGate m_ACR_ClickGate = new ACR_ClickGate(); // one right-click, one order
 
- // An order that takes a facing is armed for a squad we command: a right-drag aims it.
- bool ACR_AimArmed()
- {
-  return m_ACR_IsCommander && m_ACR_SelectedGroup.IsValid() && ACR_Aimable() && !ACR_EditorOpen();
- }
+ bool ACR_AimArmed() { return ACR_PlayerPanel.ACR_AimArmed(this); }
 
- bool ACR_Aimable()
- {
-  if (ACR_CommandPanel.RoadblockOfMode(m_ACR_CursorMode) >= 0 || m_ACR_CursorMode == ACR_ECursorMode.FORTIFY || m_ACR_CursorMode == ACR_ECursorMode.DEFEND) return true;
-  return m_ACR_CursorMode >= ACR_ECursorMode.MINES_AP && m_ACR_CursorMode <= ACR_ECursorMode.MINES_MIXED;
- }
+ bool ACR_Aimable() { return ACR_PlayerPanel.ACR_Aimable(this); }
 
- // The map's right button has been held for the hold time (MapPanDrag, SCR_MapRadialUI).
- void ACR_AimDown()
- {
-  m_ACR_AimHeld = false;
-  if (!ACR_AimArmed() || ACR_PointerOverOwnUI()) return; // a press on our boxes aims nothing
-  SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
-  if (!mapEntity) return;
-  float wx, wz;
-  mapEntity.GetMapCursorWorldPosition(wx, wz);
-  m_ACR_AimFrom = Vector(wx, 0, wz);
-  WidgetManager.GetMousePos(m_ACR_AimFromX, m_ACR_AimFromY);
-  m_ACR_AimAt = System.GetTickCount();
-  m_ACR_AimHeld = true;
- }
+ void ACR_AimDown() { ACR_PlayerPanel.ACR_AimDown(this); }
 
- // While it is down and has moved past the dead zone: where the facing points now.
- bool ACR_AimDrag(out vector to)
- {
-  if (!m_ACR_AimHeld) return false;
-  if (System.GetTickCount() - m_ACR_AimAt > AIM_MAX_MS || !ACR_Aimable())
-  {
-   m_ACR_AimHeld = false;
-   return false;
-  }
-  int x, y;
-  WidgetManager.GetMousePos(x, y);
-  if (Math.AbsInt(x - m_ACR_AimFromX) <= AIM_DEAD_ZONE && Math.AbsInt(y - m_ACR_AimFromY) <= AIM_DEAD_ZONE) return false;
-  SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
-  if (!mapEntity) return false;
-  float wx, wz;
-  mapEntity.GetMapCursorWorldPosition(wx, wz);
-  to = Vector(wx, 0, wz);
-  return true;
- }
+ bool ACR_AimDrag(out vector to) { return ACR_PlayerPanel.ACR_AimDrag(this, to); }
 
- // ...and came up: a drag orders with its facing, a long press without one is a plain
- // right-click there.
- void ACR_AimUp()
- {
-  if (!m_ACR_AimHeld) return;
-  vector to;
-  bool dragged = ACR_AimDrag(to);
-  m_ACR_AimHeld = false;
-  m_ACR_AimReleased = dragged;
-  m_ACR_AimRelease = to;
-  if (ACR_HandleMapRightClick()) m_ACR_ClickGate.ReleaseOrdered(System.GetTickCount());
-  m_ACR_AimReleased = false;
- }
+ void ACR_AimUp() { ACR_PlayerPanel.ACR_AimUp(this); }
 
- // The map's right-click (MapContextualMenu, SCR_MapRadialUI): an order, unless it is the press
- // a release has just ordered for (ACR_ClickGate).
- bool ACR_HandleMapClick()
- {
-  if (m_ACR_ClickGate.SwallowClick(System.GetTickCount())) return true;
-  return ACR_HandleMapRightClick();
- }
+ bool ACR_HandleMapClick() { return ACR_PlayerPanel.ACR_HandleMapClick(this); }
 
- bool ACR_HandleMapRightClick()
- {
-  // A drag to aim ends in ACR_AimUp, which passes its facing here; a click has none.
-  vector aimTo = m_ACR_AimRelease;
-  bool aimed = m_ACR_AimReleased;
-  m_ACR_AimReleased = false;
-  m_ACR_AimHeld = false;
-  // A right-click on our boxes orders nothing and opens no radial menu (a drag to aim that
-  // started on the map may end over one: it still orders).
-  if (!aimed && ACR_PointerOverOwnUI()) return true;
-  if (!ACR_Manager.GetInstance()) return false;
-  if (ACR_EditorOpen()) return false;
-  if (ACR_ModifierHeld("ACR_MapAlt"))
-  {
-   SCR_MapEntity pickerMap = SCR_MapEntity.GetMapInstance();
-   if (!pickerMap) return false;
-   float cx, cz;
-   pickerMap.GetMapCursorWorldPosition(cx, cz);
-   ACR_OpenPicker(pickerMap, Vector(cx, 0, cz));
-   return true;
-  }
-  ACR_ClosePicker();
-  if (m_ACR_PendingSupport >= 0)
-  {
-   SCR_MapEntity supportMap = SCR_MapEntity.GetMapInstance();
-   if (!supportMap) return false;
-   float sx, sz;
-   supportMap.GetMapCursorWorldPosition(sx, sz);
-   Rpc(ACR_SupportServer, m_ACR_PendingSupport, Vector(sx, 0, sz), m_ACR_SelectedGroup);
-   m_ACR_PendingSupport = -1;
-   return true;
-  }
-  if (m_ACR_PendingEntry >= 0)
-  {
-   m_ACR_PendingEntry = -1;
-   return true;
-  }
-  if (m_ACR_PendingNetwork >= 0)
-  {
-   SCR_MapEntity netMap = SCR_MapEntity.GetMapInstance();
-   if (!netMap) return false;
-   float nx, nz;
-   netMap.GetMapCursorWorldPosition(nx, nz);
-   Rpc(ACR_NetworkOrderServer, m_ACR_PendingNetwork, Vector(nx, 0, nz));
-   m_ACR_PendingNetwork = -1;
-   return true;
-  }
-  if (!m_ACR_SelectedGroup.IsValid()) return false;
-  int index = m_ACR_Data.m_GroupIds.Find(m_ACR_SelectedGroup);
-  if (index < 0 || index >= m_ACR_Data.m_Commandable.Count() || m_ACR_Data.m_Commandable[index] != 1) return false;
-  if (!m_ACR_IsCommander)
-  {
-   SCR_HintManagerComponent.ShowCustomHint("Only the commander can give map orders. Take command in the panel.", "AC: Actual", 4, true);
-   return true;
-  }
-  SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
-  if (!mapEntity) return false;
-  float x, z;
-  mapEntity.GetMapCursorWorldPosition(x, z);
-  bool append = ACR_ModifierHeld("ACR_MapShift");
-  int command = ACR_ERequest.MOVE_TO;
-  if (append) command = ACR_ERequest.QUEUE_MOVE;
-  if (m_ACR_CursorMode == ACR_ECursorMode.DEFEND)
-  {
-   command = ACR_ERequest.ORDER_DEFEND;
-   if (append) command = ACR_ERequest.QUEUE_DEFEND;
-  }
-  if (m_ACR_CursorMode == ACR_ECursorMode.GARRISON)
-  {
-   command = ACR_ERequest.ORDER_GARRISON;
-   if (append) command = ACR_ERequest.QUEUE_GARRISON;
-  }
-  if (m_ACR_CursorMode == ACR_ECursorMode.GET_IN) command = ACR_ERequest.ORDER_GET_IN;
-  if (m_ACR_CursorMode == ACR_ECursorMode.LZ) command = ACR_ERequest.ORDER_SET_LZ;
-  if (m_ACR_CursorMode == ACR_ECursorMode.RIDE) command = ACR_ERequest.ORDER_RIDE;
-  if (m_ACR_CursorMode == ACR_ECursorMode.ESTABLISH_FOB || m_ACR_CursorMode == ACR_ECursorMode.SETUP_HIDEOUT) command = ACR_ERequest.ORDER_ESTABLISH_FOB;
-  if (m_ACR_CursorMode == ACR_ECursorMode.ROADBLOCK) command = ACR_ERequest.ORDER_ROADBLOCK;
-  if (m_ACR_CursorMode == ACR_ECursorMode.QRF) command = ACR_ERequest.ORDER_QRF;
-  if (m_ACR_CursorMode == ACR_ECursorMode.EVAC) command = ACR_ERequest.ORDER_EVAC;
-  if (m_ACR_CursorMode == ACR_ECursorMode.MINES_AP) command = ACR_ERequest.ORDER_MINES_AP;
-  if (m_ACR_CursorMode == ACR_ECursorMode.MINES_AT) command = ACR_ERequest.ORDER_MINES_AT;
-  if (m_ACR_CursorMode == ACR_ECursorMode.MINES_MIXED) command = ACR_ERequest.ORDER_MINES_MIXED;
-  if (m_ACR_CursorMode == ACR_ECursorMode.DISARM_MINES) command = ACR_ERequest.ORDER_DISARM_MINES;
-  if (m_ACR_CursorMode == ACR_ECursorMode.ROADBLOCK_S) command = ACR_ERequest.ORDER_ROADBLOCK_S;
-  if (m_ACR_CursorMode == ACR_ECursorMode.ROADBLOCK_L) command = ACR_ERequest.ORDER_ROADBLOCK_L;
-  if (m_ACR_CursorMode == ACR_ECursorMode.BARRICADE) command = ACR_ERequest.ORDER_BARRICADE;
-  if (m_ACR_CursorMode == ACR_ECursorMode.FORTIFY) command = ACR_ERequest.ORDER_FORTIFY;
-  // Minefield points (#200): a right-click drops a point and the last one clicked again lays the field (one
-  // point the square as before, two a line, three or four that area); a fourth lays it at once. A drag on
-  // the first point still lays the square facing the drag.
-  ACR_MineCornersCheck();
-  if (ACR_MineShapeMode() && !append && !(aimed && m_ACR_MineCorners.IsEmpty())) return ACR_MineShapeClick(mapEntity, command, Vector(x, 0, z));
-  vector target = Vector(x, 0, z);
-  // Dragged: the order goes where the button went down, facing where it came up.
-  vector aim;
-  if (aimed && ACR_Aimable())
-  {
-   aim = aimTo;
-   target = m_ACR_AimFrom;
-  }
-  // Contextual right-click in MOVE mode:
-  //  - on a spotted enemy: hunt it down
-  //  - on a friendly empty vehicle: get in
-  //  - on an owned base icon: defend it
-  if (m_ACR_CursorMode == ACR_ECursorMode.MOVE && !append && !aimed)
-  {
-   int hunted = ACR_ContactUnderCursor(mapEntity, x, z);
-   if (hunted >= 0)
-   {
-    command = ACR_ERequest.ORDER_HUNT;
-    target = m_ACR_ContactPositions[hunted];
-   }
-   else
-   {
-    int veh = ACR_VehicleUnderCursor(mapEntity, x, z);
-    if (veh >= 0)
-    {
-     command = ACR_ERequest.ORDER_GET_IN;
-     target = m_ACR_VehiclePositions[veh];
-    }
-    else
-    {
-     int ownBase = ACR_OwnBaseUnderCursor(mapEntity, x, z);
-     if (ownBase >= 0)
-     {
-      command = ACR_ERequest.ORDER_DEFEND;
-      target = m_ACR_Data.m_BasePositions[ownBase];
-     }
-    }
-   }
-  }
-  ACR_IssueOrder(command, target, append, aim);
-  return true;
- }
+ bool ACR_HandleMapRightClick() { return ACR_PlayerPanel.ACR_HandleMapRightClick(this); }
 
- // An order button arms its right-click order; a second click disarms it.
- protected void ACR_ToggleCursor(ACR_ECursorMode mode)
- {
-  if (m_ACR_CursorMode == mode) m_ACR_CursorMode = ACR_ECursorMode.MOVE;
-  else m_ACR_CursorMode = mode;
-  m_ACR_MineCorners.Clear();
- }
+ protected void ACR_ToggleCursor(ACR_ECursorMode mode) { ACR_PlayerPanel.ACR_ToggleCursor(this, mode); }
 
- // ---------------------------------------------------------------- minefield points (#200)
- protected bool ACR_MineShapeMode()
- {
-  return m_ACR_CursorMode == ACR_ECursorMode.MINES_AP || m_ACR_CursorMode == ACR_ECursorMode.MINES_AT || m_ACR_CursorMode == ACR_ECursorMode.MINES_MIXED;
- }
+ protected bool ACR_MineShapeMode() { return ACR_PlayerPanel.ACR_MineShapeMode(this); }
 
- // The points belong to the squad and the order they were clicked for: another squad, another order or the
- // order disarmed drops them.
- protected void ACR_MineCornersCheck()
- {
-  if (m_ACR_MineCorners.IsEmpty()) return;
-  if (!ACR_MineShapeMode() || m_ACR_MineCornersFor != m_ACR_SelectedGroup || m_ACR_MineCornersMode != m_ACR_CursorMode) m_ACR_MineCorners.Clear();
- }
+ protected void ACR_MineCornersCheck() { ACR_PlayerPanel.ACR_MineCornersCheck(this); }
 
- // A right-click with a mine order armed: a point more, or (the last point clicked again, or a fourth point)
- // the field laid.
- protected bool ACR_MineShapeClick(SCR_MapEntity mapEntity, int command, vector point)
- {
-  ACR_MineCornersCheck();
-  if (!m_ACR_MineCorners.IsEmpty())
-  {
-   vector last = m_ACR_MineCorners[m_ACR_MineCorners.Count() - 1];
-   int lx, ly, px, py;
-   mapEntity.WorldToScreen(last[0], last[2], lx, ly, true);
-   mapEntity.WorldToScreen(point[0], point[2], px, py, true);
-   if (Math.AbsInt(lx - px) <= MINE_SAME_PX && Math.AbsInt(ly - py) <= MINE_SAME_PX)
-   {
-    ACR_LayMineShape(command);
-    return true;
-   }
-  }
-  m_ACR_MineCorners.Insert(point);
-  m_ACR_MineCornersFor = m_ACR_SelectedGroup;
-  m_ACR_MineCornersMode = m_ACR_CursorMode;
-  if (m_ACR_MineCorners.Count() >= ACR_MineShape.MOST_CORNERS) ACR_LayMineShape(command);
-  return true;
- }
+ protected bool ACR_MineShapeClick(SCR_MapEntity mapEntity, int command, vector point) { return ACR_PlayerPanel.ACR_MineShapeClick(this, mapEntity, command, point); }
 
  // One point: the square there, as before. Two to four: that shape, laid by the selected squad (one squad
  // lays one field).
- protected void ACR_LayMineShape(int command)
+ void ACR_LayMineShape(int command)
  {
   array<vector> corners = {};
   corners.Copy(m_ACR_MineCorners);
@@ -2433,7 +1667,7 @@ modded class SCR_PlayerController
  }
 
  // The hint's line while points are down: how many, and what they make.
- protected string ACR_MineShapeHint()
+ string ACR_MineShapeHint()
  {
   int count = m_ACR_MineCorners.Count();
   if (count == 0) return "";
@@ -2510,7 +1744,7 @@ modded class SCR_PlayerController
  // A line from each friendly squad's leader to its current destination, ending
  // in a dot, like the Arma 3 mod. Colour shows the order; the selected squad's
  // line is brighter and thicker.
- protected ref ACR_MapData m_ACR_Data = new ACR_MapData();
+ ref ACR_MapData m_ACR_Data = new ACR_MapData();
  protected ref ACR_OrderDisplay m_ACR_Display = new ACR_OrderDisplay();
 
  void ACR_SendOrders(array<RplId> groupIds, array<vector> targets, array<int> kinds, array<int> issuers)
@@ -2549,7 +1783,7 @@ modded class SCR_PlayerController
  // ---------------------------------------------------------------- intel
  // Enemies our side has spotted (server-side ACR_Intel), as hostile map symbols
  // that turn "suspected" (dashed) after a while and vanish when forgotten.
- protected ref array<vector> m_ACR_ContactPositions = {};
+ ref array<vector> m_ACR_ContactPositions = {};
  protected ref array<int> m_ACR_ContactKinds = {};
  protected ref array<int> m_ACR_ContactCounts = {};
  protected ref array<int> m_ACR_ContactAges = {};
@@ -2649,7 +1883,7 @@ modded class SCR_PlayerController
  }
 
  // Index of the enemy contact marker within 16 px of the map cursor, or -1.
- protected int ACR_ContactUnderCursor(SCR_MapEntity mapEntity, float x, float z)
+ int ACR_ContactUnderCursor(SCR_MapEntity mapEntity, float x, float z)
  {
   int cx, cy;
   mapEntity.WorldToScreen(x, z, cx, cy, true);
@@ -2668,7 +1902,7 @@ modded class SCR_PlayerController
  }
 
  // Index of our empty vehicle marker within 16 px of the map cursor, or -1.
- protected int ACR_VehicleUnderCursor(SCR_MapEntity mapEntity, float x, float z)
+ int ACR_VehicleUnderCursor(SCR_MapEntity mapEntity, float x, float z)
  {
   int cx, cy;
   mapEntity.WorldToScreen(x, z, cx, cy, true);
@@ -2687,7 +1921,7 @@ modded class SCR_PlayerController
  }
 
  // Index of an owned friendly base marker within 18 px of the map cursor, or -1.
- protected int ACR_OwnBaseUnderCursor(SCR_MapEntity mapEntity, float x, float z)
+ int ACR_OwnBaseUnderCursor(SCR_MapEntity mapEntity, float x, float z)
  {
   Faction mine = SCR_FactionManager.SGetLocalPlayerFaction();
   if (!mine || !m_ACR_Data) return -1;
@@ -2713,7 +1947,7 @@ modded class SCR_PlayerController
 
  // Our side's empty vehicles (fog of war: only those our people can see,
  // or their last known spot for a while).
- protected ref array<vector> m_ACR_VehiclePositions = {};
+ ref array<vector> m_ACR_VehiclePositions = {};
  protected ref array<string> m_ACR_VehicleNames = {};
  protected ref array<int> m_ACR_VehicleAges = {};
  protected ref array<ref ACR_UnitMarker> m_ACR_VehicleMarkers = {};
@@ -2944,10 +2178,10 @@ modded class SCR_PlayerController
   }
  }
 
- protected string m_ACR_SelectedBase;
- protected bool m_ACR_NetworkOpen;
- protected bool m_ACR_MusterMode;
- protected int m_ACR_PendingNetwork = -1;
+ string m_ACR_SelectedBase;
+ bool m_ACR_NetworkOpen;
+ bool m_ACR_MusterMode;
+ int m_ACR_PendingNetwork = -1;
 
  void ACR_SendBases(array<vector> positions, array<string> names, array<string> owners, array<string> details, array<float> radii, array<int> contested, array<int> supplies)
  {
@@ -3174,11 +2408,11 @@ modded class SCR_PlayerController
 
 
  // ---------------------------------------------------------------- requisition
- protected ref array<string> m_ACR_ReqNames = {};
- protected ref array<int> m_ACR_ReqCosts = {};
- protected ref array<int> m_ACR_ReqRemaining = {};
- protected bool m_ACR_RequisitionOpen;
- protected int m_ACR_PendingEntry = -1;
+ ref array<string> m_ACR_ReqNames = {};
+ ref array<int> m_ACR_ReqCosts = {};
+ ref array<int> m_ACR_ReqRemaining = {};
+ bool m_ACR_RequisitionOpen;
+ int m_ACR_PendingEntry = -1;
 
  void ACR_SendRequisitions(array<string> names, array<int> costs, array<int> remaining)
  {
@@ -3193,15 +2427,15 @@ modded class SCR_PlayerController
  }
 
  // ---------------------------------------------------------------- supports
- protected ref array<string> m_ACR_SupNames = {};
- protected ref array<int> m_ACR_SupCosts = {};
+ ref array<string> m_ACR_SupNames = {};
+ ref array<int> m_ACR_SupCosts = {};
  protected ref array<int> m_ACR_SupCooldowns = {};
- protected bool m_ACR_SupportOpen;
- protected int m_ACR_PendingSupport = -1;
+ bool m_ACR_SupportOpen;
+ int m_ACR_PendingSupport = -1;
 
  // ---------------------------------------------------------------- after-action report
- protected bool m_ACR_ReportOpen;
- protected string m_ACR_ReportText = "No report yet";
+ bool m_ACR_ReportOpen;
+ string m_ACR_ReportText = "No report yet";
  void ACR_SendReport(string text)
  {
   Rpc(ACR_ReportOwner, text);
@@ -3225,7 +2459,7 @@ modded class SCR_PlayerController
   m_ACR_SupportsAt = System.GetTickCount();
  }
  protected int m_ACR_SupportsAt;
- protected void ACR_Cooldowns(notnull array<int> result)
+ void ACR_Cooldowns(notnull array<int> result)
  {
   result.Clear();
   int since = ACR_MapData.Since(m_ACR_SupportsAt);
@@ -3241,8 +2475,8 @@ modded class SCR_PlayerController
  }
  // The answer to a support call, also kept in the panel for a while (a refusal such as
  // "out of range" was only a hint, easy to miss on the map).
- protected string m_ACR_SupportResult;
- protected int m_ACR_SupportResultAt;
+ string m_ACR_SupportResult;
+ int m_ACR_SupportResultAt;
  [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
  protected void ACR_SupportResultOwner(string message)
  {
@@ -3382,7 +2616,7 @@ modded class SCR_PlayerController
  }
 
  // The panel's commander roster: one line per other commander and what he last did.
- protected string ACR_RosterText()
+ string ACR_RosterText()
  {
   if (m_ACR_Data.m_CmdIds.Count() < 2) return "";
   string text = "";
@@ -3412,7 +2646,7 @@ modded class SCR_PlayerController
  }
 
  // "Ordered by Popp, 40 s ago" for the squad panel ("" when nobody/AI).
- protected string ACR_OrderedByText(RplId groupId)
+ string ACR_OrderedByText(RplId groupId)
  {
   int age;
   int by = m_ACR_Data.OrderedBy(groupId, age);
@@ -3521,9 +2755,9 @@ modded class SCR_PlayerController
   if (!result.IsEmpty()) Rpc(ACR_FeedbackOwner, result);
  }
 
- protected bool m_ACR_HasSupportTarget;
- protected vector m_ACR_SupportTarget;
- protected string m_ACR_SupportTargetFor;
+ bool m_ACR_HasSupportTarget;
+ vector m_ACR_SupportTarget;
+ string m_ACR_SupportTargetFor;
 
  // A ping's label was clicked: Alt+click your own to clear it; as a commander,
  // a Support ping opens the support list aimed at it.
@@ -3573,7 +2807,7 @@ modded class SCR_PlayerController
   if (m_ACR_Panel) m_ACR_Panel.ShowPicker(false, 0, 0);
  }
 
- protected void ACR_PickPing(int kind)
+ void ACR_PickPing(int kind)
  {
   if (!m_ACR_PickerOpen) return;
   ACR_RequestPing(kind, m_ACR_PickerPos, false);

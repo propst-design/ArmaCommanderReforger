@@ -90,9 +90,7 @@ class ACR_OrganEasterEgg
  static SCR_AIUtilityComponent Utility(IEntity soldier)
  {
   if (!soldier) return null;
-  AIControlComponent control = AIControlComponent.Cast(soldier.FindComponent(AIControlComponent));
-  if (!control || !control.GetControlAIAgent()) return null;
-  return SCR_AIUtilityComponent.Cast(control.GetControlAIAgent().FindComponent(SCR_AIUtilityComponent));
+  return ACR_EntityUtil.AIUtility(soldier);
  }
 
  static bool Eligible(IEntity soldier)

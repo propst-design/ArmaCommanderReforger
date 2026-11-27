@@ -743,9 +743,9 @@ class ACR_Squad : Managed
  // (ACR_BBBHooks.IntentOf: WITHDRAW); WatchFallBack forces the move if that gets nowhere.
  vector m_vFallBackTo;
  int m_iFallBackSerial = -1;
- protected float m_fFallBackCheckAt;
- protected float m_fFallBackDist;
- protected bool m_bFallBackPushed;
+ float m_fFallBackCheckAt;
+ float m_fFallBackDist;
+ bool m_bFallBackPushed;
  static const float FALLBACK_CHECK_MS = 30000;
  static const float FALLBACK_MIN_GAIN_M = 10;
  protected float m_fLastContactTime = -1;
@@ -780,7 +780,7 @@ class ACR_Squad : Managed
  {
   RestoreOrderAt(snapshot, snapshot.m_sPrefab, snapshot.m_Target, snapshot.m_fRadius);
  }
- protected void RestoreOrderAt(ACR_OrderSnapshot snapshot, ResourceName prefab, vector target, float radius)
+ void RestoreOrderAt(ACR_OrderSnapshot snapshot, ResourceName prefab, vector target, float radius)
  {
   // A Fortify order called off while it was set aside (its base fell): nothing to go back to.
   if (snapshot.m_eState == ACR_EOrderState.FORTIFY && !m_FortifyPlan)
@@ -867,8 +867,8 @@ class ACR_Squad : Managed
  ref array<IEntity> m_aHeldGuns = {}; // static guns at the spot it holds that its men sat in (ACR_GunHold)
  bool m_bPatrol;     // the queued points loop: each goes back at the end once the squad sets off for it
  int m_OrderKind;   // ACR_EOrderKind, for map symbology
- protected float m_fNextWaypointRecovery;
- protected int m_iWaypointRecoveries;
+ float m_fNextWaypointRecovery;
+ int m_iWaypointRecoveries;
  vector m_vFobSite;
  float m_fFobBuildProgress;
  float m_fFobLastTick;
@@ -1034,7 +1034,7 @@ class ACR_Squad : Managed
  }
 
  // Every new order: a fresh serial, and nobody (yet) to credit it to.
- protected void NewOrder()
+ void NewOrder()
  {
   m_Evade = null; // a new order replaces an evasion and the order it would have put back
   m_bFireEvade = false;
@@ -1110,7 +1110,7 @@ class ACR_Squad : Managed
  // activity (a Defend) still reads it until it notices the removal (crash.log 25 Oct: "Defend
  // Waypoint not provided to the node!" as an ambush ended and as a roadblock squad was re-tasked).
  static const int WAYPOINT_DELETE_DELAY_MS = 1000;
- protected static void DeleteWaypointSoon(AIWaypoint waypoint)
+ static void DeleteWaypointSoon(AIWaypoint waypoint)
  {
   if (waypoint) GetGame().GetCallqueue().CallLater(DeleteWaypointNow, WAYPOINT_DELETE_DELAY_MS, false, waypoint);
  }
@@ -1219,12 +1219,12 @@ class ACR_Squad : Managed
  // The soldier navmesh streams in tiles (about a second): a building whose tile isn't
  // loaded yet is surveyed again next second while the squad heads there; after a few
  // tries it is surveyed without the navmesh check.
- protected bool m_bGarrisonPending;
+ bool m_bGarrisonPending;
  protected vector m_GarrisonPending;
  protected int m_iGarrisonTries;
  protected int m_iGarrisonReissues;
 
- protected bool PlaceGarrison(vector position)
+ bool PlaceGarrison(vector position)
  {
   vector center;
   float radius;
@@ -1612,7 +1612,7 @@ class ACR_Squad : Managed
   GetGame().GetCallqueue().CallLater(StepOntoNavmesh, 100, false, 0);
  }
 
- protected void StepOntoNavmesh(int tries)
+ void StepOntoNavmesh(int tries)
  {
   array<AIAgent> agents = {};
   GetAgents(agents);
@@ -1881,7 +1881,7 @@ class ACR_Squad : Managed
  // longer fit to fight.
  protected ACR_Squad m_HuntSquad;
  protected IEntity m_HuntBody;
- protected bool m_bHunting;
+ bool m_bHunting;
  protected int m_iHuntSerial;
  protected string m_sHuntWhat;
  protected vector m_HuntPos;
@@ -2116,140 +2116,22 @@ class ACR_Squad : Managed
  // ---------------------------------------------------------------- land routes
  // An order whose straight line crosses open water is walked leg by leg along a
  // land route instead (see BBB_Terrain), so squads go round a bay, not across it.
- protected ref array<vector> m_aRoute = {};
- protected ref ACR_OrderSnapshot m_Route; // the order at the end of the route (target unused)
+ ref array<vector> m_aRoute = {};
+ ref ACR_OrderSnapshot m_Route; // the order at the end of the route (target unused)
 
- // Where the current order ends up: the last leg of a route, the order carried on after a
- // dismount, else the order's own point (ACR_AICommander's trips).
- vector Heading()
- {
-  if (!m_aRoute.IsEmpty()) return m_aRoute[m_aRoute.Count() - 1];
-  if (m_bResumeOnFoot && m_Resume) return m_Resume.m_Target;
-  return m_MoveTarget;
- }
+ vector Heading() { return ACR_SquadRouting.Heading(this); }
 
- // #86 (29 Oct): one waypoint per vehicle trip is the default, as vanilla's own scenarios drive
- // (each road hop was a waypoint end and a fresh engine path: brake, plan again); -acrNoRoadHops 0
- // brings the road hops back. The hops are the fallback: a failed move (OnGroupMoveFailed) and a
- // stuck vehicle (DriveWatch's Reroute) go on over the roads from where they stand.
- static bool NoRoadHops()
- {
-  string value;
-  if (System.GetCLIParam("acrNoRoadHops", value)) return value != "0";
-  return true;
- }
+ static bool NoRoadHops() { return ACR_SquadRouting.NoRoadHops(); }
 
- // Covered fall-back: on by default from 0.6.0 (#232; off in 0.5.9-0.5.12): -acrCoveredFallBack 0 or the
- // classic commander (ACR_AIRework) turns it off.
- static bool CoveredFallBackOn() { return ACR_LogisticsRules.Choice("acrCoveredFallBack", ACR_AIRework.Default("1")) == "1"; }
+ static bool CoveredFallBackOn() { return ACR_SquadRouting.CoveredFallBackOn(); }
 
- // The order just given is the AI commander's fall-back to this point (call after issuing it).
- void MarkFallBack(vector to)
- {
-  m_vFallBackTo = to;
-  m_iFallBackSerial = m_iOrderSerial;
-  m_fFallBackCheckAt = 0;
-  m_bFallBackPushed = false;
- }
+ void MarkFallBack(vector to) { ACR_SquadRouting.MarkFallBack(this, to); }
 
- bool FallingBack(out vector to)
- {
-  if (m_iFallBackSerial < 0 || m_iFallBackSerial != m_iOrderSerial) return false;
-  to = m_vFallBackTo;
-  return true;
- }
+ bool FallingBack(out vector to) { return ACR_SquadRouting.FallingBack(this, to); }
 
- // A covered fall-back that isn't getting back (BBB's bounds stalled, or never started because the
- // squad sees nobody while the enemy still fires): every 30 s in contact, under 10 m gained toward
- // the spot forces the order and the squad runs for it (Jacob, 4 Nov: a screen must not lie prone in
- // the open). True while that run stands: the order is not re-issued at combat level in contact.
- protected bool WatchFallBack(float now, bool contact)
- {
-  vector to;
-  if (!FallingBack(to) || !BBB_Morale.OrderedOn()) return false;
-  if (m_bFallBackPushed) return true;
-  IEntity anchor = GetAnchor();
-  if (!anchor || !contact || IsMounted() || !m_Waypoint)
-  {
-   m_fFallBackCheckAt = 0;
-   return false;
-  }
-  float dist = vector.DistanceXZ(anchor.GetOrigin(), to);
-  if (m_fFallBackCheckAt <= 0 || now < m_fFallBackCheckAt - FALLBACK_CHECK_MS)
-  {
-   m_fFallBackCheckAt = now + FALLBACK_CHECK_MS;
-   m_fFallBackDist = dist;
-   return false;
-  }
-  if (now < m_fFallBackCheckAt) return false;
-  float gained = m_fFallBackDist - dist;
-  m_fFallBackCheckAt = now + FALLBACK_CHECK_MS;
-  m_fFallBackDist = dist;
-  if (gained >= FALLBACK_MIN_GAIN_M || dist <= 30) return false;
-  m_bFallBackPushed = true;
-  IssueWaypoint(m_sOrderPrefab, m_MoveTarget, m_fOrderRadius, true);
-  PrintFormat("[ACR] TACTICS %1: falling back under fire, %2 m gained in 30 s: running for it (%3 m to go)", m_Name, Math.Round(gained), Math.Round(dist));
-  return true;
- }
+ protected bool WatchFallBack(float now, bool contact) { return ACR_SquadRouting.WatchFallBack(this, now, contact); }
 
- // exactEnd (player orders): road hops on the way, but the last leg is the clicked point.
- bool RouteTo(vector destination, ResourceName prefab, float radius, string order, int kind, bool exactEnd = false)
- {
-  // Vehicle crews: aim for the nearest road point, which AI drivers can reach.
-  vector road;
-  vector clicked = destination;
-  IEntity driven = ACR_Transport.CrewedVehicle(this);
-  // A roadblock gunner is infantry for this order: the new order takes him off the gun.
-  // Planned as a crew, the road point nearest the target can be the roadblock itself.
-  bool onPost = driven != null && driven == m_RoadblockTurret;
-  if (onPost) driven = null;
-  if (driven && BBB_Terrain.RoadPointNear(destination, 250, road)) destination = road;
-  IEntity anchor = GetAnchor();
-  array<vector> legs = {};
-  // ...and on longer trips, along the roads in short hops only with -acrNoRoadHops 0 (by default
-  // one waypoint for the whole trip: the game's driver plans it, NoRoadHops).
-  if (driven && anchor && vector.DistanceXZ(anchor.GetOrigin(), destination) > 400 && !NoRoadHops())
-  {
-   int nodes, millis;
-   if (BBB_Roads.Route(driven.GetOrigin(), destination, legs, nodes, millis) && legs.Count() > 1)
-   {
-    PrintFormat("[ACR] ROAD %1: %2 hops over %3 road points (%4 ms)", m_Name, legs.Count(), nodes, millis);
-    if (exactEnd && vector.DistanceXZ(legs[legs.Count() - 1], clicked) > 15) legs.Insert(clicked);
-    if (System.IsCLIParam("acrRideTest")) foreach (vector hop : legs) PrintFormat("[ACR] ROAD   hop %1", hop);
-    StartRoute(legs, prefab, radius, order, kind);
-    return true;
-   }
-   legs.Clear();
-  }
-  if (exactEnd) destination = clicked;
-  bool landRoute;
-  if (anchor && (onPost || !IsMounted()))
-  {
-   int landStarted = System.GetTickCount();
-   landRoute = BBB_Terrain.LandRoute(anchor.GetOrigin(), destination, legs);
-   ACR_Perf.Lap("route.land", landStarted);
-  }
-  // AI foot squads outside friendly ground keep off the roads (FieldLegs).
-  if (!landRoute && anchor && !driven && !IsMounted() && !PlayerSteers() && FieldLegs(anchor.GetOrigin(), destination, legs))
-  {
-   PrintFormat("[ACR] ROUTE %1: keeping off the roads outside friendly ground, %2 legs", m_Name, legs.Count());
-   StartRoute(legs, prefab, radius, order, kind);
-   return true;
-  }
-  if (!landRoute)
-  {
-   if (prefab == WP_GARRISON) { Garrison(destination); return true; }
-   if (prefab == WP_DEFEND) return Defend(destination);
-   if (prefab == WP_SEARCH_DESTROY) return Assault(destination);
-   // A crewed vehicle's one-waypoint trip ends within 22 m (vanilla's resupply trucks use the base
-   // radius), so it doesn't creep and jockey for the prefab's 5 m at the end.
-   if (driven && NoRoadHops()) return MoveTo(destination, 22);
-   return MoveTo(destination);
-  }
-  PrintFormat("[ACR] ROUTE %1: straight line crosses water, going round in %2 legs", m_Name, legs.Count());
-  StartRoute(legs, prefab, radius, order, kind);
-  return true;
- }
+ bool RouteTo(vector destination, ResourceName prefab, float radius, string order, int kind, bool exactEnd = false) { return ACR_SquadRouting.RouteTo(this, destination, prefab, radius, order, kind, exactEnd); }
 
  // Off the roads (1 Nov 2026, Jacob): infantry may use roads on friendly ground but must get off
  // them elsewhere; two squads meeting on a road lie on the open strip and grind each other down.
@@ -2277,235 +2159,21 @@ class ACR_Squad : Managed
  static const float FIELD_BRIDGE_KEEP = 60;    // m either side of a crossing with no leg of its own
  static bool s_bFieldAnywhere; // tests: no ground counts as friendly
 
- bool FieldLegs(vector from, vector to, notnull array<vector> legs)
- {
-  legs.Clear();
-  if (ACR_LogisticsRules.Choice("acrFieldRoutes", "1") == "0" || !GetFaction()) return false;
-  float length = vector.DistanceXZ(from, to);
-  if (length < FIELD_STEP * 2 + FIELD_APPROACH || BBB_Terrain.WaterAlong(from, to) > 0) return false;
-  int started = System.GetTickCount();
-  string side = GetFaction().GetFactionKey();
-  vector dir = to - from;
-  dir[1] = 0;
-  dir.Normalize();
-  vector across = Vector(-dir[2], 0, dir[0]);
-  // Deep water the line crosses, and the bridge over each crossing.
-  array<float> crossFrom = {};
-  array<float> crossTo = {};
-  array<vector> bridgeNear = {};
-  array<vector> bridgeFar = {};
-  array<vector> approachNear = {};
-  array<vector> approachFar = {};
-  bool inWater;
-  float wetFrom;
-  for (float wetAt = 0; wetAt <= length; wetAt += FIELD_WATER_STEP)
-  {
-   bool deep = BBB_Terrain.IsDeepWaterAt(from + dir * wetAt);
-   if (deep && !inWater)
-   {
-    inWater = true;
-    wetFrom = wetAt;
-   }
-   else if (!deep && inWater)
-   {
-    inWater = false;
-    vector nearEnd, farEnd, nearApproach, farApproach;
-    if (!BBB_Terrain.BridgeNear(from + dir * ((wetFrom + wetAt) * 0.5), from, FIELD_BRIDGE_SEARCH, nearEnd, farEnd, nearApproach, farApproach))
-    {
-     PrintFormat("[ACR] ROUTE %1: deep water %2 m along and no bridge within %3 m, walking direct", m_Name, Math.Round(wetFrom), FIELD_BRIDGE_SEARCH);
-     ACR_Perf.Lap("route.field", started);
-     return false;
-    }
-    // The same bridge again (a viaduct over two channels, a river bending under it): one crossing.
-    int last = bridgeNear.Count() - 1;
-    if (last >= 0 && (vector.DistanceXZ(bridgeNear[last], nearEnd) < 20 || vector.DistanceXZ(bridgeNear[last], farEnd) < 20))
-    {
-     crossTo[last] = wetAt + FIELD_BRIDGE_KEEP;
-     continue;
-    }
-    crossFrom.Insert(wetFrom - FIELD_BRIDGE_KEEP);
-    crossTo.Insert(wetAt + FIELD_BRIDGE_KEEP);
-    bridgeNear.Insert(nearEnd);
-    bridgeFar.Insert(farEnd);
-    approachNear.Insert(nearApproach);
-    approachFar.Insert(farApproach);
-    PrintFormat("[ACR] ROUTE %1: deep water %2 m along, over the bridge %3 to %4", m_Name, Math.Round(wetFrom), nearEnd, farEnd);
-   }
-  }
-  if (inWater) { ACR_Perf.Lap("route.field", started); return false; } // the destination is in the water
-  float lean = 0; // the side the last moved leg went to (0: none yet)
-  bool moved = !bridgeNear.IsEmpty();
-  vector previous = from;
-  int next;
-  bool bridged; // crossing 'next' has its bridge legs
-  int fixedLegs; // legs up to the last bridge's way off: never dropped
-  array<int> decks = {}; // legs that start a bridge deck (the step to the next one is over water)
-  for (float along = FIELD_STEP; along < length - FIELD_APPROACH; along += FIELD_STEP)
-  {
-   bool crossing;
-   while (next < crossFrom.Count() && along >= crossFrom[next])
-   {
-    if (!bridged)
-    {
-     OntoBridge(legs, from, fixedLegs, decks, approachNear[next], bridgeNear[next], bridgeFar[next], approachFar[next]);
-     fixedLegs = legs.Count();
-     previous = legs[legs.Count() - 1];
-     bridged = true;
-    }
-    if (along <= crossTo[next])
-    {
-     crossing = true;
-     break;
-    }
-    next++;
-    bridged = false;
-   }
-   if (crossing) continue;
-   vector point = ACR_Manager.Ground(from + dir * along);
-   vector leg = point;
-   if ((s_bFieldAnywhere || !FriendlyGround(point, side)) && ACR_Minefields.RoadClearance(point) < FIELD_CLEAR)
-   {
-    bool ok;
-    for (float shift = FIELD_SHIFT; shift <= FIELD_SHIFT_MAX && !ok; shift += FIELD_SHIFT)
-    {
-     for (int pass = 0; pass < 2 && !ok; pass++)
-     {
-      float sense = 1;
-      if (lean < 0) sense = -1;
-      if (pass == 1) sense = -sense;
-      vector candidate = ACR_Manager.Ground(point + across * (shift * sense));
-      if (ACR_Minefields.RoadClearance(candidate) < FIELD_CLEAR || BBB_Terrain.WaterDepthAt(candidate) > 0) continue;
-      if (BBB_Terrain.DeepWaterAlong(previous, candidate) > 0) continue;
-      leg = candidate;
-      lean = sense;
-      moved = true;
-      ok = true;
-     }
-    }
-   }
-   if (BBB_Terrain.IsDeepWaterAt(leg) || BBB_Terrain.DeepWaterAlong(previous, leg) > 0) continue;
-   legs.Insert(leg);
-   previous = leg;
-  }
-  // Crossings past the last leg (in the approach): their bridges still.
-  while (next < crossFrom.Count())
-  {
-   if (!bridged)
-   {
-    OntoBridge(legs, from, fixedLegs, decks, approachNear[next], bridgeNear[next], bridgeFar[next], approachFar[next]);
-    fixedLegs = legs.Count();
-   }
-   bridged = false;
-   next++;
-  }
-  if (!moved) { ACR_Perf.Lap("route.field", started); legs.Clear(); return false; }
-  legs.Insert(to);
-  // The whole route dry-footed, bridge decks apart (a river may bend back across the way between
-  // legs the line never crossed): else walk direct, as before.
-  vector walked = from;
-  foreach (int n, vector step : legs)
-  {
-   if (!decks.Contains(n - 1) && BBB_Terrain.DeepWaterAlong(walked, step) > 0)
-   {
-    PrintFormat("[ACR] ROUTE %1: deep water between field legs %2 and %3, walking direct", m_Name, walked, step);
-    ACR_Perf.Lap("route.field", started);
-    legs.Clear();
-    return false;
-   }
-   walked = step;
-  }
-  ACR_Perf.Lap("route.field", started);
-  return true;
- }
+ bool FieldLegs(vector from, vector to, notnull array<vector> legs) { return ACR_SquadRouting.FieldLegs(this, from, to, legs); }
 
- // Over a bridge along its road: a leg or two since the last bridge (fixedLegs) that would leave
- // deep water between them and the way on is dropped when the leg before reaches it dry (a river
- // bending round the abutments), then the way on, both ends (recorded in decks) and the way off.
- protected static void OntoBridge(array<vector> legs, vector from, int fixedLegs, array<int> decks, vector nearApproach, vector nearEnd, vector farEnd, vector farApproach)
- {
-  for (int drop = 0; drop < 2 && legs.Count() > fixedLegs; drop++)
-  {
-   if (BBB_Terrain.DeepWaterAlong(legs[legs.Count() - 1], nearApproach) <= 0) break;
-   vector before = from;
-   if (legs.Count() >= 2) before = legs[legs.Count() - 2];
-   if (BBB_Terrain.DeepWaterAlong(before, nearApproach) > 0) break;
-   legs.Remove(legs.Count() - 1);
-  }
-  if (vector.DistanceXZ(nearApproach, nearEnd) > 1) legs.Insert(nearApproach);
-  legs.Insert(nearEnd);
-  decks.Insert(legs.Count() - 1);
-  legs.Insert(farEnd);
-  if (vector.DistanceXZ(farApproach, farEnd) > 1) legs.Insert(farApproach);
- }
+ protected static void OntoBridge(array<vector> legs, vector from, int fixedLegs, array<int> decks, vector nearApproach, vector nearEnd, vector farEnd, vector farApproach) { ACR_SquadRouting.OntoBridge(legs, from, fixedLegs, decks, nearApproach, nearEnd, farEnd, farApproach); }
 
- // Nearest held base is ours or a friend's.
- protected static bool FriendlyGround(vector point, string side)
- {
-  ACR_Base nearest;
-  float best = float.MAX;
-  foreach (ACR_Base base : ACR_Base.s_All)
-  {
-   if (!base || base.m_sOwner.IsEmpty()) continue;
-   float d = vector.DistanceXZ(base.GetOrigin(), point);
-   if (d < best) { best = d; nearest = base; }
-  }
-  return nearest && ACR_Insurgency.Friendly(nearest.m_sOwner, side);
- }
+ protected static bool FriendlyGround(vector point, string side) { return ACR_SquadRouting.FriendlyGround(point, side); }
 
- protected void StartRoute(array<vector> legs, ResourceName prefab, float radius, string order, int kind)
- {
-  NewOrder();
-  m_bRegrouping = false;
-  ClearPlans();
-  foreach (vector leg : legs) m_aRoute.Insert(leg);
-  vector finalDestination = vector.Zero;
-  if (!legs.IsEmpty()) finalDestination = legs[legs.Count() - 1];
-  m_Route = ACR_OrderSnapshot.Make(prefab, finalDestination, radius, order, StateOfLabel(order), kind);
-  NextLeg();
- }
+ protected void StartRoute(array<vector> legs, ResourceName prefab, float radius, string order, int kind) { ACR_SquadRouting.StartRoute(this, legs, prefab, radius, order, kind); }
 
- // Walks a route the AI commander planned (a covered approach), leg by leg like a land route.
- // A crewed vehicle drives it as one trip to its end (#86 again, 20 Nov, Jacob: one waypoint per trip):
- // on Reforger 1.9 every waypoint change ends the group's move and the driver plans again from a stop,
- // whatever is queued behind it. A recorded supply route or a covered approach is the game's own road
- // plan to the last point; the road hops stay the fallback for a drive that fails (OnGroupMoveFailed,
- // DriveWatch's Reroute). -acrNoRoadHops 0 walks the legs as before.
- void WalkLegs(array<vector> legs, ResourceName prefab, float radius, string order, int kind)
- {
-  if (!legs || legs.IsEmpty()) return;
-  if (legs.Count() > 1 && NoRoadHops() && IsMounted() && ACR_Transport.CrewedVehicle(this))
-  {
-   PrintFormat("[ACR] ROUTE %1: %2 legs driven as one trip to the last", m_Name, legs.Count());
-   RouteTo(legs[legs.Count() - 1], prefab, radius, order, kind);
-   return;
-  }
-  StartRoute(legs, prefab, radius, order, kind);
- }
+ void WalkLegs(array<vector> legs, ResourceName prefab, float radius, string order, int kind) { ACR_SquadRouting.WalkLegs(this, legs, prefab, radius, order, kind); }
 
- // m_Route outlives its route (NextLeg restores the final order from it), so it only counts while
- // legs remain: after a later plain MoveTo it named an old route's end (audit 31 Oct).
- vector RouteDestination()
- {
-  if (!m_aRoute.IsEmpty() && m_Route && m_Route.m_Target != vector.Zero) return m_Route.m_Target;
-  if (!m_aRoute.IsEmpty()) return m_aRoute[m_aRoute.Count() - 1];
-  return m_MoveTarget;
- }
+ vector RouteDestination() { return ACR_SquadRouting.RouteDestination(this); }
 
- bool HasActiveRoute()
- {
-  return m_Route != null || !m_aRoute.IsEmpty();
- }
+ bool HasActiveRoute() { return ACR_SquadRouting.HasActiveRoute(this); }
 
- protected void NextLeg()
- {
-  m_iWaypointRecoveries = 0;
-  m_fNextWaypointRecovery = 0;
-  SkipStraightHops();
-  vector leg = m_aRoute[0];
-  m_aRoute.RemoveOrdered(0);
-  if (m_aRoute.IsEmpty()) RestoreOrderAt(m_Route, m_Route.m_sPrefab, leg, m_Route.m_fRadius);
-  else RestoreOrderAt(m_Route, WP_MOVE, leg, 25);
- }
+ protected void NextLeg() { ACR_SquadRouting.NextLeg(this); }
 
  // #86: the game's driver brakes as it nears the end of a waypoint and plans a new path
  // before it sets off for the next, so every road hop (BBB_Roads.LEG, 160 m) was a stop.
@@ -2517,356 +2185,50 @@ class ACR_Squad : Managed
  static const float ROAD_HANDOVER_S = 6; // next hop this many seconds out at the current speed
 
  static bool s_bRoadFlowOff; // tests: the old hop-by-hop driving for an A/B
- static bool RoadFlow()
- {
-  return !s_bRoadFlowOff && ACR_LogisticsRules.Choice("acrRoadFlow", "1") != "0";
- }
+ static bool RoadFlow() { return ACR_SquadRouting.RoadFlow(); }
 
- protected void SkipStraightHops()
- {
-  if (m_aRoute.Count() < 2 || !IsMounted() || !RoadFlow()) return;
-  IEntity driven = ACR_Transport.CrewedVehicle(this);
-  if (!driven) return;
-  vector from = driven.GetOrigin();
-  // Handing over short of the current hop (not in m_aRoute any more): it must be on the line too.
-  bool viaCurrent = m_MoveTarget != vector.Zero && vector.DistanceXZ(from, m_MoveTarget) < 200;
-  int aim = 0;
-  for (int k = 1; k < m_aRoute.Count(); k++)
-  {
-   if (vector.DistanceXZ(from, m_aRoute[k]) > ROAD_AIM_M) break;
-   bool straight = !viaCurrent || ACR_AICommander.DistanceToSegment(m_MoveTarget, from, m_aRoute[k]) <= ROAD_STRAIGHT_M;
-   for (int j = 0; j < k && straight; j++)
-    straight = ACR_AICommander.DistanceToSegment(m_aRoute[j], from, m_aRoute[k]) <= ROAD_STRAIGHT_M;
-   if (!straight) break;
-   aim = k;
-  }
-  if (aim > 0) PrintFormat("[ACR] ROAD %1: straight road, skipping %2 hops (%3 left)", m_Name, aim, m_aRoute.Count() - aim);
-  for (int skip = 0; skip < aim; skip++) m_aRoute.RemoveOrdered(0);
- }
+ protected void SkipStraightHops() { ACR_SquadRouting.SkipStraightHops(this); }
 
  // The next hop waits behind the current waypoint, so the group goes on to it when the
  // current one completes instead of us deleting it and making a new one (which stopped the
  // driver to re-plan). Not the last hop: the order's own waypoint ends the route as before.
- protected AIWaypoint m_QueuedHop;
+ AIWaypoint m_QueuedHop;
 
- // The order's own waypoint, or the road hop queued behind it (the group may be on it
- // for up to a squad tick before FlowHops makes it the order's waypoint).
- bool IsOrderWaypoint(AIWaypoint waypoint)
- {
-  return waypoint && (waypoint == m_Waypoint || waypoint == m_QueuedHop);
- }
+ bool IsOrderWaypoint(AIWaypoint waypoint) { return ACR_SquadRouting.IsOrderWaypoint(this, waypoint); }
 
- protected void DropQueuedHop()
- {
-  if (!m_QueuedHop) return;
-  if (m_Group) m_Group.RemoveWaypoint(m_QueuedHop);
-  DeleteWaypointSoon(m_QueuedHop);
-  m_QueuedHop = null;
- }
+ protected void DropQueuedHop() { ACR_SquadRouting.DropQueuedHop(this); }
 
- // True when it looked after the route this tick.
- protected bool FlowHops(IEntity driven, float handover)
- {
-  if (!RoadFlow()) return false;
-  AIWaypoint current = m_Group.GetCurrentWaypoint();
-  if (m_QueuedHop)
-  {
-   // The group moved on to it: it is the order's waypoint now.
-   if (current == m_QueuedHop)
-   {
-    DeleteWaypointSoon(m_Waypoint);
-    m_Waypoint = m_QueuedHop;
-    m_MoveTarget = m_QueuedHop.GetOrigin();
-    m_QueuedHop = null;
-    if (!m_aRoute.IsEmpty()) m_aRoute.RemoveOrdered(0);
-    m_iWaypointRecoveries = 0;
-    m_fNextWaypointRecovery = 0;
-    return true;
-   }
-   if (current == m_Waypoint && current) return true;
-   // Something else replaced the waypoints (a player, a recovery): the queued hop is stale.
-   DropQueuedHop();
-   return false;
-  }
-  if (m_aRoute.Count() < 2 || !current || current != m_Waypoint || m_sOrderPrefab != WP_MOVE) return false;
-  if (vector.DistanceXZ(driven.GetOrigin(), m_MoveTarget) > handover + 80) return true;
-  SkipStraightHops();
-  if (m_aRoute.Count() < 2) return false;
-  Resource resource = Resource.Load(WP_MOVE);
-  if (!resource.IsValid()) return false;
-  EntitySpawnParams params = new EntitySpawnParams();
-  params.TransformMode = ETransformMode.WORLD;
-  params.Transform[3] = m_aRoute[0];
-  AIWaypoint hop = AIWaypoint.Cast(GetGame().SpawnEntityPrefabLocal(resource, null, params));
-  if (!hop) return false;
-  hop.SetCompletionRadius(25);
-  SCR_AIWaypoint scripted = SCR_AIWaypoint.Cast(hop);
-  if (scripted && m_bForced) scripted.SetPriorityLevel(SCR_AIActionBase.PRIORITY_LEVEL_PLAYER);
-  m_Group.AddWaypoint(hop);
-  m_QueuedHop = hop;
-  return true;
- }
+ protected bool FlowHops(IEntity driven, float handover) { return ACR_SquadRouting.FlowHops(this, driven, handover); }
 
- // How near the current hop a crewed vehicle gets the next one: far enough out that the
- // driver hasn't started braking yet, with a squad tick (1 s) to spare.
- protected float RoadHandover(IEntity driven)
- {
-  if (!RoadFlow() || !driven.GetPhysics()) return 70;
-  return Math.Max(70, driven.GetPhysics().GetVelocity().Length() * ROAD_HANDOVER_S);
- }
+ protected float RoadHandover(IEntity driven) { return ACR_SquadRouting.RoadHandover(this, driven); }
 
  // ---- queued orders (Shift + right-click on the map)
  static const int MAX_QUEUED = 8;
- protected ref array<vector> m_aQueuePos = {};
- protected ref array<int> m_aQueueKind = {};   // 0 move, 1 defend, 2 garrison
+ ref array<vector> m_aQueuePos = {};
+ ref array<int> m_aQueueKind = {};   // 0 move, 1 defend, 2 garrison
 
- void ClearPlans()
- {
-  m_aRoute.Clear();
-  m_aQueuePos.Clear();
-  m_aQueueKind.Clear();
-  m_bPatrol = false; // a new order ends a patrol
- }
+ void ClearPlans() { ACR_SquadRouting.ClearPlans(this); }
 
- // Patrol (map panel): the squad walks its queued points (Shift + right-click) in a loop, the
- // point it is moving to now included; Defend and Garrison points are walked through. With one
- // point only it walks between where it stands and that point. A squad that isn't moving
- // (holding where it arrived, say) sets off at once. A new order ends it, as does toggling it
- // again: then it finishes the current leg only (the loop's points are dropped, #65 review: they
- // were all still queued, so it walked one more lap).
- bool TogglePatrol(out string refusal)
- {
-  refusal = "";
-  if (m_bPatrol)
-  {
-   m_bPatrol = false;
-   m_aQueuePos.Clear();
-   m_aQueueKind.Clear();
-   return true;
-  }
-  bool moving = OrderState() == ACR_EOrderState.MOVE && m_Group && m_Group.GetCurrentWaypoint() && m_MoveTarget != vector.Zero && !m_aQueuePos.Contains(m_MoveTarget);
-  int points = m_aQueuePos.Count();
-  if (moving) points++;
-  IEntity anchor = GetAnchor();
-  if (points < 1 || !anchor)
-  {
-   refusal = "give it a move order or Shift + right-click a point first";
-   return false;
-  }
-  // One point: there and back, from where it stands.
-  if (points < 2 && m_aQueuePos.Count() < MAX_QUEUED)
-  {
-   m_aQueuePos.Insert(anchor.GetOrigin());
-   m_aQueueKind.Insert(0);
-  }
-  // Past MAX_QUEUED if need be: the point it is heading for is never left out of the loop.
-  if (moving)
-  {
-   m_aQueuePos.Insert(m_MoveTarget);
-   m_aQueueKind.Insert(0);
-  }
-  m_bPatrol = true;
-  PrintFormat("[ACR] SQUAD %1: patrolling %2 points (moving %3)", m_Name, m_aQueuePos.Count(), moving);
-  if (!moving) NextQueued();
-  return true;
- }
+ bool TogglePatrol(out string refusal) { return ACR_SquadRouting.TogglePatrol(this, refusal); }
 
- // Add an order after the current one (or carry it out now if there's nothing to do).
- // Waiting where it ended up ("Holding position": arrived, dismounted, a build done): its hold
- // waypoint never completes, so nothing queued behind it would ever start.
- bool HoldingInPlace() { return m_Order == "Holding position"; }
+ bool HoldingInPlace() { return ACR_SquadRouting.HoldingInPlace(this); }
 
- // Jacob (15 Nov): an order queued behind a hold-type order (Defend, Garrison, a post: its Defend
- // waypoint never completes) would never start, so it is refused, not run at once. Behind the last
- // queued order, the route's end order, else the current one. A patrol walks every point as a move.
- bool QueueBehindHold()
- {
-  if (!m_Group) return false;
-  if (!m_aQueuePos.IsEmpty())
-  {
-   if (m_bPatrol) return false;
-   int last = m_aQueueKind[m_aQueueKind.Count() - 1];
-   return last == 1 || last == 2;
-  }
-  if (!m_aRoute.IsEmpty()) return m_Route && m_Route.m_iKind == ACR_EOrderKind.DEFEND;
-  // Set aside for a while (a regroup, getting away in a vehicle, a combat flank): the order put back
-  // afterwards is what a queue would wait behind, so a Defend there refuses it too.
-  ACR_OrderSnapshot aside;
-  if (m_CombatFlank.Active()) aside = m_CombatFlank.Original();
-  else if (m_bRegrouping) aside = m_Regroup;
-  else if (m_Evade) aside = m_Evade;
-  if (aside) return aside.m_eState == ACR_EOrderState.DEFEND;
-  return m_Group.GetCurrentWaypoint() != null && !HoldingInPlace() && OrderState() == ACR_EOrderState.DEFEND;
- }
+ bool QueueBehindHold() { return ACR_SquadRouting.QueueBehindHold(this); }
 
 
- bool Queue(vector position, bool defend, bool garrison = false)
- {
-  if (!m_Group || QueueBehindHold()) return false;
-  bool busy = (m_Group.GetCurrentWaypoint() != null && !HoldingInPlace()) || !m_aRoute.IsEmpty() || !m_aQueuePos.IsEmpty();
-  if (!busy)
-  {
-   if (garrison) { Garrison(position); return true; }
-   if (defend) return Defend(position);
-   return MoveTo(position);
-  }
-  if (m_aQueuePos.Count() >= MAX_QUEUED) return false;
-  m_aQueuePos.Insert(position);
-  int kind = 0;
-  if (defend) kind = 1;
-  if (garrison) kind = 2;
-  m_aQueueKind.Insert(kind);
-  return true;
- }
+ bool Queue(vector position, bool defend, bool garrison = false) { return ACR_SquadRouting.Queue(this, position, defend, garrison); }
 
- // Every point still ahead of the squad, in order: route legs, then queued orders.
- void GetPlannedPoints(notnull array<vector> points, notnull array<int> kinds)
- {
-  if (m_CombatFlank.Active())
-  {
-   points.Insert(m_CombatFlank.Original().m_Target);
-   kinds.Insert(m_CombatFlank.Original().m_iKind);
-  }
-  int routeKind;
-  if (m_Route) routeKind = m_Route.m_iKind;
-  foreach (vector leg : m_aRoute)
-  {
-   points.Insert(leg);
-   kinds.Insert(routeKind);
-  }
-  foreach (int i, vector queued : m_aQueuePos)
-  {
-   points.Insert(queued);
-   int queuedKind = m_aQueueKind[i];
-   if (queuedKind == 2) queuedKind = ACR_EOrderKind.DEFEND;
-   kinds.Insert(queuedKind);
-  }
- }
+ void GetPlannedPoints(notnull array<vector> points, notnull array<int> kinds) { ACR_SquadRouting.GetPlannedPoints(this, points, kinds); }
 
- protected void FollowQueue()
- {
-  // Not while hunting: the queue waits for the hunt to end (EndHunt), or the next sighting's new
-  // Search & Destroy order replaced the queued one it had started.
-  if (m_aQueuePos.IsEmpty() || !m_aRoute.IsEmpty() || m_bRegrouping || m_bHunting || !m_Group) return;
+ protected void FollowQueue() { ACR_SquadRouting.FollowQueue(this); }
 
-  if (m_Group.GetCurrentWaypoint()) return;
-  // An engine-completed waypoint is not proof that the squad reached it.
-  if (MovementStillPending()) return;
-  NextQueued();
- }
+ protected void NextQueued() { ACR_SquadRouting.NextQueued(this); }
 
- // The next queued order now (a patrol puts the point back at the end).
- protected void NextQueued()
- {
-  if (m_aQueuePos.IsEmpty() || !m_Group) return;
-  vector next = m_aQueuePos[0];
-  int kind = m_aQueueKind[0];
-  m_aQueuePos.RemoveOrdered(0);
-  m_aQueueKind.RemoveOrdered(0);
-  // A patrol: the point goes back at the end, and every point is walked through.
-  if (m_bPatrol)
-  {
-   m_aQueuePos.Insert(next);
-   m_aQueueKind.Insert(0);
-   kind = 0;
-  }
-  m_iWaypointRecoveries = 0;
-  m_fNextWaypointRecovery = 0;
-  if (kind == 2)
-  {
-   PlaceGarrison(next);
-   kind = ACR_EOrderKind.DEFEND;
-  }
-  else if (kind == 1)
-  {
-   IssueWaypoint(WP_DEFEND, next, 15);
-   SetOrder("Defending", ACR_EOrderState.DEFEND);
-  }
-  else
-  {
-   IssueWaypoint(WP_MOVE, next);
-   if (m_bPatrol) SetOrder("Patrolling", ACR_EOrderState.MOVE);
-   else SetOrder("Moving", ACR_EOrderState.MOVE);
-  }
-  m_OrderKind = kind;
- }
+ protected void FollowRoute() { ACR_SquadRouting.FollowRoute(this); }
 
- protected void FollowRoute()
- {
-  FollowQueue();
-  // Getting away (Evade / DriveOut) keeps the route for EvadeTick's RestoreOrder, but the escape
-  // waypoint is not a leg: handing over near it sent the vehicle down the next hop, back into fire.
-  if (m_aRoute.IsEmpty() || m_bRegrouping || !m_Group || m_Evade) return;
-  array<AIWaypoint> waypoints = {};
-  m_Group.GetWaypoints(waypoints);
-  IEntity leader = GetLeader();
-  // Vehicles get the next road hop well before reaching this one: the AI driver
-  // brakes as it nears the end of a waypoint, so handing over at 30 m made it stop
-  // for a second at every hop (1 Oct live test).
-  float handover = 30;
-  IEntity driven;
-  if (IsMounted()) driven = ACR_Transport.CrewedVehicle(this);
-  if (driven) handover = RoadHandover(driven);
-  if (driven && FlowHops(driven, handover)) return;
-  if (!waypoints.IsEmpty())
-  {
-   if (leader && vector.DistanceXZ(leader.GetOrigin(), m_MoveTarget) < handover) NextLeg();
-   return;
-  }
-  if (!leader) return;
-  float toLeg = vector.DistanceXZ(leader.GetOrigin(), m_MoveTarget);
-  if (toLeg < handover)
-  {
-   NextLeg();
-   return;
-  }
-  // Recovery runs after route/queue handling, including the final mounted leg.
- }
+ bool MovementStillPending() { return ACR_SquadRouting.MovementStillPending(this); }
 
- protected bool MovementStillPending()
- {
-  ACR_EOrderState state = OrderState();
-  if (state != ACR_EOrderState.MOVE && state != ACR_EOrderState.DEFEND && state != ACR_EOrderState.ASSAULT && state != ACR_EOrderState.RETURN) return false;
-  if (m_sOrderPrefab != WP_MOVE && m_sOrderPrefab != WP_DEFEND && m_sOrderPrefab != WP_SEARCH_DESTROY && m_sOrderPrefab != WP_GARRISON) return false;
-  IEntity anchor = GetAnchor();
-  if (!anchor) return true;
-  float arrival = Math.Max(60, m_fOrderRadius);
-  if (IsMounted()) arrival = Math.Max(70, arrival);
-  if (!m_aRoute.IsEmpty()) arrival = 30;
-  if (!m_aRoute.IsEmpty() && IsMounted() && ACR_Transport.CrewedVehicle(this)) arrival = 70;
-  return vector.DistanceXZ(anchor.GetOrigin(), m_MoveTarget) >= arrival;
- }
-
- protected void RecoverMovementWaypoint(float now)
- {
-  if (!m_Group || m_bRegrouping || m_bGarrisonPending || m_Group.GetCurrentWaypoint() || !MovementStillPending()) return;
-  if (now < m_fNextWaypointRecovery || m_iWaypointRecoveries >= 4) return;
-  m_fNextWaypointRecovery = now + 10000;
-  m_iWaypointRecoveries++;
-  // Jacob 18 Oct: orders were dropped after four identical reissues to a spot the
-  // engine could not path to. The first retry repeats the order (a transient drop);
-  // later ones aim for the nearest walkable point round it, searching wider each time.
-  // The start can be the problem as much as the target: a soldier stranded off the navmesh.
-  if (!IsMounted()) StepOntoNavmesh(0);
-  vector target = m_MoveTarget;
-  string how = "same spot";
-  if (m_iWaypointRecoveries >= 2)
-  {
-   vector reachable;
-   bool found = ReachableNear(m_MoveTarget, 5 + 15 * (m_iWaypointRecoveries - 2), reachable);
-   // #30: the spot itself is walkable, so the way in from this side is the problem.
-   if ((!found || vector.DistanceXZ(reachable, m_MoveTarget) < 3) && DetourRound()) return;
-   if (found)
-   {
-    how = string.Format("nearest walkable point, %1 m off", (int)vector.DistanceXZ(reachable, m_MoveTarget));
-    target = reachable;
-    m_MoveTarget = reachable;
-   }
-  }
-  IssueWaypoint(m_sOrderPrefab, target, m_fOrderRadius, m_bForced);
-  PrintFormat("[ACR] MOVE %1: waypoint disappeared before arrival; recovery %2/4 (%3), group vehicles %4", m_Name, m_iWaypointRecoveries, how, GroupVehicleCount());
-  if (m_iWaypointRecoveries >= 4) m_bRecoveryLast = true;
- }
+ protected void RecoverMovementWaypoint(float now) { ACR_SquadRouting.RecoverMovementWaypoint(this, now); }
 
  // #30 (Everon): some base centres sit in walled yards the engine paths into from some sides
  // only (srv:pathprobe: Gallows Base from the south, the move dropped every 10 s while the
@@ -2876,169 +2238,43 @@ class ACR_Squad : Managed
  // order again. A detour leg that fails too tries the other flank; after two the usual
  // recoveries run out, so a spot no side reaches still ends as unreachable.
  static const float DETOUR_M = 180;
- protected int m_iDetourSerial = -1;
- protected int m_iDetours;
- protected vector m_vDetourGoal;
- protected vector m_vDetourAway; // from the goal towards where the squad came from
- protected bool DetourRound()
- {
-  if (IsMounted()) return false;
-  IEntity anchor = GetAnchor();
-  if (!anchor) return false;
-  bool onDetour = m_iDetourSerial == m_iOrderSerial && vector.DistanceXZ(m_MoveTarget, m_vDetourGoal) > 1;
-  if (m_iDetourSerial != m_iOrderSerial)
-  {
-   vector away = anchor.GetOrigin() - m_MoveTarget;
-   away[1] = 0;
-   if (away.LengthSq() < 1) return false;
-   away.Normalize();
-   m_iDetourSerial = m_iOrderSerial;
-   m_iDetours = 0;
-   m_vDetourGoal = m_MoveTarget;
-   m_vDetourAway = away;
-  }
-  if (m_iDetours >= 2) return false;
-  vector goal = m_vDetourGoal;
-  vector side = Vector(m_vDetourAway[2], 0, -m_vDetourAway[0]);
-  if (m_iDetours == 1) side = side * -1;
-  vector back, flank;
-  if (!ReachableNear(goal + side * DETOUR_M, 30, flank)) return false;
-  bool backOut = vector.DistanceXZ(anchor.GetOrigin(), goal) < DETOUR_M - 30 && ReachableNear(goal + m_vDetourAway * DETOUR_M, 30, back);
-  // The legs of the last detour still ahead go; the goal and the order's own route after it stay.
-  if (onDetour)
-  {
-   while (!m_aRoute.IsEmpty() && vector.DistanceXZ(m_aRoute[0], goal) > 1) m_aRoute.RemoveOrdered(0);
-  }
-  else
-  {
-   if (m_aRoute.IsEmpty()) m_Route = ACR_OrderSnapshot.Make(m_sOrderPrefab, goal, m_fOrderRadius, m_Order, OrderState(), m_OrderKind);
-   m_aRoute.InsertAt(goal, 0);
-  }
-  m_aRoute.InsertAt(flank, 0);
-  if (backOut) m_aRoute.InsertAt(back, 0);
-  m_iDetours++;
-  string how = "";
-  if (backOut) how = string.Format("back out to %1, then ", ACR_Manager.Grid(back));
-  PrintFormat("[ACR] MOVE %1: can't get in to %2 from this side, going round (%3%4, detour %5/2)", m_Name, ACR_Manager.Grid(goal), how, ACR_Manager.Grid(flank), m_iDetours);
-  // The commander who gave the order sees why it walks away from the target.
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  if (manager && m_iOrderedBy > 0) manager.Notify(m_iOrderedBy, string.Format("%1 can't get in to %2 from this side, going round", m_Name, ACR_Manager.Grid(goal)));
-  NextLeg();
-  return true;
- }
+ int m_iDetourSerial = -1;
+ int m_iDetours;
+ vector m_vDetourGoal;
+ vector m_vDetourAway; // from the goal towards where the squad came from
+ protected bool DetourRound() { return ACR_SquadRouting.DetourRound(this); }
 
  // Said once when the last recovery also fails, so an order is never dropped silently.
- protected bool m_bRecoveryLast;
- protected void ReportUnreachable()
- {
-  if (!m_bRecoveryLast || !m_Group || m_Group.GetCurrentWaypoint() || !MovementStillPending()) return;
-  if (GetGame().GetWorld().GetWorldTime() < m_fNextWaypointRecovery) return;
-  m_bRecoveryLast = false;
-  string message = string.Format("%1 can't reach %2, holding", m_Name, ACR_Manager.Grid(m_MoveTarget));
-  // Where the squad stood too: a squad stuck in a pocket fails every move from there, a target
-  // in one fails every squad (AI soak 7 Nov: the logs couldn't tell the two apart).
-  IEntity anchor = GetAnchor();
-  vector from = m_MoveTarget;
-  if (anchor) from = anchor.GetOrigin();
-  int off = vector.DistanceXZ(from, m_MoveTarget);
-  PrintFormat("[ACR] MOVE %1: gave up after 4 recoveries at %2 (the squad at %3, %4 m away)", m_Name, m_MoveTarget, from, off);
-  ACR_Manager manager = ACR_Manager.GetInstance();
-  if (manager && m_iOrderedBy > 0) manager.Notify(m_iOrderedBy, message);
-  m_iGaveUpMoveSerial = m_iOrderSerial;
-  m_fGaveUpAt = GetGame().GetWorld().GetWorldTime();
-  Halt("Holding (unreachable)");
-  m_iUnreachableSerial = m_iOrderSerial;
- }
+ bool m_bRecoveryLast;
+ protected void ReportUnreachable() { ACR_SquadRouting.ReportUnreachable(this); }
 
  // Holding since its last order turned out unreachable (no order since): the AI commander
  // gives up on that attack at once instead of waiting out its time limit (Everon night soak
  // 26 Oct: Gallows Base can't be pathed into from the south; a grab's only squad held there
  // "unreachable" for 17 min). Moving the target short of the spot instead was tried and
  // dropped: the squad then "arrived" without moving, outside the base (srv:pathprobe).
- protected int m_iUnreachableSerial = -1;
- protected int m_iGaveUpMoveSerial = -1; // the move order that was given up (the hold has its own serial)
+ int m_iUnreachableSerial = -1;
+ int m_iGaveUpMoveSerial = -1; // the move order that was given up (the hold has its own serial)
  float m_fGaveUpAt = -1000000; // world time it last gave up a move as unreachable
- bool GaveUpUnreachable() { return m_iUnreachableSerial == m_iOrderSerial; }
- // A move order given since this serial (this one included) was given up as unreachable.
- bool GaveUpSince(int serial) { return m_iGaveUpMoveSerial >= serial; }
- // srv:mortargiveup: as ReportUnreachable, without waiting out four recoveries.
- void GiveUpForTest()
- {
-  m_iGaveUpMoveSerial = m_iOrderSerial;
-  m_fGaveUpAt = GetGame().GetWorld().GetWorldTime();
-  Halt("Holding (unreachable)");
-  m_iUnreachableSerial = m_iOrderSerial;
- }
- // Its last move order still stands, though the engine may have dropped the waypoint: the
- // squad's own recovery owns it, and a fresh order would reset that recovery.
- bool MovePending() { return MovementStillPending() && !GaveUpUnreachable(); }
+ bool GaveUpUnreachable() { return ACR_SquadRouting.GaveUpUnreachable(this); }
+ bool GaveUpSince(int serial) { return ACR_SquadRouting.GaveUpSince(this, serial); }
+ void GiveUpForTest() { ACR_SquadRouting.GiveUpForTest(this); }
+ bool MovePending() { return ACR_SquadRouting.MovePending(this); }
 
- // Vehicles the game's group AI counts as its own (it plans moves with them).
- int GroupVehicleCount()
- {
-  if (!m_Group) return 0;
-  SCR_AIGroupUtilityComponent utility = SCR_AIGroupUtilityComponent.Cast(m_Group.FindComponent(SCR_AIGroupUtilityComponent));
-  if (!utility || !utility.m_VehicleMgr) return 0;
-  return utility.m_VehicleMgr.GetVehiclesCount();
- }
+ int GroupVehicleCount() { return ACR_SquadRouting.GroupVehicleCount(this); }
 
- // The nearest point on the soldiers' navmesh or road within radius of 'at'.
- bool ReachableNear(vector at, float radius, out vector result)
- {
-  if (IsMounted())
-  {
-   vector roadPoint;
-   if (BBB_Terrain.RoadPointNear(at, radius, roadPoint))
-   {
-    result = roadPoint;
-    return true;
-   }
-   return false;
-  }
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-  {
-   AIPathfindingComponent pathing = AIPathfindingComponent.Cast(agent.FindComponent(AIPathfindingComponent));
-   if (!pathing) continue;
-   NavmeshWorldComponent mesh = pathing.GetNavmeshComponent();
-   if (mesh && !mesh.IsTileLoaded(at)) mesh.LoadTileIn(at);
-   return pathing.GetClosestPositionOnNavmesh(at, Vector(radius, 10, radius), result);
-  }
-  return false;
- }
+ bool ReachableNear(vector at, float radius, out vector result) { return ACR_SquadRouting.ReachableNear(this, at, radius, result); }
 
  // ---------------------------------------------------------------- AC:A Think (ACR_Think)
  // When its newest orders came: a squad given a fresh order every few seconds is looping
  // (Everon 26 Oct: an MG team re-ordered every 15 s for 34 min).
  static const int THINK_ORDERS = 12;
- protected ref array<float> m_aRecentOrders = {};
- int OrdersSince(float since)
- {
-  int count;
-  foreach (float at : m_aRecentOrders) if (at >= since) count++;
-  return count;
- }
+ ref array<float> m_aRecentOrders = {};
+ int OrdersSince(float since) { return ACR_SquadCohesion.OrdersSince(this, since); }
 
- // Its movement state in a few words: waypoint recovery, regrouping, gave up.
- string ThinkMovement()
- {
-  string state;
-  if (m_bRegrouping) state += " regrouping";
-  if (m_bGarrisonPending) state += " garrison pending";
-  if (m_iWaypointRecoveries > 0) state += string.Format(" recovery %1/4", m_iWaypointRecoveries);
-  if (GaveUpUnreachable()) state += " GAVE UP (unreachable)";
-  else if (MovementStillPending()) state += string.Format(" moving, %1 m to go", (int)DistanceToOrder());
-  if (m_Group && !m_Group.GetCurrentWaypoint() && MovementStillPending()) state += " NO WAYPOINT";
-  return state.Trim();
- }
+ string ThinkMovement() { return ACR_SquadCohesion.ThinkMovement(this); }
 
- protected float DistanceToOrder()
- {
-  IEntity anchor = GetAnchor();
-  if (!anchor) return 0;
-  return vector.DistanceXZ(anchor.GetOrigin(), m_MoveTarget);
- }
+ protected float DistanceToOrder() { return ACR_SquadCohesion.DistanceToOrder(this); }
 
  // ---------------------------------------------------------------- cohesion
  // On a long move the leader keeps his pace while the rest string out behind
@@ -3057,34 +2293,15 @@ class ACR_Squad : Managed
  // its meeting point stops counting him, until he moves again (playtest pn16: a mortar man jammed
  // at a door, 4 km behind by the end, stopped his team for a minute every 3.5 min for an hour, and
  // drew it back towards him each time).
- protected ref map<IEntity, vector> m_mRegroupFrom = new map<IEntity, vector>(); // stragglers as the regroup began
- protected ref map<IEntity, vector> m_mStuck = new map<IEntity, vector>();       // ... those it couldn't bring in
+ ref map<IEntity, vector> m_mRegroupFrom = new map<IEntity, vector>(); // stragglers as the regroup began
+ ref map<IEntity, vector> m_mStuck = new map<IEntity, vector>();       // ... those it couldn't bring in
 
- protected bool Stuck(IEntity body)
- {
-  vector at;
-  if (!m_mStuck.Find(body, at)) return false;
-  if (vector.DistanceXZ(body.GetOrigin(), at) < STUCK_MOVED) return true;
-  m_mStuck.Remove(body);
-  return false;
- }
+ protected bool Stuck(IEntity body) { return ACR_SquadCohesion.Stuck(this, body); }
 
- // Living members awake and on foot the squad has stopped waiting for.
- int StuckMen()
- {
-  int count;
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-  {
-   IEntity body = agent.GetControlledEntity();
-   if (body && IsConscious(body) && !ACR_Transport.VehicleOf(body) && Stuck(body)) count++;
-  }
-  return count;
- }
+ int StuckMen() { return ACR_SquadCohesion.StuckMen(this); }
 
  // The regroup ran its full time: who stayed out and never moved.
- protected void NoteStuck(IEntity leader)
+ void NoteStuck(IEntity leader)
  {
   int found;
   for (int i = 0; i < m_mRegroupFrom.Count(); i++)
@@ -3099,149 +2316,30 @@ class ACR_Squad : Managed
   if (found > 0) PrintFormat("[ACR] TACTICS %1: %2 stuck where they stand, not waiting for them", m_Name, found);
  }
 
- protected bool m_bRegrouping;
- protected float m_fRegroupSince;
- protected float m_fNextRegroup;
- void HoldRegroupForTest(float until) { m_fNextRegroup = until; m_bRegrouping = false; }
- void StartRegroupForTest() { m_bRegrouping = true; }
- bool RegroupingForTest() { return m_bRegrouping; }
- float NextRegroupForTest() { return m_fNextRegroup; }
- bool MovementPendingForTest() { return MovementStillPending(); }
- static bool OrderSettled(float now, float orderedAt) { return now - orderedAt >= ORDER_SETTLE_MS; }
- protected ref ACR_OrderSnapshot m_Regroup; // the order resumed once regrouped
+ bool m_bRegrouping;
+ float m_fRegroupSince;
+ float m_fNextRegroup;
+ void HoldRegroupForTest(float until) { ACR_SquadCohesion.HoldRegroupForTest(this, until); }
+ void StartRegroupForTest() { ACR_SquadCohesion.StartRegroupForTest(this); }
+ bool RegroupingForTest() { return ACR_SquadCohesion.RegroupingForTest(this); }
+ float NextRegroupForTest() { return ACR_SquadCohesion.NextRegroupForTest(this); }
+ bool MovementPendingForTest() { return ACR_SquadCohesion.MovementPendingForTest(this); }
+ static bool OrderSettled(float now, float orderedAt) { return ACR_SquadCohesion.OrderSettled(now, orderedAt); }
+ ref ACR_OrderSnapshot m_Regroup; // the order resumed once regrouped
 
- // Middle of the living members on foot (where a strung-out squad meets up).
- bool Centroid(out vector center)
- {
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  vector sum;
-  int n;
-  foreach (AIAgent agent : agents)
-  {
-   IEntity body = agent.GetControlledEntity();
-   if (!body || !IsConscious(body) || ACR_Transport.VehicleOf(body) || Stuck(body)) continue;
-   sum = sum + body.GetOrigin();
-   n++;
-  }
-  if (n == 0) return false;
-  center = ACR_Manager.Ground(sum * (1.0 / n));
-  return true;
- }
+ bool Centroid(out vector center) { return ACR_SquadCohesion.Centroid(this, center); }
 
- // Living members on foot farther than this from the leader.
- int Stragglers(float radius)
- {
-  IEntity leader = GetConsciousLeader();
-  if (!leader) return 0;
-  int count;
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-  {
-   IEntity body = agent.GetControlledEntity();
-   if (!body || body == leader || !IsConscious(body) || ACR_Transport.VehicleOf(body) || Stuck(body)) continue;
-   if (vector.DistanceXZ(body.GetOrigin(), leader.GetOrigin()) > radius) count++;
-  }
-  return count;
- }
+ int Stragglers(float radius) { return ACR_SquadCohesion.Stragglers(this, radius); }
 
- protected void Cohesion(float now, bool contact)
- {
-  if (m_bRegrouping)
-  {
-   bool closed = Stragglers(REGROUPED_DISTANCE) == 0;
-   if (!closed && !contact && now - m_fRegroupSince < REGROUP_TIMEOUT_MS) return;
-   m_bRegrouping = false;
-   m_fNextRegroup = now + REGROUP_COOLDOWN_MS;
-   if (!closed) m_fNextRegroup = now + REGROUP_FAILED_COOLDOWN_MS;
-   IEntity waited = GetConsciousLeader();
-   if (!closed && !contact && waited) NoteStuck(waited);
-   RestoreOrder(m_Regroup);
-   PrintFormat("[ACR] TACTICS %1: regrouped (%2 s), moving on", m_Name, (int)((now - m_fRegroupSince) / 1000));
-   return;
-  }
-  if (contact || now < m_fNextRegroup || !OrderSettled(now, m_fOrderedAt) || !m_Group || PlayerSteers() || IsMounted()) return;
-  bool movingOrder = m_sOrderPrefab == WP_MOVE || m_sOrderPrefab == WP_DEFEND || m_sOrderPrefab == WP_SEARCH_DESTROY || m_sOrderPrefab == WP_GARRISON;
-  if (!movingOrder) return;
-  array<AIWaypoint> waypoints = {};
-  m_Group.GetWaypoints(waypoints);
-  IEntity leader = GetConsciousLeader();
-  if (waypoints.IsEmpty() || !leader || vector.DistanceXZ(leader.GetOrigin(), m_MoveTarget) < 200) return;
-  // The knocked-out can't walk to a regroup point: count only those awake.
-  int alive = CountConscious() - StuckMen();
-  if (alive < 3) return;
-  int behind = Stragglers(STRAGGLER_DISTANCE);
-  if (behind * 3 < alive) return;
-  NoteRegroupStart(leader);
-  m_Regroup = SnapshotOrder();
-  ClearOrders();
-  // Everyone heads for the middle of the squad: the front waits and walks
-  // back a little, the stragglers catch up, instead of the leader standing
-  // still while the tail wanders.
-  vector gather;
-  if (Centroid(gather)) IssueWaypoint(WP_MOVE, gather, 10);
-  SetOrder("Regrouping", ACR_EOrderState.REGROUP);
-  m_bRegrouping = true;
-  m_fRegroupSince = now;
-  PrintFormat("[ACR] TACTICS %1: %2 of %3 strung out, regrouping", m_Name, behind, alive);
-  LogStragglers(leader);
- }
+ protected void Cohesion(float now, bool contact) { ACR_SquadCohesion.Cohesion(this, now, contact); }
 
- protected void NoteRegroupStart(IEntity leader)
- {
-  m_mRegroupFrom.Clear();
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-  {
-   IEntity body = agent.GetControlledEntity();
-   if (!body || body == leader || !IsConscious(body) || ACR_Transport.VehicleOf(body) || Stuck(body)) continue;
-   if (vector.DistanceXZ(body.GetOrigin(), leader.GetOrigin()) > STRAGGLER_DISTANCE) m_mRegroupFrom.Set(body, body.GetOrigin());
-  }
- }
+ protected void NoteRegroupStart(IEntity leader) { ACR_SquadCohesion.NoteRegroupStart(this, leader); }
 
- // Who is behind and what he is doing (21 Oct live, Kolguyev: the same two or three men every
- // regroup, the heavily loaded ones by eye). One line per straggler, plus the leader for scale.
- protected void LogStragglers(IEntity leader)
- {
-  PrintFormat("[ACR] STRAGGLER %1 leader %2: load %3 kg", m_Name, StragglerKind(leader), Math.Round(LoadOf(leader)));
-  array<AIAgent> agents = {};
-  GetAgents(agents);
-  foreach (AIAgent agent : agents)
-  {
-   IEntity body = agent.GetControlledEntity();
-   if (!body || body == leader || !IsConscious(body) || ACR_Transport.VehicleOf(body) || Stuck(body)) continue;
-   float distance = vector.DistanceXZ(body.GetOrigin(), leader.GetOrigin());
-   if (distance <= STRAGGLER_DISTANCE) continue;
-   string doing = "idle";
-   SCR_AIUtilityComponent utility = SCR_AIUtilityComponent.Cast(agent.FindComponent(SCR_AIUtilityComponent));
-   if (utility && utility.GetCurrentBehavior()) doing = utility.GetCurrentBehavior().ClassName();
-   string stance = "?";
-   ChimeraCharacter character = ChimeraCharacter.Cast(body);
-   if (character && character.GetCharacterController()) stance = typename.EnumToString(ECharacterStance, character.GetCharacterController().GetStance());
-   PrintFormat("[ACR] STRAGGLER %1 %2: %3 m behind, load %4 kg, %5, %6, climb %7 m", m_Name, StragglerKind(body), Math.Round(distance), Math.Round(LoadOf(body)), doing, stance, Math.Round(leader.GetOrigin()[1] - body.GetOrigin()[1]));
-  }
- }
+ protected void LogStragglers(IEntity leader) { ACR_SquadCohesion.LogStragglers(this, leader); }
 
- static float LoadOf(IEntity body)
- {
-  if (!body) return 0;
-  SCR_CharacterInventoryStorageComponent storage = SCR_CharacterInventoryStorageComponent.Cast(body.FindComponent(SCR_CharacterInventoryStorageComponent));
-  if (!storage) return 0;
-  return storage.GetTotalWeight();
- }
+ static float LoadOf(IEntity body) { return ACR_SquadCohesion.LoadOf(body); }
 
- static string StragglerKind(IEntity body)
- {
-  if (!body || !body.GetPrefabData()) return "?";
-  string name = body.GetPrefabData().GetPrefabName();
-  int slash = name.LastIndexOf("/");
-  if (slash >= 0) name = name.Substring(slash + 1, name.Length() - slash - 1);
-  name.Replace(".et", "");
-  name.Replace("Character_", "");
-  return name;
- }
+ static string StragglerKind(IEntity body) { return ACR_SquadCohesion.StragglerKind(body); }
 
  // ---------------------------------------------------------------- stalled vehicles
  // The game's AI drivers get stuck on obstacles (and sit there honking), or stop
@@ -3300,7 +2398,7 @@ class ACR_Squad : Managed
  static const float STUCK_RETRY_MS = 600000; // a vehicle that gave up stuck isn't sent on a ride for this long...
  static const float STUCK_LEFT_M = 50;       // ...unless it has since moved this far from where it gave up
 
- protected void NoteStuck(IEntity vehicle, float now)
+ void NoteStuck(IEntity vehicle, float now)
  {
   m_fStuckAt = now;
   m_vStuckPos = vector.Zero;
@@ -3309,7 +2407,7 @@ class ACR_Squad : Managed
  protected bool m_bUnsticking;
  protected int m_iUnstickSerial = -1; // the order it was backing out on (EndUnstick)
  protected ref ACR_SquadUnstick m_UnstickListener; // told by BBB_Unstick when backing out is over
- protected bool m_bResumeOnFoot;
+ bool m_bResumeOnFoot;
  // A driver who bailed (m_bDriverBailed): the nearest of its men on foot goes for the driver's
  // seat himself. The group's Get in waypoint seats nobody while part of the crew is aboard
  // (srv:recrew: 50 s on 'Getting in', the seat still empty). Close by he climbs in; further off
@@ -3587,7 +2685,7 @@ class ACR_Squad : Managed
   m_Resume = ACR_OrderSnapshot.Make(prefab, target, radius, order, StateOfLabel(order), kind);
  }
 
- protected ref ACR_OrderSnapshot m_Resume; // carried on on foot after a dismount
+ ref ACR_OrderSnapshot m_Resume; // carried on on foot after a dismount
 
  // ---------------------------------------------------------------- transport
  vector m_LZ;
@@ -4064,7 +3162,7 @@ class ACR_Squad : Managed
  static const float EVADE_M = 300;
  static const float EVADE_CLEAR_MS = 15000;
  static const float EVADE_MAX_MS = 60000;
- protected ref ACR_OrderSnapshot m_Evade;
+ ref ACR_OrderSnapshot m_Evade;
  bool Evading() { return m_Evade != null; } // getting away (evasion or driving out of fire)
  protected float m_fEvadeStart;
  protected float m_fEvadeClearAt;
