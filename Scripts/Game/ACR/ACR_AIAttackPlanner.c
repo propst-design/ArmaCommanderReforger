@@ -1013,7 +1013,10 @@ class ACR_AIAttackPlanner
   }
   if (healthy.IsEmpty() || !hasTaker || startStrength * 0.65 > exploitStr) return;
   // Respect concurrent attack cap and leave one healthy squad behind to hold the freshly captured base.
-  if (cmd.m_Attacks.Count() >= cmd.m_Doctrine.m_iMaxAttacks) return;
+  ACR_FactionSettings exploitSettings = cmd.Settings();
+  int exploitMaxAttacks = 1;
+  if (exploitSettings) exploitMaxAttacks = exploitSettings.m_iAIAttacks;
+  if (cmd.m_Attacks.Count() >= exploitMaxAttacks) return;
   if (healthy.Count() >= 2 && cmd.PostedAt(wonBase) == 0)
   {
    int holdIdx = 0;

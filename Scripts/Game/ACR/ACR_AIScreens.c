@@ -175,7 +175,7 @@ class ACR_AIScreens
    ACR_ScreenPost post = cmd.m_Screens[i];
    ACR_Squad squad = post.m_Squad;
    // Someone else has it now (a player, a defence, a refit, an ambush fade), or it's gone.
-   if (!squad || !cmd.m_Manager.m_Squads.Contains(squad) || squad.CountAlive() == 0 || squad.PlayerSteers() || !cmd.Ours(squad) || squad.m_iAITask != ACR_EAITask.POSTED || squad.m_OrderLabel == "Fading to hideout" || !post.m_Base || post.m_Base.m_sOwner != cmd.m_sFaction)
+   if (!squad || !cmd.m_Manager.m_Squads.Contains(squad) || squad.CountAlive() == 0 || squad.PlayerSteers() || !cmd.Ours(squad) || squad.m_iAITask != ACR_EAITask.POSTED || squad.m_Order == "Fading to hideout" || !post.m_Base || post.m_Base.m_sOwner != cmd.m_sFaction)
    {
     cmd.m_Screens.Remove(i);
     continue;
