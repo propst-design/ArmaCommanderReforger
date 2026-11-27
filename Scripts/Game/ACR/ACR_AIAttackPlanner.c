@@ -567,7 +567,14 @@ class ACR_AIAttackPlanner
   if (!empty && ACR_AttackGround.On()) cmd.StartGround(attack);
   cmd.m_Attacks.Insert(attack);
   cmd.m_fLastOffensive = GetGame().GetWorld().GetWorldTime();
-  if (attack.m_Bypass && attack.m_Bypass.m_sOwner != cmd.m_sFaction) cmd.Say(string.Format("[ACR] AI %1: %2 via %3", cmd.m_sFaction, cmd.EnvelopText(target), target.m_sName));
+  if (attack.m_Bypass && attack.m_Bypass.m_sOwner != cmd.m_sFaction)
+  {
+   cmd.Say(string.Format("[ACR] AI %1: %2 via %3", cmd.m_sFaction, cmd.EnvelopText(target), target.m_sName));
+   // Fixing feint: shell or smoke the bypassed strongpoint from standoff so its garrison stays pinned
+   // while the main force swings around to the weak flank/rear base.
+   if (!empty && !cmd.CallSupport(ACR_ESupportType.MORTAR_HE_SMALL, attack.m_Bypass.GetOrigin(), "fixing fire on bypassed " + attack.m_Bypass.m_sName))
+    cmd.CallSupport(ACR_ESupportType.MORTAR_SMOKE, attack.m_Bypass.GetOrigin(), "fixing smoke on bypassed " + attack.m_Bypass.m_sName);
+  }
   if (pressure < 1) cmd.Say(string.Format("[ACR] AI %1: taking the initiative against %2 (accepting x%3 odds after a quiet spell)", cmd.m_sFaction, target.m_sName, pressure));
   string kind = "attacking";
   if (attack.m_bCounter) { kind = "COUNTERATTACKING"; cmd.m_CounterTarget = null; }
@@ -839,6 +846,8 @@ class ACR_AIAttackPlanner
      else squad.SetAITask(ACR_EAITask.FREE);
     }
     cmd.m_Attacks.RemoveOrdered(i);
+    if (won && !attack.m_bGrab && target && !cmd.SmallForce())
+     TryExploit(cmd, target, attack.m_Squads, attack.m_iStartStrength);
     continue;
    }
    if (attack.m_bAssaulting)
@@ -976,5 +985,51 @@ class ACR_AIAttackPlanner
     cmd.Say(string.Format("[ACR] AI %1: preparing assault on %2 (%3 s H-Hour prep; prep fires: %4)", cmd.m_sFaction, target.m_sName, (int)(prepWaitMs / 1000), firedPrep));
    }
   }
+ }
+
+ // Operational exploitation: after winning a base with healthy survivors (>=65% of start strength),
+ // roll them straight into an adjacent weak/empty base within 1100 m instead of resetting to idle.
+ protected static void TryExploit(ACR_AICommander cmd, ACR_Base wonBase, notnull array<ACR_Squad> survivors, int startStrength)
+ {
+  array<ACR_Squad> healthy = {};
+  int exploitStr = 0;
+  bool hasTaker = false;
+  foreach (ACR_Squad squad : survivors)
+  {
+   if (!squad || !cmd.m_Manager.m_Squads.Contains(squad) || squad.PlayerSteers() || !squad.IsCombatUnit()) continue;
+   if (IsSupportTeam(squad) || ACR_AICommander.IsReconTeam(squad)) continue;
+   if (squad.StrengthRatio() < 0.65) continue;
+   if (squad.m_iAmmoPct >= 0 && squad.m_iAmmoPct < ACR_AICommander.OUT_OF_AMMO + 10) continue;
+   healthy.Insert(squad);
+   exploitStr += squad.Strength();
+   if (ACR_AICommander.CanTakeBase(squad, false)) hasTaker = true;
+  }
+  if (healthy.IsEmpty() || !hasTaker || startStrength * 0.65 > exploitStr) return;
+  ACR_Base nextTarget;
+  float bestScore = float.MAX;
+  foreach (ACR_Base cand : ACR_Base.s_All)
+  {
+   if (!cand || cand.m_bRetired || cand == wonBase || cand.m_sOwner == cmd.m_sFaction || !cmd.Visible(cand) || cmd.IsAttacking(cand) || cmd.CoolingDown(cand)) continue;
+   bool isEmpty = cmd.SeenOwner(cand).IsEmpty();
+   if (!isEmpty && (!cmd.HostileOwner(cand) || !cmd.HqTargetable(cand))) continue;
+   float d = vector.DistanceXZ(wonBase.GetOrigin(), cand.GetOrigin());
+   if (d > 1100) continue;
+   if (!isEmpty && AttackNeed(cmd, cand) > exploitStr) continue;
+   float score = d;
+   if (cmd.InLaneOrFlank(cand)) score *= 0.5;
+   if (score < bestScore) { bestScore = score; nextTarget = cand; }
+  }
+  if (!nextTarget) return;
+  if (cmd.SeenOwner(nextTarget).IsEmpty())
+  {
+   cmd.SortByDistance(healthy, nextTarget.GetOrigin());
+   cmd.StartGrab(healthy[0], nextTarget);
+   cmd.Say(string.Format("[ACR] AI %1: exploiting %2 -> %3 grabs empty %4 (%5 m)", cmd.m_sFaction, wonBase.m_sName, healthy[0].GetName(), nextTarget.m_sName, (int)vector.DistanceXZ(wonBase.GetOrigin(), nextTarget.GetOrigin())));
+   return;
+  }
+  ACR_AIAttack exploit = NewAttack(cmd, nextTarget, false);
+  foreach (ACR_Squad sq : healthy) exploit.m_Squads.Insert(sq);
+  cmd.Say(string.Format("[ACR] AI %1: exploiting capture of %2 straight into %3 with %4 squad(s)", cmd.m_sFaction, wonBase.m_sName, nextTarget.m_sName, healthy.Count()));
+  LaunchAttack(cmd, exploit, wonBase.GetOrigin(), exploitStr, AttackNeed(cmd, nextTarget), 1.0);
  }
 }

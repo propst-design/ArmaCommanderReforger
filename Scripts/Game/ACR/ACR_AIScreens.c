@@ -308,6 +308,20 @@ class ACR_AIScreens
   cmd.LeaveAttacks(squad);
   squad.SetAITask(ACR_EAITask.POSTED);
   squad.SetMode(ACR_EMoveMode.COMBAT);
+  // Forecast counter-ambush: when a foot screen sits near a road along the enemy's predicted
+  // approach, lay a real road ambush (ACR_Ambush) instead of a passive Defend.
+  bool ambushing = false;
+  vector road, roadDir, ambSite, ambKz;
+  float roadWidth;
+  string ambWhy;
+  if (!squad.IsMounted() && !ACR_Transport.CrewedVehicle(squad) && ACR_Minefields.Snap(spot, 120, road, roadDir, roadWidth))
+   ambushing = ACR_Ambush.DefendOnRoad(squad, road, ambSite, ambKz, ambWhy);
+  if (ambushing)
+  {
+   post.m_vSpot = ambSite;
+   cmd.Say(string.Format("[ACR] AI %1: screen %2 %3 road ambush %4 m out from %5, watching the %6", cmd.m_sFaction, squad.GetName(), what, Math.Round(vector.DistanceXZ(ambSite, post.m_Base.GetOrigin())), post.m_Base.m_sName, ACR_DefenceForecast.CompassOf(bearing)));
+   return;
+  }
   squad.Defend(spot);
   cmd.Say(string.Format("[ACR] AI %1: screen %2 %3 %4 m out from %5, watching the %6 (sees %7/%8 of the way out)", cmd.m_sFaction, squad.GetName(), what, Math.Round(vector.DistanceXZ(spot, post.m_Base.GetOrigin())), post.m_Base.m_sName, ACR_DefenceForecast.CompassOf(bearing), sees, ACR_DefenceScreen.SAMPLES));
  }
