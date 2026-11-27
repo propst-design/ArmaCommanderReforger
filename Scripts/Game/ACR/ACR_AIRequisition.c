@@ -388,6 +388,7 @@ class ACR_AIRequisition
 
   bool boughtSF;
   float richFactor = cmd.FireFactor();
+  bool night = ACR_Raid.IsNight();
   int seenArmor, seenInfantry, seenFortified;
   ACR_AIIntel.SeenEnemyMix(cmd, seenArmor, seenInfantry, seenFortified);
   // The cap counts fighting units only (as above): trucks, ambulances, crewless
@@ -446,6 +447,12 @@ class ACR_AIRequisition
      {
       if (isMG) weight *= 1.5;
       if (isSapper && seenFortified > 0) weight *= 1.6;
+     }
+     // Night rhythm: lean toward infiltration/raider/sapper/observer teams over exposed armor.
+     if (night)
+     {
+      if (smallTeam || isSapper || entry.m_bObserverTeam) weight *= 1.35;
+      else if (!entry.m_sVehicle.IsEmpty()) weight *= 0.75;
      }
      if (highThreat && !entry.m_sVehicle.IsEmpty()) weight *= 1.5;
      if (highThreat && cmd.m_sFaction == "RHS_AFRF" && IsRUArmorEntry(cmd, entry)) weight *= 2;

@@ -373,7 +373,9 @@ class ACR_AIScreens
     cmd.m_ReconPosts.Remove(i);
     continue;
    }
-   if (squad.KnownEnemies(160) > 0 || squad.StrengthRatio() < 0.7)
+   float pullDist = 160;
+   if (ACR_Raid.IsNight()) pullDist = 110;
+   if (squad.KnownEnemies(pullDist) > 0 || squad.StrengthRatio() < 0.7)
    {
     cmd.m_ReconAgain.Set(op.m_Base, now + 300000);
     cmd.FallBack(squad, "recon OP compromised at " + op.m_Base.m_sName);
@@ -419,8 +421,10 @@ class ACR_AIScreens
    foreach (ACR_ScreenPost op : cmd.m_ReconPosts)
     if (op.m_Base == base) { watched = true; break; }
    if (watched) continue;
+   float maxReach = 2500;
+   if (ACR_Raid.IsNight()) maxReach = 3200;
    float d = vector.DistanceXZ(from, base.GetOrigin());
-   if (d > 2500) continue;
+   if (d > maxReach) continue;
    float score = d;
    if (cmd.InLaneOrFlank(base)) score *= 0.5;
    if (!ACR_AIIntel.Photographed(cmd, base)) score *= 0.7;

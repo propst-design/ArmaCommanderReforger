@@ -322,6 +322,7 @@ class ACR_AIAttackPlanner
     if (base.m_bBuilt)
     {
      score *= 0.35 * cmd.m_Doctrine.m_fFobTarget;
+     if (ACR_Raid.IsNight()) score *= 0.75; // night favours sapper raids on enemy FOBs
      float frontDist = float.MAX;
      foreach (ACR_Base ownBase : ACR_Base.s_All)
      {
@@ -469,7 +470,10 @@ class ACR_AIAttackPlanner
   vector dir = from - target.GetOrigin();
   dir[1] = 0;
   dir.Normalize();
-  float ring = target.m_fRadius + ACR_AICommander.STAGING_DISTANCE;
+  bool night = ACR_Raid.IsNight();
+  float stageDist = ACR_AICommander.STAGING_DISTANCE;
+  if (night) stageDist *= 0.72; // tighter staging ring under cover of darkness
+  float ring = target.m_fRadius + stageDist;
   // Going round a strongpoint: the main approach turns away from it, out of its sight and fire.
   if (attack.m_Bypass && attack.m_Bypass.m_sOwner != cmd.m_sFaction) dir = ACR_AIEnvelopment.ApproachAway(target.GetOrigin(), from, attack.m_Bypass.GetOrigin(), ring);
   attack.m_vApproach = dir;
@@ -524,7 +528,10 @@ class ACR_AIAttackPlanner
    squad.SetAITask(ACR_EAITask.ATTACK);
    squad.m_AITarget = target;
    if (carried.Contains(squad)) continue; // the ride has its orders
-   squad.SetMode(ACR_EMoveMode.FAST);
+   if (night && !empty && !squad.IsMounted() && !ACR_Transport.CrewedVehicle(squad) && vector.DistanceXZ(cmd.PositionOf(squad), target.GetOrigin()) <= 600)
+    squad.SetMode(ACR_EMoveMode.COMBAT);
+   else
+    squad.SetMode(ACR_EMoveMode.FAST);
    // Nobody to fight at an empty base: go straight in.
    if (empty) cmd.Travel(squad, target.GetOrigin(), false, 100);
    else

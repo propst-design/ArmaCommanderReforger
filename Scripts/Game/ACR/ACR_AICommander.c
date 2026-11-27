@@ -624,6 +624,7 @@ class ACR_AICommander : Managed
    jobEnemyArmor.Insert(hasArmor);
   }
   int keptOnAssault;
+  bool night = ACR_Raid.IsNight();
 
   // Squads: strength, what they do now, a cheap estimate and fit for every job.
   foreach (ACR_Squad squad : pool)
@@ -655,6 +656,11 @@ class ACR_AICommander : Managed
     if (job.m_iKind == ACR_EAITask.ATTACK && !job.m_bTeam && !job.m_bRunning && GrabBarred(squad, where)) fit = 0; // stalled there lately
     if (job.m_iKind == ACR_EAITask.DEFEND && support) fit = 0.3;
     if (fit > 0 && atCapable && jobEnemyArmor[j]) fit *= 1.3;
+    if (fit > 0 && night && job.m_iKind == ACR_EAITask.ATTACK && job.m_bTeam)
+    {
+     if (ACR_Transport.CrewedVehicle(squad)) fit *= 0.85;
+     else fit *= 1.15;
+    }
     // Committed to an assault: a defence only for a real threat there, never for a forecast alone.
     if (job.m_iKind == ACR_EAITask.DEFEND && heldByAssault && !realThreat[j])
     {
