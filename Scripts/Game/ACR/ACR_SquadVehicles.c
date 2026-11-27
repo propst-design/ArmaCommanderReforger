@@ -152,10 +152,23 @@ modded class ACR_Squad
    wantsToMove = !waypoints.IsEmpty() && movingOrder && vector.DistanceXZ(vehicle.GetOrigin(), m_MoveTarget) > STALL_ARRIVED;
   }
   // Parked, unarmed and under fire: driven off before the game's AI gets the crew out beside it.
+  // Never while unloading riders, held by pull-over brakes, or carrying another squad's passengers.
   ACR_EOrderState parkedState = OrderState();
   bool parked = parkedState == ACR_EOrderState.HOLD || parkedState == ACR_EOrderState.NONE || parkedState == ACR_EOrderState.RETURN || parkedState == ACR_EOrderState.DEFEND;
-  if (eligible && !wantsToMove && parked && underFire && speed < 2 && !HasTurret(vehicle) && now >= m_fNextDriveOut && DriveOut(vehicle, now, "parked under fire"))
-   return;
+  bool unloading = manager && manager.m_Rides && manager.m_Rides.Unloading(this);
+  if (eligible && !wantsToMove && parked && underFire && speed < 2 && !HasTurret(vehicle) && !unloading && !BBB_PullOver.Active(vehicle) && now >= m_fNextDriveOut)
+  {
+   bool hasRiders = false;
+   if (manager)
+   {
+    array<ACR_Squad> cargo = {};
+    ACR_Transport.PassengerSquads(manager, vehicle, cargo);
+    cargo.RemoveItem(this);
+    hasRiders = !cargo.IsEmpty();
+   }
+   if (!hasRiders && DriveOut(vehicle, now, "parked under fire"))
+    return;
+  }
   if (!underFire) m_bDroveOut = false;
   ACR_Transport.SanitizeVehicleHorn(vehicle, !eligible || !wantsToMove);
   // Turning circles: moving, but never STALL_PROGRESS_M from where the circle clock started for a

@@ -794,8 +794,37 @@ class ACR_Rides : Managed
   else if (aboard > 0) Log(ride, string.Format("%1 still aboard after %2 s, the transport leaves with them", aboard, (int)(waited / 1000)));
   else if (beside > 0) Log(ride, string.Format("%1 rider(s) still beside it after %2 s, the transport goes", beside, (int)(waited / 1000)));
   else Log(ride, string.Format("riders out and clear after %1 s, the transport goes", (int)(waited / 1000)));
+  // Never pull away with an AI rider still standing/crouching on the truck bed.
+  if (riders) ClearRidersOffBed(ride);
   SendHome(ride);
   return false;
+ }
+
+ // Set down any alive non-player rider still physically on top of one of the ride's vehicles.
+ protected void ClearRidersOffBed(ACR_Ride ride)
+ {
+  if (!ride || !ride.m_Rider) return;
+  array<AIAgent> agents = {};
+  ride.m_Rider.GetAgents(agents);
+  foreach (AIAgent agent : agents)
+  {
+   ChimeraCharacter body = ChimeraCharacter.Cast(agent.GetControlledEntity());
+   if (!body || !ACR_Respawn.IsAlive(body) || ACR_Squad.FindController(body) != 0 || ACR_Transport.VehicleOf(body)) continue;
+   vector at = body.GetOrigin();
+   if (ride.m_Vehicle && BBB_VehicleHelpers.OnTopOf(ride.m_Vehicle, at))
+   {
+    BBB_VehicleHelpers.SetDownBeside(ride.m_Vehicle, body, ride.m_Rider.GetName());
+    continue;
+   }
+   foreach (Vehicle extra : ride.m_aExtraVehicles)
+   {
+    if (extra && BBB_VehicleHelpers.OnTopOf(extra, at))
+    {
+     BBB_VehicleHelpers.SetDownBeside(extra, body, ride.m_Rider.GetName());
+     break;
+    }
+   }
+  }
  }
 
  protected void SetState(ACR_Ride ride, int state)
