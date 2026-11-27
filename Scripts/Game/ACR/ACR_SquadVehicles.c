@@ -134,11 +134,19 @@ modded class ACR_Squad
      }
      return;
     }
+    // Intact fighting vehicle (e.g. dry BTR falling back to rearm) whose driver stepped out or fell:
+    // give the crew 15 s to take the wheel before abandoning an intact hull.
+    if (HasTurret(vehicle) && ACR_Logistics.Health(vehicle) > 0.25)
+    {
+     if (m_fDriverlessSince <= 0) m_fDriverlessSince = now;
+     if (now - m_fDriverlessSince < 15000) return;
+    }
     Bail(vehicle, "driver lost under fire", true);
     return;
    }
   }
   m_DriverlessGun = null;
+  m_fDriverlessSince = 0;
 
   bool eligible = driver != null && ACR_Respawn.IsAlive(driver) && IsMember(driver) && FindController(driver) == 0;
   if (eligible && manager && manager.IsGunnerDriven(vehicle)) eligible = false;

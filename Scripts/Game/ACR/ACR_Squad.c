@@ -2479,6 +2479,7 @@ class ACR_Squad : Managed
  }
 
  protected IEntity m_DriverlessGun;
+ protected float m_fDriverlessSince;
 
  // The helicopter this squad crews (pilot/gunner seats), if any. AI can't fly in Reforger:
  // any waypoint makes a helicopter crew get out and walk (4 Oct MP: a player flying a
