@@ -513,6 +513,13 @@ class ACR_SetupLobby : SCR_ConfigurableDialogUi
   super.OnMenuClose();
  }
 
+ // The skin name currently applied to this open lobby (used to rebuild when host toggles outbreak skin).
+ string ThemeName()
+ {
+  if (!m_Theme) return "";
+  return m_Theme.m_sName;
+ }
+
  // The skin: colours of the page's own widgets, the heading font (a heading layout replaces the
  // layout's title and tab heading), the decoration line.
  protected void ApplyTheme(Widget root)

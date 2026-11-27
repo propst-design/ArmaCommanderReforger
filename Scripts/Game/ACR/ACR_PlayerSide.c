@@ -297,7 +297,8 @@ class ACR_FactionSelection
    if (ACR_InsurgentSide.PlayersAllowed()) east = ACR_InsurgentSide.Key();
    else east = west;
   }
-  string signature = west + "," + east;
+  string optsPayload = ACR_Options.ClientSyncPayload();
+  string signature = west + "," + east + "|" + optsPayload;
   array<int> ids = {};
   GetGame().GetPlayerManager().GetPlayers(ids);
   array<int> gone = {};
@@ -311,6 +312,7 @@ class ACR_FactionSelection
    if (!pc) continue;
    s_PlayableSent.Set(id, signature);
    pc.ACR_SendPlayableSides(west, east);
+   pc.ACR_SendClientOptions(optsPayload);
   }
  }
 

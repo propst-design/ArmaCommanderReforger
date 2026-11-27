@@ -81,9 +81,10 @@ class ACR_SetupTheme : Managed
  // The skin for this machine: -acrSetupSkin, else active Project Outbreak zombies, else the content socket's era, else vanilla.
  static ACR_SetupTheme Current()
  {
-  if (!s_Current)
+  string chosen = Chosen();
+  if (!s_Current || s_Current.m_sName != chosen)
   {
-   s_Current = Named(Chosen());
+   s_Current = Named(chosen);
    // Which skin and why, for play-test logs (20 Nov: an era pack the engine dropped for a missing
    // dependency left the socket empty, and the vanilla skin looked like a bug in the choice).
    string era = ACR_ContentSocket.Get().Name();

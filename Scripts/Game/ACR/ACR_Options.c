@@ -12,11 +12,13 @@ class ACR_Options
 {
  protected static ref map<string, string> s_Set;
  protected static ref map<string, string> s_NoPreset;
+ protected static ref map<string, string> s_Synced;
  // Called by ACR_StaticInit at game start (static initializer budget: HANDBOOK Pitfalls).
  static void ACR_InitStatics()
  {
   s_Set = new map<string, string>();
   s_NoPreset = new map<string, string>();
+  s_Synced = new map<string, string>();
  }
  protected static ref map<string, string> s_Header;
  // The preset in use (null = not read yet this match) and its name ("" = none).
@@ -30,6 +32,7 @@ class ACR_Options
  // The option's text, or false when no source sets it.
  static bool Get(string name, out string value)
  {
+  if (!s_bDefaults && RplSession.Mode() == RplMode.Client && s_Synced && s_Synced.Find(name, value)) return true;
   if (!s_bDefaults && s_Set.Find(name, value)) return true;
   if (System.IsCLIParam(name))
   {
@@ -123,7 +126,45 @@ class ACR_Options
  static void Set(string name, string value) { s_Set.Set(name, value); }
  static void Unset(string name) { s_Set.Remove(name); }
  static void ClearSet() { s_Set.Clear(); }
+ static void ClearSynced() { if (s_Synced) s_Synced.Clear(); }
  static void ForgetHeader() { s_Header = null; }
+
+ // Server -> client snapshot of options that govern remote MP UI, COIN panels, and lobby skin.
+ static string ClientSyncPayload()
+ {
+  array<string> keys = {"acrMatchType", "acrCoinInsurgency", "acrCoinInsurgent", "acrZombies", "acrZombieMode", "acrOutbreak", "acrCommandPresence", "acrSetupSkin", "acrMapDeclutter"};
+  string payload = "";
+  foreach (string key : keys)
+  {
+   string val;
+   if (!Get(key, val)) continue;
+   if (!payload.IsEmpty()) payload += "\n";
+   payload += key + "=" + val;
+  }
+  return payload;
+ }
+
+ // Client receives server-resolved option snapshot (ACR_PlayerController.ACR_ClientOptionsOwner).
+ static void ApplySynced(string payload)
+ {
+  if (!s_Synced) s_Synced = new map<string, string>();
+  s_Synced.Clear();
+  if (!payload.IsEmpty())
+  {
+   array<string> lines = {};
+   payload.Split("\n", lines, true);
+   foreach (string line : lines)
+   {
+    int eq = line.IndexOf("=");
+    if (eq <= 0) continue;
+    string k = line.Substring(0, eq);
+    string v = "";
+    if (eq + 1 < line.Length()) v = line.Substring(eq + 1, line.Length() - eq - 1);
+    s_Synced.Set(k, v);
+   }
+  }
+  ACR_SetupTheme.Reset();
+ }
 
  protected static map<string, string> Header()
  {

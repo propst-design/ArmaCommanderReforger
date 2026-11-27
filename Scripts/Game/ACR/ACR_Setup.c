@@ -282,10 +282,12 @@ class ACR_Setup
    string text = rows;
    int left = SecondsLeft();
    string info = Info(left);
-   string signature = string.Format("%1|%2|%3|%4", active, allowed, text, info);
+   string optsPayload = ACR_Options.ClientSyncPayload();
+   string signature = string.Format("%1|%2|%3|%4|%5", active, allowed, text, info, optsPayload);
    string sent;
    if (s_Sent.Find(id, sent) && sent == signature) continue;
    s_Sent.Set(id, signature);
+   pc.ACR_SendClientOptions(optsPayload);
    pc.ACR_SendSetup(active, allowed, text, info);
   }
  }
@@ -1327,6 +1329,11 @@ class ACR_SetupClient
   {
    GetGame().GetInputManager().ActivateContext("ACR_SetupMapContext", 100);
    return;
+  }
+  if (s_Lobby && s_Lobby.GetRootWidget() && s_bChanged && s_Lobby.ThemeName() != ACR_SetupTheme.Chosen())
+  {
+   s_Lobby.Close();
+   s_Lobby = null;
   }
   if (!s_Lobby || !s_Lobby.GetRootWidget())
   {

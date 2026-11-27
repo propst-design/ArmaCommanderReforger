@@ -315,6 +315,16 @@ modded class SCR_PlayerController
  {
   ACR_FactionSelection.SetPlayable(west, east);
  }
+ // Server-resolved client options (COIN insurgent key, Command Presence, Outbreak skin, etc.).
+ void ACR_SendClientOptions(string payload)
+ {
+  Rpc(ACR_ClientOptionsOwner, payload);
+ }
+ [RplRpc(RplChannel.Reliable, RplRcver.Owner)]
+ protected void ACR_ClientOptionsOwner(string payload)
+ {
+  ACR_Options.ApplySynced(payload);
+ }
  void ACR_RequestSetup(string key)
  {
   Rpc(ACR_SetupServer, key);

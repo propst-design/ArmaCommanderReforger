@@ -249,6 +249,8 @@ class ACR_Manager : Managed
   ACR_Report.Reset();
   ACR_Setup.Reset();
   ACR_SetupClient.Reset();
+  ACR_Options.ClearSynced();
+  ACR_SetupTheme.Reset();
   ACR_DeckClient.Reset();
   ACR_Decks.Reset();
   ACR_FactionSelection.Reset();
