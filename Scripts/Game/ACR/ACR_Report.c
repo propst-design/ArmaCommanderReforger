@@ -68,6 +68,12 @@ class ACR_Report
   while (stats.m_aTimeline.Count() > TIMELINE) stats.m_aTimeline.RemoveOrdered(0);
  }
 
+ static bool NonCombatVictim(IEntity victim, string side)
+ {
+  if (side == ACR_Outbreak.FACTION || side == "CIV") return true;
+  return victim && ACR_Outbreak.IsZombie(victim);
+ }
+
  static void OnSoldierDown(IEntity victim, Instigator instigator)
  {
   IEntity shooter;
@@ -78,13 +84,13 @@ class ACR_Report
   if (victim) ACR_Insurgency.OnLoss(side, victim.GetOrigin(), ACR_Intel.FactionKeyOf(shooter));
   if (victim && (side == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(side))) ACR_Insurgency.OnFIAKilled(victim, ACR_Intel.FactionKeyOf(shooter));
   if (victim) ACR_Outbreak.OnLoss(side, victim.GetOrigin(), ACR_Intel.FactionKeyOf(shooter));
-  if (!Running()) return;
+  if (!Running() || NonCombatVictim(victim, side)) return;
   ACR_SideStats lost = Of(side);
   if (lost) lost.m_iLost++;
   IEntity killer;
   if (instigator) killer = instigator.GetInstigatorEntity();
   string by = ACR_Intel.FactionKeyOf(killer);
-  if (!by.IsEmpty() && by != side) { ACR_SideStats won = Of(by); if (won) won.m_iKills++; ACR_Veterancy.OnKill(killer, false); }
+  if (!by.IsEmpty() && by != side) { ACR_SideStats won = Of(by); if (won) won.m_iKills++; ACR_Veterancy.OnKill(killer, false, victim); }
  }
 
  static void OnVehicleDown(IEntity vehicle, Instigator instigator, string side)

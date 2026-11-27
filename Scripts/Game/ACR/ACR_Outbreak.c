@@ -792,7 +792,7 @@ class ACR_Outbreak
    // Containment pays the sides that cleared it (ACR_Containment.Bounty).
    int bounty = ACR_Containment.Bounty(post);
    string place = Place(post);
-   array<string> sides = {ACR_FactionSelection.West(), ACR_FactionSelection.East()};
+   array<string> sides = ACR_Containment.Sides();
    // Split between the sides that fought there (Jacob, 12 Nov), not paid to each in full.
    int fought;
    foreach (string present : sides) if (SideNear(manager, present, post.m_vPos, STAY_RANGE + 200)) fought++;

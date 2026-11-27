@@ -797,7 +797,7 @@ class ACR_RTSCameraManager : Managed
 	// it came up, with an arrow on the ground while dragging; a plain right-click orders as before.
 	bool AimArmed()
 	{
-		return m_bFortifyMode || m_bRoadblockMode || m_iMineKind >= 0; // not Defend: it takes no facing yet (#67 review)
+		return m_bFortifyMode || m_bRoadblockMode || m_bDefendMode || m_iMineKind >= 0;
 	}
 
 	// The gold arrow from where the button went down to the cursor (native pixels), drawn on the HUD

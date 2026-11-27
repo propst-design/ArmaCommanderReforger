@@ -42,7 +42,11 @@ class ACR_OrderDisplay : Managed
  {
   if (owner.IsEmpty()) return new Color(0.85, 0.72, 0.1, alpha);
   Faction mine = SCR_FactionManager.SGetLocalPlayerFaction();
-  if (mine && mine.GetFactionKey() == owner) return new Color(0.2, 0.5, 1.0, alpha);
+  if (mine && mine.GetFactionKey() == owner)
+  {
+   if (ACR_InsurgentSide.IsInsurgentColor(owner)) return new Color(0.2, 0.7, 0.25, alpha);
+   return new Color(0.2, 0.5, 1.0, alpha);
+  }
   if (!mine && ACR_SetupClient.IsActive())
   {
    string west, east;
@@ -50,10 +54,12 @@ class ACR_OrderDisplay : Managed
    if (!west.IsEmpty() && owner == west) return new Color(0.2, 0.5, 1.0, alpha);
    if (!east.IsEmpty() && owner == east) return new Color(0.9, 0.15, 0.15, alpha);
   }
-  // FIA is only ever a third party here (pockets are off when FIA plays a main side).
-  if (owner == ACR_Pockets.FACTION) return new Color(0.2, 0.7, 0.25, alpha);
+  // FIA / insurgent third party or insurgent side: green.
+  if (owner == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgentColor(owner)) return new Color(0.2, 0.7, 0.25, alpha);
   return new Color(0.9, 0.15, 0.15, alpha);
  }
+
+ protected float m_fLastInMainBodyMs;
 
  // ---------------------------------------------------------------- frame
  // One SetDrawCommands a frame (review P9: the calm map and the 2IC each handed the list to the
@@ -635,8 +641,21 @@ class ACR_OrderDisplay : Managed
   {
    SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
    IEntity main;
-   if (pc) main = pc.GetMainEntity();
-   if (main && ACR_Respawn.IsAlive(main))
+   if (pc && pc.m_ACR_IsCommander) main = pc.GetMainEntity();
+   ChimeraCharacter mainChar = ChimeraCharacter.Cast(main);
+   bool awake = mainChar && ACR_Respawn.IsAlive(mainChar) && mainChar.GetCharacterController() && !mainChar.GetCharacterController().IsUnconscious();
+   if (awake)
+   {
+    PerceivableComponent perc = PerceivableComponent.Cast(mainChar.FindComponent(PerceivableComponent));
+    if (perc && perc.IsDisarmed()) awake = false;
+   }
+   float nowMs = GetGame().GetWorld().GetWorldTime();
+   if (awake)
+   {
+    if (!pc.IsPossessing()) m_fLastInMainBodyMs = nowMs;
+    else if (m_fLastInMainBodyMs <= 0 || nowMs - m_fLastInMainBodyMs > ACR_CommandPresence.POSSESS_GRACE_MS) awake = false;
+   }
+   if (awake)
    {
     vector coPos = main.GetOrigin();
     int ccx, ccy, cex, cey;

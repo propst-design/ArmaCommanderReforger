@@ -37,7 +37,7 @@ class ACR_Demolition
  }
 
  // Server, from every charge that goes off (timed fuze, detonator or script).
- static int OnChargeDetonated(vector position)
+ static int OnChargeDetonated(vector position, IEntity user = null)
  {
   if (!Replication.IsServer()) return 0;
   ACR_Manager manager = ACR_Manager.GetInstance();
@@ -68,7 +68,8 @@ class ACR_Demolition
   if (ACR_Coin.On() && manager.m_Bases)
   {
    string army = ACR_Coin.Army();
-   if (!army.IsEmpty() && manager.m_Bases.MenWithin(position, 40, army) > 0)
+   string by = ACR_Intel.FactionKeyOf(user);
+   if (!army.IsEmpty() && (by.IsEmpty() || (by != army && !ACR_Insurgency.Friendly(by, army))) && manager.m_Bases.MenWithin(position, 40, army) > 0)
    {
     ACR_Insurgency.OnLoss(army, position, "an IED blast");
     ACR_DefenderPost supplier = ACR_FIAIntel.SupplierOf(position);
@@ -110,8 +111,10 @@ modded class SCR_ExplosiveTriggerComponent
  {
   vector position = GetOwner().GetOrigin();
   bool authority = Replication.IsServer();
+  IEntity user;
+  if (GetInstigator()) user = GetInstigator().GetInstigatorEntity();
   super.UseTrigger();
-  if (authority) ACR_Demolition.OnChargeDetonated(position);
+  if (authority) ACR_Demolition.OnChargeDetonated(position, user);
  }
 }
 

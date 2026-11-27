@@ -1110,7 +1110,12 @@ class ACR_Intel : Managed
   {
    if (GetGame().GetPlayerManager().GetPlayerName(id) != spotter) continue;
    IEntity body = GetGame().GetPlayerManager().GetPlayerControlledEntity(id);
-   if (body && FactionKeyOf(body) == m_sFaction) return body.GetOrigin();
+   if (!body || FactionKeyOf(body) != m_sFaction) continue;
+   ACR_Squad squad = m_Manager.FindSquadBySoldier(body);
+   if (squad && squad.m_Mode == ACR_EMoveMode.SILENT) return vector.Zero;
+   vector at = body.GetOrigin();
+   if (ACR_CommandPresence.Near(m_sFaction, at, ACR_CommandPresence.SILENT_ORDER_RADIUS)) return vector.Zero;
+   return at;
   }
   return vector.Zero;
  }

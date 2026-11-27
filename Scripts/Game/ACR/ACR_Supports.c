@@ -590,6 +590,7 @@ class ACR_Supports : Managed
     strike.m_Pos = target - dir * (950 + 110 * delay);
     strike.m_Pos[1] = target[1] + 170;
     strike.m_Rocket = RocketFor(factionKey);
+    strike.m_fScatterScale = scatterScale;
     m_Runs.Insert(strike);
     break;
    }
@@ -615,6 +616,7 @@ class ACR_Supports : Managed
       GetGame().GetCallqueue().CallLater(FireBatteryRound, shellMs, false, shell, shellAt);
      }
     }
+    CheckCounterBattery(factionKey, target, target - dir * 2000, now + delay * 1000);
     break;
    }
    case ACR_ESupportType.BOMB_RUN:
@@ -686,7 +688,13 @@ class ACR_Supports : Managed
   string eta = string.Format("%1 s", delay);
   if (delay >= 30) eta = string.Format("about %1 s", (int)Math.Round(delay / 15.0) * 15);
   string message = string.Format("%1 on %2, ETA %3.", entry.m_sName, where, eta);
-  if (observedBonus) message += " (CO observed — faster, tighter)";
+  if (observedBonus)
+  {
+   if (entry.m_eType == ACR_ESupportType.BOMB_RUN && entry.m_eBombRunDelivery == ACR_EBombRunDelivery.EDITABLE_CALL_IN)
+    message += " (CO observed — faster)";
+   else
+    message += " (CO observed — faster, tighter)";
+  }
   if (!byAI) m_Manager.NotifyFaction(factionKey, message);
   return message;
  }
@@ -697,7 +705,7 @@ class ACR_Supports : Managed
   {
    // RHS's call-in container spawns its prefab, then invokes this same engine hook so
    // editable entities can initialize their slots, timing and warhead instigator.
-   GetGame().GetCallqueue().CallLater(SpawnBombRunCallIn, delay * 1000, false, entry.m_sBombRunPrefab, target, dir, callerPlayerId);
+   GetGame().GetCallqueue().CallLater(SpawnBombRunCallIn, delay * 1000, false, entry.m_sBombRunPrefab, target, dir, callerPlayerId, scatterScale);
    return true;
   }
 
@@ -773,7 +781,7 @@ class ACR_Supports : Managed
   return true;
  }
 
- protected void SpawnBombRunCallIn(ResourceName prefab, vector target, vector dir, int callerPlayerId)
+ protected void SpawnBombRunCallIn(ResourceName prefab, vector target, vector dir, int callerPlayerId, float scatterScale = 1.0)
  {
   Resource resource = Resource.Load(prefab);
   if (!resource.IsValid())
@@ -825,11 +833,35 @@ class ACR_Supports : Managed
   float now = GetGame().GetWorld().GetWorldTime();
   entry.m_fReadyAt = now + entry.m_iCooldown * 1000;
   PrintFormat("[ACR] SUPPORT %1 %2 at %3 by %4 (ETA %5 s)", factionKey, entry.m_sName, target, team, eta);
-  if (entry.m_eType != ACR_ESupportType.MORTAR_SMOKE && entry.m_eType != ACR_ESupportType.ILLUMINATION) ACR_FIAGrievance.OnStrikeCalled(factionKey, target, entry.m_eType, eta);
+  if (entry.m_eType != ACR_ESupportType.MORTAR_SMOKE && entry.m_eType != ACR_ESupportType.ILLUMINATION)
+  {
+   ACR_FIAGrievance.OnStrikeCalled(factionKey, target, entry.m_eType, eta);
+   vector fromPos = target;
+   if (started && started.m_Tube) fromPos = started.m_Tube.GetOrigin();
+   CheckCounterBattery(factionKey, target, fromPos, now + eta * 1000);
+  }
   AddZone(factionKey, target, ZoneRadius(entry.m_eType), entry.m_sName, eta, ZoneDuration(entry.m_eType));
   string message = string.Format("%1 on %2: %3 firing, first rounds in about %4 s.", entry.m_sName, ACR_Manager.Grid(target), team, eta);
-  if (!byAI) m_Manager.NotifyFaction(factionKey, message);
+  if (!byAI)
+  {
+   m_Manager.NotifyFaction(factionKey, message);
+   ACR_RadioAudio.NotifyFaction(factionKey, ACR_ERadioCue.FIRE_MISSION);
+  }
   return message;
+ }
+
+ protected void CheckCounterBattery(string factionKey, vector target, vector from, float landsAtMs)
+ {
+  if (!ACR_CounterBattery.On()) return;
+  ACR_Intel intel = m_Manager.IntelFor(factionKey);
+  if (!intel) return;
+  float now = GetGame().GetWorld().GetWorldTime();
+  foreach (ACR_CBFix fix : intel.m_CBFixes)
+  {
+   if (now - fix.m_fHeard > ACR_CounterBattery.FIX_FORGET_MS) continue;
+   if (vector.DistanceXZ(fix.m_vCentre, target) <= fix.m_fRadius + ACR_CounterBattery.INCOMING_NEAR)
+    ACR_CounterBattery.Shelled(fix, target, from, landsAtMs);
+  }
  }
 
  ResourceName HelicopterFor(string factionKey)

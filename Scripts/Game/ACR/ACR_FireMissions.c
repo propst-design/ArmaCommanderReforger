@@ -205,6 +205,11 @@ class ACR_FireMissions : Managed
    }
    if (!best) continue;
    string result = m_Manager.m_Supports.Call(key, index, best.m_Pos, true);
+   if (!result.Contains("firing"))
+   {
+    PrintFormat("[ACR] FIRE %1 observer %2 call refused: %3", key, observer.GetName(), result);
+    continue;
+   }
    m_NextCall.Set(key, now + SIDE_GAP_S * Gap(key, ai));
    s_iCalls++;
    string what = ACR_Intel.Describe(best.m_iKind, best.m_iCount);

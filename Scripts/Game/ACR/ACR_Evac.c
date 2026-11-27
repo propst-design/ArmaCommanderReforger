@@ -48,6 +48,7 @@ class ACR_Evac
  static const float LEFT_SHARE = 0.2;      // stragglers and wounded left in the town
  static const float PARKED_SPEED = 1;      // m/s: slower than this is parked
  static const float CREW_NEAR = 50;        // m: a soldier of the XP's side this close still has the vehicle
+ static const float ABANDON_GRACE_MS = 15000; // grace window before declaring an unattended intact vehicle abandoned
  static const float NOISE_RANGE = 250;     // m: a running helicopter this close to an XP is heard
  static const float NOISE_GAP_MS = 600000; // and heard again after this long at the same XP
  static const float LEFT_CLEAR = 500;      // m: the left-behind go once no soldier is this close
@@ -415,6 +416,10 @@ class ACR_Evac
     bool taken = TakenOver(point, vehicle);
     if (taken || Abandoned(manager, point, vehicle))
     {
+     if (!taken && !ACR_HeliStation.Destroyed(vehicle) && now - point.m_aMovedAt[i] < ABANDON_GRACE_MS) continue;
+     ChimeraCharacter passenger = ChimeraCharacter.Cast(person);
+     if (passenger && passenger.GetCompartmentAccessComponent())
+      passenger.GetCompartmentAccessComponent().GetOutVehicle(EGetOutType.TELEPORT, -1, ECloseDoorAfterActions.LEAVE_OPEN, false);
      point.m_iLost++;
      point.m_aLeft.Insert(person); // left behind: removed once no soldier is near (LEFT_CLEAR)
      Forget(point, i);

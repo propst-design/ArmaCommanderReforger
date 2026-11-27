@@ -106,6 +106,17 @@ class ACR_Cleanup : Managed
   return false;
  }
 
+ protected static bool HasLivingOccupant(IEntity vehicle)
+ {
+  SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
+  if (!compartments) return false;
+  array<IEntity> occupants = {};
+  compartments.GetOccupants(occupants);
+  foreach (IEntity occupant : occupants)
+   if (occupant && ACR_Respawn.IsAlive(occupant)) return true;
+  return false;
+ }
+
  // Oldest first (they were added in order of death).
  protected void Sweep(array<IEntity> list, array<float> times, float minSeconds, float privacy, int cap, array<vector> players, float now, bool bodies, bool litter = false)
  {
@@ -128,6 +139,7 @@ class ACR_Cleanup : Managed
    if (bodies && ACR_Respawn.IsAlive(entity)) { list.RemoveOrdered(i); times.RemoveOrdered(i); i--; continue; }
    // Litter someone picked up again is theirs now.
    if (litter && entity.GetParent()) { list.RemoveOrdered(i); times.RemoveOrdered(i); i--; continue; }
+   if (!bodies && !litter && HasLivingOccupant(entity)) continue;
    if (Watched(entity.GetOrigin(), privacy, players)) continue;
    SCR_EntityHelper.DeleteEntityAndChildren(entity);
    if (bodies)

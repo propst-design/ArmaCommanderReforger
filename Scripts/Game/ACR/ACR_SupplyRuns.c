@@ -377,7 +377,7 @@ class ACR_SupplyRuns : Managed
  {
   run.m_iStage = stage;
   vector from = run.m_Truck.GetOrigin();
-  if (stage == STAGE_LOAD) run.m_vGoal = ACR_Manager.Ground(run.m_Hub.GetOrigin());
+  if (stage == STAGE_LOAD) run.m_vGoal = FobGoal(run.m_Hub);
   else run.m_vGoal = FobGoal(run.m_Fob);
   run.m_Route = null;
   run.m_aTrack.Clear();
@@ -475,7 +475,7 @@ class ACR_SupplyRuns : Managed
     if (run.m_Hub) hubName = run.m_Hub.m_sName;
     return Fail(run, hubName + " can't load supplies any more");
    }
-   if (vector.DistanceXZ(at, run.m_Hub.GetOrigin()) <= run.m_Hub.m_fRadius)
+   if (vector.DistanceXZ(at, run.m_Hub.GetOrigin()) <= run.m_Hub.m_fRadius || vector.DistanceXZ(at, run.m_vGoal) <= PARK_ARRIVE)
    {
     if (!Load(run, run.m_Hub)) return Tell(run, string.Format("Supply run to %1 called off at %2: not enough RP to load (%3 needed)", fobName, run.m_Hub.m_sName, RUN_COST), "no rp");
     Drive(run, STAGE_DRIVE);

@@ -239,7 +239,8 @@ class ACR_Logistics : Managed
   float stock = StockOf(vehicle);
   SetStock(vehicle, Math.Clamp(stock + amount, 0, cap));
   float wasPaid;
-  if (paid > 0 && m_Paid.Find(vehicle, wasPaid)) m_Paid.Set(vehicle, Math.Min(StockOf(vehicle), wasPaid + Math.Min(paid, amount)));
+  m_Paid.Find(vehicle, wasPaid);
+  if (paid > 0) m_Paid.Set(vehicle, Math.Min(StockOf(vehicle), wasPaid + Math.Min(paid, amount)));
   if (game) WriteGameSupplies(vehicle, flags);
  }
 
@@ -309,8 +310,14 @@ class ACR_Logistics : Managed
  // Paid loads in the truck now, and the same in game supplies.
  float PaidOf(IEntity vehicle)
  {
+  if (!vehicle) return 0;
+  if (SCR_ResourceSystemHelper.IsGlobalResourceTypeEnabled())
+  {
+   int flags = ServiceOf(vehicle);
+   if (flags != 0) ReadGameSupplies(vehicle, flags);
+  }
   float paid;
-  if (!vehicle || !m_Paid.Find(vehicle, paid)) return 0;
+  if (!m_Paid.Find(vehicle, paid)) return 0;
   return Math.Max(0, Math.Min(paid, StockOf(vehicle)));
  }
 

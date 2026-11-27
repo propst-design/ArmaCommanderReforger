@@ -231,7 +231,7 @@ class ACR_Minefields
   }
   int cost = Cost(kind);
   ACR_Manager manager = ACR_Manager.GetInstance();
-  if (!manager || manager.m_Bases.GetRP(faction) < cost)
+  if (!manager || manager.m_Bases.GetRP(faction) + squad.PendingRP() < cost)
   {
    refusal = string.Format("not enough RP (%1 needed)", cost);
    return null;

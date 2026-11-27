@@ -373,6 +373,9 @@ class ACR_Containment
   string east = ACR_FactionSelection.East();
   if (!west.IsEmpty() && !ACR_OneSide.IsAbsent(west)) sides.Insert(west);
   if (!east.IsEmpty() && !ACR_OneSide.IsAbsent(east)) sides.Insert(east);
+  string insurgent = ACR_InsurgentSide.Key();
+  if (ACR_InsurgentSide.On() && !insurgent.IsEmpty() && !sides.Contains(insurgent) && !ACR_OneSide.IsAbsent(insurgent))
+   sides.Insert(insurgent);
   return sides;
  }
 

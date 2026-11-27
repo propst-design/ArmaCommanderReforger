@@ -116,6 +116,7 @@ class ACR_Helipad : GenericEntity
   float bestDistance = float.MAX;
   foreach (ACR_Base base : ACR_Base.s_All)
   {
+   if (!base || base.m_bRetired) continue;
    if (!m_sFaction.IsEmpty())
    {
     if (base.m_sOwner != m_sFaction) continue;

@@ -718,6 +718,7 @@ class ACR_RocketStrikeRun : ACR_SupportRun
  ResourceName m_Rocket;
  int m_iLeft = 16;
  float m_fNext;
+ float m_fScatterScale = 1.0;
 
  override bool Frame(ACR_Supports supports, float dt, float now)
  {
@@ -726,7 +727,7 @@ class ACR_RocketStrikeRun : ACR_SupportRun
   if (along < 950 && along > 420 && m_iLeft > 0 && now >= m_fNext)
   {
    vector right = Vector(m_Dir[2], 0, -m_Dir[0]);
-   vector aim = m_Target + m_Dir * Math.RandomFloat(-40, 60) + right * Math.RandomFloat(-18, 18);
+   vector aim = m_Target + m_Dir * (Math.RandomFloat(-40, 60) * m_fScatterScale) + right * (Math.RandomFloat(-18, 18) * m_fScatterScale);
    aim[1] = GetGame().GetWorld().GetSurfaceY(aim[0], aim[2]) + 1;
    supports.FireProjectile(m_Rocket, m_Pos + right * Math.RandomFloat(-4, 4), aim);
    m_iLeft--;

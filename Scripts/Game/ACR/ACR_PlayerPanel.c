@@ -253,8 +253,13 @@ class ACR_PlayerPanel
    case ACR_EPanelAction.TOGGLE_DISGUISE: pc.ACR_SendToggleDisguise(); return;
    case ACR_EPanelAction.TOGGLE_NETWORK:
     pc.m_ACR_NetworkOpen = !pc.m_ACR_NetworkOpen;
-    if (pc.m_ACR_NetworkOpen) pc.m_ACR_RequisitionOpen = false;
+    if (pc.m_ACR_NetworkOpen)
+    {
+     pc.m_ACR_RequisitionOpen = false;
+     pc.m_ACR_SupportOpen = false;
+    }
     pc.m_ACR_PendingEntry = -1;
+    pc.m_ACR_PendingSupport = -1;
     if (!pc.m_ACR_NetworkOpen) pc.m_ACR_PendingNetwork = -1;
     return;
    case ACR_EPanelAction.NET_CELL:
@@ -317,17 +322,27 @@ class ACR_PlayerPanel
    case ACR_EPanelAction.DEBUG_THINK: ACR_Think.Cycle(); return;
    case ACR_EPanelAction.TOGGLE_REQUISITION:
     pc.m_ACR_RequisitionOpen = !pc.m_ACR_RequisitionOpen;
-    if (pc.m_ACR_RequisitionOpen) pc.m_ACR_SupportOpen = false;
+    if (pc.m_ACR_RequisitionOpen)
+    {
+     pc.m_ACR_SupportOpen = false;
+     pc.m_ACR_NetworkOpen = false;
+    }
     pc.m_ACR_PendingEntry = -1;
     pc.m_ACR_PendingSupport = -1;
+    pc.m_ACR_PendingNetwork = -1;
     return;
    case ACR_EPanelAction.TOGGLE_REPORT: pc.m_ACR_ReportOpen = !pc.m_ACR_ReportOpen; return;
    case ACR_EPanelAction.TOGGLE_SUPPORTS:
     pc.m_ACR_SupportOpen = !pc.m_ACR_SupportOpen;
     pc.m_ACR_HasSupportTarget = false;
-    if (pc.m_ACR_SupportOpen) pc.m_ACR_RequisitionOpen = false;
+    if (pc.m_ACR_SupportOpen)
+    {
+     pc.m_ACR_RequisitionOpen = false;
+     pc.m_ACR_NetworkOpen = false;
+    }
     pc.m_ACR_PendingEntry = -1;
     pc.m_ACR_PendingSupport = -1;
+    pc.m_ACR_PendingNetwork = -1;
     return;
   }
   if (action >= ACR_EPanelAction.DEBUG_ACTION && action < ACR_EPanelAction.REQUISITION_ENTRY)
@@ -356,6 +371,7 @@ class ACR_PlayerPanel
    if (pc.m_ACR_PendingSupport == support) pc.m_ACR_PendingSupport = -1;
    else pc.m_ACR_PendingSupport = support;
    pc.m_ACR_PendingEntry = -1;
+   pc.m_ACR_PendingNetwork = -1;
    return;
   }
   if (action >= ACR_EPanelAction.REQUISITION_ENTRY)
@@ -363,6 +379,8 @@ class ACR_PlayerPanel
    int entry = action - ACR_EPanelAction.REQUISITION_ENTRY;
    if (pc.m_ACR_PendingEntry == entry) pc.m_ACR_PendingEntry = -1; // click again to cancel
    else pc.m_ACR_PendingEntry = entry;
+   pc.m_ACR_PendingNetwork = -1;
+   pc.m_ACR_PendingSupport = -1;
   }
  }
 

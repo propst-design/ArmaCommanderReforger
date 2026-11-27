@@ -227,13 +227,13 @@ class ACR_SupplyLines
 		foreach (ACR_Base enemy : ACR_Base.s_All)
 		{
 			if (!enemy || enemy == skipA || enemy == skipB || enemy.m_bRetired || enemy.m_sOwner.IsEmpty()) continue;
-			if (enemy.m_sOwner == side || ACR_Insurgency.Friendly(enemy.m_sOwner, side)) continue;
+			if (enemy.m_sOwner == side || ACR_Insurgency.Friendly(enemy.m_sOwner, side) || ACR_Truce.Between(enemy.m_sOwner, side)) continue;
 			float blockR = enemy.m_fRadius + INTERDICT_BASE_M;
 			if (SegmentDistXZ(a, b, enemy.GetOrigin()) <= blockR) return true;
 		}
 		foreach (ACR_Roadblock rb : ACR_Roadblocks.s_aRoadblocks)
 		{
-			if (!rb || !rb.m_Entity || rb.m_sFaction.IsEmpty() || rb.m_sFaction == side || ACR_Insurgency.Friendly(rb.m_sFaction, side)) continue;
+			if (!rb || !rb.m_Entity || rb.m_sFaction.IsEmpty() || rb.m_sFaction == side || ACR_Insurgency.Friendly(rb.m_sFaction, side) || ACR_Truce.Between(rb.m_sFaction, side)) continue;
 			bool manned = rb.m_Defenders && (rb.m_Defenders.m_iReserve > 0 || rb.m_Defenders.m_Group);
 			if (!manned && manager.m_Bases) manned = manager.m_Bases.MenWithin(rb.m_vPos, 40, rb.m_sFaction) > 0;
 			if (!manned) continue;

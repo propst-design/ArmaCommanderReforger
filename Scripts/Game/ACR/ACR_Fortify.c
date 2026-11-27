@@ -971,7 +971,7 @@ class ACR_Fortify
   float best = float.MAX;
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (!base || base.m_bRetired || base.m_sOwner.IsEmpty() || base.m_sOwner == faction) continue;
+   if (!base || base.m_bRetired || base.m_sOwner.IsEmpty() || base.m_sOwner == faction || ACR_Insurgency.Friendly(base.m_sOwner, faction)) continue;
    float d = vector.DistanceXZ(pos, base.GetOrigin());
    if (d < best) best = d;
   }
@@ -1362,5 +1362,7 @@ class ACR_Fortify
   s_bBlockSpotsForTest = false;
   s_bBlockFireForTest = false;
   s_iBlockBaseForTest = -1;
+  s_iBlockNearForTest = -1;
+  s_bNoAimUpForTest = false;
  }
 }

@@ -310,7 +310,11 @@ class ACR_RadioIntercept
    if (caller && ACR_Respawn.IsAlive(caller))
    {
     ACR_Squad squad = manager.FindSquadBySoldier(caller);
-    if (!squad || squad.m_Mode != ACR_EMoveMode.SILENT) txPos = caller.GetOrigin();
+    if (!squad || squad.m_Mode != ACR_EMoveMode.SILENT)
+    {
+     txPos = caller.GetOrigin();
+     txKey = string.Format("support:%1:%2:%3", factionKey, callerPlayerId, ACR_Manager.Grid(txPos));
+    }
    }
   }
   if (txPos == vector.Zero && manager.m_Structures)

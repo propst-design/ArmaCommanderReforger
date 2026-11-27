@@ -691,7 +691,7 @@ class ACR_BaseDefences : Managed
 			if (!other || other == base || other.m_bRetired) continue;
 			if (vector.DistanceXZ(center, other.GetOrigin()) < 50) continue;
 			if (other.m_sOwner.IsEmpty()) neutral.Insert(other);
-			else if (other.m_sOwner != owner) enemy.Insert(other);
+			else if (other.m_sOwner != owner && !ACR_Insurgency.Friendly(other.m_sOwner, owner)) enemy.Insert(other);
 		}
 		if (!enemy.IsEmpty())
 		{

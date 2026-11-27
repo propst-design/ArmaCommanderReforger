@@ -1482,7 +1482,7 @@ class ACR_Manager : Managed
   ACR_SetupClient.Frame();
   ACR_DeckClient.Frame();
   SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
-  if (pc && !pc.GetControlledEntity()) pc.ACR_UpdateSetupMap();
+  if (pc && (!pc.GetControlledEntity() || pc.ACR_IsSetupMapOpen())) pc.ACR_UpdateSetupMap();
   if (pc) pc.ACR_UpdateDeathTransition(0);
   if (pc) ACR_Intro.Frame(pc);
   if (!pc || !pc.GetControlledEntity())

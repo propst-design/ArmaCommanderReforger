@@ -1195,6 +1195,22 @@ modded class SCR_PlayerController
   if (!m_ACR_Data || b < 0 || b >= m_ACR_Data.m_BaseNames.Count()) return;
   if (m_ACR_PendingEntry >= 0)
   {
+   if (m_ACR_MusterMode)
+   {
+    SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
+    if (mapEntity)
+    {
+     float cx, cz;
+     mapEntity.GetMapCursorWorldPosition(cx, cz);
+     ACR_ClickBaseAt(cx, cz);
+     return;
+    }
+    if (b < m_ACR_Data.m_BasePositions.Count())
+    {
+     ACR_ClickBaseAt(m_ACR_Data.m_BasePositions[b][0], m_ACR_Data.m_BasePositions[b][2]);
+     return;
+    }
+   }
    ACR_ClickBase(m_ACR_Data.m_BaseNames[b]);
    return;
   }
@@ -1241,6 +1257,17 @@ modded class SCR_PlayerController
   int b = ACR_MapDeclutter.SnapToBase(x, y, m_ACR_Data.m_DeclDots, reach, null);
   if (b < 0 || b >= m_ACR_Data.m_BaseNames.Count()) return false;
   ACR_MarkUiClick();
+  if (m_ACR_PendingEntry >= 0 && m_ACR_MusterMode)
+  {
+   SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
+   if (mapEntity)
+   {
+    float cx, cz;
+    mapEntity.GetMapCursorWorldPosition(cx, cz);
+    ACR_ClickBaseAt(cx, cz);
+    return true;
+   }
+  }
   ACR_ClickBase(m_ACR_Data.m_BaseNames[b]);
   return true;
  }

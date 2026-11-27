@@ -105,9 +105,14 @@ class ACR_Veterancy
 
 	// ---------------------------------------------------------------- events
 
-	static void OnKill(IEntity killer, bool isVehicle)
+	static void OnKill(IEntity killer, bool isVehicle, IEntity victim = null)
 	{
 		if (!Replication.IsServer() || !killer) return;
+		if (victim)
+		{
+			string victimSide = ACR_Intel.FactionKeyOf(victim);
+			if (victimSide == ACR_Outbreak.FACTION || victimSide == "CIV" || ACR_Outbreak.IsZombie(victim)) return;
+		}
 		ACR_Manager manager = ACR_Manager.GetInstance();
 		if (!manager) return;
 		ACR_Squad squad = manager.FindSquadBySoldier(killer);

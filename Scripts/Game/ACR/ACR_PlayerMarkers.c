@@ -152,7 +152,8 @@ class ACR_UnitMarker : SCR_MapMarkerBase
    if (markerMap)
    {
     markerMap.GetMapCursorWorldPosition(cx, cz);
-    pc.ACR_ClickBase(m_Label, Vector(cx, 0, cz), true);
+    if (pc.m_ACR_MusterMode) pc.ACR_ClickBaseAt(cx, cz);
+    else pc.ACR_ClickBase(m_Label, Vector(cx, 0, cz), true);
     return;
    }
   }
