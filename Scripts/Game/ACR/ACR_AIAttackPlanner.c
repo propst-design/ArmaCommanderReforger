@@ -721,7 +721,29 @@ class ACR_AIAttackPlanner
    {
     if (squad == attack.m_Suppressor || squad.m_CombatFlank.Active() || ACR_AirLift.Busy(squad)) continue;
     IEntity veh = ACR_Transport.CrewedVehicle(squad);
-    if (veh && squad.HasGunner(veh)) continue;
+    if (veh && squad.HasGunner(veh))
+    {
+     // Leave gun vehicles alone while they see enemies or are still driving to their firing spot.
+     if (squad.KnownEnemies(ACR_AICommander.FIRE_BASE_RANGE) > 0) continue;
+     ACR_EOrderState vState = squad.OrderState();
+     if ((vState == ACR_EOrderState.DEFEND || vState == ACR_EOrderState.MOVE) && vector.DistanceXZ(cmd.PositionOf(squad), squad.m_MoveTarget) > 35) continue;
+     // Parked and blind: shift to a firing spot with real turret LOS, or roll in behind the infantry.
+     vector aimPt = cmd.SupportAimFor(attack.m_Target);
+     vector vSpot;
+     if (cmd.VehicleOverwatchSpot(attack.m_Target, cmd.PositionOf(squad), aimPt, vSpot, 45))
+     {
+      squad.SetMode(ACR_EMoveMode.COMBAT);
+      squad.Defend(vSpot);
+      cmd.Say(string.Format("[ACR] AI %1: %2 repositioning for clear fire support on %3 (%4 m out)", cmd.m_sFaction, squad.GetName(), attack.m_Target.m_sName, Math.Round(vector.DistanceXZ(vSpot, aimPt))));
+     }
+     else if (vector.DistanceXZ(cmd.PositionOf(squad), attack.m_Target.GetOrigin()) > attack.m_Target.m_fRadius + 60)
+     {
+      squad.SetMode(ACR_EMoveMode.COMBAT);
+      squad.Assault(attack.m_Target.GetOrigin());
+      cmd.Say(string.Format("[ACR] AI %1: %2 rolling up to close-support assault on %3 (no clear overwatch)", cmd.m_sFaction, squad.GetName(), attack.m_Target.m_sName));
+     }
+     continue;
+    }
     if (vector.DistanceXZ(cmd.PositionOf(squad), attack.m_Target.GetOrigin()) < attack.m_Target.m_fRadius * 0.6) continue;
     squad.SetMode(ACR_EMoveMode.COMBAT);
     squad.Assault(attack.m_Target.GetOrigin());
@@ -905,8 +927,8 @@ class ACR_AIAttackPlanner
       if (vSquad && squad.HasGunner(vSquad))
       {
        vector vSpot;
-       if (attack.m_Ground && attack.m_Ground.IsDone() && attack.m_Ground.BestFiringToward(cmd.PositionOf(squad), target.m_fRadius + ACR_AICommander.OVERWATCH_MIN_GAP, ACR_AICommander.FIRE_BASE_RANGE, vSpot)) squad.Defend(vSpot);
-       else if (cmd.OverwatchSpot(target, cmd.PositionOf(squad), vSpot)) squad.Defend(vSpot);
+       vector aimPt = cmd.SupportAimFor(target);
+       if (cmd.VehicleOverwatchSpot(target, cmd.PositionOf(squad), aimPt, vSpot, 0)) squad.Defend(vSpot);
        else squad.Assault(target.GetOrigin());
       }
       else
