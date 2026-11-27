@@ -15,7 +15,10 @@ class ACR_MarksmanSwap : Managed
 	{
 		if (!m_Squad || !m_Squad.m_Group || !ACR_Respawn.IsAlive(m_Soldier) || !m_New) { Finish(false); return; }
 		SCR_InventoryStorageManagerComponent inventory = SCR_InventoryStorageManagerComponent.Cast(m_Soldier.FindComponent(SCR_InventoryStorageManagerComponent));
-		CharacterControllerComponent controller = ChimeraCharacter.Cast(m_Soldier).GetCharacterController();
+		ChimeraCharacter ch = ChimeraCharacter.Cast(m_Soldier);
+		CharacterControllerComponent controller;
+		if (ch) controller = ch.GetCharacterController();
+		if (!controller) { Finish(false); return; }
 		BaseWeaponManagerComponent weapons = controller.GetWeaponManagerComponent();
 		array<IEntity> carried = {};
 		if (weapons) weapons.GetWeaponsList(carried);
@@ -43,7 +46,7 @@ class ACR_MarksmanSwap : Managed
 				if (m_Old && (inventory.Contains(m_Old) || ACR_SquadMarksmen.Loose(m_Old))) SCR_EntityHelper.DeleteEntityAndChildren(m_Old);
 				BaseWeaponComponent primary = BaseWeaponComponent.Cast(m_New.FindComponent(BaseWeaponComponent));
 				array<BaseMuzzleComponent> muzzles = {};
-				primary.GetMuzzlesList(muzzles);
+				if (primary) primary.GetMuzzlesList(muzzles);
 				if (!muzzles.IsEmpty())
 				{
 					ResourceName ammo = muzzles[0].GetDefaultMagazineOrProjectileName();
@@ -174,8 +177,11 @@ class ACR_SquadMarksmen
 			IEntity primary = Primary(man);
 			if (!primary) continue;
 			if (IsDMR(primary)) { s_Assigned.Set(group, man); return; }
-			CharacterControllerComponent controller = ChimeraCharacter.Cast(man).GetCharacterController();
-			if (man == squad.m_Leader || controller.IsPlayerControlled() || BBB.PlayerOf(man) || controller.IsUnconscious() || controller.IsChangingItem() || ChimeraCharacter.Cast(man).IsInVehicle()) continue;
+			ChimeraCharacter manChar = ChimeraCharacter.Cast(man);
+			if (!manChar) continue;
+			CharacterControllerComponent controller = manChar.GetCharacterController();
+			if (!controller) continue;
+			if (man == squad.m_Leader || controller.IsPlayerControlled() || BBB.PlayerOf(man) || controller.IsUnconscious() || controller.IsChangingItem() || manChar.IsInVehicle()) continue;
 			if (controller.GetCurrentItemInHands() && controller.GetCurrentItemInHands() != primary) continue;
 			string name = ACR_UALoadout.Leaf(man);
 			int rank = 1;
@@ -203,7 +209,10 @@ class ACR_SquadMarksmen
 		InventoryStorageSlot slot;
 		if (item) slot = item.GetParentSlot();
 		SCR_InventoryStorageManagerComponent inventory = SCR_InventoryStorageManagerComponent.Cast(candidate.FindComponent(SCR_InventoryStorageManagerComponent));
-		CharacterControllerComponent control = ChimeraCharacter.Cast(candidate).GetCharacterController();
+		ChimeraCharacter candChar = ChimeraCharacter.Cast(candidate);
+		CharacterControllerComponent control;
+		if (candChar) control = candChar.GetCharacterController();
+		if (!control) { SCR_EntityHelper.DeleteEntityAndChildren(replacement); return; }
 		bool accepted;
 		if (slot && inventory)
 		{
@@ -224,7 +233,7 @@ class ACR_SquadMarksmen
 		change.m_Deadline = now + 5000;
 		BaseWeaponComponent oldWeapon = BaseWeaponComponent.Cast(original.FindComponent(BaseWeaponComponent));
 		array<BaseMuzzleComponent> oldMuzzles = {};
-		oldWeapon.GetMuzzlesList(oldMuzzles);
+		if (oldWeapon) oldWeapon.GetMuzzlesList(oldMuzzles);
 		foreach (BaseMuzzleComponent oldMuzzle : oldMuzzles)
 			if (oldMuzzle.GetMagazineWell()) change.m_OldWells.Insert(oldMuzzle.GetMagazineWell().Type());
 		s_Pending.Set(group, change);

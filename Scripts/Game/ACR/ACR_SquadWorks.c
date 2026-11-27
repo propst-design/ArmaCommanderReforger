@@ -714,7 +714,8 @@ modded class ACR_Squad
  // their vehicle when open seats are within reach, and holding ground if the CO falls.
  protected static int FreeEscortSeats(IEntity vehicle)
  {
-  if (!vehicle) return 0;
+  if (!vehicle || ACR_Logistics.Health(vehicle) <= 0) return 0;
+  if (vehicle.FindComponent(VehicleHelicopterSimulation) || vehicle.FindComponent(VehicleFixedWingSimulation)) return 0;
   SCR_BaseCompartmentManagerComponent compartments = SCR_BaseCompartmentManagerComponent.Cast(vehicle.FindComponent(SCR_BaseCompartmentManagerComponent));
   if (!compartments) return 0;
   int free;
@@ -786,8 +787,25 @@ modded class ACR_Squad
  void TickEscort()
  {
   if (m_iEscortPlayerId <= 0) return;
-  if (PlayerSteers() || m_bAICommanded)
+  if (m_bAICommanded || m_Commander != 0)
   {
+   m_iEscortPlayerId = 0;
+   m_vEscortAnchor = vector.Zero;
+   m_EscortVehicle = null;
+   return;
+  }
+  if (PlayerSteers())
+  {
+   // Brief F7 possession or driving by the escorted CO pauses escort instead of cancelling it.
+   IEntity leader = GetLeader();
+   IEntity driven = ACR_Transport.CrewedVehicle(this);
+   int leaderPlayer = FindController(leader);
+   int driverPlayer = 0;
+   if (driven) driverPlayer = FindController(DriverOf(driven));
+   int gunnerPlayer = 0;
+   IEntity gunner = ACR_GunnerDrive.SquadGunner(this);
+   if (gunner) gunnerPlayer = FindController(gunner);
+   if (leaderPlayer == m_iEscortPlayerId || driverPlayer == m_iEscortPlayerId || gunnerPlayer == m_iEscortPlayerId) return;
    m_iEscortPlayerId = 0;
    m_vEscortAnchor = vector.Zero;
    m_EscortVehicle = null;
@@ -851,7 +869,8 @@ modded class ACR_Squad
    {
     m_EscortVehicle = coVeh;
     m_vEscortAnchor = coPos;
-    if (m_Order != "Escorting CO") SetOrder("Escorting CO", ACR_EOrderState.NONE);
+    if (OrderState() == ACR_EOrderState.GET_IN) ClearOrders();
+    if (OrderState() != ACR_EOrderState.HOLD || m_Order != "Escorting CO") SetOrder("Escorting CO", ACR_EOrderState.HOLD);
     return;
    }
    bool alreadyBoarding = OrderState() == ACR_EOrderState.GET_IN && m_BoardTarget == coVeh;
@@ -874,11 +893,22 @@ modded class ACR_Squad
    }
   }
 
+  float escortNow = GetGame().GetWorld().GetWorldTime();
   bool staleBoarding = OrderState() == ACR_EOrderState.GET_IN && (!coVeh || m_BoardTarget != coVeh || vector.DistanceXZ(anchor.GetOrigin(), coPos) > 80);
-  if (staleBoarding || vector.DistanceXZ(coPos, m_vEscortAnchor) > 35)
+  if (staleBoarding || (vector.DistanceXZ(coPos, m_vEscortAnchor) > 35 && escortNow >= m_fNextEscortOrder))
   {
-   if (vector.DistanceXZ(anchor.GetOrigin(), coPos) > 50) MoveTo(coPos);
-   else Defend(coPos);
+   float distToCo = vector.DistanceXZ(anchor.GetOrigin(), coPos);
+   if (distToCo > 50)
+   {
+    if (OrderState() != ACR_EOrderState.MOVE || vector.DistanceXZ(m_MoveTarget, coPos) > 35) MoveTo(coPos);
+    else { m_vEscortAnchor = coPos; return; }
+   }
+   else
+   {
+    if (OrderState() != ACR_EOrderState.DEFEND || vector.DistanceXZ(m_MoveTarget, coPos) > 50) Defend(coPos);
+    else { m_vEscortAnchor = coPos; return; }
+   }
+   m_fNextEscortOrder = escortNow + 4000;
    m_iEscortPlayerId = keepId;
    m_EscortVehicle = keepVeh;
    m_vEscortAnchor = coPos;
@@ -972,7 +1002,8 @@ modded class ACR_Squad
    if (waypoints.IsEmpty() && anchor && vector.DistanceXZ(anchor.GetOrigin(), m_MoveTarget) < 60)
    {
     IssueWaypoint(WP_DEFEND, m_MoveTarget, 20);
-    SetOrder("Holding position", ACR_EOrderState.DEFEND);
+    if (m_iEscortPlayerId > 0) SetOrder("Escorting CO", ACR_EOrderState.DEFEND);
+    else SetOrder("Holding position", ACR_EOrderState.DEFEND);
     m_OrderKind = ACR_EOrderKind.DEFEND;
     PrintFormat("[ACR] TACTICS %1: arrived, taking positions", m_Name);
    }

@@ -99,22 +99,24 @@ class ACR_Requests : Managed
   ACR_Squad squad = m_Manager.FindSquadBySoldier(target);
   if (!squad) return "That soldier is not in a commandable squad";
   if (squad.GetFaction() != SCR_FactionManager.SGetPlayerFaction(pc.GetPlayerId())) return "That squad belongs to another faction";
-  if (target.GetCharacterController().IsDead()) return "That soldier is dead";
+  CharacterControllerComponent targetController = target.GetCharacterController();
+  if (!targetController || targetController.IsDead()) return "That soldier is dead";
+  if (targetController.IsUnconscious()) return "That soldier is unconscious";
   if (ACR_Squad.FindController(target)) return "Another player controls that soldier";
   SCR_PossessingManagerComponent possessing = SCR_PossessingManagerComponent.GetInstance();
   if (possessing && possessing.GetIdFromMainEntity(target) != 0) return "That soldier is a player's command unit";
 
   // The engine supports chained possession and preserves the command unit.
+  pc.SetPossessedEntity(target);
+  if (pc.GetControlledEntity() != target) return "Control transfer failed; try again";
   ACR_MapHandoff.Release(pc, body);
   m_Manager.ReleaseAuthority(pc);
-  pc.SetPossessedEntity(target);
   squad.Refresh();
   ACR_MapHandoff.SanitizePossessedWeapons(pc, target, true);
   ACR_MapHandoff.ClearCharacterInput(target);
   m_Manager.m_LastSquad.Set(pc.GetPlayerId(), squad);
   m_Manager.m_PossessedSquad.Set(pc.GetPlayerId(), squad);
   PrintFormat("[ACR] POSSESS player=%1 squad=%2 index=%3", pc.GetPlayerId(), squad.GetName(), squad.IndexOf(target));
-  if (pc.GetControlledEntity() != target) return "Control transfer failed; try again";
   if (squad.IsLeader(pc))
    return string.Format("Now leading %1. Native squad commands are available. F7 swaps again; F8 returns.", squad.GetName());
   return string.Format("Now controlling %1-%2. F7 swaps again; F8 returns to your command unit.", squad.GetName(), squad.NumberOf(target));
@@ -148,7 +150,9 @@ class ACR_Requests : Managed
   foreach (IEntity candidate : candidates)
   {
    ChimeraCharacter soldier = ChimeraCharacter.Cast(candidate);
-   if (!soldier || soldier == body || soldier.GetCharacterController().IsDead() || ACR_Squad.FindController(soldier)) continue;
+   if (!soldier || soldier == body) continue;
+   CharacterControllerComponent soldierController = soldier.GetCharacterController();
+   if (!soldierController || soldierController.IsDead() || soldierController.IsUnconscious() || ACR_Squad.FindController(soldier)) continue;
    return Possess(pc, body, SCR_EntityHelper.EntityToRplId(soldier));
   }
   return string.Format("%1 has no free soldier to take over", squad.GetName());

@@ -816,7 +816,7 @@ class ACR_Squad : Managed
  // hand-overs, used by the AI commander and rides): the state a label stands for.
  static ACR_EOrderState StateOfLabel(string label)
  {
-  if (label == "Moving" || label == "Patrolling" || label == "Air lift: to the landing zone") return ACR_EOrderState.MOVE;
+  if (label == "Moving" || label == "Patrolling" || label == "Air lift: to the landing zone" || label == "Fading to hideout" || label == "Escorting CO") return ACR_EOrderState.MOVE;
   if (label == "Defending" || label == "Holding position" || label == "Garrisoning") return ACR_EOrderState.DEFEND;
   if (label == "Assaulting") return ACR_EOrderState.ASSAULT;
   if (label == "Suppressing") return ACR_EOrderState.SUPPRESS;
@@ -834,9 +834,10 @@ class ACR_Squad : Managed
   ACR_EOrderState state = OrderState();
   string label = m_Order;
   if (state == ACR_EOrderState.BUILD_FOB && label.StartsWith("Establishing FOB")) return;
+  if (label == "Escorting CO" && m_iEscortPlayerId > 0) return;
   // Every label set with MOVE or another arrive-and-finish state belongs here (vehicle manners
   // added "Pulling over" and "Getting away"; the sappers' blast-radius clear is a move too).
-  bool oldMoving = label == "Moving" || label == "Patrolling" || label == "Air lift: to the landing zone" || label == "Getting away" || label == "Clearing blast radius";
+  bool oldMoving = label == "Moving" || label == "Patrolling" || label == "Air lift: to the landing zone" || label == "Getting away" || label == "Clearing blast radius" || label == "Fading to hideout";
   bool oldFinished = oldMoving || label == "Assaulting" || label == "Suppressing" || label == "Getting in" || label == "Getting out" || label == "Pulling over";
   if ((state == ACR_EOrderState.MOVE) == oldMoving && FinishesOnArrival(state) == oldFinished) return;
   ACR_Perf.s_iInvariantErrors++;
@@ -869,6 +870,7 @@ class ACR_Squad : Managed
  int m_iEscortPlayerId; // >0: escorting this player's primary command unit (ORDER_ESCORT)
  vector m_vEscortAnchor;
  IEntity m_EscortVehicle; // CO vehicle the escort boarded (so it dismounts when the CO leaves it)
+ float m_fNextEscortOrder;
  int m_OrderKind;   // ACR_EOrderKind, for map symbology
  float m_fNextWaypointRecovery;
  int m_iWaypointRecoveries;
@@ -1392,7 +1394,11 @@ class ACR_Squad : Managed
   float dt = (now - m_fFobLastTick) / 1000.0;
   m_fFobLastTick = now;
   if (dt <= 0) return;
-  if (dt > 5.0) dt = 1.0;
+  if (dt > 5.0)
+  {
+   m_fFobLastProgress += (dt - 1.0) * 1000;
+   dt = 1.0;
+  }
 
   if (m_ReservedTruck && ACR_Logistics.Health(m_ReservedTruck) <= 0)
   {

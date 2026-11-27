@@ -18,6 +18,7 @@ class ACR_MapHandoff
   ChimeraCharacter character = ChimeraCharacter.Cast(entity);
   if (!character) return;
   CharacterControllerComponent controller = character.GetCharacterController();
+  if (!controller) return;
   CharacterInputContext context = controller.GetInputContext();
   controller.SetMovement(0, vector.Zero);
   if (!context) return;
@@ -30,6 +31,7 @@ class ACR_MapHandoff
   ChimeraCharacter body = ChimeraCharacter.Cast(entity);
   if (!body) return;
   CharacterControllerComponent controller = body.GetCharacterController();
+  if (!controller) return;
   controller.SetDisableViewControls(disabled);
   controller.SetDisableWeaponControls(disabled);
   controller.SetDisableMovementControls(disabled);
@@ -39,6 +41,7 @@ class ACR_MapHandoff
   ChimeraCharacter body = ChimeraCharacter.Cast(entity);
   if (!body) return;
   CharacterControllerComponent controller = body.GetCharacterController();
+  if (!controller) return;
   SCR_GadgetManagerComponent gadgets = SCR_GadgetManagerComponent.GetGadgetManager(body);
   if (gadgets)
   {
@@ -55,7 +58,7 @@ class ACR_MapHandoff
    }
   }
   if (releaseControls) SetMenuControls(body, false);
-  pc.SetGadgetFocus(false);
+  if (pc) pc.SetGadgetFocus(false);
   controller.ResetPersistentStates();
   controller.SetForcedFreeLook(false);
   controller.SetFreeLook(false, false, false);

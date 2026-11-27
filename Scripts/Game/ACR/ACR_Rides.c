@@ -64,6 +64,7 @@ class ACR_CoPickup : Managed
  vector m_Drop;
  int m_State; // ACR_ERideState (TO_PICKUP, BOARDING, TO_DROP, PULLING_UP)
  float m_fStateSince;
+ float m_fPickupBudgetMs = 240000;
  int m_iTaxiSerial;
 }
 
@@ -1458,6 +1459,7 @@ class ACR_Rides : Managed
   if (hasDrop) pickup.m_Drop = ACR_Manager.Ground(dest);
   pickup.m_State = ACR_ERideState.TO_PICKUP;
   pickup.m_fStateSince = GetGame().GetWorld().GetWorldTime();
+  pickup.m_fPickupBudgetMs = Math.Max(PICKUP_TIMEOUT_MS, (fetch / PICKUP_PACE + PICKUP_START_S) * 1000);
   taxi.RouteTo(pickup.m_Pickup, ACR_Squad.WP_MOVE, -1, "Picking up CO", ACR_EOrderKind.MOVE);
   taxi.SetOrder("Picking up CO", ACR_EOrderState.RIDE);
   pickup.m_iTaxiSerial = taxi.m_iOrderSerial;
@@ -1478,6 +1480,13 @@ class ACR_Rides : Managed
   if (pickup.m_Taxi.m_iOrderSerial != pickup.m_iTaxiSerial)
   {
    m_Manager.Notify(pickup.m_iPlayerId, "CO pickup cancelled: transport given another order");
+   return false;
+  }
+  ChimeraCharacter driver = ACR_Squad.DriverOf(pickup.m_Vehicle);
+  if (ACR_Logistics.Health(pickup.m_Vehicle) <= 0 || !driver || !ACR_Respawn.IsAlive(driver) || ACR_Transport.CrewedVehicle(pickup.m_Taxi) != pickup.m_Vehicle || pickup.m_Taxi.HasPlayer())
+  {
+   SendTaxiHome(pickup.m_Taxi, pickup.m_Vehicle, pickup.m_sFaction);
+   m_Manager.Notify(pickup.m_iPlayerId, "CO pickup cancelled: transport unavailable");
    return false;
   }
   PlayerManager pm = GetGame().GetPlayerManager();
@@ -1513,16 +1522,27 @@ class ACR_Rides : Managed
     m_Manager.Notify(pickup.m_iPlayerId, string.Format("%1 moving to %2.", pickup.m_Taxi.GetName(), ACR_Manager.Grid(pickup.m_Drop)));
     return true;
    }
-   if (vector.DistanceXZ(vehPos, main.GetOrigin()) <= PICKUP_REACHED)
+   float coDist = vector.DistanceXZ(vehPos, main.GetOrigin());
+   bool offRoadStop = false;
+   if (coDist > PICKUP_REACHED && coDist <= 150 && elapsed > 10000)
+   {
+    Physics phys = pickup.m_Vehicle.GetPhysics();
+    float speed = 0;
+    if (phys) speed = phys.GetVelocity().Length();
+    bool hasWp = pickup.m_Taxi.m_Group && pickup.m_Taxi.m_Group.GetCurrentWaypoint() != null;
+    if (!hasWp && speed < 0.5) offRoadStop = true;
+   }
+   if (coDist <= PICKUP_REACHED || offRoadStop)
    {
     pickup.m_State = ACR_ERideState.BOARDING;
     pickup.m_fStateSince = now;
     pickup.m_Taxi.Halt("Waiting for CO", ACR_EOrderState.RIDE);
     pickup.m_iTaxiSerial = pickup.m_Taxi.m_iOrderSerial;
-    m_Manager.Notify(pickup.m_iPlayerId, pickup.m_Taxi.GetName() + " arrived — board within 60 s.");
+    if (offRoadStop) m_Manager.Notify(pickup.m_iPlayerId, string.Format("%1 stopped on the nearest road (%2 m away) — board within 60 s.", pickup.m_Taxi.GetName(), (int)coDist));
+    else m_Manager.Notify(pickup.m_iPlayerId, pickup.m_Taxi.GetName() + " arrived — board within 60 s.");
     return true;
    }
-   if (elapsed > PICKUP_TIMEOUT_MS)
+   if (elapsed > pickup.m_fPickupBudgetMs)
    {
     SendTaxiHome(pickup.m_Taxi, pickup.m_Vehicle, pickup.m_sFaction);
     m_Manager.Notify(pickup.m_iPlayerId, "CO pickup timed out.");

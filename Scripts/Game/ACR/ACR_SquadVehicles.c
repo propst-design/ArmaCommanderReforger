@@ -704,8 +704,17 @@ modded class ACR_Squad
  void PulledOver(int serial)
  {
   if (serial != m_iOrderSerial || serial != m_iPullOverSerial || !m_Group) return;
+  int escortId = m_iEscortPlayerId;
+  vector escortAnchor = m_vEscortAnchor;
+  IEntity escortVeh = m_EscortVehicle;
   m_bPulledOver = true;
-  GetOut();
+  if (GetOut() && escortId > 0)
+  {
+   m_iEscortPlayerId = escortId;
+   m_vEscortAnchor = escortAnchor;
+   m_EscortVehicle = escortVeh;
+   SetOrder("Escorting CO", m_eOrderState);
+  }
  }
 
  bool Evade(IEntity vehicle, vector threat)

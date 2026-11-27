@@ -182,8 +182,10 @@ class ACR_Respawn : Managed
    {
     if (IsAlive(pc.GetMainEntity()))
     {
+     ACR_MapHandoff.Release(pc, pending.m_Victim);
      m_Manager.ReleaseAuthority(pc);
      pc.SetPossessedEntity(null);
+     ACR_MapHandoff.SanitizePossessedWeapons(pc, ChimeraCharacter.Cast(pc.GetMainEntity()), true);
      ACR_MapHandoff.ClearCharacterInput(pc.GetControlledEntity());
      m_Manager.Notify(id, "Squad wiped out. Back in your command unit.");
      PrintFormat("[ACR] POSSESSED KILLED player=%1 -> command unit ready", id);
@@ -309,8 +311,10 @@ class ACR_Respawn : Managed
    m_ReturnWhenReady.Remove(id);
    if (goNow)
    {
+    ACR_MapHandoff.Release(pc, pc.GetControlledEntity());
     m_Manager.ReleaseAuthority(pc);
     pc.SetPossessedEntity(null);
+    ACR_MapHandoff.SanitizePossessedWeapons(pc, ChimeraCharacter.Cast(pc.GetMainEntity()), true);
     ACR_MapHandoff.ClearCharacterInput(pc.GetControlledEntity());
     m_Manager.Notify(id, "You are in your new command unit.");
    }
