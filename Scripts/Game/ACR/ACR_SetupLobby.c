@@ -153,7 +153,7 @@ class ACR_SetupLobbyModel
  // bases "HQ (US), 2 RP" too since 20 Nov (ACR_Setup.UpdatePreview), the live map "... | HQ".
  static bool IsHQDetail(string detail)
  {
-  return detail.StartsWith("HQ") || detail.Contains("| HQ");
+  return ACR_MapDeclutter.IsHQ(detail);
  }
 
  // The map sketch's square for a base: HQs biggest, hidden sites smallest.

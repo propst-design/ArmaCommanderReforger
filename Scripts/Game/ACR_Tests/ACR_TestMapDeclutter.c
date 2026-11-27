@@ -5,7 +5,7 @@
 // owner colours, the size pips, the corner marks, and the host option's default and setup row.
 class ACR_TestMapDeclutter
 {
- static const int CHECKS = 25;
+ static const int CHECKS = 26;
 
  static void Run(ACR_TestHarness h, int tick)
  {
@@ -117,6 +117,14 @@ class ACR_TestMapDeclutter
   string capDot = ACR_MapDeclutter.Caption("Le Moule [2]", "Unclaimed | +2 RP", ACR_EBaseSide.FREE, false);
   bool hqDestroyed = !ACR_MapDeclutter.IsHQ("US | garrison 0 | HQ DESTROYED: FOB offline until rebuilt");
   ACR_TestRegress.Check("mapdeclutter: size pips come from the base size; the name drops [N]; HQs say so; a plain dot has no caption", pips && capHQ == "Harbor · enemy HQ" && capOwnHQ == "Base · HQ" && capPlain == "Le Moule" && capDot.IsEmpty() && hqDestroyed, string.Format("pips %1, '%2', '%3', '%4', '%5', destroyed-not-HQ %6", pips, capHQ, capOwnHQ, capPlain, capDot, hqDestroyed));
+
+  // Setup preview parity: west=Blue, east=Red, setup HQ/pip/hidden formats and neutral HQ caption.
+  bool setupSides = ACR_MapDeclutter.SetupSideOf("US", "US", "USSR") == ACR_EBaseSide.OWN && ACR_MapDeclutter.SetupSideOf("USSR", "US", "USSR") == ACR_EBaseSide.ENEMY && ACR_MapDeclutter.SetupSideOf("", "US", "USSR") == ACR_EBaseSide.FREE && ACR_MapDeclutter.SetupSideOf(ACR_Pockets.FACTION, "US", "USSR") == ACR_EBaseSide.OTHER;
+  bool setupHQ = ACR_MapDeclutter.IsHQ("HQ (US), 2 RP") && ACR_MapDeclutter.IsHQ("HQ, 2 RP") && !ACR_MapDeclutter.IsHQ("Control point, 2 RP");
+  bool setupPips = ACR_MapDeclutter.Pips("Depot", "Industry, 3 RP") == 3 && ACR_MapDeclutter.Pips("Gravette Base", "HQ (US), 2 RP") == 2 && ACR_MapDeclutter.Pips("Town", "Control point, 1 RP") == 1;
+  bool setupHidden = ACR_MapDeclutter.IsHidden("Control point, no income | Hidden") && !ACR_MapDeclutter.IsHidden("Control point, 2 RP");
+  string setupCap = ACR_MapDeclutter.Caption("MTA Base", "HQ (USSR), 2 RP", ACR_EBaseSide.ENEMY, true, true);
+  ACR_TestRegress.Check("mapdeclutter: setup preview colours west blue and east red, parses HQ/pips/hidden, and labels both HQs neutrally", setupSides && setupHQ && setupPips && setupHidden && setupCap == "MTA Base · HQ", string.Format("sides %1, hq %2, pips %3, hidden %4, cap '%5'", setupSides, setupHQ, setupPips, setupHidden, setupCap));
 
   // Filled shapes stay on the canvas and non-degenerate.
   array<float> onCanvas = {100, 100, 110, 100, 110, 110, 100, 110};

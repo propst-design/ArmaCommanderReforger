@@ -55,10 +55,12 @@ class ACR_MapDeclutter
   return ACR_LogisticsRules.Choice(OPTION, "1") != "0";
  }
 
- // Client: what the server last said (ACR_MapFeed sends it with the map picture). The setup
- // screen's layout preview stays classic: the host edits every base there, by name.
+ // Client: what the server last said (ACR_MapFeed sends it with the map picture). Live-match
+ // declutter (panels, squads, INTEL, zoom-out culling) stays off during setup; base-marker
+ // rendering (BasesOn) is shared with the setup layout preview.
  protected static bool s_bOn = true;
  static bool On() { return s_bOn && !ACR_SetupClient.s_bActive; }
+ static bool BasesOn() { return s_bOn; }
  static void SetOn(bool on) { s_bOn = on; }
 
  // The player's own: the dark map (off by default) and the UI size (compact by default), kept in
@@ -156,6 +158,16 @@ class ACR_MapDeclutter
   return ACR_EBaseSide.ENEMY;
  }
 
+ // Whose a base is on the setup preview map (nobody has joined a side yet: Blue = west, Red = east).
+ static int SetupSideOf(string owner, string west, string east)
+ {
+  if (owner.IsEmpty()) return ACR_EBaseSide.FREE;
+  if (!west.IsEmpty() && owner == west) return ACR_EBaseSide.OWN;
+  if (!east.IsEmpty() && owner == east) return ACR_EBaseSide.ENEMY;
+  if (owner == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgentColor(owner)) return ACR_EBaseSide.OTHER;
+  return ACR_EBaseSide.ENEMY;
+ }
+
  // Blue ours, red enemy, yellow free (green: FIA / insurgent side).
  static Color SideColor(int side, float alpha = 1)
  {
@@ -172,8 +184,8 @@ class ACR_MapDeclutter
   return SideColor(side, alpha);
  }
 
- // The base's size as pips (1-3, its income), from the label's " [N]" or, failing that, the
- // detail's "+N RP"; 0 for none.
+ // The base's size as pips (1-3, its income), from the label's " [N]", the live detail's "+N RP",
+ // or the setup preview's ", N RP"; 0 for none.
  static int Pips(string label, string detail)
  {
   int open = label.LastIndexOf(" [");
@@ -183,17 +195,22 @@ class ACR_MapDeclutter
    int n = value.ToInt();
    if (n > 0) return Math.Min(n, 3);
   }
-  if (detail.Contains("+3 RP")) return 3;
-  if (detail.Contains("+2 RP")) return 2;
-  if (detail.Contains("+1 RP")) return 1;
+  if (detail.Contains("+3 RP") || detail.Contains(", 3 RP")) return 3;
+  if (detail.Contains("+2 RP") || detail.Contains(", 2 RP")) return 2;
+  if (detail.Contains("+1 RP") || detail.Contains(", 1 RP")) return 1;
   return 0;
  }
 
- // An HQ: the server adds an " | HQ" part to its detail while the calm map is on.
+ // An HQ: live matches append " | HQ", setup previews start with "HQ (" / "HQ,".
  static bool IsHQ(string detail)
  {
-  // Its own " | HQ" part, not " | HQ DESTROYED: ..." (a FOB's lost HQ).
-  return detail == "HQ" || detail.EndsWith(" | HQ") || detail.Contains(" | HQ | ");
+  // Its own " | HQ" part or setup's "HQ (US), 2 RP", never " | HQ DESTROYED: ..." (a FOB's lost HQ).
+  return detail == "HQ" || detail.EndsWith(" | HQ") || detail.Contains(" | HQ | ") || detail.StartsWith("HQ (") || detail.StartsWith("HQ,");
+ }
+
+ static bool IsHidden(string detail)
+ {
+  return detail.Contains("| Hidden") || detail.StartsWith("Hidden");
  }
 
  static bool IsContested(string detail)
@@ -210,7 +227,7 @@ class ACR_MapDeclutter
  }
 
  // The caption under a base's dot: its name, "· HQ" / "· enemy HQ" for HQs, "" for a plain dot.
- static string Caption(string label, string detail, int side, bool keepName)
+ static string Caption(string label, string detail, int side, bool keepName, bool setup = false)
  {
   if (!keepName) return "";
   string name = ShortName(label);
@@ -219,7 +236,7 @@ class ACR_MapDeclutter
   if (!tier.IsEmpty()) name += " (" + tier + ")";
   if (IsHQ(detail))
   {
-   if (side == ACR_EBaseSide.ENEMY) return name + " · enemy HQ";
+   if (!setup && side == ACR_EBaseSide.ENEMY) return name + " · enemy HQ";
    return name + " · HQ";
   }
   return name;

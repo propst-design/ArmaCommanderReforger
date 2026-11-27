@@ -36,7 +36,15 @@ modded class SCR_PlayerController
   ACR_DarkLabels(mapEntity, ACR_MapDeclutter.On() && ACR_MapDeclutter.Dark());
  }
 
- override protected void ACR_ClosePanel()
+ override void ACR_UpdateSetupMap()
+ {
+  super.ACR_UpdateSetupMap();
+  SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
+  if (!mapEntity || !mapEntity.IsOpen() || !ACR_SetupClient.s_bActive || !m_ACR_Data) return;
+  ACR_DarkLabels(mapEntity, ACR_MapDeclutter.BasesOn() && ACR_MapDeclutter.Dark());
+ }
+
+ protected void ACR_ClearDarkLabels()
  {
   if (m_wACR_DarkLabels) m_wACR_DarkLabels.RemoveFromHierarchy();
   m_wACR_DarkLabels = null;
@@ -50,6 +58,17 @@ modded class SCR_PlayerController
   SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
   if (mapEntity && m_bACR_NamesHidden) ACR_HideMapNames(mapEntity, false);
   m_bACR_NamesHidden = false;
+ }
+
+ override protected void ACR_CloseSetupMap()
+ {
+  ACR_ClearDarkLabels();
+  super.ACR_CloseSetupMap();
+ }
+
+ override protected void ACR_ClosePanel()
+ {
+  ACR_ClearDarkLabels();
   super.ACR_ClosePanel();
  }
 

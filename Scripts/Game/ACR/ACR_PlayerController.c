@@ -1067,6 +1067,7 @@ modded class SCR_PlayerController
    if (m_ACR_SetupMapOpen)
    {
     ACR_ClearMarkers();
+    ACR_CloseSetupMap();
     SCR_MapEntity.GetOnSelection().Remove(ACR_OnSetupMapClick);
     m_ACR_SelectedBase = "";
     m_ACR_SetupPicked = "";
@@ -1086,6 +1087,7 @@ modded class SCR_PlayerController
   if (!m_ACR_SetupMapOpen)
   {
    Print("[ACR] SETUP preview map opened");
+   ACR_OpenSetupCanvas(mapEntity);
    SCR_MapEntity.GetOnSelection().Insert(ACR_OnSetupMapClick);
    m_ACR_SelectedBase = "";
    m_ACR_SetupPicked = "";
@@ -1098,9 +1100,38 @@ modded class SCR_PlayerController
    if (m_ACR_SelectedBase != "" && ACR_SetupClient.s_sRows.Contains("Show and edit"))
     SCR_HintManagerComponent.ShowCustomHint(string.Format("Selected: %1. Click its destination or Delete selected CP. HQs can only be moved.", m_ACR_SelectedBase), "AC: Actual", 6, true);
   }
+  ACR_DrawSetupCanvas(mapEntity);
   ACR_UpdateBaseMarkers(manager);
  }
  protected string m_ACR_SetupPicked;
+
+ protected void ACR_OpenSetupCanvas(SCR_MapEntity mapEntity)
+ {
+  Widget root = mapEntity.GetMapMenuRoot();
+  if (!root || m_ACR_Display.GetCanvas()) return;
+  CanvasWidget canvas = CanvasWidget.Cast(GetGame().GetWorkspace().CreateWidget(WidgetType.CanvasWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR | WidgetFlags.BLEND, Color.FromInt(Color.WHITE), 0, root));
+  if (!canvas) return;
+  FrameSlot.SetAnchorMin(canvas, 0, 0);
+  FrameSlot.SetAnchorMax(canvas, 1, 1);
+  FrameSlot.SetOffsets(canvas, 0, 0, 0, 0);
+  canvas.SetZOrder(900);
+  m_ACR_Display.SetCanvas(canvas);
+ }
+
+ protected void ACR_DrawSetupCanvas(SCR_MapEntity mapEntity)
+ {
+ }
+
+ protected void ACR_CloseSetupMap()
+ {
+  if (m_ACR_Display.GetCanvas()) m_ACR_Display.GetCanvas().RemoveFromHierarchy();
+  m_ACR_Display.SetCanvas(null);
+ }
+
+ protected int ACR_SetupDotAt(int mx, int my)
+ {
+  return -1;
+ }
 
  void ACR_DeleteSetupSelection()
  {
@@ -1128,16 +1159,21 @@ modded class SCR_PlayerController
   mapEntity.GetMapCursorWorldPosition(x, z);
   if (m_ACR_SelectedBase == "")
   {
-   int best = -1;
-   float bestDistance = float.MAX;
-   foreach (int i, vector pos : m_ACR_Data.m_BasePositions)
+   int mx, my;
+   WidgetManager.GetMousePos(mx, my);
+   int best = ACR_SetupDotAt(mx, my);
+   if (best < 0)
    {
-    float d = vector.DistanceXZ(pos, Vector(x, 0, z));
-    float reach = 60;
-    if (i < m_ACR_Data.m_BaseRadii.Count()) reach = Math.Max(reach, m_ACR_Data.m_BaseRadii[i]);
-    if (d < reach && d < bestDistance) { bestDistance = d; best = i; }
+    float bestDistance = float.MAX;
+    foreach (int i, vector pos : m_ACR_Data.m_BasePositions)
+    {
+     float d = vector.DistanceXZ(pos, Vector(x, 0, z));
+     float reach = 60;
+     if (i < m_ACR_Data.m_BaseRadii.Count()) reach = Math.Max(reach, m_ACR_Data.m_BaseRadii[i]);
+     if (d < reach && d < bestDistance) { bestDistance = d; best = i; }
+    }
    }
-   if (best >= 0) m_ACR_SelectedBase = m_ACR_Data.m_BaseNames[best];
+   if (best >= 0 && best < m_ACR_Data.m_BaseNames.Count()) m_ACR_SelectedBase = m_ACR_Data.m_BaseNames[best];
    return;
   }
   string name = m_ACR_SelectedBase;

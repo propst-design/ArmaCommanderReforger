@@ -86,8 +86,8 @@ modded class SCR_MapMarkerWidgetComponent
   if (!marker || marker.m_BaseIndex < 0 || !m_wMarkerText) return;
   string text = marker.m_BaseCaption;
   // Not while the list of a "×N"'s squads is open: it would show behind the list (ACR_SquadPicker).
-  // In a match the hover card shows the details (ACR_MapCard); the setup map keeps them here.
-  if (m_ACR_BaseHovered && !ACR_SquadPicker.s_bOpen && ACR_SetupClient.IsActive()) text = marker.m_BaseHover;
+  // In calm mode the hover card shows the details (ACR_MapCard); classic mode expands them here.
+  if (m_ACR_BaseHovered && !ACR_SquadPicker.s_bOpen && !ACR_MapDeclutter.BasesOn()) text = marker.m_BaseHover;
   m_wMarkerText.SetText(text);
   m_wMarkerText.SetVisible(m_bShowText);
  }

@@ -37,11 +37,19 @@ class ACR_OrderDisplay : Managed
  }
 
  // Friendly blue, enemy red, unclaimed yellow (the Arma 3 mod's colours).
+ // During setup nobody has joined a faction yet: Blue = west, Red = east.
  static Color BaseColor(string owner, float alpha)
  {
   if (owner.IsEmpty()) return new Color(0.85, 0.72, 0.1, alpha);
   Faction mine = SCR_FactionManager.SGetLocalPlayerFaction();
   if (mine && mine.GetFactionKey() == owner) return new Color(0.2, 0.5, 1.0, alpha);
+  if (!mine && ACR_SetupClient.IsActive())
+  {
+   string west, east;
+   ACR_SetupClient.Sides(west, east);
+   if (!west.IsEmpty() && owner == west) return new Color(0.2, 0.5, 1.0, alpha);
+   if (!east.IsEmpty() && owner == east) return new Color(0.9, 0.15, 0.15, alpha);
+  }
   // FIA is only ever a third party here (pockets are off when FIA plays a main side).
   if (owner == ACR_Pockets.FACTION) return new Color(0.2, 0.7, 0.25, alpha);
   return new Color(0.9, 0.15, 0.15, alpha);

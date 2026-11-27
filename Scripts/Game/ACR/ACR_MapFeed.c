@@ -606,6 +606,8 @@ class ACR_MapFeed
    if (base.m_bContested) flag = 1;
    if (base.m_sOwner == frame.m_sKey) flag += ACR_FobAI.FeedFlag(base); // +2: handed to the AI
    if (base.m_bBuilt && ACR_SupplyRuns.On()) flag += 4; // +4: supply runs on (#242: the FOB panel's order says so)
+   if (base.m_bBuilt) flag += 8; // +8: built FOB (square base marker)
+   if (base.m_bBuilt && (base.m_bHqLost || ACR_LogisticsRules.RelayBlocked(base))) flag += 16; // +16: FOB offline
    frame.m_BaseContested.Insert(flag);
    int stock = -1;
    if (base.m_bBuilt && base.m_sOwner == frame.m_sKey && base.m_FobSupply) stock = ACR_FobSupply.Stock(base.m_FobSupply);

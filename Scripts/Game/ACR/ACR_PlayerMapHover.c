@@ -29,6 +29,20 @@ modded class SCR_PlayerController
   ACR_UpdateCard();
  }
 
+ override void ACR_UpdateSetupMap()
+ {
+  super.ACR_UpdateSetupMap();
+  ACR_UpdateCard();
+ }
+
+ override protected void ACR_CloseSetupMap()
+ {
+  m_ACR_HoverMarker = null;
+  if (m_ACR_Card) m_ACR_Card.Destroy();
+  m_ACR_Card = null;
+  super.ACR_CloseSetupMap();
+ }
+
  // The map's click (ACR_OnMapClick) and closing (ACR_ClosePanel) close the pickers: the card too.
  override protected void ACR_ClosePicker()
  {
@@ -41,7 +55,8 @@ modded class SCR_PlayerController
  {
   SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
   ACR_UnitMarker marker = m_ACR_HoverMarker;
-  bool want = marker && mapEntity && mapEntity.IsOpen() && mapEntity.GetMapMenuRoot() && m_ACR_Data && !ACR_SquadPickerOpen() && !ACR_SetupClient.IsActive();
+  bool setupOk = !ACR_SetupClient.IsActive() || (marker && marker.m_BaseIndex >= 0 && ACR_MapDeclutter.BasesOn());
+  bool want = marker && mapEntity && mapEntity.IsOpen() && mapEntity.GetMapMenuRoot() && m_ACR_Data && !ACR_SquadPickerOpen() && setupOk;
   if (!want)
   {
    if (m_ACR_Card) m_ACR_Card.Hide();

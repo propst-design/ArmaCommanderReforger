@@ -19,7 +19,7 @@ modded class SCR_MapMarkerWidgetComponent
  {
   super.SetColor(color);
   ACR_UnitMarker marker = ACR_UnitMarker.Cast(m_MarkerObject);
-  if (!marker || marker.m_BaseIndex < 0 || !m_wMarkerText || !ACR_MapDeclutter.On() || !ACR_MapDeclutter.Dark()) return;
+  if (!marker || marker.m_BaseIndex < 0 || !m_wMarkerText || !ACR_MapDeclutter.BasesOn() || !ACR_MapDeclutter.Dark()) return;
   m_wMarkerText.SetColor(ACR_MapDeclutter.Rgb(238, 240, 242));
  }
 }
@@ -29,6 +29,7 @@ modded class SCR_MapMarkerWidgetComponent
 modded class ACR_MapData
 {
  bool m_bDeclOn;
+ bool m_bDeclBasesOn;
  bool m_bDeclFar;
  bool m_bDeclZonesOff;   // the Zones layer is off (ACR_MapLayers): no capture rings, no mortar ranges
  string m_sDeclSelectedBase;
@@ -36,6 +37,9 @@ modded class ACR_MapData
  ref array<int> m_DeclSide = {};
  ref array<int> m_DeclPips = {};
  ref array<bool> m_DeclHQ = {};
+ ref array<bool> m_DeclFOB = {};
+ ref array<bool> m_DeclFobOffline = {};
+ ref array<bool> m_DeclHiddenBase = {};
  ref array<bool> m_DeclKeep = {};
  ref array<float> m_DeclCaption = {}; // 4 per base: its caption's rectangle from its marker's point (x1 <= x0: none)
  ref array<float> m_DeclDots = {};    // 2 per base: its dot on screen (px)
@@ -68,6 +72,8 @@ modded class ACR_MapData
  ref array<float> m_DeclSymY = {};
  // the legend's glyphs: x, y, mark
  ref array<float> m_DeclLegend = {};
+ // the setup preview legend's glyphs: x, y, kind (0=Blue HQ, 1=Red HQ, 2=CP, 3=Neutral)
+ ref array<float> m_DeclSetupLegend = {};
  // The squad under the cursor in a "×N"'s list (ACR_SquadPicker): a ring where it really stands.
  RplId m_PickerHover = RplId.Invalid();
  // A pulse on a spot the player was sent to (the 2IC panel's Show): until m_iPulseUntil (ms).
@@ -103,6 +109,12 @@ modded class ACR_OrderDisplay
 
  override protected void DrawLayers(SCR_MapEntity mapEntity, ACR_MapData data, bool boxing, vector boxStart)
  {
+  if (m_Canvas && data && !data.m_bDeclOn && data.m_bDeclBasesOn)
+  {
+   DrawBaseAreas(mapEntity, data);
+   DeclSetupLegendGlyphs(data);
+   return;
+  }
   super.DrawLayers(mapEntity, data, boxing, boxStart);
   if (!m_Canvas || !data || !data.m_bDeclOn) return;
   DeclLegendGlyphs(data);
@@ -128,55 +140,201 @@ modded class ACR_OrderDisplay
   AddPolygon(shape);
  }
 
+ protected void DeclDiamond(float x, float y, float radius, int color)
+ {
+  if (radius < 1) return;
+  DeclShape({x, y - radius, x + radius, y, x, y + radius, x - radius, y}, color);
+ }
+
+ protected void DeclDiamondRing(float x, float y, float radius, int color, float width)
+ {
+  if (radius < 1) return;
+  LineDrawCommand ring = new LineDrawCommand();
+  ring.m_iColor = color;
+  ring.m_fWidth = width;
+  ring.m_bShouldEnclose = true;
+  ring.m_Vertices = {x, y - radius, x + radius, y, x, y + radius, x - radius, y};
+  m_Commands.Insert(ring);
+ }
+
+ protected void DeclSquare(float x, float y, float half, int color)
+ {
+  if (half < 1) return;
+  DeclShape({x - half, y - half, x + half, y - half, x + half, y + half, x - half, y + half}, color);
+ }
+
+ protected void DeclSquareRing(float x, float y, float half, int color, float width)
+ {
+  if (half < 1) return;
+  LineDrawCommand ring = new LineDrawCommand();
+  ring.m_iColor = color;
+  ring.m_fWidth = width;
+  ring.m_bShouldEnclose = true;
+  ring.m_Vertices = {x - half, y - half, x + half, y - half, x + half, y + half, x - half, y + half};
+  m_Commands.Insert(ring);
+ }
+
+ // Crisp 5-point star drawn as 1 convex inner pentagon + 5 convex tip triangles.
+ protected void DeclStar5(float cx, float cy, float outerR, float innerR, int color)
+ {
+  if (outerR < 2 || innerR < 1) return;
+  array<float> ox = {};
+  array<float> oy = {};
+  array<float> ix = {};
+  array<float> iy = {};
+  float baseAngle = -Math.PI * 0.5;
+  float step = Math.PI * 0.4;
+  float halfStep = Math.PI * 0.2;
+  for (int k = 0; k < 5; k++)
+  {
+   float a = baseAngle + k * step;
+   float b = a + halfStep;
+   ox.Insert(cx + Math.Cos(a) * outerR);
+   oy.Insert(cy + Math.Sin(a) * outerR);
+   ix.Insert(cx + Math.Cos(b) * innerR);
+   iy.Insert(cy + Math.Sin(b) * innerR);
+  }
+  DeclShape({ix[0], iy[0], ix[1], iy[1], ix[2], iy[2], ix[3], iy[3], ix[4], iy[4]}, color);
+  for (int t = 0; t < 5; t++)
+  {
+   int prev = (t + 4) % 5;
+   DeclShape({ix[prev], iy[prev], ox[t], oy[t], ix[t], iy[t]}, color);
+  }
+ }
+
+ protected void DeclSetupLegendGlyphs(ACR_MapData data)
+ {
+  int white = ACR_MapDeclutter.Rgb(250, 250, 250).PackToInt();
+  int dark = ACR_MapDeclutter.Rgb(18, 20, 24).PackToInt();
+  for (int i = 0; i + 2 < data.m_DeclSetupLegend.Count(); i += 3)
+  {
+   float gx = data.m_DeclSetupLegend[i];
+   float gy = data.m_DeclSetupLegend[i + 1];
+   int kind = (int)data.m_DeclSetupLegend[i + 2];
+   if (kind == 0 || kind == 1)
+   {
+    int side = ACR_EBaseSide.OWN;
+    if (kind == 1) side = ACR_EBaseSide.ENEMY;
+    int fill = ACR_MapDeclutter.SideColor(side).PackToInt();
+    DeclDiamond(gx, gy, Px(8.5), dark);
+    DeclDiamond(gx, gy, Px(7.5), white);
+    DeclDiamond(gx, gy, Px(6), fill);
+    DeclStar5(gx, gy, Px(3.5), Px(1.5), white);
+   }
+   else if (kind == 2)
+   {
+    int cpColor = ACR_MapDeclutter.SideColor(ACR_EBaseSide.OWN).PackToInt();
+    DeclDisc(gx, gy, Px(6.5), dark);
+    DeclDisc(gx, gy, Px(5.5), white);
+    DeclDisc(gx, gy, Px(4.2), cpColor);
+   }
+   else
+   {
+    int freeColor = ACR_MapDeclutter.SideColor(ACR_EBaseSide.FREE).PackToInt();
+    DeclDisc(gx, gy, Px(6.5), dark);
+    DeclDisc(gx, gy, Px(5.5), white);
+    DeclDisc(gx, gy, Px(4.2), freeColor);
+   }
+  }
+ }
+
  protected float Px(float size)
  {
   return GetGame().GetWorkspace().DPIScale(size);
  }
 
- // Bases: a dot in the owner's colour with a white edge (smaller for a plain dot when zoomed out),
- // pips after the name, a red ring while contested, a white one when selected; near, a faint
- // capture ring.
+ // Bases: two-pass rendering (CPs/FOBs/hidden first, HQs on top so nearby CPs never hide them).
+ // HQs are diamonds with a white 5-point star; built FOBs are squares (hollow when offline);
+ // hidden/landmark sites are hollow rings; standard CPs are circles. RP pips follow the caption.
  override protected void DrawBaseAreas(SCR_MapEntity mapEntity, ACR_MapData data)
  {
-  if (!data.m_bDeclOn)
+  if (!data.m_bDeclBasesOn)
   {
    super.DrawBaseAreas(mapEntity, data);
    return;
   }
   int white = ACR_MapDeclutter.Rgb(250, 250, 250).PackToInt();
+  int dark = ACR_MapDeclutter.Rgb(18, 20, 24, 0.9).PackToInt();
   int red = ACR_MapDeclutter.Rgb(229, 62, 62).PackToInt();
-  foreach (int i, vector pos : data.m_BasePositions)
+  for (int pass = 0; pass < 2; pass++)
   {
-   int cx, cy;
-   mapEntity.WorldToScreen(pos[0], pos[2], cx, cy, true);
-   int side = ACR_EBaseSide.FREE;
-   if (i < data.m_DeclSide.Count()) side = data.m_DeclSide[i];
-   bool keep = i >= data.m_DeclKeep.Count() || data.m_DeclKeep[i];
-   bool contested = i < data.m_BaseContested.Count() && (data.m_BaseContested[i] & 1) != 0;
-   int color = ACR_MapDeclutter.SideColorFor(side, data.m_sDeclViewer).PackToInt();
-   if (!data.m_bDeclFar && !data.m_bDeclZonesOff && i < data.m_BaseRadii.Count())
+   foreach (int i, vector pos : data.m_BasePositions)
    {
-    int ex, ey;
-    mapEntity.WorldToScreen(pos[0] + data.m_BaseRadii[i], pos[2], ex, ey, true);
-    float radius = Math.AbsFloat(ex - cx);
-    if (radius > Px(24)) Ring(cx, cy, radius, ACR_MapDeclutter.SideColorFor(side, data.m_sDeclViewer, 0.35).PackToInt(), Px(1.5), 48);
+    bool isHQ = i < data.m_DeclHQ.Count() && data.m_DeclHQ[i];
+    if (isHQ != (pass == 1)) continue;
+    int cx, cy;
+    mapEntity.WorldToScreen(pos[0], pos[2], cx, cy, true);
+    int side = ACR_EBaseSide.FREE;
+    if (i < data.m_DeclSide.Count()) side = data.m_DeclSide[i];
+    bool keep = i >= data.m_DeclKeep.Count() || data.m_DeclKeep[i];
+    bool contested = i < data.m_BaseContested.Count() && (data.m_BaseContested[i] & 1) != 0;
+    bool isFob = i < data.m_DeclFOB.Count() && data.m_DeclFOB[i];
+    bool fobOffline = i < data.m_DeclFobOffline.Count() && data.m_DeclFobOffline[i];
+    bool isHidden = i < data.m_DeclHiddenBase.Count() && data.m_DeclHiddenBase[i];
+    bool selected = i < data.m_BaseNames.Count() && data.m_BaseNames[i] == data.m_sDeclSelectedBase;
+    int color = ACR_MapDeclutter.SideColorFor(side, data.m_sDeclViewer).PackToInt();
+    if (!data.m_bDeclFar && !data.m_bDeclZonesOff && i < data.m_BaseRadii.Count())
+    {
+     int ex, ey;
+     mapEntity.WorldToScreen(pos[0] + data.m_BaseRadii[i], pos[2], ex, ey, true);
+     float radius = Math.AbsFloat(ex - cx);
+     if (radius > Px(24)) Ring(cx, cy, radius, ACR_MapDeclutter.SideColorFor(side, data.m_sDeclViewer, 0.35).PackToInt(), Px(1.5), 48);
+    }
+    if (isHQ)
+    {
+     DeclDiamond(cx, cy, Px(13.5), dark);
+     DeclDiamond(cx, cy, Px(12), white);
+     DeclDiamond(cx, cy, Px(9.5), color);
+     DeclStar5(cx, cy, Px(5.5), Px(2.3), white);
+     if (contested) DeclDiamondRing(cx, cy, Px(19.5), red, Px(2.5));
+     if (selected) DeclDiamondRing(cx, cy, Px(16.5), white, Px(2.2));
+    }
+    else if (isFob)
+    {
+     float half = Px(7.5);
+     if (!keep) half = Px(5);
+     DeclSquare(cx, cy, half + Px(2.8), dark);
+     DeclSquare(cx, cy, half + Px(1.8), white);
+     DeclSquare(cx, cy, half, color);
+     if (fobOffline && half > Px(4)) DeclSquare(cx, cy, half - Px(3), dark);
+     if (contested) DeclSquareRing(cx, cy, half + Px(7), red, Px(2.5));
+     if (selected) DeclSquareRing(cx, cy, half + Px(4.5), white, Px(2));
+    }
+    else if (isHidden)
+    {
+     float hdot = Px(5.5);
+     if (!keep) hdot = Px(4);
+     DeclDisc(cx, cy, hdot, ACR_MapDeclutter.SideColorFor(side, data.m_sDeclViewer, 0.22).PackToInt());
+     Ring(cx, cy, hdot + Px(1.8), dark, Px(1.6), 24);
+     Ring(cx, cy, hdot + Px(0.9), white, Px(1.4), 24);
+     Ring(cx, cy, hdot, color, Px(2.2), 24);
+     if (contested) Ring(cx, cy, hdot + Px(7), red, Px(2.5), 32);
+     if (selected) Ring(cx, cy, hdot + Px(4.5), white, Px(2), 32);
+    }
+    else
+    {
+     float dot = Px(7);
+     if (!keep) dot = Px(4.5);
+     DeclDisc(cx, cy, dot + Px(3), dark);
+     DeclDisc(cx, cy, dot + Px(2), white);
+     DeclDisc(cx, cy, dot, color);
+     if (contested) Ring(cx, cy, dot + Px(7.5), red, Px(2.5), 32);
+     if (selected) Ring(cx, cy, dot + Px(4.5), white, Px(2), 32);
+    }
+    // The pips after the name, where the name is (moved off its spot or not).
+    if (!keep || i * 4 + 3 >= data.m_DeclCaption.Count() || i * 2 + 1 >= data.m_DeclShift.Count() || i >= data.m_DeclPips.Count()) continue;
+    float x0 = data.m_DeclCaption[i * 4];
+    float x1 = data.m_DeclCaption[i * 4 + 2];
+    if (x1 <= x0) continue;
+    // (The caption's rectangle includes its pips.)
+    float px = cx + data.m_DeclShift[i * 2] + x1 - Px(4 + 7 * data.m_DeclPips[i]);
+    float py = cy + data.m_DeclShift[i * 2 + 1] + (data.m_DeclCaption[i * 4 + 1] + data.m_DeclCaption[i * 4 + 3]) * 0.5;
+    for (int p = 0; p < data.m_DeclPips[i]; p++)
+    {
+     DeclDisc(px + Px(6 + p * 7), py, Px(3.3), dark);
+     DeclDisc(px + Px(6 + p * 7), py, Px(2.4), color);
+    }
    }
-   float dot = Px(7);
-   if (!keep) dot = Px(4.5);
-   DeclDisc(cx, cy, dot + Px(2), white);
-   DeclDisc(cx, cy, dot, color);
-   if (contested) Ring(cx, cy, dot + Px(7), red, Px(2.5), 32);
-   if (i < data.m_BaseNames.Count() && data.m_BaseNames[i] == data.m_sDeclSelectedBase) Ring(cx, cy, dot + Px(4), white, Px(2), 32);
-   // The pips after the name, where the name is (moved off its spot or not).
-   if (!keep || i * 4 + 3 >= data.m_DeclCaption.Count() || i * 2 + 1 >= data.m_DeclShift.Count() || i >= data.m_DeclPips.Count()) continue;
-   float x0 = data.m_DeclCaption[i * 4];
-   float x1 = data.m_DeclCaption[i * 4 + 2];
-   if (x1 <= x0) continue;
-   // (The caption's rectangle includes its pips.)
-   float px = cx + data.m_DeclShift[i * 2] + x1 - Px(4 + 7 * data.m_DeclPips[i]);
-   float py = cy + data.m_DeclShift[i * 2 + 1] + (data.m_DeclCaption[i * 4 + 1] + data.m_DeclCaption[i * 4 + 3]) * 0.5;
-   for (int p = 0; p < data.m_DeclPips[i]; p++)
-    DeclDisc(px + Px(6 + p * 7), py, Px(2.6), color);
   }
  }
 
@@ -1361,6 +1519,9 @@ modded class SCR_PlayerController
  protected ref array<ref ACR_BaseChipClick> m_aDeclChipClicks = {};
  protected Widget m_wDeclLegend;
  protected ref array<Widget> m_aDeclLegendSpots = {};
+ protected Widget m_wDeclSetupLegend;
+ protected ref array<Widget> m_aDeclSetupLegendSpots = {};
+ protected string m_sDeclSetupLegendSig;
  protected Widget m_wDeclTint;
  protected bool m_bDeclForcedOpen;   // [Open] on the bar: the panel stays open until zoomed in again
  protected bool m_bDeclTouched;      // markers were hidden or moved: put back if the option goes off
@@ -1388,6 +1549,7 @@ modded class SCR_PlayerController
  {
   ACR_MapData data = m_ACR_Data;
   data.m_bDeclOn = ACR_MapDeclutter.On();
+  data.m_bDeclBasesOn = ACR_MapDeclutter.BasesOn();
   data.m_bDeclFar = false;
   if (!data.m_bDeclOn) return;
   m_bDeclTouched = true;
@@ -1398,6 +1560,93 @@ modded class SCR_PlayerController
   ACR_DeclSquads(mapEntity, data);
   ACR_DeclChipPlaces(mapEntity, data);
   ACR_DeclCaptions(mapEntity, data);
+ }
+
+ // Setup preview map: base markers only (no squads, orders, or zoom-out culling).
+ override protected void ACR_DrawSetupCanvas(SCR_MapEntity mapEntity)
+ {
+  ACR_MapData data = m_ACR_Data;
+  data.m_bDeclOn = false;
+  data.m_bDeclBasesOn = ACR_MapDeclutter.BasesOn();
+  data.m_bDeclFar = false;
+  if (!data.m_bDeclBasesOn) return;
+  m_bDeclTouched = true;
+  ACR_DeclSetupBases(data);
+  ACR_DeclDots(mapEntity, data);
+  data.m_DeclKeepOff.Clear();
+  ACR_DeclCaptions(mapEntity, data);
+  ACR_DeclSetupLegend(mapEntity, true);
+  m_ACR_Display.Draw(mapEntity, data, false, vector.Zero);
+ }
+
+ override void ACR_UpdateSetupMap()
+ {
+  super.ACR_UpdateSetupMap();
+  SCR_MapEntity mapEntity = SCR_MapEntity.GetMapInstance();
+  if (!mapEntity || !mapEntity.IsOpen() || !ACR_SetupClient.s_bActive) return;
+  bool on = ACR_MapDeclutter.BasesOn();
+  ACR_DeclTint(mapEntity, on && ACR_MapDeclutter.Dark());
+  if (!on) ACR_DeclSetupLegend(mapEntity, false);
+ }
+
+ override protected void ACR_CloseSetupMap()
+ {
+  if (m_wDeclTint) m_wDeclTint.RemoveFromHierarchy();
+  m_wDeclTint = null;
+  if (m_wDeclSetupLegend) m_wDeclSetupLegend.RemoveFromHierarchy();
+  m_wDeclSetupLegend = null;
+  m_aDeclSetupLegendSpots.Clear();
+  m_sDeclSetupLegendSig = "";
+  if (m_ACR_Data) m_ACR_Data.m_DeclSetupLegend.Clear();
+  super.ACR_CloseSetupMap();
+ }
+
+ override protected int ACR_SetupDotAt(int mx, int my)
+ {
+  if (!m_ACR_Data || !m_ACR_Data.m_bDeclBasesOn) return -1;
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  int best = -1;
+  float bestD = float.MAX;
+  for (int i = 0; i * 2 + 1 < m_ACR_Data.m_DeclDots.Count(); i++)
+  {
+   float dx = m_ACR_Data.m_DeclDots[i * 2] - mx;
+   float dy = m_ACR_Data.m_DeclDots[i * 2 + 1] - my;
+   float d = Math.Sqrt(dx * dx + dy * dy);
+   float reach = ws.DPIScale(11);
+   if (i < m_ACR_Data.m_DeclHQ.Count() && m_ACR_Data.m_DeclHQ[i]) reach = ws.DPIScale(15);
+   if (d <= reach && d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+ }
+
+ // Setup preview bases: Blue = west, Red = east, all names kept at every zoom so every CP is editable.
+ protected void ACR_DeclSetupBases(ACR_MapData data)
+ {
+  string west, east;
+  ACR_SetupClient.Sides(west, east);
+  data.m_sDeclViewer = "";
+  data.m_sDeclSelectedBase = m_ACR_SelectedBase;
+  data.m_DeclSide.Clear();
+  data.m_DeclPips.Clear();
+  data.m_DeclHQ.Clear();
+  data.m_DeclFOB.Clear();
+  data.m_DeclFobOffline.Clear();
+  data.m_DeclHiddenBase.Clear();
+  data.m_DeclKeep.Clear();
+  foreach (int i, string name : data.m_BaseNames)
+  {
+   string owner = "";
+   if (i < data.m_BaseOwners.Count()) owner = data.m_BaseOwners[i];
+   string detail = "";
+   if (i < data.m_BaseDetails.Count()) detail = data.m_BaseDetails[i];
+   data.m_DeclSide.Insert(ACR_MapDeclutter.SetupSideOf(owner, west, east));
+   data.m_DeclPips.Insert(ACR_MapDeclutter.Pips(name, detail));
+   data.m_DeclHQ.Insert(ACR_MapDeclutter.IsHQ(detail));
+   data.m_DeclFOB.Insert(false);
+   data.m_DeclFobOffline.Insert(false);
+   data.m_DeclHiddenBase.Insert(ACR_MapDeclutter.IsHidden(detail));
+   data.m_DeclKeep.Insert(true);
+  }
  }
 
  // Each base's dot and its ring on screen (px).
@@ -1427,6 +1676,9 @@ modded class SCR_PlayerController
   data.m_DeclSide.Clear();
   data.m_DeclPips.Clear();
   data.m_DeclHQ.Clear();
+  data.m_DeclFOB.Clear();
+  data.m_DeclFobOffline.Clear();
+  data.m_DeclHiddenBase.Clear();
   data.m_DeclKeep.Clear();
   foreach (int i, string name : data.m_BaseNames)
   {
@@ -1434,9 +1686,14 @@ modded class SCR_PlayerController
    if (i < data.m_BaseOwners.Count()) owner = data.m_BaseOwners[i];
    string detail = "";
    if (i < data.m_BaseDetails.Count()) detail = data.m_BaseDetails[i];
+   int flags = 0;
+   if (i < data.m_BaseContested.Count()) flags = data.m_BaseContested[i];
    data.m_DeclSide.Insert(ACR_MapDeclutter.SideOf(owner, mine));
    data.m_DeclPips.Insert(ACR_MapDeclutter.Pips(name, detail));
    data.m_DeclHQ.Insert(ACR_MapDeclutter.IsHQ(detail));
+   data.m_DeclFOB.Insert((flags & 8) != 0);
+   data.m_DeclFobOffline.Insert((flags & 16) != 0);
+   data.m_DeclHiddenBase.Insert(ACR_MapDeclutter.IsHidden(detail));
   }
   array<bool> front = {};
   ACR_MapDeclutter.FrontBases(data.m_BasePositions, data.m_DeclSide, front);
@@ -1791,16 +2048,17 @@ modded class SCR_PlayerController
  }
 
  // Base markers: the name alone (or nothing: a plain dot), the details on hover; the canvas draws
- // the dot, so the marker's own icon is hidden.
+ // the symbol (HQ diamond-star, FOB square, CP dot), so the marker's own icon is hidden.
  override protected void ACR_UpdateBaseMarkers(SCR_MapMarkerManagerComponent manager)
  {
-  bool on = ACR_MapDeclutter.On();
+  bool on = ACR_MapDeclutter.BasesOn();
   if (!on)
   {
    super.ACR_UpdateBaseMarkers(manager);
    if (m_bDeclTouched) ACR_DeclBaseIcons(1);
    return;
   }
+  bool setup = ACR_SetupClient.IsActive();
   ACR_MatchBaseMarkers(manager);
   foreach (int b, ACR_UnitMarker marker : m_ACR_BaseMarkers)
   {
@@ -1811,11 +2069,11 @@ modded class SCR_PlayerController
    int side = ACR_EBaseSide.FREE;
    if (b < m_ACR_Data.m_DeclSide.Count()) side = m_ACR_Data.m_DeclSide[b];
    bool keep = b >= m_ACR_Data.m_DeclKeep.Count() || m_ACR_Data.m_DeclKeep[b];
-   marker.m_BaseCaption = ACR_MapDeclutter.Caption(marker.m_Label, detail, side, keep);
+   marker.m_BaseCaption = ACR_MapDeclutter.Caption(marker.m_Label, detail, side, keep, setup);
    string hoverDetail = detail;
    hoverDetail.Replace(" | ", "\n");
    marker.m_BaseHover = ACR_MapDeclutter.ShortName(marker.m_Label) + "\n" + hoverDetail;
-   // Its name moved off another's (the canvas draws the dot where the base is).
+   // Its name moved off another's (the canvas draws the symbol where the base is).
    vector pos = m_ACR_Data.m_BasePositions[b];
    float wx = pos[0];
    float wz = pos[2];
@@ -2206,6 +2464,80 @@ modded class SCR_PlayerController
    label.SetColor(ACR_MapDeclutter.TextColor());
    label.SetExactFontSize(14);
    AlignableSlot.SetPadding(label, 5, 0, 12, 0);
+   AlignableSlot.SetVerticalAlign(label, LayoutVerticalAlign.Center);
+  }
+ }
+
+ // Setup preview map legend (bottom left): Blue HQ (faction), Red HQ (faction), CP, Neutral.
+ protected void ACR_DeclSetupLegend(SCR_MapEntity mapEntity, bool want)
+ {
+  m_ACR_Data.m_DeclSetupLegend.Clear();
+  string west, east;
+  ACR_SetupClient.Sides(west, east);
+  string sig = west + "|" + east;
+  if (want && (!m_wDeclSetupLegend || sig != m_sDeclSetupLegendSig))
+  {
+   if (m_wDeclSetupLegend) m_wDeclSetupLegend.RemoveFromHierarchy();
+   m_wDeclSetupLegend = null;
+   m_aDeclSetupLegendSpots.Clear();
+   m_sDeclSetupLegendSig = sig;
+   ACR_DeclNewSetupLegend(mapEntity, west, east);
+  }
+  if (!m_wDeclSetupLegend) return;
+  if (m_wDeclSetupLegend.IsVisible() != want) m_wDeclSetupLegend.SetVisible(want);
+  if (!want) return;
+  for (int k = 0; k < m_aDeclSetupLegendSpots.Count(); k++)
+  {
+   Widget spot = m_aDeclSetupLegendSpots[k];
+   if (!spot) continue;
+   float x, y, w, h;
+   spot.GetScreenPos(x, y);
+   spot.GetScreenSize(w, h);
+   if (w <= 0) continue;
+   m_ACR_Data.m_DeclSetupLegend.Insert(x + w * 0.5);
+   m_ACR_Data.m_DeclSetupLegend.Insert(y + h * 0.5);
+   m_ACR_Data.m_DeclSetupLegend.Insert(k);
+  }
+ }
+
+ protected void ACR_DeclNewSetupLegend(SCR_MapEntity mapEntity, string west, string east)
+ {
+  if (!mapEntity || !mapEntity.GetMapMenuRoot()) return;
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  m_wDeclSetupLegend = ws.CreateWidget(WidgetType.OverlayWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR, Color.FromInt(Color.WHITE), 0, mapEntity.GetMapMenuRoot());
+  if (!m_wDeclSetupLegend) return;
+  FrameSlot.SetAnchorMin(m_wDeclSetupLegend, 0, 1);
+  FrameSlot.SetAnchorMax(m_wDeclSetupLegend, 0, 1);
+  FrameSlot.SetAlignment(m_wDeclSetupLegend, 0, 1);
+  FrameSlot.SetPos(m_wDeclSetupLegend, 24, -24);
+  FrameSlot.SetSizeToContent(m_wDeclSetupLegend, true);
+  m_wDeclSetupLegend.SetZOrder(890); // under the map canvas (900), which draws the glyphs over it
+  Widget fill = ws.CreateWidget(WidgetType.ImageWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.BLEND | WidgetFlags.STRETCH | WidgetFlags.IGNORE_CURSOR, ACR_MapDeclutter.PanelColor(), 0, m_wDeclSetupLegend);
+  AlignableSlot.SetHorizontalAlign(fill, LayoutHorizontalAlign.Stretch);
+  AlignableSlot.SetVerticalAlign(fill, LayoutVerticalAlign.Stretch);
+  SizeLayoutWidget size = SizeLayoutWidget.Cast(ws.CreateWidget(WidgetType.SizeLayoutWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR, Color.FromInt(Color.WHITE), 1, m_wDeclSetupLegend));
+  AlignableSlot.SetPadding(size, 10, 6, 4, 6);
+  Widget row = ws.CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR, Color.FromInt(Color.WHITE), 0, size);
+  string westName = "Blue";
+  if (!west.IsEmpty()) westName = ACR_FactionSelection.DisplayName(west);
+  string eastName = "Red";
+  if (!east.IsEmpty()) eastName = ACR_FactionSelection.DisplayName(east);
+  array<string> labels = {westName + " HQ", eastName + " HQ", "Control point", "Neutral"};
+  foreach (string text : labels)
+  {
+   SizeLayoutWidget spot = SizeLayoutWidget.Cast(ws.CreateWidget(WidgetType.SizeLayoutWidgetTypeID, WidgetFlags.VISIBLE | WidgetFlags.IGNORE_CURSOR, Color.FromInt(Color.WHITE), 0, row));
+   spot.EnableWidthOverride(true);
+   spot.SetWidthOverride(18);
+   spot.EnableHeightOverride(true);
+   spot.SetHeightOverride(18);
+   AlignableSlot.SetVerticalAlign(spot, LayoutVerticalAlign.Center);
+   m_aDeclSetupLegendSpots.Insert(spot);
+   TextWidget label = TextWidget.Cast(ws.CreateWidgets("{B537936D5B7E2BA1}UI/layouts/WidgetLibrary/TextWidgets/Text_BodySmall.layout", row));
+   if (!label) continue;
+   label.SetText(text);
+   label.SetColor(ACR_MapDeclutter.TextColor());
+   label.SetExactFontSize(14);
+   AlignableSlot.SetPadding(label, 6, 0, 14, 0);
    AlignableSlot.SetVerticalAlign(label, LayoutVerticalAlign.Center);
   }
  }

@@ -1192,6 +1192,8 @@ class ACR_SetupClient
  static bool s_bAllowed;
  static string s_sRows;
  static string s_sInfo;
+ protected static string s_sWest;
+ protected static string s_sEast;
  protected static ref ACR_SetupDialog s_Dialog;
  // The setup lobby (ACR_SetupLobby, 0.7.0); the classic dialog above with -acrSetupClassic 1, or when
  // the lobby's layout can't be drawn on this machine.
@@ -1213,6 +1215,36 @@ class ACR_SetupClient
   s_sRows = rows;
   s_sInfo = info;
   s_bChanged = true;
+  ParseSides(rows);
+ }
+
+ // The two sides' faction keys from the server's setup rows ("lobbysides\tWEST,EAST").
+ static void Sides(out string west, out string east)
+ {
+  west = s_sWest;
+  east = s_sEast;
+ }
+
+ protected static void ParseSides(string rows)
+ {
+  s_sWest = "";
+  s_sEast = "";
+  if (rows.IsEmpty()) return;
+  array<string> lines = {};
+  rows.Split("\n", lines, true);
+  foreach (string line : lines)
+  {
+   if (!line.StartsWith("lobbysides\t")) continue;
+   string pair = line.Substring(11, line.Length() - 11);
+   array<string> keys = {};
+   pair.Split(",", keys, false);
+   if (keys.Count() >= 2)
+   {
+    s_sWest = keys[0];
+    s_sEast = keys[1];
+   }
+   return;
+  }
  }
 
  // Every frame on clients (ACR_Manager.OnFrame).
@@ -1411,6 +1443,8 @@ class ACR_SetupClient
   s_fDiagAt = 0;
   s_sRows = "";
   s_sInfo = "";
+  s_sWest = "";
+  s_sEast = "";
   s_bChanged = false;
   if (s_Dialog) s_Dialog.Close();
   s_Dialog = null;
