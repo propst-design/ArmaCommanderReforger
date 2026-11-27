@@ -19,8 +19,10 @@
 class ACR_GuerrillaAI
 {
 	static const int TICK_SECONDS = 15;
-	static const int BAND_CAP = 2;                 // mobile foot bands kept in the field
+	static const int BAND_CAP = 2;                 // baseline mobile foot bands kept in the field
+	static const int BAND_CAP_MAX = 4;             // escalated band cap as towns turn Hostile and cells grow
 	static const float REORDER_MS = 180000;        // min time before reassigning a band
+	static const float DISTRACTION_GAP = 800;      // m: prefer working towns away from an active ambush to stretch QRF
 	static const float TOWN_ARMY_AVOID = 250;      // m: avoid sending a band to a town held by army troops
 	static const float MUSTER_OFFSET_MIN = 180;    // m from target town/road to search for muster cover
 	static const float MUSTER_OFFSET_MAX = 450;
@@ -301,6 +303,41 @@ class ACR_GuerrillaAI
 
 	// ---------------------------------------------------------------- band mustering
 
+	// Escalate mobile band cap as the insurgency gains Hostile towns and cells (2 -> 3 -> 4).
+	static int EffectiveBandCap()
+	{
+		int hostileTowns = 0;
+		foreach (ACR_Base base : ACR_Base.s_All)
+			if (base && !base.m_bRetired && ACR_TownSupport.IsTown(base) && base.m_iSupportTier == ACR_TownSupport.HOSTILE) hostileTowns++;
+		int cells = ACR_FIAGrowth.Cells();
+		int cap = BAND_CAP;
+		if (hostileTowns >= 4 || cells >= 4) cap = BAND_CAP_MAX;
+		else if (hostileTowns >= 2 || cells >= 2) cap = Math.Min(BAND_CAP_MAX, BAND_CAP + 1);
+		return cap;
+	}
+
+	// True when the insurgent side has sighted army armed vehicles (via fog-of-war ACR_Intel).
+	protected static bool ArmyArmorSeen(ACR_Manager manager, string faction, string army)
+	{
+		if (!manager || army.IsEmpty()) return false;
+		ACR_Intel intel = manager.IntelFor(faction);
+		if (!intel) return false;
+		foreach (ACR_Squad squad : manager.m_Squads)
+		{
+			if (!squad || !squad.GetFaction() || squad.GetFaction().GetFactionKey() != army) continue;
+			IEntity veh = ACR_Transport.CrewedVehicle(squad);
+			if (!veh || !squad.HasGunner(veh)) continue;
+			array<AIAgent> agents = {};
+			squad.GetAgents(agents);
+			foreach (AIAgent agent : agents)
+			{
+				IEntity body = agent.GetControlledEntity();
+				if (body && intel.m_SeenTime.Contains(body)) return true;
+			}
+		}
+		return false;
+	}
+
 	protected static void ManageMuster(ACR_Manager manager, string faction, string army)
 	{
 		int bands = CountBands(manager, faction);
@@ -309,32 +346,43 @@ class ACR_GuerrillaAI
 			foreach (ACR_MusterJob j : ACR_Muster.s_Jobs)
 				if (j && j.m_sFaction == faction) bands++;
 		}
-		if (bands >= BAND_CAP) return;
+		int cap = EffectiveBandCap();
+		if (bands >= cap) return;
 
-		int entryIdx = PickFootEntry(manager, faction);
+		int entryIdx = PickFootEntry(manager, faction, army, cap);
 		if (entryIdx < 0) return;
 
 		vector spot;
 		if (!PickMusterSpot(manager, faction, army, entryIdx, spot)) return;
 		string refusal;
 		if (ACR_Muster.Order(faction, entryIdx, spot, refusal))
-			PrintFormat("[ACR] GUERRILLA AI %1: mustering band at %2", faction, ACR_Manager.Grid(spot));
+			PrintFormat("[ACR] GUERRILLA AI %1: mustering band at %2 (cap %3)", faction, ACR_Manager.Grid(spot), cap);
 	}
 
-	protected static int PickFootEntry(ACR_Manager manager, string faction)
+	protected static int PickFootEntry(ACR_Manager manager, string faction, string army = "", int cap = BAND_CAP)
 	{
 		ACR_FactionData data = manager.m_Bases.GetFaction(faction);
 		if (!data || !data.m_aRequisitions) return -1;
 		int rp = manager.m_Bases.GetRP(faction);
+		bool wantAT = ArmyArmorSeen(manager, faction, army);
+		bool escalated = cap >= 3;
 		int bestIdx = -1;
 		int bestCost = int.MAX;
+		int atIdx = -1;
+		int atCost = int.MAX;
+		int heavyIdx = -1;
+		int heavyCost = -1;
 		foreach (int i, ACR_RequisitionEntry entry : data.m_aRequisitions)
 		{
 			if (!ACR_Muster.IsFootEntry(entry) || entry.m_iRemaining <= 0) continue;
 			int cost = ACR_Muster.MusterCost(entry);
 			if (cost > rp) continue;
 			if (cost < bestCost) { bestCost = cost; bestIdx = i; }
+			if (wantAT && ACR_AIRequisition.IsATEntry(entry) && cost < atCost) { atCost = cost; atIdx = i; }
+			if (escalated && cost * 2 <= rp && cost > heavyCost) { heavyCost = cost; heavyIdx = i; }
 		}
+		if (atIdx >= 0) return atIdx;
+		if (heavyIdx >= 0) return heavyIdx;
 		return bestIdx;
 	}
 
@@ -395,6 +443,20 @@ class ACR_GuerrillaAI
 	protected static void ManageBands(ACR_Manager manager, string faction, string army)
 	{
 		float now = GetGame().GetWorld().GetWorldTime();
+		// Track active ambushes and town workers so bands split across sectors (distraction play).
+		int activeTownWorkers = 0;
+		int activeAmbushes = 0;
+		vector ambushPos = vector.Zero;
+		foreach (ACR_Squad scan : manager.m_Squads)
+		{
+			if (!IsBand(scan, faction)) continue;
+			if (scan.m_Ambush && !scan.m_Ambush.m_bFaded)
+			{
+				activeAmbushes++;
+				if (scan.GetAnchor()) ambushPos = scan.GetAnchor().GetOrigin();
+			}
+			else if (BandRole(scan) == "town") activeTownWorkers++;
+		}
 		foreach (ACR_Squad squad : manager.m_Squads)
 		{
 			if (!IsBand(squad, faction)) continue;
@@ -432,12 +494,34 @@ class ACR_GuerrillaAI
 				continue;
 			}
 
-			// Priority 1: work an unguarded Quiet/Restless town to turn it Hostile.
-			ACR_Base town = PickTargetTown(manager, army, squad);
+			// Distraction play: if another band is already turning a town and no ambush is out yet,
+			// lay a road ambush first to draw and pin the army's QRF.
+			if (activeTownWorkers > 0 && activeAmbushes == 0)
+			{
+				vector distractRoad;
+				if (PickAmbushRoad(squad, distractRoad))
+				{
+					vector dSite, dKz;
+					string dWhy;
+					if (ACR_Ambush.DefendOnRoad(squad, distractRoad, dSite, dKz, dWhy))
+					{
+						SetBandRole(squad, "ambush", null);
+						activeAmbushes++;
+						ambushPos = dSite;
+						PrintFormat("[ACR] GUERRILLA AI %1: %2 lays distraction ambush on road %3", faction, squad.GetName(), ACR_Manager.Grid(distractRoad));
+						continue;
+					}
+				}
+			}
+
+			// Priority 1: work an unguarded Quiet/Restless town to turn it Hostile (preferring a
+			// different sector from any active ambush).
+			ACR_Base town = PickTargetTown(manager, army, squad, ambushPos);
 			if (town)
 			{
 				squad.RouteTo(town.GetOrigin(), ACR_Squad.WP_MOVE, -1, "Work town " + town.m_sName, ACR_EOrderKind.MOVE);
 				SetBandRole(squad, "town", town);
+				activeTownWorkers++;
 				PrintFormat("[ACR] GUERRILLA AI %1: %2 works town %3 (%4)", faction, squad.GetName(), town.m_sName, ACR_TownSupport.TierName(town.m_iSupportTier));
 				continue;
 			}
@@ -451,13 +535,15 @@ class ACR_GuerrillaAI
 				if (ACR_Ambush.DefendOnRoad(squad, road, site, kz, aWhy))
 				{
 					SetBandRole(squad, "ambush", null);
+					activeAmbushes++;
+					ambushPos = site;
 					PrintFormat("[ACR] GUERRILLA AI %1: %2 ambushes road %3", faction, squad.GetName(), ACR_Manager.Grid(road));
 				}
 			}
 		}
 	}
 
-	protected static ACR_Base PickTargetTown(ACR_Manager manager, string army, ACR_Squad forSquad)
+	protected static ACR_Base PickTargetTown(ACR_Manager manager, string army, ACR_Squad forSquad, vector ambushPos = vector.Zero)
 	{
 		vector refPos = vector.Zero;
 		if (forSquad && forSquad.GetAnchor()) refPos = forSquad.GetAnchor().GetOrigin();
@@ -477,6 +563,7 @@ class ACR_GuerrillaAI
 			if (taken) continue;
 			// Prefer Restless (closest to flipping Hostile), then Quiet, then higher value.
 			float score = base.m_iSupportTier * 50 + base.m_iValue * 10;
+			if (ambushPos != vector.Zero && vector.DistanceXZ(ambushPos, base.GetOrigin()) >= DISTRACTION_GAP) score += 40;
 			if (refPos != vector.Zero) score -= vector.DistanceXZ(refPos, base.GetOrigin()) / 150;
 			if (score > bestScore) { bestScore = score; best = base; }
 		}
