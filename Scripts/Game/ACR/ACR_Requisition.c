@@ -378,6 +378,8 @@ class ACR_Requisition : Managed
   if (entryIndex < 0 || entryIndex >= data.m_aRequisitions.Count()) return "Unknown unit";
   ACR_RequisitionEntry entry = data.m_aRequisitions[entryIndex];
   if (entry.m_iRemaining <= 0) return entry.m_sName + ": none left";
+  ACR_RequisitionEntry ride = RideOf(data, entry);
+  if (ride && ride.m_iRemaining <= 0) return string.Format("%1: no %2 left for its ride", entry.m_sName, entry.m_sRide);
   if (!hideout || hideout.m_bGone) return "Deploy at one of your own hideouts";
   if (ACR_HideoutHomes.Contested(hideout)) return hideout.m_sName + " is under attack";
   if (OverSoldierCap(key)) return string.Format("Too many soldiers in the field (limit %1)", ACR_InsurgentSide.SoldierCap(key, m_Manager.m_iSoldierCap));
@@ -387,6 +389,11 @@ class ACR_Requisition : Managed
   purchase.m_Entry = entry;
   purchase.m_iPaid = entry.m_iCost;
   entry.m_iRemaining--;
+  if (ride)
+  {
+   ride.m_iRemaining--;
+   purchase.m_Ride = ride;
+  }
   entry.m_iBought++;
   entry.m_iNamed++;
   ACR_Pricing.Reprice(entry);
@@ -410,7 +417,10 @@ class ACR_Requisition : Managed
   bool spawned = SpawnParts(purchase, group, vehicle, entry.m_bCrewed, passengers, vehiclePos, groupPos);
   if (!spawned)
   {
-   Refund(purchase, "could not deploy");
+   if (purchase.m_sError.IsEmpty()) purchase.m_sError = "could not deploy";
+   bool retained = Rollback(purchase);
+   if (retained) return string.Format("%1 could not be fully deployed at %2; its vehicle was retained, so %3 RP was not refunded", name, hideout.m_sName, paid);
+   Refund(purchase, purchase.m_sError);
    return string.Format("%1 could not be deployed at %2; %3 RP refunded", name, hideout.m_sName, paid);
   }
   if (purchase.NeedsWatch())
@@ -446,7 +456,10 @@ class ACR_Requisition : Managed
   ResourceName group = ACR_FactionCatalog.ResolvePrefab(key, entry.m_sGroup, EEntityCatalogType.GROUP);
   if (!SpawnParts(purchase, group, "", false, "", groupPos, groupPos))
   {
+   Rollback(purchase);
    entry.m_iRemaining++;
+   if (entry.m_iBought > 0) entry.m_iBought--;
+   ACR_Pricing.Reprice(entry);
    return false;
   }
   if (purchase.NeedsWatch())

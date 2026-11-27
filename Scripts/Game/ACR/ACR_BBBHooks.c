@@ -471,8 +471,9 @@ class ACR_BBBHooks : BBB_Hooks
   Faction captorFaction = captor.GetFaction();
   if (!captorFaction) return;
   string side = captorFaction.GetFactionKey();
-  if (side == ACR_Pockets.FACTION)
+  if (side == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(side))
   {
+   if (!ACR_FIASpoils.On()) return;
    ACR_DefenderPost hideout = ACR_FIAIntel.SupplierOf(man.GetOrigin());
    if (hideout) ACR_FIAPrisoners.Capture(man, hideout);
    return;

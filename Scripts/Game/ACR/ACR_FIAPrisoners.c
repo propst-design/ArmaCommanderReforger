@@ -94,7 +94,7 @@ class ACR_FIAPrisoners
  {
   if (!man || !ACR_Respawn.IsAlive(man)) return false;
   string side = ACR_Intel.FactionKeyOf(man);
-  if (!ACR_IED.Target(ACR_Pockets.FACTION, side)) return false;
+  if (!ACR_IED.Target(ACR_InsurgentSide.Key(), side)) return false;
   if (!hideout || hideout.m_bGone || !hideout.m_Cell || HeldAt(hideout) >= HOLD_MAX)
   {
    PrintFormat("[ACR] PRISONERS no hideout with room for a prisoner taken at %1: left where he lies", ACR_Manager.Grid(man.GetOrigin()));
@@ -190,7 +190,7 @@ class ACR_FIAPrisoners
     continue;
    }
    vector at = pow.m_Body.GetOrigin();
-   if (ACR_FIASpoils.AwakeNear(at, FREE_REACH, false, pow.m_sSide) && !ACR_FIASpoils.AwakeNear(at, FREE_CLEAR, false, ACR_Pockets.FACTION))
+   if (ACR_FIASpoils.AwakeNear(at, FREE_REACH, false, pow.m_sSide) && !ACR_FIASpoils.AwakeNear(at, FREE_CLEAR, false, ACR_InsurgentSide.Key()))
     Free(manager, i, "freed by his side", now);
   }
  }

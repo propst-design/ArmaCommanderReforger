@@ -316,7 +316,7 @@ class ACR_BaseSystem : Managed
  // in his command unit sat on a deploy screen with nothing to pick). They still turn a garrison out.
  static bool InWar(string key)
  {
-  return ACR_FactionSelection.IsSelected(key) || key == ACR_Pockets.FACTION;
+  return ACR_FactionSelection.IsSelected(key) || key == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(key);
  }
 
  protected void UpdateBase(ACR_Manager manager, ACR_Base base)

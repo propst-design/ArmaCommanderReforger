@@ -191,7 +191,7 @@ class ACR_TownSupport
   ACR_Manager manager = ACR_Manager.GetInstance();
   if (!manager || !manager.m_Bases) return;
   string army = ACR_Coin.Army();
-  string fia = ACR_Pockets.FACTION;
+  string fia = ACR_InsurgentSide.Key();
   float now = GetGame().GetWorld().GetWorldTime();
   float minutes = TICK_S / 60.0 * s_fRateScaleForTest;
   array<ACR_DefenderPost> hideouts = {};
@@ -283,7 +283,7 @@ class ACR_TownSupport
   if (!intel) return;
   // Within INFORM_REACH, which may reach past the town's own ground.
   array<IEntity> near = {};
-  manager.m_Bases.MenWithin(base.GetOrigin(), INFORM_REACH, ACR_Pockets.FACTION, near);
+  manager.m_Bases.MenWithin(base.GetOrigin(), INFORM_REACH, ACR_InsurgentSide.Key(), near);
   foreach (IEntity body : near) intel.Tip(body, now, "informants");
   if (near.IsEmpty() || now - base.m_fInformedAt < INFORM_GAP_MS) return;
   base.m_fInformedAt = now;
@@ -327,7 +327,7 @@ class ACR_TownSupport
   if (!ACR_FIAGrievance.InTown(point)) return "";
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (!IsTown(base) || base.m_fSupport < 0 || base.m_sOwner == ACR_Pockets.FACTION) continue;
+   if (!IsTown(base) || base.m_fSupport < 0 || base.m_sOwner == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(base.m_sOwner)) continue;
    if (vector.DistanceXZ(base.GetOrigin(), point) > Math.Max(HARM_REACH, base.m_fRadius)) continue;
    int tier = KnownTier(base, faction);
    if (tier == HOSTILE) continue;
@@ -379,7 +379,7 @@ class ACR_TownSupport
   ACR_Manager manager = ACR_Manager.GetInstance();
   string army = ACR_Coin.Army();
   float radius = Math.Max(town.m_fRadius, RADIUS_MIN);
-  if (manager.m_Bases.MenWithin(town.GetOrigin(), radius, ACR_Pockets.FACTION) > 0) return string.Format("FIA are in %1: clear them out first", town.m_sName);
+  if (manager.m_Bases.MenWithin(town.GetOrigin(), radius, ACR_InsurgentSide.Key()) > 0) return string.Format("FIA are in %1: clear them out first", town.m_sName);
   if (town.m_sOwner != army && manager.m_Bases.MenWithin(town.GetOrigin(), radius, army) < crew + PRESENCE_MIN) return string.Format("%1 isn't ours: hold it or have soldiers there to hand out aid", town.m_sName);
   float now = GetGame().GetWorld().GetWorldTime();
   if (town.m_fAidAt > 0 && now - town.m_fAidAt < AID_GAP_MS)
@@ -432,7 +432,7 @@ class ACR_TownSupport
  static void Harm(vector pos, string by, float points, string what)
  {
   if (!s_bOn || !Replication.IsServer() || by.IsEmpty()) return;
-  bool fia = by == ACR_Pockets.FACTION;
+  bool fia = by == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(by);
   if (!fia && !ACR_Coin.IsArmy(by)) return;
   float now = GetGame().GetWorld().GetWorldTime();
   float shift = points * HARM_SCALE;

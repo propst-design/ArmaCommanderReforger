@@ -87,9 +87,9 @@ class ACR_CommandPresence
     float lastIn;
     if (!s_LastInBody.Find(id, lastIn) || now - lastIn > POSSESS_GRACE_MS) continue;
    }
-   FactionAffiliationComponent aff = FactionAffiliationComponent.Cast(main.FindComponent(FactionAffiliationComponent));
-   if (!aff || !aff.GetAffiliatedFaction()) continue;
-   string key = aff.GetAffiliatedFaction().GetFactionKey();
+   Faction faction = SCR_FactionManager.SGetPlayerFaction(id);
+   if (!faction) continue;
+   string key = faction.GetFactionKey();
    if (key.IsEmpty()) continue;
    array<vector> list;
    if (!s_ActivePositions.Find(key, list))

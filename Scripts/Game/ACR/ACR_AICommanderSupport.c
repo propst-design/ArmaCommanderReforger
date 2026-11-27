@@ -32,7 +32,7 @@ modded class ACR_AICommander
 
  protected bool CoinOn()
  {
-  return ACR_TownSupport.On() && ACR_Coin.IsArmy(m_sFaction) && !m_bHandedOnly;
+  return ACR_TownSupport.On() && ACR_Coin.IsArmy(m_sFaction) && (!m_bHandedOnly || m_bTwoICAll);
  }
 
  // A free squad for a COIN job near 'at', leaving the reserve and ReserveKeep free squads alone.
@@ -103,7 +103,7 @@ modded class ACR_AICommander
   foreach (ACR_Squad squad, ACR_Base town : m_TownPosts)
   {
    bool keep = squad && m_Manager.m_Squads.Contains(squad) && squad.CountAlive() > 0 && !squad.PlayerSteers() && squad.m_iAITask == ACR_EAITask.TOWN_POST && Ours(squad);
-   keep = keep && town && ACR_TownSupport.IsTown(town) && town.m_sOwner != ACR_Pockets.FACTION;
+   keep = keep && town && ACR_TownSupport.IsTown(town) && town.m_sOwner != ACR_InsurgentSide.Key();
    // Won over: on to the next town.
    if (keep && town.m_iSupportTier == ACR_TownSupport.LOYAL)
    {
@@ -124,7 +124,7 @@ modded class ACR_AICommander
   float bestScore = -1000000;
   foreach (ACR_Base town : ACR_Base.s_All)
   {
-   if (!ACR_TownSupport.IsTown(town) || town.m_fSupport < 0 || town.m_sOwner == ACR_Pockets.FACTION || town.m_bPocket) continue;
+   if (!ACR_TownSupport.IsTown(town) || town.m_fSupport < 0 || town.m_sOwner == ACR_InsurgentSide.Key() || town.m_bPocket) continue;
    bool posted;
    foreach (ACR_Squad squad, ACR_Base at : m_TownPosts) if (at == town) posted = true;
    if (posted) continue;
@@ -255,7 +255,7 @@ modded class ACR_AICommander
   ACR_Base best;
   foreach (ACR_Base town : ACR_Base.s_All)
   {
-   if (!ACR_TownSupport.IsTown(town) || town.m_fSupport < 0 || town.m_sOwner == ACR_Pockets.FACTION) continue;
+   if (!ACR_TownSupport.IsTown(town) || town.m_fSupport < 0 || town.m_sOwner == ACR_InsurgentSide.Key()) continue;
    // Only where aid would be taken now: held, or our men already there (a post still on its way
    // would see the truck refused: "isn't ours").
    if (town.m_sOwner != m_sFaction && m_Manager.m_Bases.MenWithin(town.GetOrigin(), Math.Max(town.m_fRadius, ACR_TownSupport.RADIUS_MIN), m_sFaction) < ACR_TownSupport.PRESENCE_MIN) continue;

@@ -15,6 +15,7 @@ class ACR_DisguiseState : Managed
 	IEntity m_Body;
 	string m_sSide;
 	int m_iPlayerId;
+	bool m_bWasControlled;
 	float m_fLingerMs;
 	float m_fStrangerAt;
 }
@@ -134,7 +135,8 @@ class ACR_Disguise
 		foreach (ACR_Base base : ACR_Base.s_All)
 		{
 			if (!base || base.m_bRetired || base.m_sOwner != army) continue;
-			if (vector.DistanceXZ(base.GetOrigin(), pos) <= Math.Max(CHECKPOINT_RADIUS, base.m_fRadius)) return true;
+			float checkRadius = Math.Max(CHECKPOINT_RADIUS, base.m_fRadius);
+			if (vector.DistanceXZ(base.GetOrigin(), pos) <= checkRadius && manager && manager.m_Bases && manager.m_Bases.MenWithin(base.GetOrigin(), checkRadius, army) > 0) return true;
 		}
 		foreach (ACR_Roadblock rb : ACR_Roadblocks.s_aRoadblocks)
 		{
@@ -194,6 +196,7 @@ class ACR_Disguise
 		st.m_Body = body;
 		st.m_sSide = side;
 		st.m_iPlayerId = playerId;
+		st.m_bWasControlled = playerId > 0 && ACR_Squad.FindController(body) == playerId;
 		st.m_fStrangerAt = -STRANGER_GAP_MS;
 		s_States.Insert(st);
 		PrintFormat("[ACR] DISGUISE player=%1 (%2) went plain at %3", playerId, side, ACR_Manager.Grid(pos));
@@ -231,8 +234,14 @@ class ACR_Disguise
 		for (int i = s_States.Count() - 1; i >= 0; i--)
 		{
 			ACR_DisguiseState st = s_States[i];
-			if (!st || !st.m_Body || !ACR_Respawn.IsAlive(st.m_Body))
+			if (!st || !st.m_Body)
 			{
+				s_States.RemoveOrdered(i);
+				continue;
+			}
+			if (!ACR_Respawn.IsAlive(st.m_Body) || (st.m_bWasControlled && ACR_Squad.FindController(st.m_Body) != st.m_iPlayerId))
+			{
+				SetBodyFaction(st.m_Body, st.m_sSide);
 				s_States.RemoveOrdered(i);
 				continue;
 			}

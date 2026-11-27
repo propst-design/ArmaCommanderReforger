@@ -310,6 +310,7 @@ class ACR_Muster
 		}
 		string faction = squad.GetFaction().GetFactionKey();
 		string name = squad.GetName();
+		ACR_HideoutHomes.CancelSetup(squad, true);
 		int refund = Math.Min(DISPERSE_MAX_REFUND, alive * DISPERSE_PER_MAN);
 		// Remove the band's soldiers cleanly.
 		array<AIAgent> agents = {};

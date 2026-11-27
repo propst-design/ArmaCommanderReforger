@@ -68,7 +68,7 @@ modded class ACR_AICommander
     continue;
    }
    if (AmmoJob(jobCrew, jobClient)) continue; // an ammo run lets its truck go itself (TickTruckRun)
-   if (NeedsOf(jobClient) == 0 || jobCrew.OrderState() == ACR_EOrderState.HOLD)
+   if (NeedsOf(jobClient) == 0 || jobCrew.OrderState() == ACR_EOrderState.HOLD || jobCrew.PlayerSteers() || !Ours(jobCrew))
    {
     done.Insert(jobCrew);
     continue;

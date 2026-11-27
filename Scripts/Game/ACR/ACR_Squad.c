@@ -1056,6 +1056,7 @@ class ACR_Squad : Managed
   m_ActiveRoadblock = null; // a barricade or small checkpoint has no gun to vacate
   if (m_FortifyPlan) CancelFortify();
   if (m_Fortification) LeaveFortification();
+  ACR_HideoutHomes.CancelSetup(this, true);
   if (m_Qrf && !m_bQrfOrder) ACR_Qrf.End(this);
   GetGame().GetCallqueue().Remove(SweepOutForJob); // the job's dismount ends with it (#187)
   m_CombatFlank.Cancel();

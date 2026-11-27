@@ -167,6 +167,7 @@ class ACR_Guerrillas
   int roads = CountOption(size == ACR_ESkirmishSize.HALF, houses, size == ACR_ESkirmishSize.QUARTER);
   if (roads + houses <= 0) return;
   string faction = ACR_Pockets.FACTION;
+  if (ACR_InsurgentSide.On()) faction = ACR_InsurgentSide.Key();
   if (ACR_FactionSelection.West() == faction || ACR_FactionSelection.East() == faction || !GetGame().GetFactionManager().GetFactionByKey(faction))
   {
    PrintFormat("[ACR] GUERRILLAS none: %1 is a main side or not in this world", faction);
@@ -563,7 +564,9 @@ class ACR_Guerrillas
   array<IEntity> seen = {};
   foreach (ACR_Squad squad : manager.m_Squads)
   {
-   if (!squad.GetFaction() || squad.GetFaction().GetFactionKey() == ACR_Pockets.FACTION) continue;
+   if (!squad.GetFaction()) continue;
+   string sqKey = squad.GetFaction().GetFactionKey();
+   if (sqKey == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(sqKey)) continue;
    // A side FIA spares draws no ambush; one it is hostile to draws them twice as hard.
    float weight = ACR_Insurgency.TrafficWeight(squad.GetFaction().GetFactionKey());
    if (weight <= 0) continue;

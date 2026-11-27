@@ -441,7 +441,7 @@ class ACR_Depots
     Step(manager, depot, now);
     continue;
    }
-   if (s_iSeconds % 5 != 0 || !Active(depot) || now < depot.m_fRestUntil) continue;
+   if (ACR_InsurgentSide.On() || s_iSeconds % 5 != 0 || !Active(depot) || now < depot.m_fRestUntil) continue;
    vector target;
    if (FindTarget(manager, depot, target)) Launch(depot, target);
   }
@@ -453,9 +453,10 @@ class ACR_Depots
  {
   if (s_bNoRaidsForTest) return false;
   vector home = HomeOf(depot);
+  string insurgentKey = ACR_InsurgentSide.Key();
   foreach (ACR_Squad squad : manager.m_Squads)
   {
-   if (!squad.GetFaction() || !ACR_IED.Target(ACR_Pockets.FACTION, squad.GetFaction().GetFactionKey())) continue;
+   if (!squad.GetFaction() || !ACR_IED.Target(insurgentKey, squad.GetFaction().GetFactionKey())) continue;
    IEntity vehicle = ACR_Transport.CrewedVehicle(squad);
    if (!vehicle || vector.DistanceXZ(vehicle.GetOrigin(), home) > REACH) continue;
    Physics physics = vehicle.GetPhysics();

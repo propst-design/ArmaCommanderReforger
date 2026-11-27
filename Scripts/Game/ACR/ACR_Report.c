@@ -72,11 +72,13 @@ class ACR_Report
  {
   IEntity shooter;
   if (instigator) shooter = instigator.GetInstigatorEntity();
-  if (victim) ACR_Insurgency.OnLoss(ACR_Intel.FactionKeyOf(victim), victim.GetOrigin(), ACR_Intel.FactionKeyOf(shooter));
-  if (victim && ACR_Intel.FactionKeyOf(victim) == ACR_Pockets.FACTION) ACR_Insurgency.OnFIAKilled(victim, ACR_Intel.FactionKeyOf(shooter));
-  if (victim) ACR_Outbreak.OnLoss(ACR_Intel.FactionKeyOf(victim), victim.GetOrigin(), ACR_Intel.FactionKeyOf(shooter));
-  if (!Running()) return;
   string side = ACR_Intel.FactionKeyOf(victim);
+  ACR_DisguiseState disguise = ACR_Disguise.Find(victim);
+  if (disguise && !disguise.m_sSide.IsEmpty()) side = disguise.m_sSide;
+  if (victim) ACR_Insurgency.OnLoss(side, victim.GetOrigin(), ACR_Intel.FactionKeyOf(shooter));
+  if (victim && (side == ACR_Pockets.FACTION || ACR_InsurgentSide.IsInsurgent(side))) ACR_Insurgency.OnFIAKilled(victim, ACR_Intel.FactionKeyOf(shooter));
+  if (victim) ACR_Outbreak.OnLoss(side, victim.GetOrigin(), ACR_Intel.FactionKeyOf(shooter));
+  if (!Running()) return;
   ACR_SideStats lost = Of(side);
   if (lost) lost.m_iLost++;
   IEntity killer;

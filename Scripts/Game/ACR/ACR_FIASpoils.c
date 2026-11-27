@@ -223,7 +223,7 @@ class ACR_FIASpoils
   }
   foreach (ACR_Base base : ACR_Base.s_All)
   {
-   if (!base.m_bPocket || base.m_bRetired || base.m_sOwner != ACR_Pockets.FACTION || !base.m_GarrisonGroup || TeamOf(null, base)) continue;
+   if (!base.m_bPocket || base.m_bRetired || (base.m_sOwner != ACR_Pockets.FACTION && !ACR_InsurgentSide.IsInsurgent(base.m_sOwner)) || !base.m_GarrisonGroup || TeamOf(null, base)) continue;
    Send(manager, base.m_GarrisonGroup, base.GetOrigin(), null, base, "FIA " + base.m_sName, now);
   }
  }

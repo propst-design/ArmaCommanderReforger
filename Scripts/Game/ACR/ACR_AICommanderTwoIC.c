@@ -678,7 +678,7 @@ modded class ACR_AICommander
    if (!squad || !squad.GetFaction() || squad.GetFaction().GetFactionKey() != m_sFaction) continue;
    ACR_EAITask task = squad.m_iAITask;
    bool stranded = task == ACR_EAITask.RESUPPLY || task == ACR_EAITask.SWEEP || task == ACR_EAITask.RESCUE || task == ACR_EAITask.PALLET;
-   if (!stranded) stranded = task == ACR_EAITask.BUILD_FOB || task == ACR_EAITask.FORTIFY || IsScreen(squad);
+   if (!stranded) stranded = task == ACR_EAITask.BUILD_FOB || task == ACR_EAITask.FORTIFY || task == ACR_EAITask.TOWN_POST || task == ACR_EAITask.SEARCH || task == ACR_EAITask.AID || IsScreen(squad);
    if (!stranded) continue;
    squad.SetAITask(ACR_EAITask.FREE);
    freed++;
@@ -686,6 +686,10 @@ modded class ACR_AICommander
   m_Refitting.Clear();
   m_RefitWalkTo.Clear();
   m_Screens.Clear();
+  m_TownPosts.Clear();
+  m_Searcher = null;
+  m_AidRun = null;
+  m_AidTown = null;
   m_EvacTaxi = null;
   m_PalletSquad = null;
   m_FobBuilder = null;
@@ -705,6 +709,14 @@ modded class ACR_AICommander
   m_Refitting.Remove(squad);
   ForgetRefit(squad);
   ForgetAmmo(squad);
+  if (m_ServiceJobs.Contains(squad)) EndServiceJob(squad);
+  m_TownPosts.Remove(squad);
+  if (m_Searcher == squad) m_Searcher = null;
+  if (m_AidRun == squad)
+  {
+   m_AidRun = null;
+   m_AidTown = null;
+  }
   m_ForwardAt.Remove(squad);
   m_Trips.Remove(squad);
   if (m_ReserveSquad == squad) m_ReserveSquad = null;
@@ -737,6 +749,13 @@ modded class ACR_AICommander
   m_RefitGiveUps.Clear();
   // Ended, not just forgotten: their trucks are released too (m_ServiceJobs kept them booked).
   EndAllAmmoRuns("");
+  array<ACR_Squad> serviceCrews = {};
+  foreach (ACR_Squad svcCrew, ACR_Squad svcClient : m_ServiceJobs) serviceCrews.Insert(svcCrew);
+  foreach (ACR_Squad svcCrew : serviceCrews) EndServiceJob(svcCrew);
+  m_TownPosts.Clear();
+  m_Searcher = null;
+  m_AidRun = null;
+  m_AidTown = null;
   m_AmmoLookAt.Clear();
   m_AmmoNoTruckUntil.Clear();
   m_AmmoSkips.Clear();

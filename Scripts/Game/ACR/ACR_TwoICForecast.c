@@ -131,7 +131,9 @@ class ACR_TwoICForecast
   if (action == ACR_TwoICSuggest.ACT_ACCEPT)
   {
    // The commander's own order: a Hold request at the edge, answered as any request is.
+   int before = ACR_TwoICRequests.LiveCount(a.m_sFaction);
    string answer = ACR_TwoICRequests.AskFor(manager, a.m_sFaction, playerId, playerName, ACR_ETwoICAsk.HOLD, a.m_vHold);
+   if (ACR_TwoICRequests.LiveCount(a.m_sFaction) <= before) return answer;
    End(a, "Accepted", answer);
    return answer;
   }

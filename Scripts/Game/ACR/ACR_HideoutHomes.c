@@ -451,14 +451,14 @@ class ACR_HideoutHomes
 			return false;
 		}
 		CancelSetup(squad, true);
+		squad.RouteTo(middle, ACR_Squad.WP_MOVE, -1, "Set up hideout", ACR_EOrderKind.MOVE);
 		ACR_HideoutSetup setup = new ACR_HideoutSetup();
 		setup.m_Squad = squad;
 		setup.m_sFaction = key;
 		setup.m_vSite = middle;
 		setup.m_iPaid = HIDEOUT_COST;
-		s_Setups.Insert(setup);
-		squad.RouteTo(middle, ACR_Squad.WP_MOVE, -1, "Set up hideout", ACR_EOrderKind.MOVE);
 		setup.m_bMoved = true;
+		s_Setups.Insert(setup);
 		PrintFormat("[ACR] HIDEOUT SETUP %1 ordered by %2 at %3 (-%4 RP)", key, squad.GetName(), middle, HIDEOUT_COST);
 		return true;
 	}
