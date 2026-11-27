@@ -1119,7 +1119,12 @@ class ACR_Rides : Managed
      // Parked (or given up on the verge): a brake held for the riders now.
      Brake(ride.m_Vehicle);
     }
-    bool stopped = speed < STOPPED_SPEED && !parking;
+    // If BBB_Drive was braking along the road path, hand off to MODE_HOLD as soon as it finishes.
+    bool pathBraking = BBB_Drive.Driving(ride.m_Vehicle);
+    if (!parking && !pathBraking && !BBB_PullOver.Active(ride.m_Vehicle)) Brake(ride.m_Vehicle);
+    foreach (Vehicle extraBrk : ride.m_aExtraVehicles)
+     if (extraBrk && !BBB_Drive.Driving(extraBrk) && !BBB_PullOver.Active(extraBrk)) Brake(extraBrk);
+    bool stopped = speed < STOPPED_SPEED && !parking && !pathBraking;
     if (!stopped && inState < PULL_UP_MAX_MS) return true;
     if (stopped) Log(ride, string.Format("stopped after %1 s, riders out", Math.Round(inState / 100) / 10));
     else Log(ride, string.Format("still at %1 km/h after %2 s, riders out anyway", Math.Round(speed * 36) / 10, (int)(inState / 1000)));
@@ -1143,19 +1148,26 @@ class ACR_Rides : Managed
   ride.m_iAfterStop = after;
   ride.m_bParking = false;
   SetState(ride, ACR_ERideState.PULLING_UP);
-  HaltAll(ride, "Pulling up");
   string how = "braking where it is";
   ChimeraCharacter driver = ACR_Squad.DriverOf(ride.m_Vehicle);
   bool calm = !BBB_Transport.VehicleHitRecently(ride.m_Vehicle, 10000) && ride.m_Taxi.KnownEnemies(250) == 0;
-  if (!ride.m_bEscort && ACR_Squad.PullOverOn() && calm && driver && ride.m_Vehicle.FindComponent(CarControllerComponent)
-   && BBB_PullOver.Begin(ride.m_Vehicle, driver, BBB_PullOver.MODE_PARK, 1, null, null, ACR_Squad.PULL_OVER_AHEAD_M))
+  bool wantPark = !ride.m_bEscort && ACR_Squad.PullOverOn() && calm && driver && ride.m_Vehicle.FindComponent(CarControllerComponent);
+  // If BBB_Drive is steering along a road path and we aren't pulling over, let it brake smoothly
+  // along the path before HaltAll clears waypoints and MODE_HOLD locks the truck in place.
+  bool pathBraking = !wantPark && BBB_Drive.BrakeToStop(ride.m_Vehicle);
+  foreach (Vehicle extraPre : ride.m_aExtraVehicles) BBB_Drive.BrakeToStop(extraPre);
+  HaltAll(ride, "Pulling up");
+  if (wantPark && BBB_PullOver.Begin(ride.m_Vehicle, driver, BBB_PullOver.MODE_PARK, 1, null, null, ACR_Squad.PULL_OVER_AHEAD_M))
   {
    ride.m_bParking = true;
    ride.m_bParked = true;
    how = "pulling over to the " + BBB_PullOver.s_sWhere;
   }
+  else if (pathBraking) how = "braking along the road";
+  else if (BBB_Drive.BrakeToStop(ride.m_Vehicle)) how = "braking along the road";
   else Brake(ride.m_Vehicle);
-  foreach (Vehicle extra : ride.m_aExtraVehicles) Brake(extra);
+  foreach (Vehicle extra : ride.m_aExtraVehicles)
+   if (!BBB_Drive.Driving(extra)) Brake(extra);
   Log(ride, string.Format("%1: stopping first (%2 km/h, %3)", why, Math.Round(speed * 36) / 10, how));
  }
 
@@ -1216,6 +1228,7 @@ class ACR_Rides : Managed
  {
   if (ride.m_Vehicle)
   {
+   BBB_Drive.CancelBrake(ride.m_Vehicle);
    BBB_PullOver.Release(ride.m_Vehicle);
    CarControllerComponent car = CarControllerComponent.Cast(ride.m_Vehicle.FindComponent(CarControllerComponent));
    if (ride.m_bParked && car) car.SetPersistentHandBrake(false);
@@ -1223,7 +1236,11 @@ class ACR_Rides : Managed
   ride.m_bParked = false;
   ride.m_bParking = false;
   foreach (Vehicle extra : ride.m_aExtraVehicles)
-   if (extra) BBB_PullOver.Release(extra);
+  {
+   if (!extra) continue;
+   BBB_Drive.CancelBrake(extra);
+   BBB_PullOver.Release(extra);
+  }
  }
 
  // The fastest of the ride's vehicles (riders may be in any of them).
