@@ -360,6 +360,40 @@ class ACR_AttackGround
   return true;
  }
 
+ // Where a squad coming from 'point' first enters enemy sight (the exposure break: ideal smoke point).
+ bool BreakToward(vector point, out vector breakPos)
+ {
+  ACR_GroundSpoke spoke = SpokeToward(point);
+  if (!spoke || spoke.m_iBreak < 0) return false;
+  breakPos = m_aSamples[spoke.m_iBreak].m_vPos;
+  return true;
+ }
+
+ // Best scored crest firing position within [minRange, maxRange] of the objective and reachable from 'from'.
+ bool BestFiringToward(vector from, float minRange, float maxRange, out vector spot)
+ {
+  if (!m_bDone || m_aFiring.IsEmpty()) return false;
+  float bestMetric = -999999;
+  bool found = false;
+  foreach (int idx, int sampleIdx : m_aFiring)
+  {
+   ACR_GroundSample s = m_aSamples[sampleIdx];
+   if (!s || s.m_bWater) continue;
+   float distObj = vector.DistanceXZ(s.m_vPos, m_vCenter);
+   if (distObj < minRange || distObj > maxRange) continue;
+   float walk = vector.DistanceXZ(s.m_vPos, from);
+   if (walk > maxRange + 250) continue;
+   float metric = m_aFiringScore[idx] * 40.0 - walk * 0.15;
+   if (!found || metric > bestMetric)
+   {
+    bestMetric = metric;
+    spot = s.m_vPos;
+    found = true;
+   }
+  }
+  return found;
+ }
+
  // One line for Think and the log.
  string Summary(notnull array<vector> approaches)
  {

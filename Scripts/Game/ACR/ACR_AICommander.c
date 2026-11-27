@@ -696,7 +696,7 @@ class ACR_AICommander : Managed
    // Locked: going in under fire, in a sapper raid with its charge under way, or on its way to a
    // posting (see the trips note; one bound nowhere the allocator knows stays out of it). In
    // control, defence stays AssignDefenders' (it runs first): the two never pull a defender to and fro.
-   if (ownAttack && ownAttack.m_bAssaulting && squad.KnownEnemies(300) > 0) entry.m_bLocked = true;
+   if (ownAttack && (ownAttack.m_bPrep || (ownAttack.m_bAssaulting && squad.KnownEnemies(300) > 0))) entry.m_bLocked = true;
    if (ownAttack && ownAttack.m_SapperDemo && ownAttack.m_SapperDemo.InProgress()) entry.m_bLocked = true;
    if (ACR_AirLift.Busy(squad)) entry.m_bLocked = true;
    // A fresh attack keeps its squads for a grace period: it only ends by its own rules (losses,
@@ -2852,7 +2852,8 @@ class ACR_AICommander : Managed
   if (!attack.m_bOverwatch)
   {
    vector found;
-   if (!OverwatchSpot(target, PositionOf(fire), found)) { LiftFire(attack, "no firing spot"); return; }
+   bool gotCrest = attack.m_Ground && attack.m_Ground.IsDone() && attack.m_Ground.BestFiringToward(PositionOf(fire), target.m_fRadius + OVERWATCH_MIN_GAP, FIRE_BASE_RANGE, found);
+   if (!gotCrest && !OverwatchSpot(target, PositionOf(fire), found)) { LiftFire(attack, "no firing spot"); return; }
    attack.m_vOverwatch = found;
    attack.m_bOverwatch = true;
    attack.m_fFireBaseMoveSince = 0;
@@ -3055,6 +3056,7 @@ class ACR_AICommander : Managed
    string phase = "staging";
    if (attack.m_bGrab) phase = "grab";
    else if (attack.m_bAssaulting) phase = "assault";
+   else if (attack.m_bPrep) phase = "prep";
    int minutes = 0;
    if (attack.m_fAssaultStart > 0) minutes = (now - attack.m_fAssaultStart) / 60000;
    attacks += string.Format(" %1(%2 %3m)", attack.m_Target.m_sName, phase, minutes);
@@ -3124,6 +3126,7 @@ class ACR_AICommander : Managed
    else if (attack.m_bFobRaid) kind = "FOB raid";
    string phase;
    if (attack.m_bAssaulting || attack.m_bGrab) phase = string.Format("assault %1 min", (int)((now - attack.m_fAssaultStart) / 60000));
+   else if (attack.m_bPrep) phase = string.Format("prep, %1 s left", (int)Math.Max(0, (attack.m_fPrepUntil - now) / 1000));
    else phase = string.Format("staging, %1 s left", (int)Math.Max(0, (attack.m_fStageDeadline - now) / 1000));
    string grids;
    foreach (vector stage : attack.m_aStaging)

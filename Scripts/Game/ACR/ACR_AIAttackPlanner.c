@@ -861,6 +861,50 @@ class ACR_AIAttackPlanner
     cmd.TickFireBase(attack);
     continue;
    }
+   if (attack.m_bPrep && !attack.m_bAssaulting)
+   {
+    cmd.TickGround(attack);
+    if (attack.m_Suppressor && ACR_AICommander.TakersIn(attack, attack.m_Suppressor) == 0) attack.m_Suppressor = null;
+    if (attack.m_Suppressor) cmd.UpdateFireBase(attack);
+    float prepNow = GetGame().GetWorld().GetWorldTime();
+    if (!attack.m_bSmokeFired && prepNow >= attack.m_fPrepUntil - 12000)
+    {
+     attack.m_bSmokeFired = true;
+     vector screen = attack.m_Staging + (target.GetOrigin() - attack.m_Staging) * 0.55;
+     vector breakPos;
+     if (attack.m_Ground && attack.m_Ground.IsDone() && attack.m_Ground.BreakToward(attack.m_Staging, breakPos))
+      screen = breakPos;
+     cmd.CallSupport(ACR_ESupportType.MORTAR_SMOKE, screen, "smoke screen for " + target.m_sName);
+    }
+    if (prepNow < attack.m_fPrepUntil) continue;
+    attack.m_bPrep = false;
+    attack.m_bAssaulting = true;
+    attack.m_fAssaultStart = prepNow;
+    foreach (ACR_Squad squad : attack.m_Squads)
+    {
+     squad.SetMode(ACR_EMoveMode.COMBAT);
+     if (squad != attack.m_Suppressor)
+     {
+      IEntity vSquad = ACR_Transport.CrewedVehicle(squad);
+      if (vSquad && squad.HasGunner(vSquad))
+      {
+       vector vSpot;
+       if (attack.m_Ground && attack.m_Ground.IsDone() && attack.m_Ground.BestFiringToward(cmd.PositionOf(squad), target.m_fRadius + ACR_AICommander.OVERWATCH_MIN_GAP, ACR_AICommander.FIRE_BASE_RANGE, vSpot)) squad.Defend(vSpot);
+       else if (cmd.OverwatchSpot(target, cmd.PositionOf(squad), vSpot)) squad.Defend(vSpot);
+       else squad.Assault(target.GetOrigin());
+      }
+      else
+      {
+       squad.Assault(target.GetOrigin());
+      }
+     }
+    }
+    if (attack.m_Suppressor) cmd.UpdateFireBase(attack);
+    string suppressor = "none";
+    if (attack.m_Suppressor) suppressor = attack.m_Suppressor.GetName();
+    cmd.Say(string.Format("[ACR] AI %1: assaulting %2 with %3 squad(s) on %4 approach line(s), base of fire: %5", cmd.m_sFaction, target.m_sName, attack.m_Squads.Count(), ACR_AICommander.ApproachLines(attack), suppressor));
+    continue;
+   }
    cmd.TickGround(attack);
    bool anyAirLift = false;
    bool gathered = true;
@@ -893,48 +937,43 @@ class ACR_AIAttackPlanner
    }
    if (gathered || (!anyAirLift && stageNow > attack.m_fStageDeadline))
    {
-    attack.m_bAssaulting = true;
     // The base of fire goes in too when it is the only squad left that can take the base.
     if (attack.m_Suppressor && ACR_AICommander.TakersIn(attack, attack.m_Suppressor) == 0) attack.m_Suppressor = null;
-    attack.m_fAssaultStart = GetGame().GetWorld().GetWorldTime();
-    // Preparation: shell the objective with heavy assets against fortified FOBs
+    // Phased H-Hour: fire prep HE/air and move the base of fire to its crest first, then drop smoke
+    // on the exposure break and release the assault once prep lands.
+    attack.m_bPrep = true;
+    attack.m_bPrepFired = true;
+    bool firedPrep = false;
     bool heavyPrep = target.m_bBuilt || cmd.DefenceOf(target) >= ACR_AICommander.Lowered(cmd.m_Doctrine.m_iHeavyPrep, cmd.FireFactor());
-    if (!heavyPrep || !cmd.CallSupport(ACR_ESupportType.BOMB_RUN, target.GetOrigin(), "airstrike preparation on " + target.m_sName))
-     if (!heavyPrep || !cmd.CallSupport(ACR_ESupportType.ROCKET_STRIKE, target.GetOrigin(), "rocket strike preparation on " + target.m_sName))
-      if (!heavyPrep || !cmd.CallSupport(ACR_ESupportType.HELI_GUN_RUN, target.GetOrigin(), "gun run preparation on " + target.m_sName))
-       if (!cmd.CallSupport(ACR_ESupportType.MORTAR_HE_LARGE, target.GetOrigin(), "preparation fire on " + target.m_sName))
-        if (!cmd.CallSupport(ACR_ESupportType.MORTAR_HE_SMALL, target.GetOrigin(), "preparation fire on " + target.m_sName))
-         cmd.CallSupport(ACR_ESupportType.ARTILLERY_BATTERY, target.GetOrigin(), "battery preparation fire on " + target.m_sName);
-    vector screen = attack.m_Staging + (target.GetOrigin() - attack.m_Staging) * 0.55;
-    cmd.CallSupport(ACR_ESupportType.MORTAR_SMOKE, screen, "smoke screen for " + target.m_sName);
+    if (heavyPrep && cmd.CallSupport(ACR_ESupportType.BOMB_RUN, target.GetOrigin(), "airstrike preparation on " + target.m_sName)) firedPrep = true;
+    else if (heavyPrep && cmd.CallSupport(ACR_ESupportType.ROCKET_STRIKE, target.GetOrigin(), "rocket strike preparation on " + target.m_sName)) firedPrep = true;
+    else if (heavyPrep && cmd.CallSupport(ACR_ESupportType.HELI_GUN_RUN, target.GetOrigin(), "gun run preparation on " + target.m_sName)) firedPrep = true;
+    else if (cmd.CallSupport(ACR_ESupportType.MORTAR_HE_LARGE, target.GetOrigin(), "preparation fire on " + target.m_sName)) firedPrep = true;
+    else if (cmd.CallSupport(ACR_ESupportType.MORTAR_HE_SMALL, target.GetOrigin(), "preparation fire on " + target.m_sName)) firedPrep = true;
+    else if (cmd.CallSupport(ACR_ESupportType.ARTILLERY_BATTERY, target.GetOrigin(), "battery preparation fire on " + target.m_sName)) firedPrep = true;
     // Reserve gunship support for an assault, not only the rare counterattack.
-    // CallSupport still checks cooldown, range/pad readiness and friendly distance.
-    // A content pack's attack helicopter (ACR_ContentSocket) goes first when the side has one.
     if (!cmd.CallSupport(ACR_ESupportType.ATTACK_HELI, target.GetOrigin(), "attack helicopter for the assault on " + target.m_sName))
      if (!cmd.CallSupport(ACR_ESupportType.HELI_LOITER, target.GetOrigin(), "gunship for the assault on " + target.m_sName))
       cmd.CallSupport(ACR_ESupportType.HELI_DOOR_GUNS, target.GetOrigin(), "door-gunner heli for the assault on " + target.m_sName);
-    foreach (ACR_Squad squad : attack.m_Squads)
+    float prepWaitMs = 10000;
+    if (firedPrep) prepWaitMs = 25000;
+    attack.m_fPrepUntil = stageNow + prepWaitMs;
+    if (attack.m_Suppressor) cmd.UpdateFireBase(attack);
+    // If AttackGround has a closer dead-ground line of departure on a squad's spoke, nudge infantry up to it during prep.
+    if (attack.m_Ground && attack.m_Ground.IsDone())
     {
-     squad.SetMode(ACR_EMoveMode.COMBAT);
-     if (squad != attack.m_Suppressor)
+     foreach (ACR_Squad squad : attack.m_Squads)
      {
-      IEntity vSquad = ACR_Transport.CrewedVehicle(squad);
-      if (vSquad && squad.HasGunner(vSquad))
+      if (!squad || squad == attack.m_Suppressor || ACR_Transport.CrewedVehicle(squad)) continue;
+      vector dep;
+      if (attack.m_Ground.DepartureToward(cmd.PositionOf(squad), dep) && vector.DistanceXZ(dep, target.GetOrigin()) < vector.DistanceXZ(cmd.PositionOf(squad), target.GetOrigin()) - 25)
       {
-       vector vSpot;
-       if (cmd.OverwatchSpot(target, cmd.PositionOf(squad), vSpot)) squad.Defend(vSpot);
-       else squad.Assault(target.GetOrigin());
-      }
-      else
-      {
-       squad.Assault(target.GetOrigin());
+       squad.SetMode(ACR_EMoveMode.COMBAT);
+       squad.MoveTo(dep);
       }
      }
     }
-    if (attack.m_Suppressor) cmd.UpdateFireBase(attack);
-    string suppressor = "none";
-    if (attack.m_Suppressor) suppressor = attack.m_Suppressor.GetName();
-    cmd.Say(string.Format("[ACR] AI %1: assaulting %2 with %3 squad(s) on %4 approach line(s), base of fire: %5", cmd.m_sFaction, target.m_sName, attack.m_Squads.Count(), ACR_AICommander.ApproachLines(attack), suppressor));
+    cmd.Say(string.Format("[ACR] AI %1: preparing assault on %2 (%3 s H-Hour prep; prep fires: %4)", cmd.m_sFaction, target.m_sName, (int)(prepWaitMs / 1000), firedPrep));
    }
   }
  }
