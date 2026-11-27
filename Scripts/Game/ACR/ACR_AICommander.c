@@ -3296,6 +3296,8 @@ class ACR_AICommander : Managed
  static const float SCREEN_QUIET_MS = 180000; // a base no longer wanted this long: its screen is released
  static const float SCREEN_AGAIN_MS = 120000; // a base whose screen pulled back isn't screened again for this long
  ref array<ref ACR_ScreenPost> m_Screens = {};
+ ref array<ref ACR_ScreenPost> m_ReconPosts = {};
+ ref map<ACR_Base, float> m_ReconAgain = new map<ACR_Base, float>();
  ref map<ACR_Base, float> m_ScreenAgain = new map<ACR_Base, float>();
 
  bool IsScreen(ACR_Squad squad) { return ACR_AIScreens.IsScreen(this, squad); }

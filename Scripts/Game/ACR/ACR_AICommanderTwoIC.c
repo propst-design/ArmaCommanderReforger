@@ -686,6 +686,8 @@ modded class ACR_AICommander
   m_Refitting.Clear();
   m_RefitWalkTo.Clear();
   m_Screens.Clear();
+  m_ReconPosts.Clear();
+  m_ReconAgain.Clear();
   m_EvacTaxi = null;
   m_PalletSquad = null;
   m_FobBuilder = null;
@@ -699,6 +701,8 @@ modded class ACR_AICommander
   m_OnRequest.Remove(squad);
   for (int i = m_Screens.Count() - 1; i >= 0; i--)
    if (!m_Screens[i] || m_Screens[i].m_Squad == squad) m_Screens.Remove(i);
+  for (int r = m_ReconPosts.Count() - 1; r >= 0; r--)
+   if (!m_ReconPosts[r] || m_ReconPosts[r].m_Squad == squad) m_ReconPosts.Remove(r);
   foreach (ACR_AIAttack attack : m_Attacks) LeaveAttack(attack, squad);
   m_RetreatingUntil.Remove(squad);
   m_ReinforceRetryAt.Remove(squad);
@@ -741,6 +745,8 @@ modded class ACR_AICommander
   m_AmmoNoTruckUntil.Clear();
   m_AmmoSkips.Clear();
   m_Screens.Clear();
+  m_ReconPosts.Clear();
+  m_ReconAgain.Clear();
   m_Trips.Clear();
   m_ReserveSquad = null;
   m_iSaveForEntry = -1;
