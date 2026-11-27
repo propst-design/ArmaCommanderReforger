@@ -34,6 +34,8 @@ class ACR_MapData : Managed
  vector m_vAimTo;
  ref array<float> m_ZoneRadii = {};
  ref array<string> m_ZoneLabels = {};
+ // known empty / abandoned vehicles (mirrored from ACR_VehiclesOwner for canvas glyphs)
+ ref array<vector> m_VehiclePositions = {};
  // own selection, and the faint lines of orders just clicked
  ref array<RplId> m_Selected = {};
  ref array<vector> m_PendingFrom = {};

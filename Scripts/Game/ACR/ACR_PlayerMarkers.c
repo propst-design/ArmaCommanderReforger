@@ -14,6 +14,11 @@ class ACR_UnitMarker : SCR_MapMarkerBase
  RplId m_GroupId;      // squad this marker belongs to
  int m_BaseIndex = -1; // >= 0: this marker is a base
  bool m_bContact;      // spotted enemy: clicks go through to the map
+ bool m_bZone;         // zone label marker (danger road, fire mission, hideout, etc.)
+ bool m_bKeepCaption;  // keep marker text visible without hover (zones, empty vehicles)
+ bool m_bHideIcon;     // hide vanilla simple dot (canvas draws a custom glyph instead)
+ string m_sZoneRaw;    // unstripped zone label for hover card classification
+ int m_iVehicleIndex = -1; // >= 0: empty/abandoned vehicle index
  bool m_bSuspected;    // spotted enemy not seen for a while (ACR_CONTACT_SUSPECTED)
  float m_fAlpha = 1;   // spotted enemy: fades as the sighting ages
  int m_iContactShape = -1; // spotted enemy: icons and dimension it was prepared with
@@ -75,12 +80,17 @@ class ACR_UnitMarker : SCR_MapMarkerBase
   string shown = m_Label;
   if (m_BaseIndex >= 0) shown = m_BaseCaption;
   int alphaStep = Math.Round(m_fAlpha * 20);
+  bool dark = m_bKeepCaption && ACR_MapDeclutter.Dark();
   string key = string.Format("%1|%2|%3|%4|%5|%6|%7|%8", shown, m_State, m_Original, m_Selected, m_iSymbolKey, m_BaseHover, alphaStep, m_bSuspected);
+  key += string.Format("|%1|%2|%3", m_bKeepCaption, m_bHideIcon, dark);
   if (key == m_sStyled) return;
   m_sStyled = key;
-  if (m_BaseIndex >= 0) m_MarkerWidgetComp.SetEventListening(true);
+  if (m_BaseIndex >= 0 || m_bZone || m_iVehicleIndex >= 0) m_MarkerWidgetComp.SetEventListening(true);
   m_MarkerWidgetComp.SetText(shown, true);
   m_MarkerWidgetComp.SetTextVisible(true);
+  ImageWidget icon = m_MarkerWidgetComp.ACR_Icon();
+  if (icon && m_bHideIcon) icon.SetOpacity(0);
+  else if (icon && m_BaseIndex < 0 && icon.GetOpacity() != 1) icon.SetOpacity(1);
   Color color = new Color(0.1, 0.65, 1, 1);
   if (m_State == 1) color = new Color(1, 0.75, 0.1, 1);
   if (m_State == 2) color = new Color(0.5, 0.5, 0.5, 1);
@@ -93,9 +103,9 @@ class ACR_UnitMarker : SCR_MapMarkerBase
   if (m_fAlpha < 1) color = new Color(color.R(), color.G(), color.B(), color.A() * m_fAlpha);
   m_MarkerWidgetComp.SetColor(color);
   if (m_GroupSymbol) m_MarkerWidgetComp.UpdateMilitarySymbol(m_GroupSymbol);
-  // A spotted enemy's reticle; not our empty vehicles (state 4) or order tags (state 5), which use
-  // m_bContact for click-through
-  if (m_bContact && m_State != 4 && m_State != 5 && m_wRoot && !m_wPip)
+  // A spotted enemy's reticle; not our empty vehicles (state 4), order tags (state 5), or zones,
+  // which use m_bContact for click-through
+  if (m_bContact && !m_bZone && m_State != 4 && m_State != 5 && m_wRoot && !m_wPip)
   {
    WorkspaceWidget ws = GetGame().GetWorkspace();
    if (ws)

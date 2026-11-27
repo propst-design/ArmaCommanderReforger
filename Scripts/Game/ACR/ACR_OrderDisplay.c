@@ -71,6 +71,7 @@ class ACR_OrderDisplay : Managed
   DrawBaseAreas(mapEntity, data);
   DrawZones(mapEntity, data);
   DrawMineShapes(mapEntity, data);
+  DrawEmptyVehicles(mapEntity, data);
   DrawOrders(mapEntity, data);
   DrawOtherSelections(mapEntity, data);
   DrawStatusBars(mapEntity, data);
@@ -125,6 +126,36 @@ class ACR_OrderDisplay : Managed
   ring.m_Vertices = {};
   m_Canvas.TessellateCircle(Vector(x, y, 0), radius, segments, ring.m_Vertices);
   m_Commands.Insert(ring);
+ }
+
+ // Dashed circle around (x, y); scales dash count with screen radius so small and large rings read cleanly.
+ void DashedRing(float x, float y, float radius, int color, float width, int dashes = 24)
+ {
+  if (radius < 4)
+  {
+   Ring(x, y, radius, color, width, 16);
+   return;
+  }
+  int count = dashes;
+  if (radius < 22) count = 12;
+  else if (radius > 160) count = 36;
+  float step = Math.PI2 / count;
+  float arc = step * 0.56;
+  for (int i = 0; i < count; i++)
+  {
+   float a0 = i * step;
+   float a1 = a0 + arc;
+   float am = a0 + arc * 0.5;
+   LineDrawCommand seg = new LineDrawCommand();
+   seg.m_iColor = color;
+   seg.m_fWidth = width;
+   seg.m_Vertices = {
+    x + Math.Cos(a0) * radius, y + Math.Sin(a0) * radius,
+    x + Math.Cos(am) * radius, y + Math.Sin(am) * radius,
+    x + Math.Cos(a1) * radius, y + Math.Sin(a1) * radius
+   };
+   m_Commands.Insert(seg);
+  }
  }
 
  void Dot(float x, float y, float radius, int color)
@@ -388,34 +419,217 @@ class ACR_OrderDisplay : Managed
   }
  }
 
- // Support danger areas (friendly fire missions): red rings.
+ // Zone classification for rings, center glyphs and hover cards:
+ // 0 = range (~), 1 = civilian (%), 2 = FIA ambush (dangerous road), 3 = zombie area,
+ // 4 = FIA hideout, 5 = FIA activity lead, 6 = friendly fire mission, 7 = other red zone.
+ static int ZoneKind(string label)
+ {
+  if (label.StartsWith("~")) return 0;
+  if (ACR_Intel.IsCivilianZone(label)) return 1;
+  if (label == "FIA ambush") return 2;
+  if (label == "Zombies") return 3;
+  if (label == "FIA hideout") return 4;
+  if (label == "FIA activity") return 5;
+  if (label.Contains(" - ACTIVE") || label.EndsWith(" s")) return 6;
+  return 7;
+ }
+
+ static bool ZoneHasCustomGlyph(string label)
+ {
+  int kind = ZoneKind(label);
+  return kind >= 2 && kind <= 6;
+ }
+
+ // Crisp warning triangle (!) for dangerous roads, zombie areas and FIA intel leads.
+ protected void DrawWarningTriangle(float cx, float cy, int fillColor)
+ {
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  float s = 1;
+  if (ws) s = ws.DPIScale(1);
+  int dark = Color.FromRGBA(18, 20, 24, 245).PackToInt();
+  int white = Color.FromRGBA(250, 250, 250, 240).PackToInt();
+  float rOut = 12 * s;
+  float rMid = 10.6 * s;
+  float rIn = 9 * s;
+  PolygonDrawCommand outer = new PolygonDrawCommand();
+  outer.m_iColor = dark;
+  outer.m_Vertices = {cx, cy - rOut, cx + rOut * 0.96, cy + rOut * 0.72, cx - rOut * 0.96, cy + rOut * 0.72};
+  AddPolygon(outer);
+  PolygonDrawCommand rim = new PolygonDrawCommand();
+  rim.m_iColor = white;
+  rim.m_Vertices = {cx, cy - rMid, cx + rMid * 0.95, cy + rMid * 0.70, cx - rMid * 0.95, cy + rMid * 0.70};
+  AddPolygon(rim);
+  PolygonDrawCommand inner = new PolygonDrawCommand();
+  inner.m_iColor = fillColor;
+  inner.m_Vertices = {cx, cy - rIn, cx + rIn * 0.93, cy + rIn * 0.68, cx - rIn * 0.93, cy + rIn * 0.68};
+  AddPolygon(inner);
+  // Exclamation bar + dot inside the triangle.
+  Line(cx, cy - 4.4 * s, cx, cy + 1.2 * s, dark, 2.2 * s);
+  Dot(cx, cy + 4.1 * s, 1.45 * s, dark);
+ }
+
+ // Target crosshair glyph for active/incoming friendly fire missions.
+ protected void DrawFireMissionGlyph(float cx, float cy)
+ {
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  float s = 1;
+  if (ws) s = ws.DPIScale(1);
+  int dark = Color.FromRGBA(18, 20, 24, 235).PackToInt();
+  int red = Color.FromRGBA(255, 55, 45, 250).PackToInt();
+  Ring(cx, cy, 8 * s, dark, 4.2 * s, 20);
+  Ring(cx, cy, 8 * s, red, 2.2 * s, 20);
+  Line(cx - 12 * s, cy, cx - 4.5 * s, cy, dark, 3.6 * s);
+  Line(cx + 4.5 * s, cy, cx + 12 * s, cy, dark, 3.6 * s);
+  Line(cx, cy - 12 * s, cx, cy - 4.5 * s, dark, 3.6 * s);
+  Line(cx, cy + 4.5 * s, cx, cy + 12 * s, dark, 3.6 * s);
+  Line(cx - 11.5 * s, cy, cx - 4.5 * s, cy, red, 2 * s);
+  Line(cx + 4.5 * s, cy, cx + 11.5 * s, cy, red, 2 * s);
+  Line(cx, cy - 11.5 * s, cx, cy - 4.5 * s, red, 2 * s);
+  Line(cx, cy + 4.5 * s, cx, cy + 11.5 * s, red, 2 * s);
+  Dot(cx, cy, 2 * s, red);
+ }
+
+ // Diamond glyph for confirmed FIA hideouts.
+ protected void DrawHideoutGlyph(float cx, float cy)
+ {
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  float s = 1;
+  if (ws) s = ws.DPIScale(1);
+  int dark = Color.FromRGBA(18, 20, 24, 245).PackToInt();
+  int white = Color.FromRGBA(250, 250, 250, 240).PackToInt();
+  int fill = Color.FromRGBA(235, 82, 46, 250).PackToInt();
+  float r0 = 10.5 * s;
+  float r1 = 9 * s;
+  float r2 = 7.5 * s;
+  PolygonDrawCommand p0 = new PolygonDrawCommand();
+  p0.m_iColor = dark;
+  p0.m_Vertices = {cx, cy - r0, cx + r0, cy, cx, cy + r0, cx - r0, cy};
+  AddPolygon(p0);
+  PolygonDrawCommand p1 = new PolygonDrawCommand();
+  p1.m_iColor = white;
+  p1.m_Vertices = {cx, cy - r1, cx + r1, cy, cx, cy + r1, cx - r1, cy};
+  AddPolygon(p1);
+  PolygonDrawCommand p2 = new PolygonDrawCommand();
+  p2.m_iColor = fill;
+  p2.m_Vertices = {cx, cy - r2, cx + r2, cy, cx, cy + r2, cx - r2, cy};
+  AddPolygon(p2);
+  // Small dark roof/house mark inside.
+  Line(cx - 3.5 * s, cy + 0.5 * s, cx, cy - 3.2 * s, dark, 2 * s);
+  Line(cx, cy - 3.2 * s, cx + 3.5 * s, cy + 0.5 * s, dark, 2 * s);
+  Line(cx - 2.4 * s, cy + 0.5 * s, cx - 2.4 * s, cy + 3.2 * s, dark, 1.8 * s);
+  Line(cx + 2.4 * s, cy + 0.5 * s, cx + 2.4 * s, cy + 3.2 * s, dark, 1.8 * s);
+ }
+
+ // Hollow vehicle silhouette (chassis + cab + two wheels) for empty/abandoned vehicles.
+ protected void DrawEmptyVehicles(SCR_MapEntity mapEntity, ACR_MapData data)
+ {
+  if (!data || data.m_VehiclePositions.IsEmpty()) return;
+  if ((data.m_bDeclOn && data.m_bDeclFar) || ACR_MapLayers.Off(ACR_MapLayers.VEHICLES)) return;
+  WorkspaceWidget ws = GetGame().GetWorkspace();
+  float s = 1;
+  if (ws) s = ws.DPIScale(1);
+  int dark = Color.FromRGBA(16, 20, 26, 240).PackToInt();
+  int fill = Color.FromRGBA(24, 34, 46, 185).PackToInt();
+  int edge = Color.FromRGBA(190, 224, 250, 250).PackToInt();
+  foreach (vector pos : data.m_VehiclePositions)
+  {
+   int cx, cy;
+   mapEntity.WorldToScreen(pos[0], pos[2], cx, cy, true);
+   // Chassis + cab outline (hollow dark fill so it immediately reads as empty/uncrewed).
+   float x0 = cx - 9 * s;
+   float x1 = cx + 9 * s;
+   float yTop = cy - 4.5 * s;
+   float yMid = cy - 1 * s;
+   float yBot = cy + 3 * s;
+   PolygonDrawCommand back = new PolygonDrawCommand();
+   back.m_iColor = dark;
+   back.m_Vertices = {x0 - 1.4 * s, yMid - 1.2 * s, cx - 4.5 * s, yTop - 1.4 * s, cx + 4.5 * s, yTop - 1.4 * s, x1 + 1.4 * s, yMid - 1.2 * s, x1 + 1.4 * s, yBot + 1.4 * s, x0 - 1.4 * s, yBot + 1.4 * s};
+   AddPolygon(back);
+   PolygonDrawCommand body = new PolygonDrawCommand();
+   body.m_iColor = fill;
+   body.m_Vertices = {x0, yMid, cx - 4 * s, yTop, cx + 4 * s, yTop, x1, yMid, x1, yBot, x0, yBot};
+   AddPolygon(body);
+   LineDrawCommand outline = new LineDrawCommand();
+   outline.m_iColor = edge;
+   outline.m_fWidth = 1.9 * s;
+   outline.m_bShouldEnclose = true;
+   outline.m_Vertices = {x0, yMid, cx - 4 * s, yTop, cx + 4 * s, yTop, x1, yMid, x1, yBot, x0, yBot};
+   m_Commands.Insert(outline);
+   // Two hollow wheels underneath.
+   float wy = yBot + 1.4 * s;
+   float wxL = cx - 5.2 * s;
+   float wxR = cx + 5.2 * s;
+   Dot(wxL, wy, 3.2 * s, dark);
+   Ring(wxL, wy, 2.3 * s, edge, 1.7 * s, 12);
+   Dot(wxR, wy, 3.2 * s, dark);
+   Ring(wxR, wy, 2.3 * s, edge, 1.7 * s, 12);
+  }
+ }
+
+ protected void DrawZoneItem(SCR_MapEntity mapEntity, ACR_MapData data, int i)
+ {
+  vector pos = data.m_ZonePositions[i];
+  int cx, cy, ex, ey;
+  mapEntity.WorldToScreen(pos[0], pos[2], cx, cy, true);
+  mapEntity.WorldToScreen(pos[0] + data.m_ZoneRadii[i], pos[2], ex, ey, true);
+  float radius = Math.Max(Math.AbsFloat(ex - cx), 6);
+  // A shaped minefield draws its outline instead (DrawMineShapes).
+  if (ShapeAt(data, pos)) return;
+  string label = "";
+  if (i < data.m_ZoneLabels.Count()) label = data.m_ZoneLabels[i];
+  int kind = ZoneKind(label);
+  if (kind == 0)
+  {
+   Ring(cx, cy, radius, Color.FromRGBA(140, 204, 255, 140).PackToInt(), 2, 96);
+   return;
+  }
+  if (kind == 1)
+  {
+   Ring(cx, cy, radius, Color.FromRGBA(184, 128, 255, 153).PackToInt(), 2, 64);
+   return;
+  }
+  if (kind == 2)
+  {
+   // Dangerous road (FIA ambush): dashed amber-orange ring + warning triangle.
+   DashedRing(cx, cy, radius, Color.FromRGBA(250, 128, 38, 238).PackToInt(), 2.6, 26);
+   DrawWarningTriangle(cx, cy, Color.FromRGBA(248, 138, 38, 250).PackToInt());
+   return;
+  }
+  if (kind == 3)
+  {
+   // Zombie danger area: dashed crimson-red ring + crimson warning triangle.
+   DashedRing(cx, cy, radius, Color.FromRGBA(238, 62, 52, 238).PackToInt(), 2.6, 26);
+   DrawWarningTriangle(cx, cy, Color.FromRGBA(235, 65, 55, 250).PackToInt());
+   return;
+  }
+  if (kind == 4)
+  {
+   // Confirmed FIA hideout: solid red-orange ring + diamond house glyph.
+   Ring(cx, cy, radius, Color.FromRGBA(238, 82, 46, 230).PackToInt(), 2.5, 48);
+   DrawHideoutGlyph(cx, cy);
+   return;
+  }
+  if (kind == 5)
+  {
+   // FIA activity (approximate intel lead): dashed amber-yellow ring + amber warning triangle.
+   DashedRing(cx, cy, radius, Color.FromRGBA(242, 184, 46, 215).PackToInt(), 2.2, 24);
+   DrawWarningTriangle(cx, cy, Color.FromRGBA(242, 184, 46, 245).PackToInt());
+   return;
+  }
+  if (kind == 6)
+  {
+   // Friendly fire mission: solid bright red ring + crosshair glyph.
+   Ring(cx, cy, radius, Color.FromRGBA(255, 38, 26, 242).PackToInt(), 3, 48);
+   DrawFireMissionGlyph(cx, cy);
+   return;
+  }
+  Ring(cx, cy, radius, Color.FromRGBA(255, 38, 26, 242).PackToInt(), 3, 48);
+ }
+
+ // Support danger areas, dangerous roads, hideouts, ranges and civilian zones.
  protected void DrawZones(SCR_MapEntity mapEntity, ACR_MapData data)
  {
-  Color red = new Color(1, 0.15, 0.1, 0.95);
-  Color reach = new Color(0.55, 0.8, 1, 0.55);
-  Color civilian = new Color(0.72, 0.5, 1, 0.6);
-  foreach (int i, vector pos : data.m_ZonePositions)
-  {
-   int cx, cy, ex, ey;
-   mapEntity.WorldToScreen(pos[0], pos[2], cx, cy, true);
-   mapEntity.WorldToScreen(pos[0] + data.m_ZoneRadii[i], pos[2], ex, ey, true);
-   float radius = Math.Max(Math.AbsFloat(ex - cx), 6);
-   // A shaped minefield draws its outline instead (DrawMineShapes).
-   if (ShapeAt(data, pos)) continue;
-   // A mortar team's range ("~" label): thin and pale.
-   if (i < data.m_ZoneLabels.Count() && data.m_ZoneLabels[i].StartsWith("~"))
-   {
-    Ring(cx, cy, radius, reach.PackToInt(), 2, 96);
-    continue;
-   }
-   // Civilians seen there (ACR_Intel.CivilianZones): thin violet, the NATO civilian colour, never red.
-   if (i < data.m_ZoneLabels.Count() && ACR_Intel.IsCivilianZone(data.m_ZoneLabels[i]))
-   {
-    Ring(cx, cy, radius, civilian.PackToInt(), 2, 64);
-    continue;
-   }
-   Ring(cx, cy, radius, red.PackToInt(), 3, 48);
-  }
+  foreach (int i, vector pos : data.m_ZonePositions) DrawZoneItem(mapEntity, data, i);
   // Subtle green leadership ring around the local commander's primary command unit.
   if (ACR_CommandPresence.On())
   {

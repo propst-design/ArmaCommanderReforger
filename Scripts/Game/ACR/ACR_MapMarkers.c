@@ -83,21 +83,31 @@ modded class SCR_MapMarkerWidgetComponent
  protected void ACR_KeepBaseCaptionVisible()
  {
   ACR_UnitMarker marker = ACR_UnitMarker.Cast(m_MarkerObject);
-  if (!marker || marker.m_BaseIndex < 0 || !m_wMarkerText) return;
-  string text = marker.m_BaseCaption;
-  // Not while the list of a "×N"'s squads is open: it would show behind the list (ACR_SquadPicker).
-  // In calm mode the hover card shows the details (ACR_MapCard); classic mode expands them here.
-  if (m_ACR_BaseHovered && !ACR_SquadPicker.s_bOpen && !ACR_MapDeclutter.BasesOn()) text = marker.m_BaseHover;
-  m_wMarkerText.SetText(text);
-  m_wMarkerText.SetVisible(m_bShowText);
+  if (!marker || !m_wMarkerText) return;
+  if (marker.m_BaseIndex >= 0)
+  {
+   string text = marker.m_BaseCaption;
+   // Not while the list of a "×N"'s squads is open: it would show behind the list (ACR_SquadPicker).
+   // In calm mode the hover card shows the details (ACR_MapCard); classic mode expands them here.
+   if (m_ACR_BaseHovered && !ACR_SquadPicker.s_bOpen && !ACR_MapDeclutter.BasesOn()) text = marker.m_BaseHover;
+   m_wMarkerText.SetText(text);
+   m_wMarkerText.SetVisible(m_bShowText);
+   return;
+  }
+  if (marker.m_bKeepCaption)
+  {
+   m_wMarkerText.SetText(marker.m_Label);
+   m_wMarkerText.SetVisible(m_bShowText && !marker.m_Label.IsEmpty());
+  }
  }
 
- // A squad's or a base's marker under the cursor: its hover card (ACR_PlayerMapHover).
+ // A squad's, base's, zone's or empty vehicle's marker under the cursor: its hover card (ACR_PlayerMapHover).
  protected void ACR_TellHover(bool on)
  {
   ACR_UnitMarker marker = ACR_UnitMarker.Cast(m_MarkerObject);
-  if (!marker || marker.m_bContact || marker.m_iPingId >= 0 || marker.m_Original) return;
-  if (marker.m_BaseIndex < 0 && !marker.m_GroupId.IsValid()) return;
+  if (!marker || marker.m_iPingId >= 0 || marker.m_Original) return;
+  bool wantCard = marker.m_BaseIndex >= 0 || marker.m_bZone || marker.m_iVehicleIndex >= 0 || (!marker.m_bContact && marker.m_GroupId.IsValid());
+  if (!wantCard) return;
   SCR_PlayerController pc = SCR_PlayerController.Cast(GetGame().GetPlayerController());
   if (pc) pc.ACR_HoverMarker(marker, on);
  }

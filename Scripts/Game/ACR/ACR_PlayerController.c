@@ -1960,6 +1960,7 @@ modded class SCR_PlayerController
  protected void ACR_VehiclesOwner(array<vector> positions, array<string> names, array<int> ages)
  {
   m_ACR_VehiclePositions.Copy(positions);
+  if (m_ACR_Data) m_ACR_Data.m_VehiclePositions.Copy(positions);
   m_ACR_VehicleNames.Copy(names);
   m_ACR_VehicleAges.Copy(ages);
   m_ACR_VehiclesAt = System.GetTickCount();
@@ -1977,32 +1978,24 @@ modded class SCR_PlayerController
     ACR_UnitMarker marker = new ACR_UnitMarker();
     marker.m_bContact = true; // clicks go through: right-click next to it for Get in
     marker.m_State = 4; // before it is inserted: creating its widget styles it (no contact pip)
+    marker.m_iVehicleIndex = i;
+    marker.m_bKeepCaption = true;
+    marker.m_bHideIcon = true; // canvas draws a hollow vehicle glyph instead of a dot
     manager.ACR_AddSimpleMarker(marker, m_ACR_VehicleMarkers);
    }
   }
   foreach (int v, ACR_UnitMarker vehicleMarker : m_ACR_VehicleMarkers)
   {
-   // The server sends the game's name key (e.g. "#AR-Vehicle_..._Name"),
-   // maybe followed by ", crew: ...": translate the key here on the client.
+   // Keep a short, readable caption on the map; crew and last-seen details go in the hover card.
    string raw = m_ACR_VehicleNames[v];
-   string rest = "";
    int comma = raw.IndexOf(",");
-   if (comma >= 0)
-   {
-    rest = raw.Substring(comma, raw.Length() - comma);
-    raw = raw.Substring(0, comma);
-   }
+   if (comma >= 0) raw = raw.Substring(0, comma);
    if (raw.StartsWith("#")) raw = WidgetManager.Translate(raw);
-   string label = raw + " (empty)" + rest;
-   int age = m_ACR_VehicleAges[v] + ACR_MapData.Since(m_ACR_VehiclesAt);
-   if (age > 20)
-   {
-    int minutes = age / 60;
-    if (minutes < 1) label += ", seen " + age.ToString() + " s ago";
-    else label += ", seen " + minutes.ToString() + " min ago";
-   }
-   vehicleMarker.m_Label = label;
+   vehicleMarker.m_Label = raw + " (empty)";
    vehicleMarker.m_State = 4;
+   vehicleMarker.m_iVehicleIndex = v;
+   vehicleMarker.m_bKeepCaption = true;
+   vehicleMarker.m_bHideIcon = true;
    vector pos = m_ACR_VehiclePositions[v];
    vehicleMarker.SetWorldPos(pos[0], pos[2]);
    vehicleMarker.RefreshStyle();
@@ -2156,24 +2149,36 @@ modded class SCR_PlayerController
    for (int i = 0; i < m_ACR_Data.m_ZoneLabels.Count(); i++)
    {
     ACR_UnitMarker marker = new ACR_UnitMarker();
+    marker.m_bZone = true;
+    marker.m_bContact = true; // clicks go through to the map / bases underneath
     manager.ACR_AddSimpleMarker(marker, m_ACR_ZoneMarkers);
    }
   }
   foreach (int i, ACR_UnitMarker marker : m_ACR_ZoneMarkers)
   {
-   string label = m_ACR_Data.m_ZoneLabels[i];
+   string raw = m_ACR_Data.m_ZoneLabels[i];
+   string label = raw;
    // "~": a mortar team's range ring, labelled at the tube.
    bool range = label.StartsWith("~");
    // "%": civilians seen in that square (ACR_Intel.CivilianZones), violet.
    bool civilians = ACR_Intel.IsCivilianZone(label);
    if (range || civilians) label = label.Substring(1, label.Length() - 1);
+   if (raw == "FIA ambush") label = "FIA AMBUSH";
+   else if (raw == "Zombies") label = "ZOMBIE AREA";
+   marker.m_bZone = true;
+   marker.m_bContact = true;
+   marker.m_sZoneRaw = raw;
    marker.m_Label = label;
+   marker.m_bKeepCaption = !range && !civilians;
+   marker.m_bHideIcon = ACR_OrderDisplay.ZoneHasCustomGlyph(raw);
    vector pos = m_ACR_Data.m_ZonePositions[i];
    marker.SetWorldPos(pos[0], pos[2]);
    marker.RefreshStyle();
    Color color = new Color(1, 0.2, 0.15, 1);
    if (range) color = new Color(0.55, 0.8, 1, 1);
    if (civilians) color = new Color(0.78, 0.6, 1, 1);
+   if (raw == "FIA ambush") color = new Color(0.98, 0.54, 0.15, 1);
+   if (raw == "FIA activity") color = new Color(0.95, 0.72, 0.18, 1);
    if (marker.GetRootWidget()) marker.ACR_SetColor(color);
   }
  }

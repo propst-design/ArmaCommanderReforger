@@ -544,15 +544,10 @@ modded class ACR_OrderDisplay
    super.DrawZones(mapEntity, data);
    return;
   }
-  Color red = new Color(1, 0.15, 0.1, 0.95);
   foreach (int i, vector pos : data.m_ZonePositions)
   {
    if (i < data.m_ZoneLabels.Count() && (data.m_ZoneLabels[i].StartsWith("~") || ACR_Intel.IsCivilianZone(data.m_ZoneLabels[i]))) continue;
-   int cx, cy, ex, ey;
-   mapEntity.WorldToScreen(pos[0], pos[2], cx, cy, true);
-   mapEntity.WorldToScreen(pos[0] + data.m_ZoneRadii[i], pos[2], ex, ey, true);
-   float radius = Math.Max(Math.AbsFloat(ex - cx), 6);
-   Ring(cx, cy, radius, red.PackToInt(), 3, 48);
+   DrawZoneItem(mapEntity, data, i);
   }
  }
 }

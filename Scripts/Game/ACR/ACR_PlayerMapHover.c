@@ -65,6 +65,22 @@ modded class SCR_PlayerController
   string title;
   array<string> lines = {};
   if (marker.m_BaseIndex >= 0) ACR_BaseCard(marker, title, lines);
+  else if (marker.m_iVehicleIndex >= 0)
+  {
+   if (!ACR_VehicleCard(marker.m_iVehicleIndex, title, lines))
+   {
+    if (m_ACR_Card) m_ACR_Card.Hide();
+    return;
+   }
+  }
+  else if (marker.m_bZone)
+  {
+   if (!ACR_ZoneCard(marker, title, lines))
+   {
+    if (m_ACR_Card) m_ACR_Card.Hide();
+    return;
+   }
+  }
   else if (!ACR_SquadCard(marker.m_GroupId, title, lines))
   {
    if (m_ACR_Card) m_ACR_Card.Hide();
@@ -150,6 +166,86 @@ modded class SCR_PlayerController
    if (i == 0 || lines.Count() >= ACR_MapCard.LINES) continue;
    lines.Insert(part);
   }
+ }
+
+ // An empty / abandoned vehicle's hover card: vehicle type, assigned crew (if any), sighting age,
+ // and how to recover it.
+ protected bool ACR_VehicleCard(int v, out string title, notnull array<string> lines)
+ {
+  if (v < 0 || v >= m_ACR_VehicleNames.Count()) return false;
+  string raw = m_ACR_VehicleNames[v];
+  string crew = "";
+  int comma = raw.IndexOf(",");
+  if (comma >= 0)
+  {
+   crew = raw.Substring(comma + 1, raw.Length() - comma - 1);
+   crew.TrimInPlace();
+   raw = raw.Substring(0, comma);
+  }
+  if (raw.StartsWith("#")) raw = WidgetManager.Translate(raw);
+  title = raw + "  ·  Empty vehicle";
+  if (crew.StartsWith("crew: ")) lines.Insert("Assigned crew: " + crew.Substring(6, crew.Length() - 6));
+  else if (!crew.IsEmpty()) lines.Insert(crew);
+  else lines.Insert("Abandoned  ·  no squad assigned");
+  int age = 0;
+  if (v < m_ACR_VehicleAges.Count()) age = m_ACR_VehicleAges[v] + ACR_MapData.Since(m_ACR_VehiclesAt);
+  if (age <= 20) lines.Insert("In sight now");
+  else if (age < 60) lines.Insert(string.Format("Last seen %1 s ago", age));
+  else lines.Insert(string.Format("Last seen %1 min ago", age / 60));
+  lines.Insert("Select a squad and right-click nearby to board");
+  return true;
+ }
+
+ // A zone marker's hover card: explains what the ring means and what the commander can do about it.
+ protected bool ACR_ZoneCard(ACR_UnitMarker marker, out string title, notnull array<string> lines)
+ {
+  string raw = marker.m_sZoneRaw;
+  if (raw.IsEmpty()) return false;
+  int kind = ACR_OrderDisplay.ZoneKind(raw);
+  if (kind == 2)
+  {
+   title = "FIA ambush  ·  Dangerous road";
+   lines.Insert("Friendly losses to FIA along this road");
+   lines.Insert("Supply runs avoid this area until cleared or expired");
+   lines.Insert("Send a combat squad to sweep and clear the road");
+   return true;
+  }
+  if (kind == 3)
+  {
+   title = "Zombie area  ·  Danger zone";
+   lines.Insert("Infected spotted or engaged in this area");
+   lines.Insert("Supply runs avoid this area until cleared or expired");
+   lines.Insert("Sweep with a combat squad to clear");
+   return true;
+  }
+  if (kind == 4)
+  {
+   title = "FIA hideout";
+   lines.Insert("Confirmed insurgent cell base");
+   lines.Insert("Destroy it to stop ambushes in this sector");
+   return true;
+  }
+  if (kind == 5)
+  {
+   title = "FIA activity  ·  Intel lead";
+   lines.Insert("Approximate area of an insurgent hideout");
+   lines.Insert("More intel or contacts will narrow the ring");
+   return true;
+  }
+  if (kind == 6)
+  {
+   title = raw;
+   lines.Insert("Friendly fire mission danger area");
+   lines.Insert("Keep friendly squads clear of the ring");
+   return true;
+  }
+  string clean = raw;
+  if (kind == 0 || kind == 1) clean = raw.Substring(1, raw.Length() - 1);
+  title = clean;
+  if (kind == 0) lines.Insert("Tactical range / coverage ring");
+  else if (kind == 1) lines.Insert("Recent civilian presence reported here");
+  else lines.Insert("Active map zone");
+  return true;
  }
 
  // The base nearest 'pos' within PLACE_NEAR m ("Crossroads"), else "the map point".

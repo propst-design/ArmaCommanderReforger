@@ -14,13 +14,21 @@ modded class SCR_MapMarkerWidgetComponent
  Widget ACR_Symbol() { return m_wSymbolRoot; }
  bool ACR_Hovered() { return m_ACR_BaseHovered; }
 
- // On the dark map a base's name is white (a marker's text is black).
+ // On the dark map a persistent caption (base, danger zone, empty vehicle) is light-tinted
+ // instead of vanilla black so it stays readable against dark terrain.
  override void SetColor(Color color)
  {
   super.SetColor(color);
   ACR_UnitMarker marker = ACR_UnitMarker.Cast(m_MarkerObject);
-  if (!marker || marker.m_BaseIndex < 0 || !m_wMarkerText || !ACR_MapDeclutter.BasesOn() || !ACR_MapDeclutter.Dark()) return;
-  m_wMarkerText.SetColor(ACR_MapDeclutter.Rgb(238, 240, 242));
+  if (!marker || !m_wMarkerText || !ACR_MapDeclutter.Dark()) return;
+  if (marker.m_BaseIndex >= 0 && ACR_MapDeclutter.BasesOn())
+  {
+   m_wMarkerText.SetColor(ACR_MapDeclutter.Rgb(238, 240, 242));
+   return;
+  }
+  if (!marker.m_bKeepCaption) return;
+  if (marker.m_iVehicleIndex >= 0) m_wMarkerText.SetColor(ACR_MapDeclutter.Rgb(205, 228, 248));
+  else if (marker.m_bZone) m_wMarkerText.SetColor(ACR_MapDeclutter.Rgb(255, 222, 192));
  }
 }
 
