@@ -20,7 +20,25 @@
         "0.6.1",
         "0.7.0"
       ],
-      "pending": null,
+      "pending": {
+        "version": "0.7.1",
+        "messages": [
+          {
+            "content": "<@&1562228542274797608>\nArma Commander Actual — 0.7.1\nhttps://reforger.armaplatform.com/workshop/AC230926A0010001\nPart 1/1 · relay 5dffc4eeb888564f:1\n\n0.7.1\r\n\r\nHotfix for unclickable Blue/Red faction tabs in the deck builder.\r\n\r\nFIXED\r\n\r\n- Deck builder: the Blue and Red faction tabs in the header can now be clicked to switch sides (removed the title-bar drag overlay that was sitting over the tabs; the panel still drags by its header and empty margins).",
+            "allowed_mentions": {
+              "parse": [],
+              "users": [],
+              "roles": [
+                "1562228542274797608"
+              ],
+              "replied_user": false
+            },
+            "flags": 4
+          }
+        ],
+        "next": 0,
+        "inflight": null
+      },
       "delivered": {
         "0.5.7": [
           "1564098843732353084",
