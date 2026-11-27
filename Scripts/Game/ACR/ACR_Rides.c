@@ -54,6 +54,19 @@ class ACR_Ride
  bool m_bParked;                // ...and its handbrake was set: let off when it drives on
 }
 
+class ACR_CoPickup : Managed
+{
+ int m_iPlayerId;
+ ACR_Squad m_Taxi;
+ Vehicle m_Vehicle;
+ string m_sFaction;
+ vector m_Pickup;
+ vector m_Drop;
+ int m_State; // ACR_ERideState (TO_PICKUP, BOARDING, TO_DROP, PULLING_UP)
+ float m_fStateSince;
+ int m_iTaxiSerial;
+}
+
 class ACR_Rides : Managed
 {
  static const float WASTED_SEAT_M = 30;        // m: penalty per empty seat when picking a transport
@@ -101,6 +114,7 @@ class ACR_Rides : Managed
  protected ACR_Manager m_Manager;
  ref array<ref ACR_Ride> m_Rides = {};
  ref array<ref ACR_Ride> m_Unloading = {};    // rides over, transport waiting for its riders to get out
+ ref array<ref ACR_CoPickup> m_CoPickups = {}; // CO pickup trips (CO_PICKUP)
  ref map<string, float> m_NoTransportAt = new map<string, float>(); // faction -> last time a ride for more than LIGHT_PARTY found no transport
  ref map<string, float> m_NoLightAt = new map<string, float>();     // ...and for a party a jeep seats (LIGHT_PARTY or fewer)
  // A party this small fits a jeep (a UAZ, M151 or HMMWV: three passenger seats). The AI commander
@@ -194,7 +208,7 @@ class ACR_Rides : Managed
  {
   if (FactionOf(squad) != faction) return "other side";
   if (squad.HasPlayer()) return "led by a player";
-  if (RideOf(squad) || Unloading(squad)) return "already giving a ride";
+  if (RideOf(squad) || Unloading(squad) || CoPickupOf(squad)) return "already giving a ride";
   if (squad.m_iAITask == ACR_EAITask.RESCUE) return "on an evac (zombie containment)";
   if (squad.m_iAITask == ACR_EAITask.PALLET) return "recovering a supply pallet";
   if (squad.m_iAITask == ACR_EAITask.SUPPLY_RUN) return "on a supply run";
@@ -667,6 +681,15 @@ class ACR_Rides : Managed
 
  void CancelFor(ACR_Squad squad)
  {
+  for (int c = m_CoPickups.Count() - 1; c >= 0; c--)
+  {
+   ACR_CoPickup pickup = m_CoPickups[c];
+   if (pickup && pickup.m_Taxi == squad)
+   {
+    m_Manager.Notify(pickup.m_iPlayerId, "CO pickup cancelled: transport reassigned");
+    m_CoPickups.RemoveOrdered(c);
+   }
+  }
   for (int i = m_Rides.Count() - 1; i >= 0; i--)
   {
    ACR_Ride ride = m_Rides[i];
@@ -699,6 +722,11 @@ class ACR_Rides : Managed
   {
    ACR_Ride unload = m_Unloading[u];
    if (!WaitForRidersOut(unload)) m_Unloading.RemoveOrdered(u);
+  }
+  for (int c = m_CoPickups.Count() - 1; c >= 0; c--)
+  {
+   ACR_CoPickup pickup = m_CoPickups[c];
+   if (!StepCoPickup(pickup)) m_CoPickups.RemoveOrdered(c);
   }
  }
 
@@ -1358,5 +1386,192 @@ class ACR_Rides : Managed
   if (ride.m_Rider) rider = ride.m_Rider.GetName();
   if (ride.m_Taxi) taxi = ride.m_Taxi.GetName();
   PrintFormat("[ACR] RIDE %1 (%2): %3", rider, taxi, what);
+ }
+
+ // ---------------------------------------------------------------- CO pickup (CO_PICKUP)
+
+ ACR_CoPickup CoPickupOf(ACR_Squad taxi)
+ {
+  foreach (ACR_CoPickup pickup : m_CoPickups)
+   if (pickup && pickup.m_Taxi == taxi) return pickup;
+  return null;
+ }
+
+ bool RequestForCommander(SCR_PlayerController pc, vector dest, out string why)
+ {
+  why = "";
+  if (!pc) { why = "no player"; return false; }
+  int id = pc.GetPlayerId();
+  IEntity main = pc.GetMainEntity();
+  if (!main || !ACR_Respawn.IsAlive(main)) { why = "your command unit is dead"; return false; }
+  if (ACR_Transport.VehicleOf(main)) { why = "your command unit is already in a vehicle"; return false; }
+  Faction faction = SCR_FactionManager.SGetPlayerFaction(id);
+  if (!faction) { why = "no side"; return false; }
+  string side = faction.GetFactionKey();
+  // Cancel any earlier pickup for this commander.
+  for (int i = m_CoPickups.Count() - 1; i >= 0; i--)
+  {
+   ACR_CoPickup old = m_CoPickups[i];
+   if (old && old.m_iPlayerId == id)
+   {
+    if (old.m_Taxi && old.m_Taxi.m_iOrderSerial == old.m_iTaxiSerial) SendTaxiHome(old.m_Taxi, old.m_Vehicle, old.m_sFaction);
+    m_CoPickups.RemoveOrdered(i);
+   }
+  }
+  vector from = main.GetOrigin();
+  bool hasDrop = dest != vector.Zero && vector.DistanceXZ(from, dest) >= 80;
+  float trip = 1000;
+  if (hasDrop) trip = Math.Max(800, vector.DistanceXZ(from, dest));
+  float fetch;
+  ACR_Squad taxi = FindTransport(side, from, trip, 1, fetch, true, null, true, false);
+  if (!taxi)
+  {
+   why = string.Format("no free transport within %1 m", (int)MAX_PICKUP_AI);
+   return false;
+  }
+  Vehicle vehicle = Vehicle.Cast(ACR_Transport.CrewedVehicle(taxi));
+  if (!vehicle) { why = "transport unavailable"; return false; }
+  ACR_CoPickup pickup = new ACR_CoPickup();
+  pickup.m_iPlayerId = id;
+  pickup.m_Taxi = taxi;
+  pickup.m_Vehicle = vehicle;
+  pickup.m_sFaction = side;
+  pickup.m_Pickup = ACR_Manager.Ground(from);
+  pickup.m_Drop = vector.Zero;
+  if (hasDrop) pickup.m_Drop = ACR_Manager.Ground(dest);
+  pickup.m_State = ACR_ERideState.TO_PICKUP;
+  pickup.m_fStateSince = GetGame().GetWorld().GetWorldTime();
+  taxi.RouteTo(pickup.m_Pickup, ACR_Squad.WP_MOVE, -1, "Picking up CO", ACR_EOrderKind.MOVE);
+  taxi.SetOrder("Picking up CO", ACR_EOrderState.RIDE);
+  pickup.m_iTaxiSerial = taxi.m_iOrderSerial;
+  m_CoPickups.Insert(pickup);
+  PrintFormat("[ACR] CO PICKUP player=%1 taxi=%2 dist=%3 m drop=%4", id, taxi.GetName(), (int)fetch, hasDrop);
+  if (hasDrop) why = string.Format("%1 en route to pick up your command unit (%2 m away)", taxi.GetName(), (int)fetch);
+  else why = string.Format("%1 en route to your command unit (%2 m away)", taxi.GetName(), (int)fetch);
+  return true;
+ }
+
+ protected bool StepCoPickup(ACR_CoPickup pickup)
+ {
+  if (!pickup || !pickup.m_Taxi || !pickup.m_Vehicle || !m_Manager.m_Squads.Contains(pickup.m_Taxi))
+  {
+   if (pickup) m_Manager.Notify(pickup.m_iPlayerId, "CO pickup cancelled: transport lost");
+   return false;
+  }
+  if (pickup.m_Taxi.m_iOrderSerial != pickup.m_iTaxiSerial)
+  {
+   m_Manager.Notify(pickup.m_iPlayerId, "CO pickup cancelled: transport given another order");
+   return false;
+  }
+  PlayerManager pm = GetGame().GetPlayerManager();
+  SCR_PlayerController pc;
+  if (pm) pc = SCR_PlayerController.Cast(pm.GetPlayerController(pickup.m_iPlayerId));
+  IEntity main;
+  if (pc) main = pc.GetMainEntity();
+  if (!main || !ACR_Respawn.IsAlive(main))
+  {
+   SendTaxiHome(pickup.m_Taxi, pickup.m_Vehicle, pickup.m_sFaction);
+   return false;
+  }
+  float now = GetGame().GetWorld().GetWorldTime();
+  float elapsed = now - pickup.m_fStateSince;
+  bool aboard = ACR_Transport.VehicleOf(main) == pickup.m_Vehicle;
+  vector vehPos = pickup.m_Vehicle.GetOrigin();
+
+  if (pickup.m_State == ACR_ERideState.TO_PICKUP)
+  {
+   if (aboard)
+   {
+    if (pickup.m_Drop == vector.Zero)
+    {
+     pickup.m_Taxi.Halt("Holding");
+     m_Manager.Notify(pickup.m_iPlayerId, pickup.m_Taxi.GetName() + ": aboard — order it on the map where to drive.");
+     return false;
+    }
+    pickup.m_State = ACR_ERideState.TO_DROP;
+    pickup.m_fStateSince = now;
+    pickup.m_Taxi.RouteTo(pickup.m_Drop, ACR_Squad.WP_MOVE, -1, "Carrying CO", ACR_EOrderKind.MOVE);
+    pickup.m_Taxi.SetOrder("Carrying CO", ACR_EOrderState.RIDE);
+    pickup.m_iTaxiSerial = pickup.m_Taxi.m_iOrderSerial;
+    m_Manager.Notify(pickup.m_iPlayerId, string.Format("%1 moving to %2.", pickup.m_Taxi.GetName(), ACR_Manager.Grid(pickup.m_Drop)));
+    return true;
+   }
+   if (vector.DistanceXZ(vehPos, main.GetOrigin()) <= PICKUP_REACHED)
+   {
+    pickup.m_State = ACR_ERideState.BOARDING;
+    pickup.m_fStateSince = now;
+    pickup.m_Taxi.Halt("Waiting for CO", ACR_EOrderState.RIDE);
+    pickup.m_iTaxiSerial = pickup.m_Taxi.m_iOrderSerial;
+    m_Manager.Notify(pickup.m_iPlayerId, pickup.m_Taxi.GetName() + " arrived — board within 60 s.");
+    return true;
+   }
+   if (elapsed > PICKUP_TIMEOUT_MS)
+   {
+    SendTaxiHome(pickup.m_Taxi, pickup.m_Vehicle, pickup.m_sFaction);
+    m_Manager.Notify(pickup.m_iPlayerId, "CO pickup timed out.");
+    return false;
+   }
+   return true;
+  }
+
+  if (pickup.m_State == ACR_ERideState.BOARDING)
+  {
+   if (aboard)
+   {
+    if (pickup.m_Drop == vector.Zero)
+    {
+     pickup.m_Taxi.Halt("Holding");
+     m_Manager.Notify(pickup.m_iPlayerId, pickup.m_Taxi.GetName() + ": aboard — order it on the map where to drive.");
+     return false;
+    }
+    pickup.m_State = ACR_ERideState.TO_DROP;
+    pickup.m_fStateSince = now;
+    pickup.m_Taxi.RouteTo(pickup.m_Drop, ACR_Squad.WP_MOVE, -1, "Carrying CO", ACR_EOrderKind.MOVE);
+    pickup.m_Taxi.SetOrder("Carrying CO", ACR_EOrderState.RIDE);
+    pickup.m_iTaxiSerial = pickup.m_Taxi.m_iOrderSerial;
+    m_Manager.Notify(pickup.m_iPlayerId, string.Format("%1 moving to %2.", pickup.m_Taxi.GetName(), ACR_Manager.Grid(pickup.m_Drop)));
+    return true;
+   }
+   if (elapsed > PLAYER_UNLOAD_MS)
+   {
+    SendTaxiHome(pickup.m_Taxi, pickup.m_Vehicle, pickup.m_sFaction);
+    m_Manager.Notify(pickup.m_iPlayerId, pickup.m_Taxi.GetName() + " left: CO did not board.");
+    return false;
+   }
+   return true;
+  }
+
+  if (pickup.m_State == ACR_ERideState.TO_DROP)
+  {
+   if (!aboard)
+   {
+    SendTaxiHome(pickup.m_Taxi, pickup.m_Vehicle, pickup.m_sFaction);
+    return false;
+   }
+   if (vector.DistanceXZ(vehPos, pickup.m_Drop) <= DROP_REACHED)
+   {
+    pickup.m_State = ACR_ERideState.PULLING_UP;
+    pickup.m_fStateSince = now;
+    pickup.m_Taxi.Halt("Dropping CO", ACR_EOrderState.RIDE);
+    pickup.m_iTaxiSerial = pickup.m_Taxi.m_iOrderSerial;
+    m_Manager.Notify(pickup.m_iPlayerId, pickup.m_Taxi.GetName() + " arrived at drop-off.");
+    return true;
+   }
+   if (elapsed > PICKUP_TIMEOUT_MS * 2)
+   {
+    SendTaxiHome(pickup.m_Taxi, pickup.m_Vehicle, pickup.m_sFaction);
+    m_Manager.Notify(pickup.m_iPlayerId, "CO drop-off timed out.");
+    return false;
+   }
+   return true;
+  }
+
+  // PULLING_UP: wait for CO to dismount (up to PLAYER_UNLOAD_MS), then head home.
+  if (!aboard || elapsed > PLAYER_UNLOAD_MS)
+  {
+   SendTaxiHome(pickup.m_Taxi, pickup.m_Vehicle, pickup.m_sFaction);
+   return false;
+  }
+  return true;
  }
 }

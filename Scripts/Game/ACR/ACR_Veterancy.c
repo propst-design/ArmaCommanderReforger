@@ -173,6 +173,7 @@ class ACR_Veterancy
 	protected static void Award(ACR_Squad squad, ACR_SquadRecord rec, float xp, string note)
 	{
 		if (!squad || !rec || xp <= 0) return;
+		xp *= ACR_CommandPresence.XPScale(squad);
 		int alive = squad.CountAlive();
 		if (alive > 0 && rec.m_iLastAlive <= 0) rec.m_iLastAlive = alive;
 		rec.m_fXP += xp;

@@ -517,6 +517,11 @@ class ACR_Supports : Managed
   ACR_FactionData data = m_Manager.m_Bases.GetFaction(factionKey);
   if (index < 0 || index >= data.m_aSupports.Count()) return "Unknown support";
   ACR_SupportEntry entry = data.m_aSupports[index];
+  if (!byAI && !ACR_Mortars.IsMortarType(entry.m_eType))
+  {
+   int disrupted = ACR_CommandPresence.DisruptedSeconds(callerPlayerId);
+   if (disrupted > 0) return string.Format("Command net reorganizing (%1 s)", disrupted);
+  }
   float now = GetGame().GetWorld().GetWorldTime();
   bool waveSlot = entry.m_eType == ACR_ESupportType.AIR_LIFT && ACR_AirLift.WaveSlotAvailable(factionKey, now);
   if (now < entry.m_fReadyAt && !waveSlot) return string.Format("%1 is not ready (%2 s)", entry.m_sName, Math.Ceil((entry.m_fReadyAt - now) / 1000));
@@ -554,6 +559,14 @@ class ACR_Supports : Managed
   vector dir = ApproachDirection(factionKey, target);
   string where = ACR_Manager.Grid(target);
   int delay = DefaultDelay(entry.m_eType);
+  bool observed = !byAI && ACR_CommandPresence.ObservedBy(callerPlayerId, factionKey, target);
+  bool observedBonus = observed && (entry.m_eType == ACR_ESupportType.ARTILLERY_BATTERY || entry.m_eType == ACR_ESupportType.BOMB_RUN || entry.m_eType == ACR_ESupportType.ROCKET_STRIKE);
+  float scatterScale = 1.0;
+  if (observedBonus)
+  {
+   delay = Math.Max(5, (int)Math.Round(delay * ACR_CommandPresence.OBSERVE_DELAY_SCALE));
+   scatterScale = ACR_CommandPresence.OBSERVE_SCATTER_SCALE;
+  }
   PrintFormat("[ACR] SUPPORT %1 %2 at %3 (delay %4 s)", factionKey, entry.m_sName, target, delay);
   // A recon flight harms nobody: no danger area on the map, and the photographs land in the
   // side's intel as the jet crosses (ACR_ReconRun).
@@ -595,7 +608,7 @@ class ACR_Supports : Managed
      for (int gun = 0; gun < BATTERY_ROUNDS; gun++)
      {
       float shellAngle = Math.RandomFloat(0, Math.PI2);
-      float shellSpread = BATTERY_RADIUS * Math.Sqrt(Math.RandomFloat(0, 1));
+      float shellSpread = BATTERY_RADIUS * scatterScale * Math.Sqrt(Math.RandomFloat(0, 1));
       vector shellAt = target + Vector(Math.Cos(shellAngle) * shellSpread, 0, Math.Sin(shellAngle) * shellSpread);
       int shellMs = (delay - BATTERY_FALL_SECONDS) * 1000 + salvo * BATTERY_SALVO_SECONDS * 1000 + gun * Math.RandomIntInclusive(150, 600);
       if (shellMs < 0) shellMs = 0;
@@ -605,7 +618,7 @@ class ACR_Supports : Managed
     break;
    }
    case ACR_ESupportType.BOMB_RUN:
-    if (!StartBombRun(entry, target, dir, delay, callerPlayerId))
+    if (!StartBombRun(entry, target, dir, delay, callerPlayerId, scatterScale))
     {
      m_Manager.m_Bases.Refund(factionKey, entry.m_iCost);
      entry.m_fReadyAt = now;
@@ -673,11 +686,12 @@ class ACR_Supports : Managed
   string eta = string.Format("%1 s", delay);
   if (delay >= 30) eta = string.Format("about %1 s", (int)Math.Round(delay / 15.0) * 15);
   string message = string.Format("%1 on %2, ETA %3.", entry.m_sName, where, eta);
+  if (observedBonus) message += " (CO observed — faster, tighter)";
   if (!byAI) m_Manager.NotifyFaction(factionKey, message);
   return message;
  }
 
- protected bool StartBombRun(ACR_SupportEntry entry, vector target, vector dir, int delay, int callerPlayerId)
+ protected bool StartBombRun(ACR_SupportEntry entry, vector target, vector dir, int delay, int callerPlayerId, float scatterScale = 1.0)
  {
   if (entry.m_eBombRunDelivery == ACR_EBombRunDelivery.EDITABLE_CALL_IN)
   {
@@ -724,7 +738,7 @@ class ACR_Supports : Managed
 
   int count = Math.Clamp(entry.m_iBombRunBombs, 1, 12);
   float spacing = Math.Clamp(entry.m_fBombRunSpacing, 1, 500);
-  float scatter = Math.Clamp(entry.m_fBombRunScatter, 0, 100);
+  float scatter = Math.Clamp(entry.m_fBombRunScatter, 0, 100) * scatterScale;
   vector right = Vector(dir[2], 0, -dir[0]);
   int interval = Math.Round(spacing / Math.Clamp(entry.m_fBombRunSpeed, 20, 400) * 1000);
   if (entry.m_eBombRunDelivery == ACR_EBombRunDelivery.VIRTUAL)

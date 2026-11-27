@@ -23,6 +23,7 @@ class ACR_StaticInit
   ACR_BaseRing.ACR_InitStatics();
   ACR_BaseSurvey.ACR_InitStatics();
   ACR_BaseWorks.ACR_InitStatics();
+  ACR_CommandPresence.ACR_InitStatics();
   ACR_Containment.ACR_InitStatics();
   ACR_Evac.ACR_InitStatics();
   ACR_Airdrop.ACR_InitStatics();

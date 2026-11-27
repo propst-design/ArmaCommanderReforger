@@ -65,7 +65,9 @@ enum ACR_EPanelAction
  TOGGLE_MUSTER,           // insurgent requisition: muster on map toggle (#97 item 9)
  DISPERSE,                // insurgent band: disperse (#97 item 9)
  DRAW_IED_KIT,            // insurgent hideout: draw hand-fired IED kit (#97 item 9)
- TOGGLE_DISGUISE          // insurgent player: go plain / drop disguise (#97 item 10)
+ TOGGLE_DISGUISE,         // insurgent player: go plain / drop disguise (#97 item 10)
+ ESCORT = 375,            // selected squad escorts the commander's primary command unit
+ CO_PICKUP                // summon a free transport to pick up the commander's primary command unit
 }
 
 enum ACR_ECursorMode
@@ -296,6 +298,7 @@ class ACR_CommandPanel : Managed
   // TvTvZ truce (#107): the server answers whether one can be had.
   AddButton(m_MoreSection, "Truce: offer / accept", ACR_EPanelAction.TRUCE_OFFER);
   AddButton(m_MoreSection, "Truce: refuse / break", ACR_EPanelAction.TRUCE_REFUSE);
+  AddButton(m_MoreSection, "CO pickup (ride)", ACR_EPanelAction.CO_PICKUP);
   RefreshKeyHints();
   RefreshRadioAudio();
   AddExtraRows(m_MoreSection);
@@ -360,6 +363,7 @@ class ACR_CommandPanel : Managed
   Widget orders4 = ws.CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_OrderSection);
   m_PatrolButton = AddButton(orders4, "Patrol", ACR_EPanelAction.PATROL, true);
   m_QrfButton = AddButton(orders4, "QRF", ACR_EPanelAction.QRF, true);
+  AddButton(orders4, "Escort CO", ACR_EPanelAction.ESCORT, true);
   // Containment only (#107): the evac row.
   m_EvacRow = ws.CreateWidget(WidgetType.HorizontalLayoutWidgetTypeID, WidgetFlags.VISIBLE, Color.FromInt(Color.WHITE), 0, m_OrderSection);
   m_EvacButton = AddButton(m_EvacRow, "Evac point", ACR_EPanelAction.EVAC, true);
